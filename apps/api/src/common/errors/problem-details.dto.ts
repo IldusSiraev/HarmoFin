@@ -1,21 +1,21 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ProblemDetailsResponse {
-  @ApiProperty({ example: 'about:blank' })
+  @ApiProperty({ type: String, example: 'about:blank' })
   type!: string;
 
-  @ApiProperty({ example: 'Сервис временно недоступен' })
+  @ApiProperty({ type: String, example: 'Сервис временно недоступен' })
   title!: string;
 
-  @ApiProperty({ example: 503 })
+  @ApiProperty({ type: Number, example: 503 })
   status!: number;
 
-  @ApiProperty({ example: 'DATABASE_UNAVAILABLE' })
+  @ApiProperty({ type: String, example: 'DATABASE_UNAVAILABLE' })
   code!: string;
 
-  @ApiProperty({ example: 'База данных временно недоступна.' })
+  @ApiProperty({ type: String, example: 'База данных временно недоступна.' })
   detail!: string;
 
-  @ApiProperty({ example: 'req-1' })
+  @ApiProperty({ type: String, example: 'req-1' })
   requestId!: string;
 }

@@ -44,13 +44,26 @@ describe('API health contract', () => {
     expect(response.json()).toEqual({ status: 'ok', dependencies: { database: 'ok' } });
   });
 
-  it('publishes its OpenAPI health paths', async () => {
+  it('publishes its OpenAPI health paths and Problem Details schema', async () => {
     const response = await server.inject({ method: 'GET', url: '/openapi.json' });
-    const document = response.json<{ paths: Record<string, unknown> }>();
+    const document = response.json<{
+      paths: Record<string, unknown>;
+      components: {
+        schemas: Record<string, { properties?: Record<string, { type?: string }> }>;
+      };
+    }>();
 
     expect(response.statusCode).toBe(200);
     expect(document.paths['/api/v1/health/live']).toBeDefined();
     expect(document.paths['/api/v1/health/ready']).toBeDefined();
+    expect(document.components.schemas.ProblemDetailsResponse?.properties).toMatchObject({
+      type: { type: 'string' },
+      title: { type: 'string' },
+      status: { type: 'number' },
+      code: { type: 'string' },
+      detail: { type: 'string' },
+      requestId: { type: 'string' },
+    });
   });
 });
 
