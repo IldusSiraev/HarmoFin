@@ -1,94 +1,152 @@
 # HarmoFin
 
-HarmoFin is a planned web application for managing a personal and family budget. It connects the actual movement of money across accounts with the purpose assigned to that money in envelopes, and works with configurable financial cycles rather than calendar months alone.
+HarmoFin — веб-приложение для личного и семейного бюджета. Оно связывает фактическое движение денег по счетам с назначением денег в конвертах и поддерживает настраиваемые финансовые циклы.
 
-## Current status
+## Текущий статус
 
-The product and development design are approved. Implementation has not started: the application scaffold, dependencies, services, and tests are not available yet. This repository currently contains project metadata and approved source documents only.
+Foundation Этапа 0 реализован: monorepo, web, API, worker, локальная PostgreSQL и базовые проверки готовы. Продуктовые функции MVP — аутентификация, бюджеты, счета, конверты, операции и расчёты — ещё не реализованы.
 
-## MVP scope
+## Стек foundation
 
-The MVP is planned to include:
+- **Runtime:** Node.js 24.20.0, pnpm 11.24.0;
+- **Web:** Nuxt 4.5.2, Vue 3.5.42, TypeScript strict;
+- **API:** NestJS 11.2.3, Fastify 5.11.3, REST/OpenAPI;
+- **Worker:** отдельный TypeScript-процесс с безопасным lifecycle;
+- **Local infrastructure:** PostgreSQL 18 через Docker Compose;
+- **Quality:** ESLint, Prettier, Vitest, GitHub Actions.
 
-- email/password registration, sign-in, sign-out, password recovery, and server-managed sessions;
-- a family budget with bank accounts, cards, cash, initial balances, envelopes, categories, and a configurable financial cycle;
-- manually entered confirmed income, expenses, and transfers, including transfers split into parts;
-- income allocation without duplicating the underlying income operation, including the configurable `Шабашка` rule;
-- regular plans, in-app notifications, dashboard, basic analytics, export, an adaptive interface, logical deletion/recovery, and an audit history;
-- a data model prepared for multiple budgets and future roles, while the MVP interface uses one active owner budget.
+Полный стек и продуктовые границы описаны в [спецификации разработки](docs/superpowers/specs/2026-08-30-family-budget-development-spec.md).
 
-The MVP explicitly excludes:
+## Требования
 
-- CSV/XLSX statement import and automatic bank connections or bank APIs;
-- Telegram, email, and push notification delivery;
-- full multi-currency conversion and credit/debt accounts;
-- collaborative access in the user interface;
-- AI analysis or recommendations;
-- SaaS tariffs, subscriptions, and billing.
+- Node.js `24.20.0`;
+- Corepack и pnpm `11.24.0`;
+- Docker Desktop с Docker Compose.
 
-These exclusions are deliberate acceptance boundaries, not missing implementation tasks for the MVP.
+Проверить версии:
 
-## Approved technology direction
-
-The planned stack is:
-
-- **Web:** Nuxt 4.x, Vue 3.5+, TypeScript in strict mode, Pinia, TanStack Query for Vue;
-- **UI and forms:** PrimeVue, Tailwind CSS, vee-validate, Zod, and ECharts;
-- **API:** NestJS 11.x with Fastify, REST and OpenAPI contracts;
-- **Data:** PostgreSQL 18.x, Prisma with controlled SQL, and PostgreSQL-backed jobs with a separate worker;
-- **Authentication:** Argon2id, server-side sessions, and Secure HttpOnly cookies;
-- **Infrastructure:** Docker and Docker Compose, managed PostgreSQL, and S3-compatible object storage;
-- **Testing and operations:** Vitest and/or Jest with Supertest, Playwright, Sentry or a compatible error service, and OpenTelemetry with a Prometheus-compatible metrics backend.
-
-Versions and dependencies will be introduced in a later implementation task. Nothing in this list implies that the tools are installed or configured now.
-
-## Planned monorepo layout
-
-The target layout is planned, not yet created:
-
-```text
-apps/       # web, api, and worker
-packages/   # API contracts, validation, domain types, shared configuration
-prisma/     # schema, migrations, and seed
-infra/      # Docker, Compose, environments, and operational scripts
-docs/       # architecture, API, runbooks, and ADRs
-e2e/        # end-to-end tests
+```bash
+node --version
+corepack enable
+corepack prepare pnpm@11.24.0 --activate
+pnpm --version
+docker compose version
 ```
 
-## Implementation stages
+## Локальный запуск
 
-The approved implementation sequence is:
+Установить зависимости:
 
-0. **Foundation:** monorepo metadata, runtime versions, quality tooling, local container plan, CI plan, README, and ADRs.
-1. **Database and authentication:** schema, migrations, seed, users, sessions, workspaces, budgets, access guards, and initial audit support.
-2. **Reference data and accounts:** accounts, initial balances, categories, envelopes, budget settings, base balance calculations, and settings pages.
-3. **Operations and allocations:** income, expenses, income allocation, the `Шабашка` rule, cycles and periods, dashboard, operations, and filters.
-4. **Transfers:** single- and multi-part transfers, envelope allocation, atomicity, idempotency, and balance tests.
-5. **Plans and notifications:** recurring plans, occurrences, worker processing, internal notifications, and explicit confirmation before creating actual operations.
-6. **Analytics and export:** reports, cycle trends, plan-versus-fact views, savings goals, accessible chart data, export, and responsive polish.
-7. **Production readiness:** staging and production infrastructure, backup/PITR, restore drill, monitoring, runbooks, security review, load checks, acceptance tests, and controlled release.
+```bash
+pnpm install --frozen-lockfile
+```
 
-## Commands
+Создать локальный env-файл.
 
-Install, development, migration, seed, test, and build commands are **not available yet**. Do not infer or invent commands from the planned stack. This section will be updated when real project commands are added.
+Windows:
 
-## Security baseline
+```bash
+copy .env.example .env
+```
 
-- Never commit secrets or place them in images or client bundles.
-- Calculate and validate financial values on the server; use integer-safe minor units or decimal-safe handling rather than floating-point truth.
-- Enforce workspace and budget isolation on the server for every relevant operation.
-- Do not put passwords, session secrets, payment details, or sensitive financial payloads in logs.
-- Store only the payment information needed by the product; full card numbers, CVV, and bank credentials are not part of the model.
+macOS/Linux:
 
-## Approved sources
+```bash
+cp .env.example .env
+```
 
-- [Functional specification](docs/superpowers/specs/2026-08-30-family-budget-app-spec.md)
-- [Development specification](docs/superpowers/specs/2026-08-30-family-budget-development-spec.md)
-- [Project initialization design](docs/superpowers/specs/2026-08-30-project-initialization-design.md)
-- [Initial categories](categories.txt)
+Запустить PostgreSQL:
 
-These documents are the source of product and technical requirements. The functional specification governs product behavior; the development specification governs implementation choices.
+```bash
+pnpm infra:up
+```
 
-## License
+Запустить web, API и worker в отдельных workspace-процессах:
 
-No usage license is granted until a `LICENSE` file is added to the repository.
+```bash
+pnpm dev
+```
+
+Остановить PostgreSQL:
+
+```bash
+pnpm infra:down
+```
+
+`pnpm infra:down` не удаляет named volume с локальными данными.
+
+## Локальные адреса
+
+- Web: http://localhost:3000/
+- API live: http://localhost:3001/api/v1/health/live
+- API ready: http://localhost:3001/api/v1/health/ready
+- OpenAPI UI: http://localhost:3001/docs
+- OpenAPI JSON: http://localhost:3001/openapi.json
+
+`live` проверяет работоспособность API-процесса. `ready` дополнительно выполняет безопасный probe PostgreSQL.
+
+## Проверки
+
+```bash
+pnpm format
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm test:integration
+pnpm build
+```
+
+Интеграционные тесты требуют доступной локальной PostgreSQL:
+
+```bash
+pnpm infra:up
+pnpm test:integration
+```
+
+## Границы foundation
+
+В текущем этапе намеренно отсутствуют:
+
+- Prisma schema, migrations и seed;
+- пользователи, сессии, бюджеты, аутентификация и авторизация;
+- финансовые сущности, балансы и бизнес-расчёты;
+- PrimeVue, Tailwind CSS, Pinia, TanStack Query, vee-validate и ECharts;
+- frontend OpenAPI client;
+- production images, staging, production deploy, object storage и observability backends;
+- E2E-сценарии продукта.
+
+Foundation не содержит фиктивных финансовых данных и не имитирует готовый MVP.
+
+## План реализации
+
+1. Foundation — текущий этап;
+2. база данных и аутентификация;
+3. справочники и счета;
+4. операции и распределения;
+5. переводы;
+6. планы и уведомления;
+7. аналитика и экспорт;
+8. production readiness.
+
+## Документация
+
+- [Функциональное ТЗ](docs/superpowers/specs/2026-08-30-family-budget-app-spec.md);
+- [Спецификация разработки](docs/superpowers/specs/2026-08-30-family-budget-development-spec.md);
+- [Дизайн инициализации репозитория](docs/superpowers/specs/2026-08-30-project-initialization-design.md);
+- [Дизайн foundation](docs/superpowers/specs/2026-08-31-project-foundation-design.md);
+- [Implementation plan foundation](docs/superpowers/plans/2026-08-31-project-foundation.md);
+- [ADR](docs/adr/);
+- [Начальные категории](categories.txt).
+
+## Безопасность
+
+- Не коммитить реальные `.env`, secrets, credentials и production-конфигурацию.
+- Не хранить auth-секреты в клиентском bundle или `localStorage`.
+- Финансовые расчёты должны выполняться на сервере; floating-point значения не могут быть источником истины для денег.
+- Каждый запрос к пользовательским данным должен проверять workspace и budget isolation на сервере.
+- Пароли, cookies, session secrets и полные финансовые payload не должны попадать в логи.
+
+## Лицензия
+
+Права на использование не предоставлены, пока в репозитории отсутствует файл `LICENSE`.

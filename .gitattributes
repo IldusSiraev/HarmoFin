@@ -37,6 +37,7 @@
 *.npmrc text eol=lf
 *.nvmrc text eol=lf
 *.prettierrc text eol=lf
+.prettierignore text eol=lf
 *.eslintrc text eol=lf
 *.editorconfig text eol=lf
 *.gitignore text eol=lf

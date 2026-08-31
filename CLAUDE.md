@@ -5,13 +5,34 @@
 - The [functional specification](docs/superpowers/specs/2026-08-30-family-budget-app-spec.md) is authoritative for product behavior, business rules, and acceptance criteria.
 - The [development specification](docs/superpowers/specs/2026-08-30-family-budget-development-spec.md) is authoritative for architecture, implementation, operations, and technical choices.
 - The [initialization design](docs/superpowers/specs/2026-08-30-project-initialization-design.md) defines the repository-only scope of the current initialization work.
+- The [foundation design](docs/superpowers/specs/2026-08-31-project-foundation-design.md) and [foundation plan](docs/superpowers/plans/2026-08-31-project-foundation.md) define the implemented Stage 0 scaffold.
 - Prefer these sources over copied summaries. When they conflict, use the functional specification for behavior and the development specification for implementation.
 
 ## Current scope and planned architecture
 
-This repository is currently metadata-only. The approved architecture is planned and has not been scaffolded: a TypeScript monorepo containing a Nuxt 4/Vue 3 web app, a NestJS/Fastify API, and a separate worker, backed by PostgreSQL and Prisma. The application is a modular monolith with clear domain modules, one transactional database, and OpenAPI contracts between web and API. Do not represent planned directories, services, or tooling as already present.
+This repository contains HarmoFin foundation scaffold: a TypeScript monorepo with a Nuxt 4/Vue 3 web app, a NestJS/Fastify API, and a separate worker, plus shared quality configuration and local PostgreSQL Compose. Product domain implementation has not started. The approved target architecture is a modular monolith with clear domain modules, one transactional database, and OpenAPI contracts between web and API. Do not represent planned domain directories, services, or tooling as already present.
 
 The MVP is for one active owner budget, while the data model and authorization boundaries must be ready for multiple budgets and future workspace roles. MVP exclusions remain explicit: bank statement import and bank integrations, Telegram or external notification delivery, full multi-currency conversion, credit/debt accounts, collaborative UI access, AI analysis, and SaaS billing.
+
+## Foundation commands
+
+Requirements: Node.js 24.20.0, Corepack/pnpm 11.24.0, and Docker Compose. Copy `.env.example` to `.env` before running API or web locally.
+
+Verified root commands:
+
+- `pnpm install --frozen-lockfile`
+- `pnpm dev`
+- `pnpm build`
+- `pnpm lint`
+- `pnpm format`
+- `pnpm format:check`
+- `pnpm typecheck`
+- `pnpm test`
+- `pnpm test:integration`
+- `pnpm infra:up`
+- `pnpm infra:down`
+
+`pnpm infra:up` starts only local PostgreSQL 18. The web, API, and worker run through local Node.js processes. Do not claim that Prisma, authentication, financial domain, production images, deployment, or product E2E tests exist.
 
 ## Financial correctness
 
@@ -43,9 +64,11 @@ Never commit secrets or put them in a Dockerfile or client bundle. Obtain secret
 - Keep migrations in Git, make changes compatible with the surrounding deployment strategy, and do not use destructive production rollback commands without a backup and a recovery plan.
 - Tests must cover financial calculations and invariants, transactionality, budget isolation, authorization, API/OpenAPI behavior, audit and logical deletion, idempotency, worker behavior, and critical responsive user journeys. Use the approved testing direction (Vitest and/or Jest with Supertest, plus Playwright).
 - Meet accessibility expectations: keyboard operation, visible focus, sufficient contrast, labels and field-level errors, non-color-only status communication, screen-reader basics, and touch-friendly controls.
-- Do not fabricate commands or dependencies. Install, development, migration, seed, test, and build commands are not available until implementation creates and verifies them. Update `README.md` when real commands appear.
+- Do not fabricate commands or dependencies. Add commands to `README.md` only after creating and verifying them.
 - Write user-facing documentation and UI text in Russian. Use English for code identifiers, API names, and database schema.
 
 ## Working agreement
 
 Read the source documents linked above before making product or architectural assumptions. Keep planned architecture separate from implemented code, preserve budget isolation and server-side financial correctness in every change, and avoid adding future features to MVP acceptance scope.
+
+Do not modify or stage the pre-existing untracked file `identity/logo_description.png`.

@@ -1,0 +1,4 @@
+{
+  "extends": "@harmofin/tsconfig/node.json",
+  "include": ["src/**/*.ts", "*.config.ts"]
+}

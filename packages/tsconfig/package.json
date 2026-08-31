@@ -1,0 +1,15 @@
+{
+  "name": "@harmofin/tsconfig",
+  "version": "0.0.0",
+  "private": true,
+  "files": [
+    "base.json",
+    "node.json",
+    "nuxt.json"
+  ],
+  "exports": {
+    "./base.json": "./base.json",
+    "./node.json": "./node.json",
+    "./nuxt.json": "./nuxt.json"
+  }
+}
