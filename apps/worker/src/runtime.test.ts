@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { WorkerRuntime, type WorkerLogger } from './runtime.js';
 
@@ -40,6 +40,21 @@ describe('WorkerRuntime', () => {
     await runtime.stop('SIGTERM');
 
     expect(logger.events.filter(({ event }) => event === 'worker_stopped')).toHaveLength(1);
+  });
+
+  it('keeps the process active until shutdown', async () => {
+    const close = vi.fn();
+    const createKeepAlive = vi.fn(() => ({ close }));
+    const runtime = new WorkerRuntime(createFakeLogger(), createKeepAlive);
+
+    runtime.start();
+
+    expect(createKeepAlive).toHaveBeenCalledOnce();
+    expect(close).not.toHaveBeenCalled();
+
+    await runtime.stop('SIGTERM');
+
+    expect(close).toHaveBeenCalledOnce();
   });
 
   it('rejects starting after it stopped', async () => {
