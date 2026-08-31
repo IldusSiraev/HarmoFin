@@ -1,4 +1,11 @@
+import { loadWebConfig } from './config/env.js';
+
+const config = loadWebConfig(process.env);
+
 export default defineNuxtConfig({
+  devServer: {
+    port: config.webPort,
+  },
   devtools: { enabled: false },
   typescript: {
     strict: true,
@@ -6,7 +13,7 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     public: {
-      apiUrl: process.env.API_URL ?? 'http://localhost:3001',
+      apiUrl: config.apiUrl,
     },
   },
 });

@@ -19,5 +19,15 @@ export const vueConfig = [
         extraFileExtensions: ['.vue'],
       },
     },
+    rules: {
+      'vue/max-attributes-per-line': 'off',
+      'vue/singleline-html-element-content-newline': 'off',
+      'vue/multi-word-component-names': [
+        'error',
+        {
+          ignores: ['index'],
+        },
+      ],
+    },
   },
 ];
