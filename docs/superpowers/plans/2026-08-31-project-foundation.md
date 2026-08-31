@@ -6,7 +6,7 @@
 
 **Архитектура:** pnpm workspace объединяет три независимых приложения и два пакета конфигурации. Web обслуживает только русскоязычную техническую стартовую страницу; API использует NestJS/Fastify, `/api/v1` и OpenAPI, а readiness выполняет безопасный PostgreSQL probe; worker пока проверяет конфигурацию и lifecycle, но не обрабатывает jobs. PostgreSQL запускается отдельно через Docker Compose, а приложения — локальным Node.js runtime.
 
-**Технологический стек:** Node.js 24.20.0, pnpm 11.24.0, Nuxt 4.5.2, Vue 3.5.42, TypeScript 5.9.3, NestJS 11.2.3, Fastify 5.12.1, `pg` 8.23.0, Zod 4.5.4, Pino 10.3.1, ESLint 10.9.1, Prettier 3.9.6, Vitest 4.1.11, Docker Compose и GitHub Actions.
+**Технологический стек:** Node.js 24.20.0, pnpm 11.24.0, Nuxt 4.5.2, Vue 3.5.42, TypeScript 5.9.3, NestJS 11.2.3, Fastify 5.11.3, `pg` 8.23.0, Zod 4.5.4, Pino 10.3.1, ESLint 10.9.1, Prettier 3.9.6, Vitest 4.1.11, Docker Compose и GitHub Actions.
 
 **Спецификация:** [docs/superpowers/specs/2026-08-31-project-foundation-design.md](../specs/2026-08-31-project-foundation-design.md)
 
@@ -223,7 +223,7 @@ POSTGRES_PASSWORD=harmofin_local
 - worker: `dev: "tsx watch src/main.ts"`, `build: "tsc -p tsconfig.build.json"`, `typecheck: "tsc --noEmit -p tsconfig.json"`;
 - packages: только config exports, без runtime app scripts.
 
-Указать версии, перечисленные в заголовке плана, точными значениями, не диапазонами. Использовать `workspace:*` для внутренних пакетов.
+Точный список версий в manifests должен соответствовать совместимым версиям, проверенным `pnpm install`; Fastify должен совпадать с версией, которую использует `@nestjs/platform-fastify`, чтобы не создавать два несовместимых типа `FastifyInstance`. Использовать `workspace:*` для внутренних пакетов.
 
 - [ ] **Шаг 4: Установить зависимости и получить lock-файл.**
 
