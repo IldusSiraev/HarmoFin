@@ -1,0 +1,73 @@
+name: Foundation CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin
+      WEB_ORIGIN: http://localhost:3000
+      API_PORT: 3001
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: harmofin
+          POSTGRES_USER: harmofin_local
+          POSTGRES_PASSWORD: harmofin_local
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U harmofin_local -d harmofin"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 5s
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Activate pnpm
+        run: corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Run unit tests
+        run: pnpm test
+
+      - name: Run integration tests
+        run: pnpm test:integration
+
+      - name: Build applications
+        run: pnpm build
+
+      - name: Validate local Compose configuration
+        run: docker compose -f infra/compose/local.yml config --quiet
