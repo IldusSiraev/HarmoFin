@@ -50,7 +50,7 @@ async function submit() {
         maxlength="128"
         type="password"
         :aria-describedby="fieldErrors.password ? 'password-error' : undefined"
-      >
+      />
       <p v-if="fieldErrors.password" id="password-error" class="field-error">
         {{ fieldErrors.password }}
       </p>

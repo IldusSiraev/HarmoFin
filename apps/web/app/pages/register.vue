@@ -56,7 +56,7 @@ async function submit() {
         required
         type="email"
         :aria-describedby="fieldErrors.email ? 'email-error' : undefined"
-      >
+      />
       <p v-if="fieldErrors.email" id="email-error" class="field-error">{{ fieldErrors.email }}</p>
     </div>
     <div class="field">
@@ -70,7 +70,7 @@ async function submit() {
         maxlength="128"
         type="password"
         :aria-describedby="fieldErrors.password ? 'password-error' : undefined"
-      >
+      />
       <p v-if="fieldErrors.password" id="password-error" class="field-error">
         {{ fieldErrors.password }}
       </p>
@@ -78,7 +78,7 @@ async function submit() {
     </div>
     <div class="field">
       <label for="workspace">Рабочее пространство <span>необязательно</span></label>
-      <input id="workspace" v-model="workspaceName" maxlength="120" placeholder="Например, Семья">
+      <input id="workspace" v-model="workspaceName" maxlength="120" placeholder="Например, Семья" />
     </div>
     <div class="field">
       <label for="budget">Первый бюджет <span>необязательно</span></label>
@@ -87,7 +87,7 @@ async function submit() {
         v-model="budgetName"
         maxlength="120"
         placeholder="Например, Семейный бюджет"
-      >
+      />
     </div>
     <template #footer>
       <p class="form-links"><span>Уже есть аккаунт?</span><NuxtLink to="/login">Войти</NuxtLink></p>

@@ -49,7 +49,7 @@ async function submit() {
         required
         type="email"
         :aria-describedby="fieldErrors.email ? 'email-error' : undefined"
-      >
+      />
       <p v-if="fieldErrors.email" id="email-error" class="field-error">{{ fieldErrors.email }}</p>
     </div>
     <div class="field">
@@ -61,14 +61,15 @@ async function submit() {
         required
         type="password"
         :aria-describedby="fieldErrors.password ? 'password-error' : undefined"
-      >
+      />
       <p v-if="fieldErrors.password" id="password-error" class="field-error">
         {{ fieldErrors.password }}
       </p>
     </div>
     <template #footer>
       <p class="form-links">
-        <NuxtLink to="/forgot-password">Забыли пароль?</NuxtLink><NuxtLink to="/register">Создать аккаунт</NuxtLink>
+        <NuxtLink to="/forgot-password">Забыли пароль?</NuxtLink
+        ><NuxtLink to="/register">Создать аккаунт</NuxtLink>
       </p>
     </template>
   </AuthForm>

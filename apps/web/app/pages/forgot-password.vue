@@ -44,7 +44,7 @@ async function submit() {
         inputmode="email"
         required
         type="email"
-      >
+      />
     </div>
     <template #footer>
       <p class="form-links"><NuxtLink to="/login">Вернуться ко входу</NuxtLink></p>
