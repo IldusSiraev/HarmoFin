@@ -17,7 +17,9 @@ export const loginSchema = z.object({ email: emailSchema, password: z.string() }
 
 export const recoveryRequestSchema = z.object({ email: emailSchema }).strict();
 
-export const recoveryConfirmSchema = z.object({ token: z.string().min(1), password: passwordSchema }).strict();
+export const recoveryConfirmSchema = z
+  .object({ token: z.string().min(1), password: passwordSchema })
+  .strict();
 
 export const changePasswordSchema = z
   .object({ currentPassword: z.string(), newPassword: passwordSchema })

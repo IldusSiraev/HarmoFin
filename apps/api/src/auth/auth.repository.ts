@@ -9,14 +9,18 @@ export class AuthRepository {
     return this.prisma.$transaction(callback);
   }
 
-  findUserByEmail(email: string): Promise<Pick<User, 'id' | 'email' | 'passwordHash' | 'displayName' | 'status'> | null> {
+  findUserByEmail(
+    email: string,
+  ): Promise<Pick<User, 'id' | 'email' | 'passwordHash' | 'displayName' | 'status'> | null> {
     return this.prisma.user.findUnique({
       where: { email },
       select: { id: true, email: true, passwordHash: true, displayName: true, status: true },
     });
   }
 
-  findUserById(userId: string): Promise<Pick<User, 'id' | 'email' | 'displayName' | 'status'> | null> {
+  findUserById(
+    userId: string,
+  ): Promise<Pick<User, 'id' | 'email' | 'displayName' | 'status'> | null> {
     return this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, email: true, displayName: true, status: true },

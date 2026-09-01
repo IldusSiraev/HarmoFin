@@ -1,6 +1,12 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-import { ForbiddenException, Inject, Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  type CanActivate,
+  type ExecutionContext,
+} from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 
 import type { RequestContext } from '../request-context/request-context.js';
@@ -20,7 +26,11 @@ export class CsrfGuard implements CanActivate {
     const rawToken = request.headers['x-csrf-token'];
     const token = typeof rawToken === 'string' ? rawToken : undefined;
     const storedHash = request.authContext?.csrfTokenHash;
-    if (!token || !storedHash || !matchesDigest(token, storedHash, this.config.auth.tokenHashSecret)) {
+    if (
+      !token ||
+      !storedHash ||
+      !matchesDigest(token, storedHash, this.config.auth.tokenHashSecret)
+    ) {
       throw new ForbiddenException({
         code: 'CSRF_INVALID',
         detail: 'Защита запроса не пройдена.',

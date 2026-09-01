@@ -13,11 +13,11 @@ describe('TokenService', () => {
     expect(Buffer.from(first, 'base64url')).toHaveLength(32);
   });
 
-  it('creates deterministic HMAC digests that never equal raw tokens', () => {
+  it('matches only a raw token corresponding to stored digest', () => {
     const token = service.createRawToken();
+    const digest = service.digest(token);
 
-    expect(service.digest(token)).toMatch(/^[a-f0-9]{64}$/);
-    expect(service.digest(token)).toBe(service.digest(token));
-    expect(service.digest(token)).not.toBe(token);
+    expect(service.matchesDigest(token, digest)).toBe(true);
+    expect(service.matchesDigest('wrong-token', digest)).toBe(false);
   });
 });

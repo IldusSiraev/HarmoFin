@@ -1,4 +1,10 @@
-import { Inject, Injectable, type CanActivate, type ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  type CanActivate,
+  type ExecutionContext,
+  UnauthorizedException,
+} from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 
 import type { RequestContext } from '../common/request-context/request-context.js';
@@ -19,12 +25,18 @@ export class SessionAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const rawToken = request.cookies[this.config.auth.cookieName];
     if (typeof rawToken !== 'string' || rawToken.length === 0) {
-      throw new UnauthorizedException({ code: 'SESSION_REQUIRED', detail: 'Требуется вход в систему.' });
+      throw new UnauthorizedException({
+        code: 'SESSION_REQUIRED',
+        detail: 'Требуется вход в систему.',
+      });
     }
 
     const session = await this.sessionService.authenticate(rawToken);
     if (!session) {
-      throw new UnauthorizedException({ code: 'SESSION_INVALID', detail: 'Сессия недействительна или истекла.' });
+      throw new UnauthorizedException({
+        code: 'SESSION_INVALID',
+        detail: 'Сессия недействительна или истекла.',
+      });
     }
 
     request.authContext = session;

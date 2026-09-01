@@ -93,7 +93,10 @@ describe('SessionService', () => {
     );
 
     await expect(service.list('01800000-0000-7000-8000-000000000001')).resolves.toEqual([
-      expect.not.objectContaining({ tokenHash: expect.anything(), csrfTokenHash: expect.anything() }),
+      expect.not.objectContaining({
+        tokenHash: expect.anything(),
+        csrfTokenHash: expect.anything(),
+      }),
     ]);
   });
 });

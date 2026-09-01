@@ -103,7 +103,8 @@ export function loadApiConfig(input: NodeJS.ProcessEnv): ApiConfig {
       idleTimeoutSeconds: 2_592_000,
       absoluteTimeoutSeconds: 7_776_000,
       recoveryTtlSeconds: 3_600,
-      cookieName: environment.NODE_ENV === 'production' ? '__Host-harmofin_session' : 'harmofin_session',
+      cookieName:
+        environment.NODE_ENV === 'production' ? '__Host-harmofin_session' : 'harmofin_session',
     },
     mail: {
       smtpHost: environment.SMTP_HOST,

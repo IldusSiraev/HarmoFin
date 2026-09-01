@@ -35,6 +35,7 @@ export async function createApiApp(config: ApiConfig): Promise<NestFastifyApplic
       .setTitle('HarmoFin API')
       .setDescription('Контракт API HarmoFin')
       .setVersion('1.0')
+      .addCookieAuth(config.auth.cookieName, { type: 'apiKey', in: 'cookie' }, 'session')
       .build(),
   );
   SwaggerModule.setup('docs', app, document, { jsonDocumentUrl: '/openapi.json' });

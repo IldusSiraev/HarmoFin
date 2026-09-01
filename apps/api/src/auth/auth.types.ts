@@ -39,7 +39,12 @@ export interface SessionStore {
   }): Promise<void>;
   findActiveByTokenHash(tokenHash: string, now: Date): Promise<AuthenticatedSession | null>;
   touch(sessionId: string, now: Date): Promise<void>;
-  revoke(userId: string, sessionId: string, reason: SessionRevokeReason, now: Date): Promise<boolean>;
+  revoke(
+    userId: string,
+    sessionId: string,
+    reason: SessionRevokeReason,
+    now: Date,
+  ): Promise<boolean>;
   revokeAll(userId: string, reason: SessionRevokeReason, now: Date): Promise<number>;
   listActive(userId: string, now: Date): Promise<SessionView[]>;
 }

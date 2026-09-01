@@ -68,9 +68,9 @@ describe('loadApiConfig', () => {
   });
 
   it('rejects an invalid web base URL', () => {
-    expect(() => loadApiConfig({ ...validEnvironment, WEB_BASE_URL: 'mailto:test@example.com' })).toThrow(
-      /WEB_BASE_URL/,
-    );
+    expect(() =>
+      loadApiConfig({ ...validEnvironment, WEB_BASE_URL: 'mailto:test@example.com' }),
+    ).toThrow(/WEB_BASE_URL/);
   });
 
   it('uses a host-only cookie name in production', () => {

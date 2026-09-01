@@ -1,4 +1,4 @@
-import { type DynamicModule, Module } from '@nestjs/common';
+import { type DynamicModule, Global, Module } from '@nestjs/common';
 
 import { API_CONFIG } from '../common/security/security.constants.js';
 import { CsrfGuard } from '../common/security/csrf.guard.js';
@@ -6,6 +6,7 @@ import type { ApiConfig } from '../config/env.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { AuthApplicationService } from './auth.application.service.js';
 import { AuthController } from './auth.controller.js';
+import { AuthRateLimitGuard } from './auth-rate-limit.guard.js';
 import { AuthRepository } from './auth.repository.js';
 import { EMAIL_SENDER } from './email-sender.js';
 import { PasswordService } from './password.service.js';
@@ -15,6 +16,7 @@ import { SessionService } from './session.service.js';
 import { SmtpEmailSender } from './smtp-email.sender.js';
 import { TokenService } from './token.service.js';
 
+@Global()
 @Module({})
 export class AuthModule {
   static register(config: ApiConfig): DynamicModule {
@@ -32,7 +34,8 @@ export class AuthModule {
         },
         {
           provide: SessionService,
-          useFactory: (store: PrismaSessionStore, tokens: TokenService) => new SessionService(store, tokens),
+          useFactory: (store: PrismaSessionStore, tokens: TokenService) =>
+            new SessionService(store, tokens),
           inject: [PrismaSessionStore, TokenService],
         },
         {
@@ -49,13 +52,15 @@ export class AuthModule {
             tokens: TokenService,
             sessions: SessionService,
             emailSender: SmtpEmailSender,
-          ) => new AuthApplicationService(repository, password, tokens, sessions, emailSender, config),
+          ) =>
+            new AuthApplicationService(repository, password, tokens, sessions, emailSender, config),
           inject: [AuthRepository, PasswordService, TokenService, SessionService, EMAIL_SENDER],
         },
+        AuthRateLimitGuard,
         SessionAuthGuard,
         CsrfGuard,
       ],
-      exports: [SessionAuthGuard, CsrfGuard, SessionService, AuthApplicationService],
+      exports: [API_CONFIG, SessionAuthGuard, CsrfGuard, SessionService, AuthApplicationService],
     };
   }
 }

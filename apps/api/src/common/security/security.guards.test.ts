@@ -30,7 +30,9 @@ const config = {
 
 describe('OriginGuard', () => {
   it('allows safe requests without an Origin header', () => {
-    expect(new OriginGuard(config).canActivate(contextFor({ method: 'GET', headers: {} }))).toBe(true);
+    expect(new OriginGuard(config).canActivate(contextFor({ method: 'GET', headers: {} }))).toBe(
+      true,
+    );
   });
 
   it('allows unsafe requests from configured origin', () => {
@@ -88,7 +90,9 @@ describe('CsrfGuard', () => {
     const guard = new CsrfGuard(config);
 
     await expectForbiddenCodeAsync(
-      guard.canActivate(contextFor({ method: 'PATCH', headers: {}, authContext: { csrfTokenHash } })),
+      guard.canActivate(
+        contextFor({ method: 'PATCH', headers: {}, authContext: { csrfTokenHash } }),
+      ),
       'CSRF_INVALID',
     );
     await expectForbiddenCodeAsync(

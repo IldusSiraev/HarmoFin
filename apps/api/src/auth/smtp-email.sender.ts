@@ -10,7 +10,9 @@ export class SmtpEmailSender implements EmailSender {
     this.transporter = nodemailer.createTransport({
       host: config.mail.smtpHost,
       port: config.mail.smtpPort,
-      ...(config.mail.smtpUser ? { auth: { user: config.mail.smtpUser, pass: config.mail.smtpPassword } } : {}),
+      ...(config.mail.smtpUser
+        ? { auth: { user: config.mail.smtpUser, pass: config.mail.smtpPassword } }
+        : {}),
     });
   }
 

@@ -1,10 +1,6 @@
 import type { Prisma, SessionRevokeReason } from '@prisma/client';
 
-import type {
-  AuthenticatedSession,
-  SessionStore,
-  SessionView,
-} from './auth.types.js';
+import type { AuthenticatedSession, SessionStore, SessionView } from './auth.types.js';
 import { PrismaService } from '../database/prisma.service.js';
 
 export class PrismaSessionStore implements SessionStore {
@@ -46,7 +42,12 @@ export class PrismaSessionStore implements SessionStore {
     });
   }
 
-  async revoke(userId: string, sessionId: string, reason: SessionRevokeReason, now: Date): Promise<boolean> {
+  async revoke(
+    userId: string,
+    sessionId: string,
+    reason: SessionRevokeReason,
+    now: Date,
+  ): Promise<boolean> {
     const result = await this.prisma.session.updateMany({
       where: { id: sessionId, userId, revokedAt: null },
       data: { revokedAt: now, revokedReason: reason },

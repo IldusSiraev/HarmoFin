@@ -1,4 +1,10 @@
-import { ForbiddenException, Inject, Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  type CanActivate,
+  type ExecutionContext,
+} from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 
 import type { ApiConfig } from '../../config/env.js';
