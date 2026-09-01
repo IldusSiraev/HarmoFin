@@ -1,12 +1,10 @@
-import { type DynamicModule, Module } from '@nestjs/common';
+import { type DynamicModule, Global, Module } from '@nestjs/common';
 
 import type { ApiConfig } from '../config/env.js';
-import {
-  createDatabasePool,
-  DATABASE_POOL,
-  DatabaseHealthService,
-} from './database-health.service.js';
+import { DatabaseHealthService } from './database-health.service.js';
+import { PrismaService } from './prisma.service.js';
 
+@Global()
 @Module({})
 export class DatabaseModule {
   static register(config: ApiConfig): DynamicModule {
@@ -14,12 +12,12 @@ export class DatabaseModule {
       module: DatabaseModule,
       providers: [
         {
-          provide: DATABASE_POOL,
-          useFactory: () => createDatabasePool(config.databaseUrl),
+          provide: PrismaService,
+          useFactory: () => new PrismaService(config.databaseUrl),
         },
         DatabaseHealthService,
       ],
-      exports: [DatabaseHealthService],
+      exports: [PrismaService, DatabaseHealthService],
     };
   }
 }

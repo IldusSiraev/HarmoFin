@@ -21,6 +21,11 @@ describe('API process', () => {
           process.env.DATABASE_URL ??
           'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin',
         WEB_ORIGIN: 'http://localhost:3000',
+        AUTH_TOKEN_HASH_SECRET: 'test-only-secret-with-at-least-32-bytes',
+        SMTP_HOST: '127.0.0.1',
+        SMTP_PORT: '1025',
+        MAIL_FROM: 'no-reply@harmofin.test',
+        WEB_BASE_URL: 'http://localhost:3000',
         LOG_LEVEL: 'silent',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
