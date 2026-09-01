@@ -1,29 +1,19 @@
 # HarmoFin
 
-HarmoFin — веб-приложение для личного и семейного бюджета. Оно связывает фактическое движение денег по счетам с назначением денег в конвертах и поддерживает настраиваемые финансовые циклы.
+HarmoFin — веб-приложение для личного и семейного бюджета. Этап 1 добавляет PostgreSQL schema, аутентификацию и безопасные границы workspace/budget. Финансовые сущности пока не реализованы.
 
-## Текущий статус
+## Стек
 
-Foundation Этапа 0 реализован: monorepo, web, API, worker, локальная PostgreSQL и базовые проверки готовы. Продуктовые функции MVP — аутентификация, бюджеты, счета, конверты, операции и расчёты — ещё не реализованы.
-
-## Стек foundation
-
-- **Runtime:** Node.js 24.20.0, pnpm 11.24.0;
-- **Web:** Nuxt 4.5.2, Vue 3.5.42, TypeScript strict;
-- **API:** NestJS 11.2.3, Fastify 5.11.3, REST/OpenAPI;
-- **Worker:** отдельный TypeScript-процесс с безопасным lifecycle;
-- **Local infrastructure:** PostgreSQL 18 через Docker Compose;
-- **Quality:** ESLint, Prettier, Vitest, GitHub Actions.
-
-Полный стек и продуктовые границы описаны в [спецификации разработки](docs/superpowers/specs/2026-08-30-family-budget-development-spec.md).
+- Node.js `24.20.0`, pnpm `11.24.0`;
+- Nuxt 4/Vue 3, NestJS/Fastify, PostgreSQL 18 и Prisma;
+- Argon2id, серверные сессии в PostgreSQL, HttpOnly cookies;
+- Vitest, Playwright и GitHub Actions.
 
 ## Требования
 
 - Node.js `24.20.0`;
 - Corepack и pnpm `11.24.0`;
 - Docker Desktop с Docker Compose.
-
-Проверить версии:
 
 ```bash
 node --version
@@ -35,13 +25,11 @@ docker compose version
 
 ## Локальный запуск
 
-Установить зависимости:
+Установить зависимости и создать локальную конфигурацию.
 
 ```bash
 pnpm install --frozen-lockfile
 ```
-
-Создать локальный env-файл.
 
 Windows:
 
@@ -55,98 +43,113 @@ macOS/Linux:
 cp .env.example .env
 ```
 
-Запустить PostgreSQL:
+`.env` содержит только local/test values. Не коммитить этот файл. Перед запуском заменить `AUTH_TOKEN_HASH_SECRET` на собственную случайную строку длиной не менее 32 символов.
+
+Поднять PostgreSQL и Mailpit, сгенерировать Prisma client и применить миграцию.
 
 ```bash
 pnpm infra:up
+pnpm db:generate
+pnpm db:migrate
 ```
 
-Запустить web, API и worker в отдельных workspace-процессах:
+Безопасный демонстрационный seed запускается только в `development` или `test`, требует `SEED_DEMO_PASSWORD` длиной минимум 10 символов и идемпотентен.
+
+```bash
+pnpm db:seed
+```
+
+Запустить web, API и worker:
 
 ```bash
 pnpm dev
 ```
 
-Остановить PostgreSQL:
+Остановить local services:
 
 ```bash
 pnpm infra:down
 ```
 
-`pnpm infra:down` не удаляет named volume с локальными данными.
+`pnpm infra:down` не удаляет PostgreSQL volume.
 
 ## Локальные адреса
 
 - Web: http://localhost:3000/
+- Регистрация: http://localhost:3000/register
+- Вход: http://localhost:3000/login
+- Восстановление пароля: http://localhost:3000/forgot-password
 - API live: http://localhost:3001/api/v1/health/live
 - API ready: http://localhost:3001/api/v1/health/ready
 - OpenAPI UI: http://localhost:3001/docs
 - OpenAPI JSON: http://localhost:3001/openapi.json
+- Mailpit: http://localhost:8025
 
-`live` проверяет работоспособность API-процесса. `ready` дополнительно выполняет безопасный probe PostgreSQL.
+## База данных
+
+```bash
+pnpm db:generate
+pnpm db:migrate:dev
+pnpm db:migrate
+pnpm db:seed
+```
+
+`db:migrate:dev` предназначена только для local development. Не применять destructive rollback или reset к данным, которые нужно сохранить.
 
 ## Проверки
 
 ```bash
-pnpm format
 pnpm format:check
 pnpm lint
 pnpm typecheck
 pnpm test
 pnpm test:integration
+pnpm test:e2e
 pnpm build
 ```
 
-Интеграционные тесты требуют доступной локальной PostgreSQL:
+Интеграционные и browser tests требуют работающие PostgreSQL и Mailpit:
 
 ```bash
 pnpm infra:up
+pnpm db:migrate
 pnpm test:integration
+pnpm test:e2e
 ```
 
-## Границы foundation
+## Этап 1: auth и изоляция данных
 
-В текущем этапе намеренно отсутствуют:
+Реализованы:
 
-- Prisma schema, migrations и seed;
-- пользователи, сессии, бюджеты, аутентификация и авторизация;
-- финансовые сущности, балансы и бизнес-расчёты;
-- PrimeVue, Tailwind CSS, Pinia, TanStack Query, vee-validate и ECharts;
-- frontend OpenAPI client;
-- production images, staging, production deploy, object storage и observability backends;
-- E2E-сценарии продукта.
+- Prisma schema и первая migration для users, sessions, workspaces, workspace memberships, budgets, recovery tokens и audit events;
+- регистрация, вход, выход, смена и восстановление пароля;
+- Argon2id и пароль от 10 до 128 символов;
+- opaque server-side sessions: cookie содержит случайный token, PostgreSQL — только HMAC digest;
+- HttpOnly, `SameSite=Lax`, production `Secure` и `__Host-` cookie name;
+- CSRF synchronizer token, Origin validation и rate limit входа/восстановления;
+- просмотр и отзыв активных сессий;
+- `/api/v1/me`, workspace и protected budget endpoints;
+- server-side membership/role checks и DB-scoped workspace/budget queries;
+- базовый audit auth/workspace/budget events;
+- русскоязычные страницы `/register`, `/login`, `/forgot-password`, `/reset-password` и защищённая `/app`;
+- Mailpit для local/CI recovery mail.
 
-Foundation не содержит фиктивных финансовых данных и не имитирует готовый MVP.
+Роли `OWNER`, `EDITOR` и `VIEWER` существуют в schema и policy layer. Registration создаёт `OWNER`; приглашения и collaborative UI не входят в Этап 1.
 
-## План реализации
+## Границы этапа
 
-1. Foundation — текущий этап;
-2. база данных и аутентификация;
-3. справочники и счета;
-4. операции и распределения;
-5. переводы;
-6. планы и уведомления;
-7. аналитика и экспорт;
-8. production readiness.
-
-## Документация
-
-- [Функциональное ТЗ](docs/superpowers/specs/2026-08-30-family-budget-app-spec.md);
-- [Спецификация разработки](docs/superpowers/specs/2026-08-30-family-budget-development-spec.md);
-- [Дизайн инициализации репозитория](docs/superpowers/specs/2026-08-30-project-initialization-design.md);
-- [Дизайн foundation](docs/superpowers/specs/2026-08-31-project-foundation-design.md);
-- [Implementation plan foundation](docs/superpowers/plans/2026-08-31-project-foundation.md);
-- [ADR](docs/adr/);
-- [Начальные категории](categories.txt).
+Отсутствуют счета, категории, конверты, операции, распределения, переводы, планы, уведомления, аналитика, экспорт и production deployment. Email verification enforcement также требует отдельного решения до публичного запуска.
 
 ## Безопасность
 
-- Не коммитить реальные `.env`, secrets, credentials и production-конфигурацию.
-- Не хранить auth-секреты в клиентском bundle или `localStorage`.
-- Финансовые расчёты должны выполняться на сервере; floating-point значения не могут быть источником истины для денег.
-- Каждый запрос к пользовательским данным должен проверять workspace и budget isolation на сервере.
-- Пароли, cookies, session secrets и полные финансовые payload не должны попадать в логи.
+- Не коммитить `.env`, credentials, cookie values, raw tokens или passwords.
+- Не хранить auth token в `localStorage`.
+- Не логировать пароли, cookies, reset links, token values или полный sensitive payload.
+- UI и route parameter не являются авторизацией: доступ проверяет API в guard, policy и repository query.
 
-## Лицензия
+## Документация
 
-Права на использование не предоставлены, пока в репозитории отсутствует файл `LICENSE`.
+- [Функциональное ТЗ](docs/superpowers/specs/2026-08-30-family-budget-app-spec.md)
+- [Спецификация разработки](docs/superpowers/specs/2026-08-30-family-budget-development-spec.md)
+- [Дизайн Этапа 1](docs/superpowers/specs/2026-08-31-stage-1-database-auth-design.md)
+- [Implementation plan Этапа 1](docs/superpowers/plans/2026-08-31-stage-1-database-auth.md)

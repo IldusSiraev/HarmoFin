@@ -18,10 +18,12 @@
     "db:migrate:dev": "node --env-file-if-exists=.env ./apps/api/node_modules/prisma/build/index.js migrate dev --schema prisma/schema.prisma",
     "db:migrate": "node --env-file-if-exists=.env ./apps/api/node_modules/prisma/build/index.js migrate deploy --schema prisma/schema.prisma",
     "db:seed": "pnpm --filter @harmofin/api exec tsx ../../prisma/seed/index.ts",
+    "test:e2e": "playwright test --config e2e/playwright.config.ts",
     "infra:up": "docker compose -f infra/compose/local.yml up -d",
     "infra:down": "docker compose -f infra/compose/local.yml down"
   },
   "devDependencies": {
+    "@playwright/test": "1.55.1",
     "@prisma/client": "6.19.0",
     "prettier": "3.9.6",
     "prisma": "6.19.0"
