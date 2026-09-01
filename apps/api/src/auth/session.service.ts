@@ -1,7 +1,6 @@
-import { randomBytes } from 'node:crypto';
+import { SessionRevokeReason } from '@prisma/client';
 
-import type { SessionRevokeReason } from '@prisma/client';
-
+import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
 import type {
   AuthenticatedSession,
   CreatedSession,
@@ -76,18 +75,4 @@ export class SessionService {
   list(userId: string): Promise<SessionView[]> {
     return this.store.listActive(userId, this.now());
   }
-}
-
-function createUuidV7(now: Date): string {
-  const bytes = randomBytes(16);
-  let timestamp = BigInt(now.getTime());
-  for (let index = 5; index >= 0; index -= 1) {
-    bytes[index] = Number(timestamp & 0xffn);
-    timestamp >>= 8n;
-  }
-  bytes.set([((bytes.at(6) ?? 0) & 0x0f) | 0x70], 6);
-  bytes.set([((bytes.at(8) ?? 0) & 0x3f) | 0x80], 8);
-
-  const hex = bytes.toString('hex');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }

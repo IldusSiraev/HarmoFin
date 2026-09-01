@@ -36,6 +36,7 @@
     "@harmofin/tsconfig": "workspace:*",
     "@nestjs/testing": "11.2.3",
     "@types/node": "24.13.3",
+    "@types/nodemailer": "7.0.0",
     "@types/pg": "8.23.1",
     "eslint": "10.9.1",
     "prisma": "6.19.0",
