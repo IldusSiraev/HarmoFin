@@ -57,7 +57,7 @@ describe('loadApiConfig', () => {
   });
 
   it('rejects a missing token hash secret', () => {
-    const environment = { ...validEnvironment };
+    const environment: NodeJS.ProcessEnv = { ...validEnvironment };
     delete environment.AUTH_TOKEN_HASH_SECRET;
 
     expect(() => loadApiConfig(environment)).toThrow(/AUTH_TOKEN_HASH_SECRET/);
