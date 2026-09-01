@@ -1,5 +1,6 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 
+import { API_CONFIG } from './common/security/security.constants.js';
 import type { ApiConfig } from './config/env.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
@@ -10,6 +11,8 @@ export class AppModule {
     return {
       module: AppModule,
       imports: [DatabaseModule.register(config), HealthModule],
+      providers: [{ provide: API_CONFIG, useValue: config }],
+      exports: [API_CONFIG],
     };
   }
 }

@@ -62,6 +62,12 @@ describe('API health contract', () => {
     expect(response.json()).toEqual({ status: 'ok', dependencies: { database: 'ok' } });
   });
 
+  it('registers security headers', async () => {
+    const response = await server.inject({ method: 'GET', url: '/api/v1/health/live' });
+
+    expect(response.headers['x-content-type-options']).toBe('nosniff');
+  });
+
   it('publishes its OpenAPI health paths and Problem Details schema', async () => {
     const response = await server.inject({ method: 'GET', url: '/openapi.json' });
     const document = response.json<{

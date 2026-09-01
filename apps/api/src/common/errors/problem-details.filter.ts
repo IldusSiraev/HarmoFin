@@ -11,7 +11,13 @@ import { randomUUID } from 'node:crypto';
 interface ApplicationErrorBody {
   code?: unknown;
   detail?: unknown;
-  message?: unknown;
+  fieldErrors?: unknown;
+}
+
+interface FieldError {
+  field: string;
+  message: string;
+  code: string;
 }
 
 @Catch()
@@ -35,6 +41,9 @@ export class ProblemDetailsFilter implements ExceptionFilter {
           ? applicationError.detail
           : detailForStatus(status),
       requestId: typeof request?.id === 'string' ? request.id : randomUUID(),
+      ...(isFieldErrors(applicationError.fieldErrors)
+        ? { fieldErrors: applicationError.fieldErrors }
+        : {}),
     };
 
     reply.type('application/problem+json').status(status).send(problem);
@@ -43,6 +52,20 @@ export class ProblemDetailsFilter implements ExceptionFilter {
 
 function isApplicationErrorBody(value: unknown): value is ApplicationErrorBody {
   return typeof value === 'object' && value !== null;
+}
+
+function isFieldErrors(value: unknown): value is FieldError[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (fieldError) =>
+        typeof fieldError === 'object' &&
+        fieldError !== null &&
+        typeof fieldError.field === 'string' &&
+        typeof fieldError.message === 'string' &&
+        typeof fieldError.code === 'string',
+    )
+  );
 }
 
 function titleForStatus(status: number): string {
