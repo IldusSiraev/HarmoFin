@@ -26,7 +26,7 @@
 
 `POST /api/v1/budgets/{budgetId}/reference-template`
 
-Migration и обычный seed не изменяют существующие Stage 1 budgets неявно. Action выполняется в одной transaction, создаёт отсутствующие дефолтные категории и конверты и связывает правило `Шабашка → Ремонт`, если оно ещё не задано. Повторный вызов не создаёт дубли и не восстанавливает сущность, которую владелец архивировал вручную.
+Migration и обычный seed не изменяют существующие Stage 1 budgets неявно. Action выполняется в одной transaction и создаёт отсутствующие дефолтные категории и конверты. Повторный вызов не создаёт дубли и не восстанавливает сущность, которую владелец архивировал вручную.
 
 Для этого используется immutable `template_key`, уникальный среди non-null keys в пределах бюджета. Display name активных accounts и envelopes уникален без учёта регистра в пределах бюджета; display name активных categories уникален без учёта регистра в пределах бюджета и `category_type`. После архивации то же display name можно использовать снова. Template action считается успешным, если все требуемые template keys уже существуют или были созданы.
 
@@ -102,11 +102,11 @@ Action доступна только OWNER. Она создаёт audit event, �
 
 - `timezone`, default `Europe/Moscow`;
 - `allow_negative_balance` сохраняется и используется для начальных балансов;
-- `shabashka_rule_enabled`;
-- nullable `shabashka_income_category_id`;
-- nullable `shabashka_target_envelope_id`.
+- `income_allocation_rule_enabled`;
+- nullable `income_allocation_source_category_id`;
+- nullable `income_allocation_target_envelope_id`.
 
-При включённом правиле оба reference ID обязательны, принадлежат тому же бюджету, являются активными, income category имеет тип `INCOME`, target envelope существует в том же бюджете. Правило фиксирует 100% и не хранит процент. При выключении правила оба reference ID очищаются. Выключенное правило не выполняется и не создаёт allocations.
+Это generic configuration одной будущей автоматической income allocation: source ID ссылается на обычную активную `INCOME` category, target ID — на обычный активный envelope того же бюджета. Ни одна категория, включая шаблонную `Шабашка`, не получает специальный тип или модель. При включённом правиле оба reference ID обязательны; при выключении оба очищаются. Stage 2 не выполняет allocation и не хранит его процент, фиксированную сумму или график. Их модель и поддержка нескольких одновременных правил относятся к финансовым операциям Stage 3.
 
 Для same-budget integrity используются составные foreign keys там, где Prisma и PostgreSQL позволяют это выразить; application service дополнительно выполняет scoped lookup. Новые таблицы получают индексы по `(budget_id, archived_at)`, `(budget_id, category_type, archived_at)` и часто используемым template/reference filters. Partial unique indexes обеспечивают active-name uniqueness: `(budget_id, lower(name))` для accounts/envelopes и `(budget_id, category_type, lower(name))` для categories. Отдельный partial unique index `(budget_id, template_key)` применяется к non-null template keys.
 
@@ -152,7 +152,7 @@ Archived envelope остаётся видимым в explicit archive mode, но
 Budget settings:
 
 - `GET /api/v1/budgets/{budgetId}` — возвращает budget и Stage 2 settings;
-- `PATCH /api/v1/budgets/{budgetId}` — изменяет разрешённые settings, включая name, timezone, cycle values, negative-balance flag и shabashka rule.
+- `PATCH /api/v1/budgets/{budgetId}` — изменяет разрешённые settings, включая name, timezone, cycle values, negative-balance flag и generic income-allocation rule configuration.
 
 Accounts:
 
@@ -189,7 +189,7 @@ OWNER может читать и изменять Stage 2 entities. EDITOR и VI
 - `/app/categories`;
 - `/app/envelopes`.
 
-Настройки показывают name, timezone, cycle fields, `allow_negative_balance` и правило `Шабашка → Ремонт`. Accounts, categories и envelopes показывают active list по умолчанию, explicit archive mode, create/edit forms и archive confirmation. Empty category/envelope state предлагает `Создать базовый шаблон`.
+Настройки показывают name, timezone, cycle fields, `allow_negative_balance` и generic configuration будущего автоматического распределения дохода: обычную income category-источник и обычный target envelope. Accounts, categories и envelopes показывают active list по умолчанию, explicit archive mode, create/edit forms и archive confirmation. Empty category/envelope state предлагает `Создать базовый шаблон`.
 
 API client продолжает использовать HttpOnly session cookie, in-memory CSRF token и configured Origin. Money inputs хранят decimal strings, не используют финансовую арифметику и не выполняют optimistic balance update. После mutation UI получает или запрашивает server-confirmed DTO.
 
@@ -204,7 +204,7 @@ Strict Zod schemas отвергают unknown fields и валидируют:
 - `RUB` и scale;
 - decimal string syntax, sign, scale и overflow;
 - date и timezone syntax;
-- same-budget rule references;
+- same-budget income-allocation rule references;
 - archive/state conflicts;
 - target amount/date consistency.
 
