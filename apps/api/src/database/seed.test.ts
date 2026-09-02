@@ -1,0 +1,66 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import { runSeed } from './seed.js';
+import type { SeedDependencies } from './seed.js';
+
+const validEnvironment = {
+  NODE_ENV: 'test',
+  SEED_DEMO_PASSWORD: 'demo-pass-10',
+};
+
+describe('runSeed', () => {
+  it('rejects production before creating a database client', async () => {
+    const createClient = vi.fn();
+
+    await expect(
+      runSeed({ ...validEnvironment, NODE_ENV: 'production' }, { createClient }),
+    ).rejects.toThrow(/production/i);
+
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it('rejects missing demo password before creating a database client', async () => {
+    const createClient = vi.fn();
+
+    await expect(runSeed({ NODE_ENV: 'test' }, { createClient })).rejects.toThrow(
+      /SEED_DEMO_PASSWORD/,
+    );
+
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it('rejects a demo password shorter than 10 characters', async () => {
+    const createClient = vi.fn();
+
+    await expect(
+      runSeed({ ...validEnvironment, SEED_DEMO_PASSWORD: '123456789' }, { createClient }),
+    ).rejects.toThrow(/10/);
+
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it('uses an injected client after accepting a valid environment', async () => {
+    const tx = {
+      user: { upsert: vi.fn(async () => ({ id: '01800000-0000-7000-8000-000000000001' })) },
+      workspace: { upsert: vi.fn(async () => ({ id: '01800000-0000-7000-8000-000000000002' })) },
+      workspaceMembership: { upsert: vi.fn() },
+      budget: { upsert: vi.fn(async () => ({ id: '01800000-0000-7000-8000-000000000003' })) },
+      auditEvent: { upsert: vi.fn() },
+    };
+    const transaction = vi.fn(async (callback: (client: typeof tx) => Promise<void>) =>
+      callback(tx),
+    );
+    const disconnect = vi.fn();
+    const createClient = vi.fn(() => ({ $transaction: transaction, $disconnect: disconnect }));
+
+    await expect(
+      runSeed(validEnvironment, {
+        createClient: createClient as unknown as NonNullable<SeedDependencies['createClient']>,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(createClient).toHaveBeenCalledOnce();
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(disconnect).toHaveBeenCalledOnce();
+  });
+});

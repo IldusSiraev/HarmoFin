@@ -1,4 +1,4 @@
-name: Foundation CI
+name: HarmoFin CI
 
 on:
   pull_request:
@@ -16,7 +16,14 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin
       WEB_ORIGIN: http://localhost:3000
+      WEB_BASE_URL: http://localhost:3000
+      API_URL: http://localhost:3001
       API_PORT: 3001
+      AUTH_TOKEN_HASH_SECRET: test-only-secret-with-at-least-32-bytes
+      SMTP_HOST: 127.0.0.1
+      SMTP_PORT: 1025
+      MAIL_FROM: no-reply@harmofin.test
+      SEED_DEMO_PASSWORD: local-demo-password-10
     services:
       postgres:
         image: postgres:18-alpine
@@ -28,6 +35,17 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U harmofin_local -d harmofin"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 5s
+      mailpit:
+        image: axllent/mailpit:v1.21.8
+        ports:
+          - 1025:1025
+          - 8025:8025
+        options: >-
+          --health-cmd "wget -qO- http://localhost:8025/livez >/dev/null 2>&1"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
@@ -51,6 +69,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
       - name: Check formatting
         run: pnpm format:check
 
@@ -60,6 +81,15 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Apply migration to blank database
+        run: pnpm db:migrate
+
+      - name: Seed database twice
+        run: pnpm db:seed && pnpm db:seed
+
+      - name: Repeat migration on existing data
+        run: pnpm db:migrate
+
       - name: Run unit tests
         run: pnpm test
 
@@ -68,6 +98,12 @@ jobs:
 
       - name: Build applications
         run: pnpm build
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run browser tests
+        run: pnpm test:e2e
 
       - name: Validate local Compose configuration
         run: docker compose -f infra/compose/local.yml config --quiet

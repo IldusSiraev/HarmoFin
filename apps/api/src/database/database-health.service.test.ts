@@ -1,28 +1,29 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { DatabaseHealthService, type DatabasePool } from './database-health.service.js';
+import { DatabaseHealthService } from './database-health.service.js';
+import type { PrismaService } from './prisma.service.js';
 
 describe('DatabaseHealthService', () => {
-  it('runs a SELECT 1 probe', async () => {
-    const pool: DatabasePool = {
-      query: vi.fn().mockResolvedValue({ rows: [{ '?column?': 1 }] }),
-      end: vi.fn().mockResolvedValue(undefined),
-    };
-    const service = new DatabaseHealthService(pool);
+  it('runs a SELECT 1 probe through Prisma', async () => {
+    const prisma = {
+      $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
+    } as unknown as PrismaService;
+    const service = new DatabaseHealthService(prisma);
 
     await expect(service.check()).resolves.toBeUndefined();
-    expect(pool.query).toHaveBeenCalledWith('SELECT 1');
+    expect(prisma.$queryRaw).toHaveBeenCalledOnce();
   });
 
-  it('closes its pool', async () => {
-    const pool: DatabasePool = {
-      query: vi.fn(),
-      end: vi.fn().mockResolvedValue(undefined),
-    };
-    const service = new DatabaseHealthService(pool);
+  it('closes the shared Prisma client once', async () => {
+    const prisma = {
+      $queryRaw: vi.fn(),
+      onModuleDestroy: vi.fn().mockResolvedValue(undefined),
+    } as unknown as PrismaService;
+    const service = new DatabaseHealthService(prisma);
 
     await service.close();
+    await service.close();
 
-    expect(pool.end).toHaveBeenCalledOnce();
+    expect(prisma.onModuleDestroy).toHaveBeenCalledOnce();
   });
 });

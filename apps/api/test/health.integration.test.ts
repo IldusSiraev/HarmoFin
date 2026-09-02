@@ -13,6 +13,24 @@ const baseConfig: ApiConfig = {
     'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin',
   webOrigin: 'http://localhost:3000',
   logLevel: 'silent',
+  auth: {
+    tokenHashSecret: 'test-only-secret-with-at-least-32-bytes',
+    idleTimeoutSeconds: 2_592_000,
+    absoluteTimeoutSeconds: 7_776_000,
+    recoveryTtlSeconds: 3_600,
+    cookieName: 'harmofin_session',
+  },
+  mail: {
+    smtpHost: '127.0.0.1',
+    smtpPort: 1025,
+    from: 'no-reply@harmofin.test',
+    webBaseUrl: 'http://localhost:3000',
+  },
+  rateLimit: {
+    windowSeconds: 900,
+    loginMax: 10,
+    recoveryMax: 5,
+  },
 };
 
 describe('API health contract', () => {
@@ -42,6 +60,12 @@ describe('API health contract', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ status: 'ok', dependencies: { database: 'ok' } });
+  });
+
+  it('registers security headers', async () => {
+    const response = await server.inject({ method: 'GET', url: '/api/v1/health/live' });
+
+    expect(response.headers['x-content-type-options']).toBe('nosniff');
   });
 
   it('publishes its OpenAPI health paths and Problem Details schema', async () => {

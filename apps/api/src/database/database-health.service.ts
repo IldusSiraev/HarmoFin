@@ -1,39 +1,23 @@
-import { Inject, Injectable, type OnApplicationShutdown } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Injectable, type OnApplicationShutdown } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
-export const DATABASE_POOL = Symbol('DATABASE_POOL');
-
-export interface DatabasePool {
-  query(statement: string): Promise<unknown>;
-  end(): Promise<void>;
-}
-
-export function createDatabasePool(connectionString: string): DatabasePool {
-  const pool = new Pool({
-    connectionString,
-    connectionTimeoutMillis: 2_000,
-  });
-
-  return {
-    async query(statement: string): Promise<void> {
-      await pool.query(statement);
-    },
-    async end(): Promise<void> {
-      await pool.end();
-    },
-  };
-}
+import { PrismaService } from './prisma.service.js';
 
 @Injectable()
 export class DatabaseHealthService implements OnApplicationShutdown {
-  constructor(@Inject(DATABASE_POOL) private readonly pool: DatabasePool) {}
+  private closed = false;
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async check(): Promise<void> {
-    await this.pool.query('SELECT 1');
+    await this.prisma.$queryRaw(Prisma.sql`SELECT 1`);
   }
 
   async close(): Promise<void> {
-    await this.pool.end();
+    if (this.closed) return;
+
+    this.closed = true;
+    await this.prisma.onModuleDestroy();
   }
 
   async onApplicationShutdown(): Promise<void> {

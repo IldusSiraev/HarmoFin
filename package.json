@@ -13,11 +13,19 @@
     "format:check": "prettier --check .",
     "typecheck": "pnpm --recursive --if-present typecheck",
     "test": "pnpm --recursive --if-present test",
-    "test:integration": "pnpm --filter @harmofin/api test:integration",
+    "test:integration": "pnpm db:migrate && pnpm --filter @harmofin/api test:integration",
+    "db:generate": "pnpm --filter @harmofin/api exec prisma generate --schema ../../prisma/schema.prisma",
+    "db:migrate:dev": "node --env-file-if-exists=.env ./apps/api/node_modules/prisma/build/index.js migrate dev --schema prisma/schema.prisma",
+    "db:migrate": "node --env-file-if-exists=.env ./apps/api/node_modules/prisma/build/index.js migrate deploy --schema prisma/schema.prisma",
+    "db:seed": "pnpm --filter @harmofin/api exec tsx ../../prisma/seed/index.ts",
+    "test:e2e": "playwright test --config e2e/playwright.config.ts",
     "infra:up": "docker compose -f infra/compose/local.yml up -d",
     "infra:down": "docker compose -f infra/compose/local.yml down"
   },
   "devDependencies": {
-    "prettier": "3.9.6"
+    "@playwright/test": "1.55.1",
+    "@prisma/client": "6.19.0",
+    "prettier": "3.9.6",
+    "prisma": "6.19.0"
   }
 }

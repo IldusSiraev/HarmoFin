@@ -25,29 +25,33 @@ describe('ProblemDetailsFilter', () => {
     });
   });
 
-  it('preserves safe application error fields', () => {
+  it('preserves safe field errors from validation failures', () => {
     const send = vi.fn();
     const reply = {
       type: vi.fn().mockReturnThis(),
       status: vi.fn().mockReturnThis(),
       send,
     };
-    const host = createHost(reply, 'request-2');
+    const host = createHost(reply, 'request-3');
     const exception = new HttpException(
-      { code: 'DATABASE_UNAVAILABLE', detail: 'База данных временно недоступна.' },
-      HttpStatus.SERVICE_UNAVAILABLE,
+      {
+        code: 'VALIDATION_FAILED',
+        detail: 'Проверьте корректность полей запроса.',
+        fieldErrors: [{ field: 'email', message: 'Invalid email address', code: 'invalid_format' }],
+        password: 'must-not-leak',
+      },
+      HttpStatus.BAD_REQUEST,
     );
 
     new ProblemDetailsFilter().catch(exception, host);
 
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: 503,
-        code: 'DATABASE_UNAVAILABLE',
-        detail: 'База данных временно недоступна.',
-        requestId: 'request-2',
+        code: 'VALIDATION_FAILED',
+        fieldErrors: [{ field: 'email', message: 'Invalid email address', code: 'invalid_format' }],
       }),
     );
+    expect(send.mock.calls[0]?.[0]).not.toHaveProperty('password');
   });
 });
 
