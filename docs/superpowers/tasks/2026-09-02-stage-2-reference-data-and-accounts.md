@@ -6,6 +6,7 @@
 2. [Спецификацию разработки](../specs/2026-08-30-family-budget-development-spec.md): разделы 6.2–6.9, 7, 10, 12, 14, 16, 19.2 и 21.
 3. Текущий `main` после merge Этапа 1: Prisma schema/migrations, auth, workspace/budget boundaries, OpenAPI, API/web test conventions, CI и README.
 4. [Дизайн Этапа 1](../specs/2026-08-31-stage-1-database-auth-design.md), чтобы не ломать существующие session, authorization, audit и budget isolation.
+5. [UI foundation](../specs/2026-09-02-ui-foundation-design.md) как источник design tokens, accessibility rules и контрактов web-компонентов.
 
 Работать в **новой feature branch**, без worktree.
 
