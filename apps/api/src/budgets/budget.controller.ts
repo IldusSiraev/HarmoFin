@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Inject, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBody,
   ApiCookieAuth,
@@ -15,7 +26,12 @@ import type { RequestContext } from '../common/request-context/request-context.j
 import { CsrfGuard } from '../common/security/csrf.guard.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import { BudgetApplicationService } from './budget.application.service.js';
-import { BudgetDetailResponse, CreateBudgetRequest, UpdateBudgetRequest } from './budget.dto.js';
+import {
+  BudgetDetailResponse,
+  CreateBudgetRequest,
+  ReferenceTemplateResponse,
+  UpdateBudgetRequest,
+} from './budget.dto.js';
 import {
   createBudgetSchema,
   type CreateBudgetInput,
@@ -83,6 +99,24 @@ export class BudgetController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.service.update(contextOf(request).userId, budgetId, input, request.id);
+  }
+
+  @Post('budgets/:budgetId/reference-template')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiOkResponse({ type: ReferenceTemplateResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  initializeReferenceTemplate(
+    @Param('budgetId') budgetId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.initializeReferenceTemplate(
+      contextOf(request).userId,
+      budgetId,
+      request.id,
+    );
   }
 }
 

@@ -64,12 +64,20 @@ export class BudgetApplicationService {
     if (!updated) throw notFound();
     return updated;
   }
+
+  async initializeReferenceTemplate(userId: string, budgetId: string, requestId?: string) {
+    const accessible = await this.repository.findAccessibleWithRole(userId, budgetId);
+    if (!accessible) throw notFound();
+    const role = accessible.workspace.memberships[0]?.role;
+    if (!role || !this.rolePolicy.canManage(role)) throw forbidden();
+
+    const result = await this.repository.initializeReferenceTemplate(userId, budgetId, requestId);
+    if (!result) throw notFound();
+    return result;
+  }
 }
 
-function mergeSettings(
-  current: BudgetView,
-  input: UpdateBudgetInput,
-): BudgetSettingsUpdate {
+function mergeSettings(current: BudgetView, input: UpdateBudgetInput): BudgetSettingsUpdate {
   const incomeAllocationRuleEnabled =
     input.incomeAllocationRuleEnabled ?? current.incomeAllocationRuleEnabled;
 
