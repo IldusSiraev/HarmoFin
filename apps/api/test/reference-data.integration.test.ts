@@ -85,6 +85,15 @@ describe('reference template API', () => {
     expect(document.paths['/api/v1/budgets/{budgetId}/reference-template']).toMatchObject({
       post: { responses: { '200': expect.anything() } },
     });
+    expect(document.paths['/api/v1/budgets/{budgetId}/accounts']).toMatchObject({
+      get: { responses: { '200': expect.anything() } },
+      post: { requestBody: expect.anything(), responses: { '201': expect.anything() } },
+    });
+    expect(document.paths['/api/v1/budgets/{budgetId}/accounts/{accountId}/archive']).toMatchObject(
+      {
+        post: { responses: { '200': expect.anything() } },
+      },
+    );
   });
 
   it('creates exact defaults and a safe template audit event', async () => {
@@ -122,6 +131,123 @@ describe('reference template API', () => {
       createdCategoryKeys: expect.arrayContaining(['income-cashback']),
     });
     expect(JSON.stringify(audit?.newValues)).not.toContain('comment');
+  });
+
+  it('creates, updates, archives and scopes accounts', async () => {
+    const invalidDigits = await createAccount({ lastFourDigits: '12' });
+    const negativeWhenDisabled = await createAccount({ startingBalance: '-0.01' });
+
+    expect(invalidDigits.statusCode).toBe(400);
+    expect(invalidDigits.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
+    expect(negativeWhenDisabled.statusCode).toBe(400);
+
+    const created = await createAccount({ startingBalance: '90071992547409.93' });
+    const account = created.json<{
+      id: string;
+      startingBalanceMinor: string;
+      currentBalanceMinor: string;
+    }>();
+
+    expect(created.statusCode).toBe(201);
+    expect(account).toMatchObject({
+      startingBalanceMinor: '9007199254740993',
+      currentBalanceMinor: '9007199254740993',
+    });
+    expect((await listAccounts('active')).json()).toHaveLength(1);
+    expect((await getAccount(account.id)).statusCode).toBe(200);
+
+    const duplicate = await createAccount({ name: 'Основной счёт' });
+    expect(duplicate.statusCode).toBe(409);
+    expect(duplicate.json()).toMatchObject({ code: 'REFERENCE_NAME_CONFLICT' });
+
+    const noOrigin = await server.inject({
+      method: 'PATCH',
+      url: `/api/v1/budgets/${ownerBudgetId}/accounts/${account.id}`,
+      cookies: { harmofin_session: ownerCookie },
+      payload: { name: 'Переименованный счёт' },
+    });
+    const missingCsrf = await server.inject({
+      method: 'PATCH',
+      url: `/api/v1/budgets/${ownerBudgetId}/accounts/${account.id}`,
+      headers: { origin },
+      cookies: { harmofin_session: ownerCookie },
+      payload: { name: 'Переименованный счёт' },
+    });
+    expect(noOrigin.json()).toMatchObject({ code: 'ORIGIN_REQUIRED' });
+    expect(missingCsrf.json()).toMatchObject({ code: 'CSRF_INVALID' });
+
+    const settings = await server.inject({
+      method: 'PATCH',
+      url: `/api/v1/budgets/${ownerBudgetId}`,
+      headers: { origin, 'x-csrf-token': ownerCsrf },
+      cookies: { harmofin_session: ownerCookie },
+      payload: { allowNegativeBalance: true },
+    });
+    expect(settings.statusCode).toBe(200);
+
+    const updated = await updateAccount(account.id, { startingBalance: '-1.00' });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json()).toMatchObject({
+      startingBalanceMinor: '-100',
+      currentBalanceMinor: '-100',
+    });
+
+    const editorRole = await prisma.workspaceMembership.updateMany({
+      where: { userId: ownerId, workspaceId: ownerWorkspaceId },
+      data: { role: 'EDITOR' },
+    });
+    expect(editorRole.count).toBe(1);
+    const editorResponse = await createAccount({ name: 'Недоступный счёт' });
+    await prisma.workspaceMembership.updateMany({
+      where: { userId: ownerId, workspaceId: ownerWorkspaceId },
+      data: { role: 'OWNER' },
+    });
+    expect(editorResponse.statusCode).toBe(403);
+
+    const other = await login(otherEmail);
+    const foreign = await server.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${ownerBudgetId}/accounts/${account.id}`,
+      cookies: { harmofin_session: other.cookie },
+    });
+    const foreignList = await server.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${ownerBudgetId}/accounts`,
+      cookies: { harmofin_session: other.cookie },
+    });
+    expect(foreign.statusCode).toBe(404);
+    expect(foreignList.statusCode).toBe(404);
+
+    const archived = await archiveAccount(account.id);
+    const archivedAgain = await archiveAccount(account.id);
+    expect(archived.statusCode).toBe(200);
+    expect(archivedAgain.statusCode).toBe(200);
+    expect((await listAccounts('active')).json()).toHaveLength(0);
+    expect((await listAccounts('archived')).json()).toHaveLength(1);
+    expect((await listAccounts('all')).json()).toHaveLength(1);
+    expect(
+      await prisma.auditEvent.count({
+        where: {
+          budgetId: ownerBudgetId,
+          entityType: 'account',
+          entityId: account.id,
+          action: 'ARCHIVED',
+        },
+      }),
+    ).toBe(1);
+
+    const reused = await createAccount({
+      name: 'Основной счёт',
+      lastFourDigits: null,
+      comment: null,
+    });
+    expect(reused.statusCode).toBe(201);
+    const audit = await prisma.auditEvent.findFirstOrThrow({
+      where: { budgetId: ownerBudgetId, entityType: 'account', action: 'CREATED' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(JSON.stringify(audit.newValues)).not.toContain('lastFourDigits');
+    expect(JSON.stringify(audit.newValues)).not.toContain('comment');
   });
 
   it('never duplicates or resurrects manually archived defaults', async () => {
@@ -193,6 +319,61 @@ describe('reference template API', () => {
     expect(await prisma.envelope.count({ where: { budgetId: conflictBudget.id } })).toBe(0);
   });
 });
+
+async function createAccount(overrides: Record<string, unknown> = {}) {
+  return server.inject({
+    method: 'POST',
+    url: `/api/v1/budgets/${ownerBudgetId}/accounts`,
+    headers: { origin, 'x-csrf-token': ownerCsrf },
+    cookies: { harmofin_session: ownerCookie },
+    payload: {
+      name: 'Основной счёт',
+      accountType: 'BANK_ACCOUNT',
+      bankName: 'Банк',
+      lastFourDigits: '1234',
+      currency: 'RUB',
+      startingBalance: '0.00',
+      accountingStartDate: '2026-09-01',
+      comment: 'Личный комментарий',
+      ...overrides,
+    },
+  });
+}
+
+async function listAccounts(status: 'active' | 'archived' | 'all') {
+  return server.inject({
+    method: 'GET',
+    url: `/api/v1/budgets/${ownerBudgetId}/accounts?status=${status}`,
+    cookies: { harmofin_session: ownerCookie },
+  });
+}
+
+async function getAccount(accountId: string) {
+  return server.inject({
+    method: 'GET',
+    url: `/api/v1/budgets/${ownerBudgetId}/accounts/${accountId}`,
+    cookies: { harmofin_session: ownerCookie },
+  });
+}
+
+async function updateAccount(accountId: string, payload: Record<string, unknown>) {
+  return server.inject({
+    method: 'PATCH',
+    url: `/api/v1/budgets/${ownerBudgetId}/accounts/${accountId}`,
+    headers: { origin, 'x-csrf-token': ownerCsrf },
+    cookies: { harmofin_session: ownerCookie },
+    payload,
+  });
+}
+
+async function archiveAccount(accountId: string) {
+  return server.inject({
+    method: 'POST',
+    url: `/api/v1/budgets/${ownerBudgetId}/accounts/${accountId}/archive`,
+    headers: { origin, 'x-csrf-token': ownerCsrf },
+    cookies: { harmofin_session: ownerCookie },
+  });
+}
 
 async function initializeTemplate(budgetId: string, cookie: string, csrfToken: string) {
   return server.inject({
