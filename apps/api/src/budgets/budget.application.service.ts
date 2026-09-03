@@ -1,7 +1,13 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { RolePolicy } from '../common/policies/role-policy.js';
-import { BudgetRepository, type BudgetView } from './budget.repository.js';
+import { invalidReference } from '../common/reference-data/reference-data.errors.js';
+import {
+  BudgetRepository,
+  type BudgetSettingsUpdate,
+  type BudgetView,
+} from './budget.repository.js';
+import type { UpdateBudgetInput } from './budget.schemas.js';
 
 @Injectable()
 export class BudgetApplicationService {
@@ -37,17 +43,50 @@ export class BudgetApplicationService {
   async update(
     userId: string,
     budgetId: string,
-    input: { name?: string | undefined; status?: 'ACTIVE' | 'ARCHIVED' | undefined },
+    input: UpdateBudgetInput,
     requestId?: string,
   ): Promise<BudgetView> {
     const accessible = await this.repository.findAccessibleWithRole(userId, budgetId);
     if (!accessible) throw notFound();
     const role = accessible.workspace.memberships[0]?.role;
     if (!role || !this.rolePolicy.canManage(role)) throw forbidden();
-    const updated = await this.repository.update(userId, budgetId, input, requestId);
+
+    const updatedInput = mergeSettings(accessible, input);
+    if (
+      updatedInput.incomeAllocationRuleEnabled &&
+      (!updatedInput.incomeAllocationSourceCategoryId ||
+        !updatedInput.incomeAllocationTargetEnvelopeId)
+    ) {
+      throw invalidReference();
+    }
+
+    const updated = await this.repository.update(userId, budgetId, updatedInput, requestId);
     if (!updated) throw notFound();
     return updated;
   }
+}
+
+function mergeSettings(
+  current: BudgetView,
+  input: UpdateBudgetInput,
+): BudgetSettingsUpdate {
+  const incomeAllocationRuleEnabled =
+    input.incomeAllocationRuleEnabled ?? current.incomeAllocationRuleEnabled;
+
+  return {
+    name: input.name ?? current.name,
+    timezone: input.timezone ?? current.timezone,
+    cycleStartDay: input.cycleStartDay ?? current.cycleStartDay,
+    periodBoundaryOffset: input.periodBoundaryOffset ?? current.periodBoundaryOffset,
+    allowNegativeBalance: input.allowNegativeBalance ?? current.allowNegativeBalance,
+    incomeAllocationRuleEnabled,
+    incomeAllocationSourceCategoryId: incomeAllocationRuleEnabled
+      ? (input.incomeAllocationSourceCategoryId ?? current.incomeAllocationSourceCategoryId)
+      : null,
+    incomeAllocationTargetEnvelopeId: incomeAllocationRuleEnabled
+      ? (input.incomeAllocationTargetEnvelopeId ?? current.incomeAllocationTargetEnvelopeId)
+      : null,
+  };
 }
 
 function notFound(): NotFoundException {

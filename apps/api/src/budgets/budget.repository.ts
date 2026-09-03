@@ -1,3 +1,4 @@
+import { invalidReference } from '../common/reference-data/reference-data.errors.js';
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
 import { PrismaService } from '../database/prisma.service.js';
 
@@ -6,10 +7,25 @@ export interface BudgetView {
   workspaceId: string;
   name: string;
   primaryCurrency: string;
+  timezone: string;
   cycleStartDay: number;
   periodBoundaryOffset: number;
   allowNegativeBalance: boolean;
+  incomeAllocationRuleEnabled: boolean;
+  incomeAllocationSourceCategoryId: string | null;
+  incomeAllocationTargetEnvelopeId: string | null;
   status: 'ACTIVE' | 'ARCHIVED';
+}
+
+export interface BudgetSettingsUpdate {
+  name: string;
+  timezone: string;
+  cycleStartDay: number;
+  periodBoundaryOffset: number;
+  allowNegativeBalance: boolean;
+  incomeAllocationRuleEnabled: boolean;
+  incomeAllocationSourceCategoryId: string | null;
+  incomeAllocationTargetEnvelopeId: string | null;
 }
 
 export class BudgetRepository {
@@ -17,10 +33,7 @@ export class BudgetRepository {
 
   async findAccessible(userId: string, budgetId: string): Promise<BudgetView | null> {
     return this.prisma.budget.findFirst({
-      where: {
-        id: budgetId,
-        workspace: { memberships: { some: { userId, isActive: true } } },
-      },
+      where: activeAccessibleBudgetWhere(userId, budgetId),
       select: budgetViewSelect,
     });
   }
@@ -29,7 +42,8 @@ export class BudgetRepository {
     return this.prisma.budget.findMany({
       where: {
         workspaceId,
-        workspace: { memberships: { some: { userId, isActive: true } } },
+        status: 'ACTIVE',
+        workspace: { status: 'ACTIVE', memberships: { some: { userId, isActive: true } } },
       },
       select: budgetViewSelect,
       orderBy: { createdAt: 'asc' },
@@ -38,7 +52,7 @@ export class BudgetRepository {
 
   async findAccessibleWithRole(userId: string, budgetId: string) {
     return this.prisma.budget.findFirst({
-      where: { id: budgetId, workspace: { memberships: { some: { userId, isActive: true } } } },
+      where: activeAccessibleBudgetWhere(userId, budgetId),
       select: {
         ...budgetViewSelect,
         workspace: {
@@ -89,24 +103,46 @@ export class BudgetRepository {
   async update(
     userId: string,
     budgetId: string,
-    input: { name?: string | undefined; status?: 'ACTIVE' | 'ARCHIVED' | undefined },
+    input: BudgetSettingsUpdate,
     requestId?: string,
   ): Promise<BudgetView | null> {
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.budget.findFirst({
         where: {
-          id: budgetId,
-          workspace: { memberships: { some: { userId, isActive: true, role: 'OWNER' } } },
+          ...activeAccessibleBudgetWhere(userId, budgetId),
+          workspace: {
+            status: 'ACTIVE',
+            memberships: { some: { userId, isActive: true, role: 'OWNER' } },
+          },
         },
         select: budgetViewSelect,
       });
       if (!current) return null;
+
+      if (input.incomeAllocationRuleEnabled) {
+        if (!input.incomeAllocationSourceCategoryId || !input.incomeAllocationTargetEnvelopeId) {
+          throw invalidReference();
+        }
+        const [category, envelope] = await Promise.all([
+          tx.category.findFirst({
+            where: {
+              id: input.incomeAllocationSourceCategoryId,
+              budgetId,
+              archivedAt: null,
+            },
+            select: { categoryType: true },
+          }),
+          tx.envelope.findFirst({
+            where: { id: input.incomeAllocationTargetEnvelopeId, budgetId, archivedAt: null },
+            select: { id: true },
+          }),
+        ]);
+        if (category?.categoryType !== 'INCOME' || !envelope) throw invalidReference();
+      }
+
       const budget = await tx.budget.update({
         where: { id: budgetId },
-        data: {
-          ...(input.name !== undefined ? { name: input.name } : {}),
-          ...(input.status !== undefined ? { status: input.status } : {}),
-        },
+        data: input,
         select: budgetViewSelect,
       });
       await tx.auditEvent.create({
@@ -120,8 +156,8 @@ export class BudgetRepository {
           action: 'UPDATED',
           source: 'API',
           requestId: requestId ?? null,
-          oldValues: { name: current.name, status: current.status },
-          newValues: { name: budget.name, status: budget.status },
+          oldValues: auditValues(current),
+          newValues: auditValues(budget),
         },
       });
       return budget;
@@ -129,13 +165,41 @@ export class BudgetRepository {
   }
 }
 
+function activeAccessibleBudgetWhere(userId: string, budgetId: string) {
+  return {
+    id: budgetId,
+    status: 'ACTIVE' as const,
+    workspace: {
+      status: 'ACTIVE' as const,
+      memberships: { some: { userId, isActive: true } },
+    },
+  };
+}
+
+function auditValues(budget: BudgetView) {
+  return {
+    name: budget.name,
+    timezone: budget.timezone,
+    cycleStartDay: budget.cycleStartDay,
+    periodBoundaryOffset: budget.periodBoundaryOffset,
+    allowNegativeBalance: budget.allowNegativeBalance,
+    incomeAllocationRuleEnabled: budget.incomeAllocationRuleEnabled,
+    incomeAllocationSourceCategoryId: budget.incomeAllocationSourceCategoryId,
+    incomeAllocationTargetEnvelopeId: budget.incomeAllocationTargetEnvelopeId,
+  };
+}
+
 const budgetViewSelect = {
   id: true,
   workspaceId: true,
   name: true,
   primaryCurrency: true,
+  timezone: true,
   cycleStartDay: true,
   periodBoundaryOffset: true,
   allowNegativeBalance: true,
+  incomeAllocationRuleEnabled: true,
+  incomeAllocationSourceCategoryId: true,
+  incomeAllocationTargetEnvelopeId: true,
   status: true,
 } as const;
