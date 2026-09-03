@@ -80,44 +80,75 @@ describe('reference template API', () => {
     await prisma.$disconnect();
   });
 
-  it('documents reference template action in OpenAPI', async () => {
+  it('documents exact Stage 2 paths, authenticated contracts and Problem Details errors in OpenAPI', async () => {
     const response = await server.inject({ method: 'GET', url: '/openapi.json' });
-    const document = response.json<{ paths: Record<string, unknown> }>();
+    const document = response.json<OpenApiDocument>();
 
-    expect(document.paths['/api/v1/budgets/{budgetId}/reference-template']).toMatchObject({
-      post: { responses: { '200': expect.anything() } },
+    expect(document.components.securitySchemes.session).toEqual({
+      type: 'apiKey',
+      in: 'cookie',
+      name: 'harmofin_session',
     });
-    expect(document.paths['/api/v1/budgets/{budgetId}/accounts']).toMatchObject({
-      get: { responses: { '200': expect.anything() } },
-      post: { requestBody: expect.anything(), responses: { '201': expect.anything() } },
-    });
-    expect(document.paths['/api/v1/budgets/{budgetId}/accounts/{accountId}/archive']).toMatchObject(
+    expect(document.components.schemas.ProblemDetailsResponse).toBeDefined();
+
+    const template = operation(document, '/api/v1/budgets/{budgetId}/reference-template', 'post');
+    expectAuthenticated(template);
+    expectResponseSchema(template, '200', reference('ReferenceTemplateResponse'));
+    expectProblemDetails(template, ['401', '403', '404']);
+
+    for (const resource of [
       {
-        post: { responses: { '200': expect.anything() } },
+        collectionPath: '/api/v1/budgets/{budgetId}/accounts',
+        itemPath: '/api/v1/budgets/{budgetId}/accounts/{accountId}',
+        response: 'AccountResponse',
+        create: 'CreateAccountRequest',
+        update: 'UpdateAccountRequest',
+        archiveErrors: ['401', '403', '404'],
       },
-    );
-    expect(document.paths['/api/v1/budgets/{budgetId}/categories']).toMatchObject({
-      get: { responses: { '200': expect.anything() } },
-      post: { requestBody: expect.anything(), responses: { '201': expect.anything() } },
-    });
-    expect(
-      document.paths['/api/v1/budgets/{budgetId}/categories/{categoryId}/archive'],
-    ).toMatchObject({
-      post: { responses: { '200': expect.anything() } },
-    });
-    expect(document.paths['/api/v1/budgets/{budgetId}/envelopes']).toMatchObject({
-      get: { responses: { '200': expect.anything() } },
-      post: { requestBody: expect.anything(), responses: { '201': expect.anything() } },
-    });
-    expect(document.paths['/api/v1/budgets/{budgetId}/envelopes/{envelopeId}']).toMatchObject({
-      get: { responses: { '200': expect.anything() } },
-      patch: { requestBody: expect.anything(), responses: { '200': expect.anything() } },
-    });
-    expect(
-      document.paths['/api/v1/budgets/{budgetId}/envelopes/{envelopeId}/archive'],
-    ).toMatchObject({
-      post: { responses: { '200': expect.anything() } },
-    });
+      {
+        collectionPath: '/api/v1/budgets/{budgetId}/categories',
+        itemPath: '/api/v1/budgets/{budgetId}/categories/{categoryId}',
+        response: 'CategoryResponse',
+        create: 'CreateCategoryRequest',
+        update: 'UpdateCategoryRequest',
+        archiveErrors: ['400', '401', '403', '404'],
+      },
+      {
+        collectionPath: '/api/v1/budgets/{budgetId}/envelopes',
+        itemPath: '/api/v1/budgets/{budgetId}/envelopes/{envelopeId}',
+        response: 'EnvelopeResponse',
+        create: 'CreateEnvelopeRequest',
+        update: 'UpdateEnvelopeRequest',
+        archiveErrors: ['401', '403', '404'],
+      },
+    ] as const) {
+      const list = operation(document, resource.collectionPath, 'get');
+      expectAuthenticated(list);
+      expectResponseSchema(list, '200', arrayOf(reference(resource.response)));
+      expectProblemDetails(list, ['401', '404']);
+
+      const create = operation(document, resource.collectionPath, 'post');
+      expectAuthenticated(create);
+      expectRequestBodySchema(create, reference(resource.create));
+      expectResponseSchema(create, '201', reference(resource.response));
+      expectProblemDetails(create, ['400', '401', '403', '404', '409']);
+
+      const get = operation(document, resource.itemPath, 'get');
+      expectAuthenticated(get);
+      expectResponseSchema(get, '200', reference(resource.response));
+      expectProblemDetails(get, ['401', '404']);
+
+      const update = operation(document, resource.itemPath, 'patch');
+      expectAuthenticated(update);
+      expectRequestBodySchema(update, reference(resource.update));
+      expectResponseSchema(update, '200', reference(resource.response));
+      expectProblemDetails(update, ['400', '401', '403', '404', '409']);
+
+      const archive = operation(document, `${resource.itemPath}/archive`, 'post');
+      expectAuthenticated(archive);
+      expectResponseSchema(archive, '200', reference(resource.response));
+      expectProblemDetails(archive, resource.archiveErrors);
+    }
   });
 
   it('creates exact defaults and a safe template audit event', async () => {
@@ -749,6 +780,70 @@ describe('reference template API', () => {
     expect(await prisma.envelope.count({ where: { budgetId: conflictBudget.id } })).toBe(0);
   });
 });
+
+type OpenApiSchema = {
+  $ref?: string;
+  type?: string;
+  items?: OpenApiSchema;
+};
+
+type OpenApiResponse = {
+  content?: Record<string, { schema?: OpenApiSchema }>;
+};
+
+type OpenApiOperation = {
+  security?: Array<Record<string, string[]>>;
+  requestBody?: { content?: Record<string, { schema?: OpenApiSchema }> };
+  responses?: Record<string, OpenApiResponse>;
+};
+
+type OpenApiDocument = {
+  paths: Record<string, Partial<Record<'get' | 'post' | 'patch', OpenApiOperation>>>;
+  components: {
+    securitySchemes: Record<string, { type?: string; in?: string; name?: string }>;
+    schemas: Record<string, OpenApiSchema>;
+  };
+};
+
+function operation(
+  document: OpenApiDocument,
+  path: string,
+  method: 'get' | 'post' | 'patch',
+): OpenApiOperation {
+  const result = document.paths[path]?.[method];
+  expect(result).toBeDefined();
+  return result!;
+}
+
+function reference(name: string): OpenApiSchema {
+  return { $ref: `#/components/schemas/${name}` };
+}
+
+function arrayOf(items: OpenApiSchema): OpenApiSchema {
+  return { type: 'array', items };
+}
+
+function expectAuthenticated(operation: OpenApiOperation): void {
+  expect(operation.security).toEqual([{ session: [] }]);
+}
+
+function expectRequestBodySchema(operation: OpenApiOperation, schema: OpenApiSchema): void {
+  expect(operation.requestBody?.content?.['application/json']?.schema).toEqual(schema);
+}
+
+function expectResponseSchema(
+  operation: OpenApiOperation,
+  status: string,
+  schema: OpenApiSchema,
+): void {
+  expect(operation.responses?.[status]?.content?.['application/json']?.schema).toEqual(schema);
+}
+
+function expectProblemDetails(operation: OpenApiOperation, statuses: readonly string[]): void {
+  for (const status of statuses) {
+    expectResponseSchema(operation, status, reference('ProblemDetailsResponse'));
+  }
+}
 
 async function createCategory(overrides: Record<string, unknown> = {}) {
   return server.inject({

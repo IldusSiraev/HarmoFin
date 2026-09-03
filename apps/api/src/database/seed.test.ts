@@ -39,6 +39,35 @@ describe('runSeed', () => {
     expect(createClient).not.toHaveBeenCalled();
   });
 
+  it('does not create Stage 2 defaults for an existing demo budget', async () => {
+    const category = { create: vi.fn(), createMany: vi.fn(), upsert: vi.fn() };
+    const envelope = { create: vi.fn(), createMany: vi.fn(), upsert: vi.fn() };
+    const tx = {
+      user: { upsert: vi.fn(async () => ({ id: '01800000-0000-7000-8000-000000000001' })) },
+      workspace: { upsert: vi.fn(async () => ({ id: '01800000-0000-7000-8000-000000000002' })) },
+      workspaceMembership: { upsert: vi.fn() },
+      budget: { upsert: vi.fn(async () => ({ id: '01800000-0000-7000-8000-000000000003' })) },
+      auditEvent: { upsert: vi.fn() },
+      category,
+      envelope,
+    };
+    const createClient = vi.fn(() => ({
+      $transaction: async (callback: (client: typeof tx) => Promise<void>) => callback(tx),
+      $disconnect: vi.fn(),
+    }));
+
+    await runSeed(validEnvironment, {
+      createClient: createClient as unknown as NonNullable<SeedDependencies['createClient']>,
+    });
+
+    expect(category.create).not.toHaveBeenCalled();
+    expect(category.createMany).not.toHaveBeenCalled();
+    expect(category.upsert).not.toHaveBeenCalled();
+    expect(envelope.create).not.toHaveBeenCalled();
+    expect(envelope.createMany).not.toHaveBeenCalled();
+    expect(envelope.upsert).not.toHaveBeenCalled();
+  });
+
   it('uses an injected client after accepting a valid environment', async () => {
     const tx = {
       user: { upsert: vi.fn(async () => ({ id: '01800000-0000-7000-8000-000000000001' })) },
