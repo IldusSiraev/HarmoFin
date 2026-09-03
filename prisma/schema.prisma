@@ -38,6 +38,26 @@ enum BudgetStatus {
   ARCHIVED
 }
 
+enum AccountType {
+  BANK_ACCOUNT
+  BANK_CARD
+  CASH
+}
+
+enum CategoryType {
+  INCOME
+  EXPENSE
+}
+
+enum EnvelopeType {
+  CURRENT_EXPENSES
+  MANDATORY_EXPENSES
+  SAVINGS_GOAL
+  RESERVE
+  FREE_MONEY
+  CUSTOM
+}
+
 model User {
   id              String     @id @db.Uuid
   email           String     @unique @db.VarChar(320)
@@ -115,22 +135,98 @@ model WorkspaceMembership {
 }
 
 model Budget {
-  id                    String       @id @db.Uuid
-  workspaceId           String       @map("workspace_id") @db.Uuid
-  name                  String       @db.VarChar(120)
-  primaryCurrency       String       @default("RUB") @map("primary_currency") @db.Char(3)
-  cycleStartDay         Int          @default(10) @map("cycle_start_day") @db.SmallInt
-  periodBoundaryOffset  Int          @default(15) @map("period_boundary_offset") @db.SmallInt
-  allowNegativeBalance  Boolean      @default(false) @map("allow_negative_balance")
-  status                BudgetStatus @default(ACTIVE)
-  createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt             DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                               String       @id @db.Uuid
+  workspaceId                      String       @map("workspace_id") @db.Uuid
+  name                             String       @db.VarChar(120)
+  primaryCurrency                  String       @default("RUB") @map("primary_currency") @db.Char(3)
+  cycleStartDay                    Int          @default(10) @map("cycle_start_day") @db.SmallInt
+  periodBoundaryOffset             Int          @default(15) @map("period_boundary_offset") @db.SmallInt
+  allowNegativeBalance             Boolean      @default(false) @map("allow_negative_balance")
+  timezone                         String       @default("Europe/Moscow") @db.VarChar(64)
+  incomeAllocationRuleEnabled      Boolean      @default(false) @map("income_allocation_rule_enabled")
+  incomeAllocationSourceCategoryId String?      @map("income_allocation_source_category_id") @db.Uuid
+  incomeAllocationTargetEnvelopeId String?      @map("income_allocation_target_envelope_id") @db.Uuid
+  status                           BudgetStatus @default(ACTIVE)
+  createdAt                        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  workspace  Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   auditEvents AuditEvent[]
+  accounts    Account[]
+  categories  Category[]
+  envelopes   Envelope[]
 
   @@index([workspaceId, status])
   @@map("budgets")
+}
+
+model Account {
+  id                   String      @id @db.Uuid
+  budgetId             String      @map("budget_id") @db.Uuid
+  name                 String      @db.VarChar(120)
+  accountType          AccountType @map("account_type")
+  bankName             String?     @map("bank_name") @db.VarChar(120)
+  lastFourDigits       String?     @map("last_four_digits") @db.Char(4)
+  currency             String      @default("RUB") @db.Char(3)
+  scale                Int         @default(2) @db.SmallInt
+  startingBalanceMinor BigInt      @map("starting_balance_minor")
+  accountingStartDate  DateTime    @map("accounting_start_date") @db.Date
+  comment              String?     @db.VarChar(500)
+  archivedAt           DateTime?   @map("archived_at") @db.Timestamptz(3)
+  createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  budget Budget @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([budgetId, archivedAt])
+  @@map("accounts")
+}
+
+model Category {
+  id           String       @id @db.Uuid
+  budgetId     String       @map("budget_id") @db.Uuid
+  templateKey  String?      @map("template_key") @db.VarChar(80)
+  name         String       @db.VarChar(120)
+  categoryType CategoryType @map("category_type")
+  parentId     String?      @map("parent_id") @db.Uuid
+  displayOrder Int          @map("display_order")
+  comment      String?      @db.VarChar(500)
+  archivedAt   DateTime?    @map("archived_at") @db.Timestamptz(3)
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  budget   Budget     @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  parent   Category?  @relation("CategoryParent", fields: [parentId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  children Category[] @relation("CategoryParent")
+
+  @@unique([id, budgetId])
+  @@index([budgetId, categoryType, archivedAt])
+  @@map("categories")
+}
+
+model Envelope {
+  id                        String       @id @db.Uuid
+  budgetId                  String       @map("budget_id") @db.Uuid
+  templateKey               String?      @map("template_key") @db.VarChar(80)
+  name                      String       @db.VarChar(120)
+  envelopeType              EnvelopeType @map("envelope_type")
+  currency                  String       @default("RUB") @db.Char(3)
+  scale                     Int          @default(2) @db.SmallInt
+  startingBalanceMinor      BigInt       @map("starting_balance_minor")
+  monthlyPlannedAmountMinor BigInt?      @map("monthly_planned_amount_minor")
+  targetAmountMinor         BigInt?      @map("target_amount_minor")
+  targetDate                DateTime?    @map("target_date") @db.Date
+  displayOrder              Int          @map("display_order")
+  comment                   String?      @db.VarChar(500)
+  archivedAt                DateTime?    @map("archived_at") @db.Timestamptz(3)
+  createdAt                 DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  budget Budget @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([id, budgetId])
+  @@index([budgetId, archivedAt])
+  @@map("envelopes")
 }
 
 model RecoveryToken {
