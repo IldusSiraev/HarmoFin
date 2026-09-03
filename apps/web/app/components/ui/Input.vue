@@ -131,7 +131,7 @@ function handleInput(event: Event) {
 }
 
 .ui-field__control:disabled,
-.ui-field__control:readonly {
+.ui-field__control:read-only {
   background: var(--hf-color-surface-subtle);
 }
 
