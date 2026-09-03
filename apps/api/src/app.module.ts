@@ -7,6 +7,7 @@ import { CategoryModule } from './categories/category.module.js';
 import { API_CONFIG } from './common/security/security.constants.js';
 import type { ApiConfig } from './config/env.js';
 import { DatabaseModule } from './database/database.module.js';
+import { EnvelopeModule } from './envelopes/envelope.module.js';
 import { HealthModule } from './health/health.module.js';
 import { WorkspaceModule } from './workspaces/workspace.module.js';
 
@@ -23,6 +24,7 @@ export class AppModule {
         BudgetModule.register(),
         AccountModule.register(),
         CategoryModule.register(),
+        EnvelopeModule.register(),
       ],
       providers: [{ provide: API_CONFIG, useValue: config }],
       exports: [API_CONFIG],

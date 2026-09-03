@@ -1,0 +1,278 @@
+import { Prisma, type EnvelopeType } from '@prisma/client';
+
+import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
+import { duplicateName } from '../common/reference-data/reference-data.errors.js';
+import type { ReferenceDataStatus } from '../common/reference-data/reference-data.types.js';
+import { PrismaService } from '../database/prisma.service.js';
+
+export interface EnvelopeRecord {
+  id: string;
+  budgetId: string;
+  templateKey: string | null;
+  name: string;
+  envelopeType: EnvelopeType;
+  currency: string;
+  scale: number;
+  startingBalanceMinor: bigint;
+  monthlyPlannedAmountMinor: bigint | null;
+  targetAmountMinor: bigint | null;
+  targetDate: Date | null;
+  displayOrder: number;
+  comment: string | null;
+  archivedAt: Date | null;
+}
+
+export interface EnvelopeCreateData {
+  budgetId: string;
+  name: string;
+  envelopeType: EnvelopeType;
+  currency: 'RUB';
+  startingBalanceMinor: bigint;
+  monthlyPlannedAmountMinor: bigint | null;
+  targetAmountMinor: bigint | null;
+  targetDate: Date | null;
+  displayOrder: number;
+  comment: string | null;
+}
+
+export interface EnvelopeUpdateData {
+  name?: string;
+  envelopeType?: EnvelopeType;
+  startingBalanceMinor?: bigint;
+  monthlyPlannedAmountMinor?: bigint | null;
+  targetAmountMinor?: bigint | null;
+  targetDate?: Date | null;
+  displayOrder?: number;
+  comment?: string | null;
+}
+
+export class EnvelopeRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async findAccessibleWithRole(userId: string, budgetId: string) {
+    return this.prisma.budget.findFirst({
+      where: activeBudgetWhere(userId, budgetId),
+      select: {
+        id: true,
+        workspaceId: true,
+        allowNegativeBalance: true,
+        workspace: {
+          select: {
+            memberships: { where: { userId, isActive: true }, select: { role: true }, take: 1 },
+          },
+        },
+      },
+    });
+  }
+
+  async list(
+    userId: string,
+    budgetId: string,
+    status: ReferenceDataStatus,
+  ): Promise<EnvelopeRecord[]> {
+    return this.prisma.envelope.findMany({
+      where: {
+        budgetId,
+        ...archiveWhere(status),
+        budget: activeBudgetWhere(userId, budgetId),
+      },
+      select: envelopeSelect,
+      orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  async find(userId: string, budgetId: string, envelopeId: string): Promise<EnvelopeRecord | null> {
+    return this.prisma.envelope.findFirst({
+      where: { id: envelopeId, budgetId, budget: activeBudgetWhere(userId, budgetId) },
+      select: envelopeSelect,
+    });
+  }
+
+  async create(
+    userId: string,
+    input: EnvelopeCreateData,
+    requestId?: string,
+  ): Promise<EnvelopeRecord | null> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const budget = await tx.budget.findFirst({
+          where: activeOwnerBudgetWhere(userId, input.budgetId),
+          select: { workspaceId: true },
+        });
+        if (!budget) return null;
+        const envelope = await tx.envelope.create({
+          data: { id: createUuidV7(), ...input },
+          select: envelopeSelect,
+        });
+        await tx.auditEvent.create({
+          data: {
+            id: createUuidV7(),
+            actorUserId: userId,
+            workspaceId: budget.workspaceId,
+            budgetId: input.budgetId,
+            entityType: 'envelope',
+            entityId: envelope.id,
+            action: 'CREATED',
+            source: 'API',
+            requestId: requestId ?? null,
+            newValues: auditValues(envelope),
+          },
+        });
+        return envelope;
+      });
+    } catch (error) {
+      throwDuplicateName(error);
+    }
+  }
+
+  async update(
+    userId: string,
+    budgetId: string,
+    envelopeId: string,
+    input: EnvelopeUpdateData,
+    requestId?: string,
+  ): Promise<EnvelopeRecord | null> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const current = await tx.envelope.findFirst({
+          where: {
+            id: envelopeId,
+            budgetId,
+            archivedAt: null,
+            budget: activeOwnerBudgetWhere(userId, budgetId),
+          },
+          select: envelopeSelect,
+        });
+        if (!current) return null;
+        const [budget, envelope] = await Promise.all([
+          tx.budget.findUniqueOrThrow({ where: { id: budgetId }, select: { workspaceId: true } }),
+          tx.envelope.update({ where: { id: envelopeId }, data: input, select: envelopeSelect }),
+        ]);
+        await tx.auditEvent.create({
+          data: {
+            id: createUuidV7(),
+            actorUserId: userId,
+            workspaceId: budget.workspaceId,
+            budgetId,
+            entityType: 'envelope',
+            entityId: envelope.id,
+            action: 'UPDATED',
+            source: 'API',
+            requestId: requestId ?? null,
+            oldValues: auditValues(current),
+            newValues: auditValues(envelope),
+          },
+        });
+        return envelope;
+      });
+    } catch (error) {
+      throwDuplicateName(error);
+    }
+  }
+
+  async archive(
+    userId: string,
+    budgetId: string,
+    envelopeId: string,
+    requestId?: string,
+  ): Promise<EnvelopeRecord | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.envelope.findFirst({
+        where: { id: envelopeId, budgetId, budget: activeOwnerBudgetWhere(userId, budgetId) },
+        select: envelopeSelect,
+      });
+      if (!current) return null;
+      if (current.archivedAt) return current;
+      const [budget, envelope] = await Promise.all([
+        tx.budget.findUniqueOrThrow({ where: { id: budgetId }, select: { workspaceId: true } }),
+        tx.envelope.update({
+          where: { id: envelopeId },
+          data: { archivedAt: new Date() },
+          select: envelopeSelect,
+        }),
+      ]);
+      await tx.auditEvent.create({
+        data: {
+          id: createUuidV7(),
+          actorUserId: userId,
+          workspaceId: budget.workspaceId,
+          budgetId,
+          entityType: 'envelope',
+          entityId: envelope.id,
+          action: 'ARCHIVED',
+          source: 'API',
+          requestId: requestId ?? null,
+          oldValues: auditValues(current),
+          newValues: auditValues(envelope),
+        },
+      });
+      return envelope;
+    });
+  }
+}
+
+function activeBudgetWhere(userId: string, budgetId: string) {
+  return {
+    id: budgetId,
+    status: 'ACTIVE' as const,
+    workspace: {
+      status: 'ACTIVE' as const,
+      memberships: { some: { userId, isActive: true } },
+    },
+  };
+}
+
+function activeOwnerBudgetWhere(userId: string, budgetId: string) {
+  return {
+    ...activeBudgetWhere(userId, budgetId),
+    workspace: {
+      status: 'ACTIVE' as const,
+      memberships: { some: { userId, isActive: true, role: 'OWNER' as const } },
+    },
+  };
+}
+
+function archiveWhere(status: ReferenceDataStatus) {
+  if (status === 'active') return { archivedAt: null };
+  if (status === 'archived') return { archivedAt: { not: null } };
+  return {};
+}
+
+function auditValues(envelope: EnvelopeRecord) {
+  return {
+    name: envelope.name,
+    envelopeType: envelope.envelopeType,
+    currency: envelope.currency,
+    scale: envelope.scale,
+    startingBalanceMinor: envelope.startingBalanceMinor.toString(),
+    monthlyPlannedAmountMinor: envelope.monthlyPlannedAmountMinor?.toString() ?? null,
+    targetAmountMinor: envelope.targetAmountMinor?.toString() ?? null,
+    targetDate: envelope.targetDate?.toISOString().slice(0, 10) ?? null,
+    displayOrder: envelope.displayOrder,
+    archivedAt: envelope.archivedAt?.toISOString() ?? null,
+  };
+}
+
+function throwDuplicateName(error: unknown): never {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+    throw duplicateName();
+  }
+  throw error;
+}
+
+const envelopeSelect = {
+  id: true,
+  budgetId: true,
+  templateKey: true,
+  name: true,
+  envelopeType: true,
+  currency: true,
+  scale: true,
+  startingBalanceMinor: true,
+  monthlyPlannedAmountMinor: true,
+  targetAmountMinor: true,
+  targetDate: true,
+  displayOrder: true,
+  comment: true,
+  archivedAt: true,
+} as const;

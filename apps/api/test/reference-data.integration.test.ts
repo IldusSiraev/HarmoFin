@@ -105,6 +105,19 @@ describe('reference template API', () => {
     ).toMatchObject({
       post: { responses: { '200': expect.anything() } },
     });
+    expect(document.paths['/api/v1/budgets/{budgetId}/envelopes']).toMatchObject({
+      get: { responses: { '200': expect.anything() } },
+      post: { requestBody: expect.anything(), responses: { '201': expect.anything() } },
+    });
+    expect(document.paths['/api/v1/budgets/{budgetId}/envelopes/{envelopeId}']).toMatchObject({
+      get: { responses: { '200': expect.anything() } },
+      patch: { requestBody: expect.anything(), responses: { '200': expect.anything() } },
+    });
+    expect(
+      document.paths['/api/v1/budgets/{budgetId}/envelopes/{envelopeId}/archive'],
+    ).toMatchObject({
+      post: { responses: { '200': expect.anything() } },
+    });
   });
 
   it('creates exact defaults and a safe template audit event', async () => {
@@ -482,6 +495,191 @@ describe('reference template API', () => {
     expect(reused.statusCode).toBe(201);
   });
 
+  it('creates, updates, archives and scopes envelopes', async () => {
+    const defaults = await listEnvelopes('active');
+    expect(defaults.statusCode).toBe(200);
+    expect(defaults.json()).toHaveLength(6);
+
+    const negativePlanned = await createEnvelope({ monthlyPlannedAmount: '-0.01' });
+    const negativeTarget = await createEnvelope({ targetAmount: '-0.01' });
+    const dateWithoutTarget = await createEnvelope({ targetDate: '2027-01-01' });
+    expect(negativePlanned.statusCode).toBe(400);
+    expect(negativePlanned.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
+    expect(negativeTarget.statusCode).toBe(400);
+    expect(dateWithoutTarget.statusCode).toBe(400);
+    expect(dateWithoutTarget.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
+
+    const types = [
+      'CURRENT_EXPENSES',
+      'MANDATORY_EXPENSES',
+      'SAVINGS_GOAL',
+      'RESERVE',
+      'FREE_MONEY',
+      'CUSTOM',
+    ];
+    const created = await Promise.all(
+      types.map((envelopeType, index) =>
+        createEnvelope({
+          name: `Конверт API ${envelopeType}`,
+          envelopeType,
+          startingBalance: index === 0 ? '-90071992547409.93' : '0.01',
+          monthlyPlannedAmount: index === 0 ? '500.50' : null,
+          targetAmount: index === 0 ? '1000.00' : null,
+          targetDate: index === 0 ? '2027-01-01' : null,
+          displayOrder: 100 + index,
+        }),
+      ),
+    );
+    for (const response of created) expect(response.statusCode).toBe(201);
+
+    const envelope = created[0]!.json<{
+      id: string;
+      startingBalanceMinor: string;
+      currentBalanceMinor: string;
+      monthlyPlannedAmountMinor: string | null;
+      targetAmountMinor: string | null;
+      targetDate: string | null;
+    }>();
+    expect(envelope).toMatchObject({
+      startingBalanceMinor: '-9007199254740993',
+      currentBalanceMinor: '-9007199254740993',
+      monthlyPlannedAmountMinor: '50050',
+      targetAmountMinor: '100000',
+      targetDate: '2027-01-01',
+    });
+    expect((await getEnvelope(envelope.id)).statusCode).toBe(200);
+    expect((await listEnvelopes('active')).json()).toEqual(
+      expect.arrayContaining(
+        types.map((envelopeType) => expect.objectContaining({ envelopeType })),
+      ),
+    );
+
+    const duplicate = await createEnvelope({
+      name: 'Конверт API CURRENT_EXPENSES',
+      envelopeType: 'CUSTOM',
+    });
+    expect(duplicate.statusCode).toBe(409);
+    expect(duplicate.json()).toMatchObject({ code: 'REFERENCE_NAME_CONFLICT' });
+
+    const targetDateRemoved = await updateEnvelope(envelope.id, { targetDate: null });
+    expect(targetDateRemoved.statusCode).toBe(200);
+    expect(targetDateRemoved.json()).toMatchObject({
+      targetAmountMinor: '100000',
+      targetDate: null,
+    });
+    const targetDateRestored = await updateEnvelope(envelope.id, { targetDate: '2028-01-01' });
+    expect(targetDateRestored.statusCode).toBe(200);
+    const targetAmountRemovedTooSoon = await updateEnvelope(envelope.id, { targetAmount: null });
+    expect(targetAmountRemovedTooSoon.statusCode).toBe(400);
+    expect(targetAmountRemovedTooSoon.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
+    const targetDateRemovedAgain = await updateEnvelope(envelope.id, { targetDate: null });
+    expect(targetDateRemovedAgain.statusCode).toBe(200);
+    const targetAmountRemoved = await updateEnvelope(envelope.id, { targetAmount: null });
+    expect(targetAmountRemoved.statusCode).toBe(200);
+    expect(targetAmountRemoved.json()).toMatchObject({ targetAmountMinor: null, targetDate: null });
+
+    const noOrigin = await server.inject({
+      method: 'PATCH',
+      url: `/api/v1/budgets/${ownerBudgetId}/envelopes/${envelope.id}`,
+      cookies: { harmofin_session: ownerCookie },
+      payload: { displayOrder: 200 },
+    });
+    const missingCsrf = await server.inject({
+      method: 'PATCH',
+      url: `/api/v1/budgets/${ownerBudgetId}/envelopes/${envelope.id}`,
+      headers: { origin },
+      cookies: { harmofin_session: ownerCookie },
+      payload: { displayOrder: 200 },
+    });
+    expect(noOrigin.json()).toMatchObject({ code: 'ORIGIN_REQUIRED' });
+    expect(missingCsrf.json()).toMatchObject({ code: 'CSRF_INVALID' });
+
+    const foreignEnvelope = await prisma.envelope.create({
+      data: {
+        id: randomUUID(),
+        budgetId: otherBudgetId,
+        name: 'Чужой конверт API',
+        envelopeType: 'CUSTOM',
+        startingBalanceMinor: 0n,
+        displayOrder: 0,
+      },
+    });
+    const foreignId = await getEnvelope(foreignEnvelope.id);
+    const other = await login(otherEmail);
+    const foreignBudget = await server.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${ownerBudgetId}/envelopes/${envelope.id}`,
+      cookies: { harmofin_session: other.cookie },
+    });
+    const foreignList = await server.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${ownerBudgetId}/envelopes`,
+      cookies: { harmofin_session: other.cookie },
+    });
+    expect(foreignId.statusCode).toBe(404);
+    expect(foreignBudget.statusCode).toBe(404);
+    expect(foreignList.statusCode).toBe(404);
+
+    const editorRole = await prisma.workspaceMembership.updateMany({
+      where: { userId: ownerId, workspaceId: ownerWorkspaceId },
+      data: { role: 'EDITOR' },
+    });
+    expect(editorRole.count).toBe(1);
+    const editorResponse = await createEnvelope({ name: 'Недоступный конверт API' });
+    await prisma.workspaceMembership.updateMany({
+      where: { userId: ownerId, workspaceId: ownerWorkspaceId },
+      data: { role: 'OWNER' },
+    });
+    expect(editorResponse.statusCode).toBe(403);
+
+    const viewerRole = await prisma.workspaceMembership.updateMany({
+      where: { userId: ownerId, workspaceId: ownerWorkspaceId },
+      data: { role: 'VIEWER' },
+    });
+    expect(viewerRole.count).toBe(1);
+    const viewerResponse = await createEnvelope({ name: 'Конверт только для просмотра API' });
+    await prisma.workspaceMembership.updateMany({
+      where: { userId: ownerId, workspaceId: ownerWorkspaceId },
+      data: { role: 'OWNER' },
+    });
+    expect(viewerResponse.statusCode).toBe(403);
+
+    const archived = await archiveEnvelope(envelope.id);
+    const archivedAgain = await archiveEnvelope(envelope.id);
+    expect(archived.statusCode).toBe(200);
+    expect(archivedAgain.statusCode).toBe(200);
+    expect((await listEnvelopes('archived')).json()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: envelope.id })]),
+    );
+    expect((await listEnvelopes('all')).json()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: envelope.id })]),
+    );
+    expect(
+      await prisma.auditEvent.count({
+        where: {
+          budgetId: ownerBudgetId,
+          entityType: 'envelope',
+          entityId: envelope.id,
+          action: 'ARCHIVED',
+        },
+      }),
+    ).toBe(1);
+
+    const audit = await prisma.auditEvent.findFirstOrThrow({
+      where: { budgetId: ownerBudgetId, entityType: 'envelope', entityId: envelope.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(JSON.stringify(audit.oldValues)).not.toContain('comment');
+    expect(JSON.stringify(audit.newValues)).not.toContain('comment');
+    expect(JSON.stringify(audit.newValues)).not.toContain('currentBalanceMinor');
+
+    const reused = await createEnvelope({
+      name: 'Конверт API CURRENT_EXPENSES',
+      envelopeType: 'CURRENT_EXPENSES',
+    });
+    expect(reused.statusCode).toBe(201);
+  });
+
   it('never duplicates or resurrects manually archived defaults', async () => {
     const repair = await prisma.envelope.findFirstOrThrow({
       where: { budgetId: ownerBudgetId, templateKey: 'envelope-repair' },
@@ -658,6 +856,59 @@ async function archiveAccount(accountId: string) {
   return server.inject({
     method: 'POST',
     url: `/api/v1/budgets/${ownerBudgetId}/accounts/${accountId}/archive`,
+    headers: { origin, 'x-csrf-token': ownerCsrf },
+    cookies: { harmofin_session: ownerCookie },
+  });
+}
+
+async function createEnvelope(overrides: Record<string, unknown> = {}) {
+  return server.inject({
+    method: 'POST',
+    url: `/api/v1/budgets/${ownerBudgetId}/envelopes`,
+    headers: { origin, 'x-csrf-token': ownerCsrf },
+    cookies: { harmofin_session: ownerCookie },
+    payload: {
+      name: 'Конверт API',
+      envelopeType: 'CUSTOM',
+      currency: 'RUB',
+      startingBalance: '0.00',
+      displayOrder: 0,
+      comment: 'Личный комментарий',
+      ...overrides,
+    },
+  });
+}
+
+async function listEnvelopes(status: 'active' | 'archived' | 'all') {
+  return server.inject({
+    method: 'GET',
+    url: `/api/v1/budgets/${ownerBudgetId}/envelopes?status=${status}`,
+    cookies: { harmofin_session: ownerCookie },
+  });
+}
+
+async function getEnvelope(envelopeId: string) {
+  return server.inject({
+    method: 'GET',
+    url: `/api/v1/budgets/${ownerBudgetId}/envelopes/${envelopeId}`,
+    cookies: { harmofin_session: ownerCookie },
+  });
+}
+
+async function updateEnvelope(envelopeId: string, payload: Record<string, unknown>) {
+  return server.inject({
+    method: 'PATCH',
+    url: `/api/v1/budgets/${ownerBudgetId}/envelopes/${envelopeId}`,
+    headers: { origin, 'x-csrf-token': ownerCsrf },
+    cookies: { harmofin_session: ownerCookie },
+    payload,
+  });
+}
+
+async function archiveEnvelope(envelopeId: string) {
+  return server.inject({
+    method: 'POST',
+    url: `/api/v1/budgets/${ownerBudgetId}/envelopes/${envelopeId}/archive`,
     headers: { origin, 'x-csrf-token': ownerCsrf },
     cookies: { harmofin_session: ownerCookie },
   });
