@@ -24,6 +24,7 @@ let ownerCookie: string;
 let ownerCsrf: string;
 let ownerWorkspaceId: string;
 let ownerBudgetId: string;
+let otherBudgetId: string;
 
 const incomeKeys = [
   'income-salary',
@@ -69,6 +70,7 @@ describe('reference template API', () => {
     ownerCsrf = owner.csrfToken;
     const other = await register(otherEmail);
     otherId = other.user.id;
+    otherBudgetId = other.budget.id;
   });
 
   afterAll(async () => {
@@ -94,6 +96,15 @@ describe('reference template API', () => {
         post: { responses: { '200': expect.anything() } },
       },
     );
+    expect(document.paths['/api/v1/budgets/{budgetId}/categories']).toMatchObject({
+      get: { responses: { '200': expect.anything() } },
+      post: { requestBody: expect.anything(), responses: { '201': expect.anything() } },
+    });
+    expect(
+      document.paths['/api/v1/budgets/{budgetId}/categories/{categoryId}/archive'],
+    ).toMatchObject({
+      post: { responses: { '200': expect.anything() } },
+    });
   });
 
   it('creates exact defaults and a safe template audit event', async () => {
@@ -131,6 +142,19 @@ describe('reference template API', () => {
       createdCategoryKeys: expect.arrayContaining(['income-cashback']),
     });
     expect(JSON.stringify(audit?.newValues)).not.toContain('comment');
+  });
+
+  it('lists default categories by type and archive status', async () => {
+    const income = await listCategories('INCOME', 'active');
+    const expense = await listCategories('EXPENSE', 'active');
+    const all = await listCategories(undefined, 'all');
+
+    expect(income.statusCode).toBe(200);
+    expect(income.json()).toHaveLength(5);
+    expect(expense.statusCode).toBe(200);
+    expect(expense.json()).toHaveLength(34);
+    expect(all.statusCode).toBe(200);
+    expect(all.json()).toHaveLength(39);
   });
 
   it('creates, updates, archives and scopes accounts', async () => {
@@ -250,6 +274,214 @@ describe('reference template API', () => {
     expect(JSON.stringify(audit.newValues)).not.toContain('comment');
   });
 
+  it('creates, updates, archives and scopes categories', async () => {
+    const income = await createCategory({
+      name: 'Доход API',
+      categoryType: 'INCOME',
+      displayOrder: 100,
+    });
+    const expense = await createCategory({
+      name: 'Расход API',
+      categoryType: 'EXPENSE',
+      displayOrder: 101,
+    });
+    const incomeCategory = income.json<{ id: string }>();
+    const expenseCategory = expense.json<{ id: string }>();
+
+    expect(income.statusCode).toBe(201);
+    expect(expense.statusCode).toBe(201);
+    expect((await listCategories('INCOME', 'active')).json()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: incomeCategory.id })]),
+    );
+    expect((await listCategories('EXPENSE', 'active')).json()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: expenseCategory.id })]),
+    );
+
+    const duplicate = await createCategory({
+      name: 'Доход API',
+      categoryType: 'INCOME',
+      displayOrder: 102,
+    });
+    expect(duplicate.statusCode).toBe(409);
+    expect(duplicate.json()).toMatchObject({ code: 'REFERENCE_NAME_CONFLICT' });
+
+    const sameNameOtherType = await createCategory({
+      name: 'Доход API',
+      categoryType: 'EXPENSE',
+      displayOrder: 102,
+    });
+    expect(sameNameOtherType.statusCode).toBe(201);
+    expect((await getCategory(expenseCategory.id)).statusCode).toBe(200);
+
+    const foreignParent = await prisma.category.create({
+      data: {
+        id: randomUUID(),
+        budgetId: otherBudgetId,
+        name: 'Чужой родитель API',
+        categoryType: 'EXPENSE',
+        displayOrder: 0,
+      },
+    });
+    const invalidForeignParent = await createCategory({
+      name: 'Чужая связь API',
+      categoryType: 'EXPENSE',
+      parentId: foreignParent.id,
+      displayOrder: 103,
+    });
+    expect(invalidForeignParent.statusCode).toBe(400);
+    expect(invalidForeignParent.json()).toMatchObject({ code: 'REFERENCE_INVALID' });
+
+    const invalidParentType = await createCategory({
+      name: 'Неверный родитель API',
+      categoryType: 'EXPENSE',
+      parentId: incomeCategory.id,
+      displayOrder: 103,
+    });
+    expect(invalidParentType.statusCode).toBe(400);
+    expect(invalidParentType.json()).toMatchObject({ code: 'REFERENCE_INVALID' });
+
+    const child = await createCategory({
+      name: 'Дочерний расход API',
+      categoryType: 'EXPENSE',
+      parentId: expenseCategory.id,
+      displayOrder: 104,
+    });
+    const childCategory = child.json<{ id: string }>();
+    expect(child.statusCode).toBe(201);
+
+    const archiveWithChild = await archiveCategory(expenseCategory.id);
+    expect(archiveWithChild.statusCode).toBe(400);
+    expect(archiveWithChild.json()).toMatchObject({ code: 'REFERENCE_INVALID' });
+
+    const cycle = await updateCategory(expenseCategory.id, { parentId: childCategory.id });
+    expect(cycle.statusCode).toBe(400);
+    expect(cycle.json()).toMatchObject({ code: 'REFERENCE_INVALID' });
+
+    const selfReference = await updateCategory(childCategory.id, { parentId: childCategory.id });
+    expect(selfReference.statusCode).toBe(400);
+    expect(selfReference.json()).toMatchObject({ code: 'REFERENCE_INVALID' });
+
+    const archivedParent = await createCategory({
+      name: 'Архивный родитель API',
+      categoryType: 'EXPENSE',
+      displayOrder: 105,
+    });
+    const archivedParentCategory = archivedParent.json<{ id: string }>();
+    expect((await archiveCategory(archivedParentCategory.id)).statusCode).toBe(200);
+    const archivedParentReference = await createCategory({
+      name: 'Связь с архивным API',
+      categoryType: 'EXPENSE',
+      parentId: archivedParentCategory.id,
+      displayOrder: 106,
+    });
+    expect(archivedParentReference.statusCode).toBe(400);
+    expect(archivedParentReference.json()).toMatchObject({ code: 'REFERENCE_INVALID' });
+
+    const updated = await updateCategory(childCategory.id, {
+      name: 'Обновлённый дочерний расход API',
+      comment: 'Не попадёт в аудит',
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json()).toMatchObject({ name: 'Обновлённый дочерний расход API' });
+
+    const other = await login(otherEmail);
+    const foreign = await server.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${ownerBudgetId}/categories/${childCategory.id}`,
+      cookies: { harmofin_session: other.cookie },
+    });
+    const foreignList = await server.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${ownerBudgetId}/categories`,
+      cookies: { harmofin_session: other.cookie },
+    });
+    expect(foreign.statusCode).toBe(404);
+    expect(foreignList.statusCode).toBe(404);
+
+    const editorRole = await prisma.workspaceMembership.updateMany({
+      where: { userId: ownerId, workspaceId: ownerWorkspaceId },
+      data: { role: 'EDITOR' },
+    });
+    expect(editorRole.count).toBe(1);
+    const editorResponse = await createCategory({
+      name: 'Недоступная категория API',
+      categoryType: 'EXPENSE',
+      displayOrder: 105,
+    });
+    await prisma.workspaceMembership.updateMany({
+      where: { userId: ownerId, workspaceId: ownerWorkspaceId },
+      data: { role: 'OWNER' },
+    });
+    expect(editorResponse.statusCode).toBe(403);
+
+    const viewerRole = await prisma.workspaceMembership.updateMany({
+      where: { userId: ownerId, workspaceId: ownerWorkspaceId },
+      data: { role: 'VIEWER' },
+    });
+    expect(viewerRole.count).toBe(1);
+    const viewerResponse = await createCategory({
+      name: 'Категория только для просмотра API',
+      categoryType: 'EXPENSE',
+      displayOrder: 107,
+    });
+    await prisma.workspaceMembership.updateMany({
+      where: { userId: ownerId, workspaceId: ownerWorkspaceId },
+      data: { role: 'OWNER' },
+    });
+    expect(viewerResponse.statusCode).toBe(403);
+
+    const noOrigin = await server.inject({
+      method: 'PATCH',
+      url: `/api/v1/budgets/${ownerBudgetId}/categories/${childCategory.id}`,
+      cookies: { harmofin_session: ownerCookie },
+      payload: { displayOrder: 106 },
+    });
+    const missingCsrf = await server.inject({
+      method: 'PATCH',
+      url: `/api/v1/budgets/${ownerBudgetId}/categories/${childCategory.id}`,
+      headers: { origin },
+      cookies: { harmofin_session: ownerCookie },
+      payload: { displayOrder: 106 },
+    });
+    expect(noOrigin.json()).toMatchObject({ code: 'ORIGIN_REQUIRED' });
+    expect(missingCsrf.json()).toMatchObject({ code: 'CSRF_INVALID' });
+
+    const archivedChild = await archiveCategory(childCategory.id);
+    const archivedChildAgain = await archiveCategory(childCategory.id);
+    expect(archivedChild.statusCode).toBe(200);
+    expect(archivedChildAgain.statusCode).toBe(200);
+    expect((await listCategories('EXPENSE', 'archived')).json()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: childCategory.id })]),
+    );
+    expect((await listCategories('EXPENSE', 'all')).json()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: childCategory.id })]),
+    );
+    expect(
+      await prisma.auditEvent.count({
+        where: {
+          budgetId: ownerBudgetId,
+          entityType: 'category',
+          entityId: childCategory.id,
+          action: 'ARCHIVED',
+        },
+      }),
+    ).toBe(1);
+
+    const audit = await prisma.auditEvent.findFirstOrThrow({
+      where: { budgetId: ownerBudgetId, entityType: 'category', entityId: childCategory.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(JSON.stringify(audit.oldValues)).not.toContain('comment');
+    expect(JSON.stringify(audit.newValues)).not.toContain('comment');
+
+    const reused = await createCategory({
+      name: 'Обновлённый дочерний расход API',
+      categoryType: 'EXPENSE',
+      displayOrder: 107,
+    });
+    expect(reused.statusCode).toBe(201);
+  });
+
   it('never duplicates or resurrects manually archived defaults', async () => {
     const repair = await prisma.envelope.findFirstOrThrow({
       where: { budgetId: ownerBudgetId, templateKey: 'envelope-repair' },
@@ -319,6 +551,62 @@ describe('reference template API', () => {
     expect(await prisma.envelope.count({ where: { budgetId: conflictBudget.id } })).toBe(0);
   });
 });
+
+async function createCategory(overrides: Record<string, unknown> = {}) {
+  return server.inject({
+    method: 'POST',
+    url: `/api/v1/budgets/${ownerBudgetId}/categories`,
+    headers: { origin, 'x-csrf-token': ownerCsrf },
+    cookies: { harmofin_session: ownerCookie },
+    payload: {
+      name: 'Категория API',
+      categoryType: 'EXPENSE',
+      displayOrder: 0,
+      comment: 'Личный комментарий',
+      ...overrides,
+    },
+  });
+}
+
+async function listCategories(
+  type: 'INCOME' | 'EXPENSE' | undefined,
+  status: 'active' | 'archived' | 'all',
+) {
+  const query = new URLSearchParams({ status });
+  if (type) query.set('type', type);
+  return server.inject({
+    method: 'GET',
+    url: `/api/v1/budgets/${ownerBudgetId}/categories?${query.toString()}`,
+    cookies: { harmofin_session: ownerCookie },
+  });
+}
+
+async function getCategory(categoryId: string) {
+  return server.inject({
+    method: 'GET',
+    url: `/api/v1/budgets/${ownerBudgetId}/categories/${categoryId}`,
+    cookies: { harmofin_session: ownerCookie },
+  });
+}
+
+async function updateCategory(categoryId: string, payload: Record<string, unknown>) {
+  return server.inject({
+    method: 'PATCH',
+    url: `/api/v1/budgets/${ownerBudgetId}/categories/${categoryId}`,
+    headers: { origin, 'x-csrf-token': ownerCsrf },
+    cookies: { harmofin_session: ownerCookie },
+    payload,
+  });
+}
+
+async function archiveCategory(categoryId: string) {
+  return server.inject({
+    method: 'POST',
+    url: `/api/v1/budgets/${ownerBudgetId}/categories/${categoryId}/archive`,
+    headers: { origin, 'x-csrf-token': ownerCsrf },
+    cookies: { harmofin_session: ownerCookie },
+  });
+}
 
 async function createAccount(overrides: Record<string, unknown> = {}) {
   return server.inject({

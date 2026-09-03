@@ -3,6 +3,7 @@ import { type DynamicModule, Module } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module.js';
 import { AccountModule } from './accounts/account.module.js';
 import { BudgetModule } from './budgets/budget.module.js';
+import { CategoryModule } from './categories/category.module.js';
 import { API_CONFIG } from './common/security/security.constants.js';
 import type { ApiConfig } from './config/env.js';
 import { DatabaseModule } from './database/database.module.js';
@@ -21,6 +22,7 @@ export class AppModule {
         WorkspaceModule.register(),
         BudgetModule.register(),
         AccountModule.register(),
+        CategoryModule.register(),
       ],
       providers: [{ provide: API_CONFIG, useValue: config }],
       exports: [API_CONFIG],
