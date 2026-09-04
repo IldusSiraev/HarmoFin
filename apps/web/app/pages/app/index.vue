@@ -54,98 +54,116 @@ async function signOut() {
 <style scoped>
 .app-shell {
   min-height: 100vh;
-  background: #edf1f4;
-  color: #172434;
+  color: var(--hf-color-text);
+  background: var(--hf-color-page-background);
 }
+
 .app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--hf-space-4);
   max-width: 70rem;
   margin: 0 auto;
-  padding: 1.25rem 2rem;
+  padding: var(--hf-space-5) var(--hf-space-8);
 }
+
 .app-wordmark {
-  color: #173f56;
+  color: var(--hf-color-text);
   font-size: 1.18rem;
-  font-weight: 800;
-  letter-spacing: -0.05em;
+  font-weight: var(--hf-font-weight-bold);
+  letter-spacing: -0.04em;
   text-decoration: none;
 }
+
 button {
-  padding: 0.6rem 0.8rem;
-  border: 1px solid #9aabb5;
-  border-radius: 0.35rem;
+  min-height: var(--hf-control-height-sm);
+  padding: 0 var(--hf-space-3);
+  color: var(--hf-color-text);
+  border: 1px solid var(--hf-color-border-strong);
+  border-radius: var(--hf-button-radius);
   background: transparent;
-  color: #24313f;
   font: inherit;
   cursor: pointer;
 }
+
 button:focus-visible {
-  outline: 3px solid #e6b947;
-  outline-offset: 3px;
+  outline: none;
+  box-shadow: var(--hf-focus-indicator);
 }
+
 .app-content {
   max-width: 70rem;
   margin: 7vh auto 0;
-  padding: 2rem;
+  padding: var(--hf-space-8);
 }
+
 .app-kicker {
-  margin: 0 0 0.75rem;
-  color: #25818c;
+  margin: 0 0 var(--hf-space-3);
+  color: var(--hf-color-action-primary-hover);
   font-size: 0.74rem;
-  font-weight: 800;
+  font-weight: var(--hf-font-weight-bold);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
+
 h1 {
   margin: 0;
   font-size: clamp(2.4rem, 5vw, 4.7rem);
-  letter-spacing: -0.07em;
   line-height: 0.95;
+  letter-spacing: -0.04em;
 }
+
 .app-user {
-  color: #60707c;
+  color: var(--hf-color-text-muted);
 }
+
 .budget-card {
   display: grid;
-  gap: 0.35rem;
+  gap: var(--hf-space-2);
   max-width: 31rem;
-  margin-top: 3rem;
-  padding: 1.5rem;
-  border-left: 5px solid #25818c;
-  background: #fff;
-  box-shadow: 0 18px 45px rgb(28 58 74 / 9%);
+  margin-top: var(--hf-space-10);
+  padding: var(--hf-card-padding);
+  border-left: 5px solid var(--hf-color-action-primary);
+  background: var(--hf-color-surface);
+  box-shadow: var(--hf-shadow-card);
 }
+
 .budget-card p,
 .budget-card h2 {
   margin: 0;
 }
+
 .budget-card p {
-  color: #60707c;
+  color: var(--hf-color-text-muted);
   font-size: 0.85rem;
 }
+
 .budget-card h2 {
   font-size: 1.45rem;
   letter-spacing: -0.04em;
 }
+
 .budget-card span {
-  color: #176c78;
-  font-weight: 750;
+  color: var(--hf-color-action-primary-hover);
+  font-weight: var(--hf-font-weight-bold);
 }
+
 .app-note,
 .app-error {
-  margin-top: 2rem;
-  color: #60707c;
+  margin-top: var(--hf-space-8);
+  color: var(--hf-color-text-muted);
 }
+
 .app-error {
-  color: #9b372c;
+  color: var(--hf-color-text-danger);
 }
+
 @media (max-width: 600px) {
   .app-header,
   .app-content {
-    padding-left: 1.25rem;
-    padding-right: 1.25rem;
+    padding-right: var(--hf-space-5);
+    padding-left: var(--hf-space-5);
   }
 }
 </style>

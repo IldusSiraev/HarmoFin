@@ -66,6 +66,16 @@ describe('workspace and budget API isolation', () => {
       });
       await prisma.workspaceMembership.deleteMany({ where: { userId } });
       for (const { workspaceId } of memberships) {
+        await prisma.budget.updateMany({
+          where: { workspaceId },
+          data: {
+            incomeAllocationSourceCategoryId: null,
+            incomeAllocationTargetEnvelopeId: null,
+          },
+        });
+        await prisma.account.deleteMany({ where: { budget: { workspaceId } } });
+        await prisma.category.deleteMany({ where: { budget: { workspaceId } } });
+        await prisma.envelope.deleteMany({ where: { budget: { workspaceId } } });
         await prisma.budget.deleteMany({ where: { workspaceId } });
         await prisma.workspace.deleteMany({ where: { id: workspaceId } });
       }
@@ -178,24 +188,223 @@ describe('workspace and budget API isolation', () => {
       data: { role: 'OWNER' },
     });
   });
-  it('permits OWNER to mutate budget settings', async () => {
+  it('updates owner settings and records allowlisted audit fields', async () => {
+    const { categoryId, envelopeId } = await createReferenceData();
     const response = await server.inject({
       method: 'PATCH',
       url: `/api/v1/budgets/${ownerBudgetId}`,
       headers: { origin, 'x-csrf-token': ownerCsrf },
       cookies: { harmofin_session: ownerCookie },
-      payload: { name: 'Переименованный бюджет' },
+      payload: {
+        name: 'Переименованный бюджет',
+        timezone: 'Asia/Yekaterinburg',
+        cycleStartDay: 5,
+        periodBoundaryOffset: 14,
+        allowNegativeBalance: true,
+        incomeAllocationRuleEnabled: true,
+        incomeAllocationSourceCategoryId: categoryId,
+        incomeAllocationTargetEnvelopeId: envelopeId,
+      },
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ id: ownerBudgetId, name: 'Переименованный бюджет' });
-    expect(
-      await prisma.auditEvent.findFirst({
-        where: { actorUserId: ownerId, budgetId: ownerBudgetId, action: 'UPDATED' },
-      }),
-    ).not.toBeNull();
+    expect(response.json()).toMatchObject({
+      id: ownerBudgetId,
+      name: 'Переименованный бюджет',
+      timezone: 'Asia/Yekaterinburg',
+      cycleStartDay: 5,
+      periodBoundaryOffset: 14,
+      allowNegativeBalance: true,
+      incomeAllocationRuleEnabled: true,
+      incomeAllocationSourceCategoryId: categoryId,
+      incomeAllocationTargetEnvelopeId: envelopeId,
+    });
+    const audit = await prisma.auditEvent.findFirst({
+      where: { actorUserId: ownerId, budgetId: ownerBudgetId, action: 'UPDATED' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(audit?.newValues).toMatchObject({
+      name: 'Переименованный бюджет',
+      timezone: 'Asia/Yekaterinburg',
+      cycleStartDay: 5,
+      periodBoundaryOffset: 14,
+      allowNegativeBalance: true,
+      incomeAllocationRuleEnabled: true,
+      incomeAllocationSourceCategoryId: categoryId,
+      incomeAllocationTargetEnvelopeId: envelopeId,
+    });
+  });
+
+  it('clears income allocation references when rule is disabled', async () => {
+    const response = await server.inject({
+      method: 'PATCH',
+      url: `/api/v1/budgets/${ownerBudgetId}`,
+      headers: { origin, 'x-csrf-token': ownerCsrf },
+      cookies: { harmofin_session: ownerCookie },
+      payload: {
+        incomeAllocationRuleEnabled: false,
+        incomeAllocationSourceCategoryId: randomUUID(),
+        incomeAllocationTargetEnvelopeId: randomUUID(),
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      incomeAllocationRuleEnabled: false,
+      incomeAllocationSourceCategoryId: null,
+      incomeAllocationTargetEnvelopeId: null,
+    });
+  });
+
+  it('rejects invalid or unknown budget settings fields', async () => {
+    for (const payload of [
+      { timezone: 'Not/A_Real_Timezone' },
+      { cycleStartDay: 29 },
+      { unexpected: true },
+      { status: 'ARCHIVED' },
+    ]) {
+      const response = await server.inject({
+        method: 'PATCH',
+        url: `/api/v1/budgets/${ownerBudgetId}`,
+        headers: { origin, 'x-csrf-token': ownerCsrf },
+        cookies: { harmofin_session: ownerCookie },
+        payload,
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
+    }
+  });
+
+  it('rejects an invalid income allocation reference', async () => {
+    const expenseCategory = await prisma.category.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ownerBudgetId,
+        name: `Расход ${randomUUID()}`,
+        categoryType: 'EXPENSE',
+        displayOrder: 1,
+      },
+    });
+    const envelope = await prisma.envelope.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ownerBudgetId,
+        name: `Конверт ${randomUUID()}`,
+        envelopeType: 'CUSTOM',
+        startingBalanceMinor: 0n,
+        displayOrder: 1,
+      },
+    });
+    const response = await server.inject({
+      method: 'PATCH',
+      url: `/api/v1/budgets/${ownerBudgetId}`,
+      headers: { origin, 'x-csrf-token': ownerCsrf },
+      cookies: { harmofin_session: ownerCookie },
+      payload: {
+        incomeAllocationRuleEnabled: true,
+        incomeAllocationSourceCategoryId: expenseCategory.id,
+        incomeAllocationTargetEnvelopeId: envelope.id,
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ code: 'REFERENCE_INVALID' });
+  });
+
+  it('returns 403 for an accessible EDITOR budget mutation', async () => {
+    await prisma.workspaceMembership.updateMany({
+      where: { userId: ownerId, workspaceId: ownerWorkspaceId },
+      data: { role: 'EDITOR' },
+    });
+
+    try {
+      const response = await server.inject({
+        method: 'PATCH',
+        url: `/api/v1/budgets/${ownerBudgetId}`,
+        headers: { origin, 'x-csrf-token': ownerCsrf },
+        cookies: { harmofin_session: ownerCookie },
+        payload: { name: 'Недоступное изменение' },
+      });
+
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toMatchObject({ code: 'FORBIDDEN' });
+    } finally {
+      await prisma.workspaceMembership.updateMany({
+        where: { userId: ownerId, workspaceId: ownerWorkspaceId },
+        data: { role: 'OWNER' },
+      });
+    }
+  });
+
+  it('does not expose or mutate archived budgets and workspaces', async () => {
+    await prisma.budget.update({ where: { id: ownerBudgetId }, data: { status: 'ARCHIVED' } });
+
+    try {
+      const budget = await server.inject({
+        method: 'GET',
+        url: `/api/v1/budgets/${ownerBudgetId}`,
+        cookies: { harmofin_session: ownerCookie },
+      });
+      const update = await server.inject({
+        method: 'PATCH',
+        url: `/api/v1/budgets/${ownerBudgetId}`,
+        headers: { origin, 'x-csrf-token': ownerCsrf },
+        cookies: { harmofin_session: ownerCookie },
+        payload: { name: 'Запрещено' },
+      });
+
+      expect(budget.statusCode).toBe(404);
+      expect(update.statusCode).toBe(404);
+    } finally {
+      await prisma.budget.update({ where: { id: ownerBudgetId }, data: { status: 'ACTIVE' } });
+    }
+
+    await prisma.workspace.update({
+      where: { id: ownerWorkspaceId },
+      data: { status: 'ARCHIVED' },
+    });
+
+    try {
+      const response = await server.inject({
+        method: 'GET',
+        url: `/api/v1/workspaces/${ownerWorkspaceId}/budgets`,
+        cookies: { harmofin_session: ownerCookie },
+      });
+
+      expect(response.statusCode).toBe(404);
+      expect(response.json()).toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
+    } finally {
+      await prisma.workspace.update({
+        where: { id: ownerWorkspaceId },
+        data: { status: 'ACTIVE' },
+      });
+    }
   });
 });
+
+async function createReferenceData() {
+  const category = await prisma.category.create({
+    data: {
+      id: randomUUID(),
+      budgetId: ownerBudgetId,
+      name: `Доход ${randomUUID()}`,
+      categoryType: 'INCOME',
+      displayOrder: 0,
+    },
+  });
+  const envelope = await prisma.envelope.create({
+    data: {
+      id: randomUUID(),
+      budgetId: ownerBudgetId,
+      name: `Конверт ${randomUUID()}`,
+      envelopeType: 'CUSTOM',
+      startingBalanceMinor: 0n,
+      displayOrder: 0,
+    },
+  });
+  return { categoryId: category.id, envelopeId: envelope.id };
+}
 
 async function register(email: string) {
   const response = await server.inject({

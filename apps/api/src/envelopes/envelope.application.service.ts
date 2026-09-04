@@ -1,0 +1,243 @@
+import { BadRequestException, Injectable } from '@nestjs/common';
+
+import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
+import { RolePolicy } from '../common/policies/role-policy.js';
+import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
+import type { ReferenceDataStatus } from '../common/reference-data/reference-data.types.js';
+import {
+  EnvelopeRepository,
+  type EnvelopeCreateData,
+  type EnvelopeRecord,
+  type EnvelopeUpdateData,
+} from './envelope.repository.js';
+import type { CreateEnvelopeInput, UpdateEnvelopeInput } from './envelope.schemas.js';
+
+export interface EnvelopeView {
+  id: string;
+  budgetId: string;
+  templateKey: string | null;
+  name: string;
+  envelopeType:
+    | 'CURRENT_EXPENSES'
+    | 'MANDATORY_EXPENSES'
+    | 'SAVINGS_GOAL'
+    | 'RESERVE'
+    | 'FREE_MONEY'
+    | 'CUSTOM';
+  currency: 'RUB';
+  scale: 2;
+  startingBalanceMinor: string;
+  currentBalanceMinor: string;
+  monthlyPlannedAmountMinor: string | null;
+  targetAmountMinor: string | null;
+  targetDate: string | null;
+  displayOrder: number;
+  comment: string | null;
+  archivedAt: string | null;
+}
+
+@Injectable()
+export class EnvelopeApplicationService {
+  constructor(
+    private readonly repository: EnvelopeRepository,
+    private readonly rolePolicy: RolePolicy,
+  ) {}
+
+  async list(
+    userId: string,
+    budgetId: string,
+    status: ReferenceDataStatus,
+  ): Promise<EnvelopeView[]> {
+    const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
+    if (!budget) throw resourceNotFound();
+    return (await this.repository.list(userId, budgetId, status)).map((envelope) =>
+      this.toView(envelope),
+    );
+  }
+
+  async get(userId: string, budgetId: string, envelopeId: string): Promise<EnvelopeView> {
+    const envelope = await this.repository.find(userId, budgetId, envelopeId);
+    if (!envelope) throw resourceNotFound();
+    return this.toView(envelope);
+  }
+
+  async create(
+    userId: string,
+    budgetId: string,
+    input: CreateEnvelopeInput,
+    requestId?: string,
+  ): Promise<EnvelopeView> {
+    const budget = await this.requireOwnerBudget(userId, budgetId);
+    const envelope = await this.repository.create(
+      userId,
+      this.createData(budgetId, input, budget.allowNegativeBalance),
+      requestId,
+    );
+    if (!envelope) throw resourceNotFound();
+    return this.toView(envelope);
+  }
+
+  async update(
+    userId: string,
+    budgetId: string,
+    envelopeId: string,
+    input: UpdateEnvelopeInput,
+    requestId?: string,
+  ): Promise<EnvelopeView> {
+    const budget = await this.requireOwnerBudget(userId, budgetId);
+    const current = await this.repository.find(userId, budgetId, envelopeId);
+    if (!current || current.archivedAt) throw resourceNotFound();
+
+    const envelope = await this.repository.update(
+      userId,
+      budgetId,
+      envelopeId,
+      this.updateData(input, current, budget.allowNegativeBalance),
+      requestId,
+    );
+    if (!envelope) throw resourceNotFound();
+    return this.toView(envelope);
+  }
+
+  async archive(
+    userId: string,
+    budgetId: string,
+    envelopeId: string,
+    requestId?: string,
+  ): Promise<EnvelopeView> {
+    await this.requireOwnerBudget(userId, budgetId);
+    const envelope = await this.repository.archive(userId, budgetId, envelopeId, requestId);
+    if (!envelope) throw resourceNotFound();
+    return this.toView(envelope);
+  }
+
+  toView(envelope: EnvelopeRecord): EnvelopeView {
+    const startingBalanceMinor = formatMinorUnits(envelope.startingBalanceMinor);
+    return {
+      id: envelope.id,
+      budgetId: envelope.budgetId,
+      templateKey: envelope.templateKey,
+      name: envelope.name,
+      envelopeType: envelope.envelopeType,
+      currency: 'RUB',
+      scale: 2,
+      startingBalanceMinor,
+      currentBalanceMinor: startingBalanceMinor,
+      monthlyPlannedAmountMinor:
+        envelope.monthlyPlannedAmountMinor === null
+          ? null
+          : formatMinorUnits(envelope.monthlyPlannedAmountMinor),
+      targetAmountMinor:
+        envelope.targetAmountMinor === null ? null : formatMinorUnits(envelope.targetAmountMinor),
+      targetDate: envelope.targetDate === null ? null : formatDate(envelope.targetDate),
+      displayOrder: envelope.displayOrder,
+      comment: envelope.comment,
+      archivedAt: envelope.archivedAt?.toISOString() ?? null,
+    };
+  }
+
+  private async requireOwnerBudget(userId: string, budgetId: string) {
+    const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
+    if (!budget) throw resourceNotFound();
+    const role = budget.workspace.memberships[0]?.role;
+    if (!role || !this.rolePolicy.canManage(role)) throw forbidden();
+    return budget;
+  }
+
+  private createData(
+    budgetId: string,
+    input: CreateEnvelopeInput,
+    allowNegativeBalance: boolean,
+  ): EnvelopeCreateData {
+    const targetAmountMinor = parseOptionalMoney(input.targetAmount);
+    const targetDate =
+      input.targetDate === undefined || input.targetDate === null
+        ? null
+        : parseDate(input.targetDate);
+    validateTarget(targetAmountMinor, targetDate);
+
+    return {
+      budgetId,
+      name: input.name,
+      envelopeType: input.envelopeType,
+      currency: input.currency,
+      startingBalanceMinor: parseDecimalToMinorUnits(
+        input.startingBalance,
+        2,
+        allowNegativeBalance,
+      ),
+      monthlyPlannedAmountMinor: parseOptionalMoney(input.monthlyPlannedAmount),
+      targetAmountMinor,
+      targetDate,
+      displayOrder: input.displayOrder,
+      comment: input.comment ?? null,
+    };
+  }
+
+  private updateData(
+    input: UpdateEnvelopeInput,
+    current: EnvelopeRecord,
+    allowNegativeBalance: boolean,
+  ): EnvelopeUpdateData {
+    const targetAmountMinor =
+      input.targetAmount === undefined
+        ? current.targetAmountMinor
+        : parseOptionalMoney(input.targetAmount);
+    const targetDate =
+      input.targetDate === undefined
+        ? current.targetDate
+        : input.targetDate === null
+          ? null
+          : parseDate(input.targetDate);
+    validateTarget(targetAmountMinor, targetDate);
+
+    return {
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.envelopeType !== undefined ? { envelopeType: input.envelopeType } : {}),
+      ...(input.startingBalance !== undefined
+        ? {
+            startingBalanceMinor: parseDecimalToMinorUnits(
+              input.startingBalance,
+              2,
+              allowNegativeBalance,
+            ),
+          }
+        : {}),
+      ...(input.monthlyPlannedAmount !== undefined
+        ? { monthlyPlannedAmountMinor: parseOptionalMoney(input.monthlyPlannedAmount) }
+        : {}),
+      ...(input.targetAmount !== undefined ? { targetAmountMinor } : {}),
+      ...(input.targetDate !== undefined ? { targetDate } : {}),
+      ...(input.displayOrder !== undefined ? { displayOrder: input.displayOrder } : {}),
+      ...(input.comment !== undefined ? { comment: input.comment } : {}),
+    };
+  }
+}
+
+function parseOptionalMoney(value: string | null | undefined): bigint | null {
+  return value === undefined || value === null ? null : parseDecimalToMinorUnits(value, 2, false);
+}
+
+function validateTarget(targetAmountMinor: bigint | null, targetDate: Date | null): void {
+  if (targetDate !== null && targetAmountMinor === null) {
+    throw new BadRequestException({
+      code: 'VALIDATION_FAILED',
+      detail: 'Целевая дата требует целевой суммы.',
+      fieldErrors: [
+        {
+          field: 'targetDate',
+          message: 'Укажите целевую сумму для целевой даты.',
+          code: 'invalid',
+        },
+      ],
+    });
+  }
+}
+
+function parseDate(value: string): Date {
+  return new Date(`${value}T00:00:00.000Z`);
+}
+
+function formatDate(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}

@@ -24,7 +24,11 @@ export async function createApiApp(config: ApiConfig): Promise<NestFastifyApplic
   await app.register(fastifyRateLimit, { global: false });
 
   app.setGlobalPrefix('api/v1');
-  app.enableCors({ origin: config.webOrigin, credentials: true });
+  app.enableCors({
+    origin: config.webOrigin,
+    credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  });
   app.useGlobalFilters(new ProblemDetailsFilter());
   app.useGlobalGuards(new OriginGuard(config));
   app.enableShutdownHooks();
