@@ -70,6 +70,10 @@ describe('useReferenceDataForm', () => {
       summary: 'Укажите данные формы.',
       fields: { name: 'Укажите название.' },
     });
+    expect(form.errorMessage(unknown)).toEqual({
+      summary: 'Не удалось выполнить действие. Повторите попытку.',
+      fields: {},
+    });
   });
 });
 

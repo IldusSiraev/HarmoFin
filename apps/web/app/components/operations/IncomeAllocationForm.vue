@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { ref } from 'vue';
 
 import type { AllocationProposal } from '../../composables/useBudgetReferenceData.js';
 import FinanceMoneyInput from '../finance/FinanceMoneyInput.vue';
@@ -29,9 +29,10 @@ const amount = ref(props.proposal ? minorToDecimal(props.proposal.amountMinor) :
 const accountId = ref(props.accounts[0]?.value ?? '');
 const envelopeId = ref(props.proposal?.targetEnvelopeId ?? '');
 const occurredOn = ref(new Date().toISOString().slice(0, 10));
-const actionLabel = computed(() =>
-  editing.value ? 'Сохранить распределение' : 'Применить предложение',
-);
+
+function startEditing() {
+  editing.value = true;
+}
 
 function apply() {
   emit('submit', {
@@ -61,9 +62,9 @@ function minorToDecimal(value: string): string {
         :disabled="pending"
         :loading="pending"
         @click="apply"
-        >{{ actionLabel }}</UiButton
+        >{{ editing ? 'Сохранить распределение' : 'Применить предложение' }}</UiButton
       >
-      <UiButton variant="secondary" :disabled="pending" @click="editing = true">Изменить</UiButton>
+      <UiButton variant="secondary" :disabled="pending" @click="startEditing">Изменить</UiButton>
       <UiButton variant="tertiary" :disabled="pending" @click="emit('reject')"
         >Не распределять</UiButton
       >
@@ -93,7 +94,7 @@ function minorToDecimal(value: string): string {
         required
       />
       <UiButton data-action="apply-proposal" type="submit" :disabled="pending" :loading="pending">{{
-        actionLabel
+        editing ? 'Сохранить распределение' : 'Применить предложение'
       }}</UiButton>
     </form>
   </section>

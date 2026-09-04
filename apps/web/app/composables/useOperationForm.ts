@@ -45,7 +45,7 @@ export function toTransactionInput(
 }
 
 export function normalizeDecimal(value: string): string {
-  return value.replaceAll(/[\s ]/g, '').replace(',', '.');
+  return value.replaceAll(/(?:\s|\xA0)/g, '').replace(',', '.');
 }
 
 function minorToDecimal(value: string): string {

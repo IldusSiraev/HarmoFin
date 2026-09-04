@@ -40,6 +40,7 @@ async function signOut() {
         <p class="app-kicker">Ваше пространство</p>
         <h1>{{ currentData.workspaces[0]?.name }}</h1>
         <p class="app-user">{{ currentData.user.email }}</p>
+        <NuxtLink class="app-operations-link" to="/app/operations">Операции</NuxtLink>
         <section class="budget-card" aria-labelledby="budget-heading">
           <p>Активный бюджет</p>
           <h2 id="budget-heading">{{ currentData.workspaces[0]?.budgets[0]?.name }}</h2>
