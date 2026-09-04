@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
 import { RolePolicy } from '../common/policies/role-policy.js';
@@ -139,11 +139,7 @@ export class AccountApplicationService {
       bankName: input.bankName ?? null,
       lastFourDigits: input.lastFourDigits ?? null,
       currency: input.currency,
-      startingBalanceMinor: parseDecimalToMinorUnits(
-        input.startingBalance,
-        2,
-        allowNegativeBalance,
-      ),
+      startingBalanceMinor: parseStartingBalance(input.startingBalance, allowNegativeBalance),
       accountingStartDate: parseDate(input.accountingStartDate),
       comment: input.comment ?? null,
     };
@@ -157,9 +153,8 @@ export class AccountApplicationService {
       ...(input.lastFourDigits !== undefined ? { lastFourDigits: input.lastFourDigits } : {}),
       ...(input.startingBalance !== undefined
         ? {
-            startingBalanceMinor: parseDecimalToMinorUnits(
+            startingBalanceMinor: parseStartingBalance(
               input.startingBalance,
-              2,
               allowNegativeBalance,
             ),
           }
@@ -169,6 +164,24 @@ export class AccountApplicationService {
         : {}),
       ...(input.comment !== undefined ? { comment: input.comment } : {}),
     };
+  }
+}
+
+function parseStartingBalance(value: string, allowNegativeBalance: boolean): bigint {
+  try {
+    return parseDecimalToMinorUnits(value, 2, allowNegativeBalance);
+  } catch (error) {
+    if (!(error instanceof BadRequestException)) throw error;
+
+    const response = error.getResponse();
+    const detail = typeof response === 'object' && response !== null && 'detail' in response
+      ? String(response.detail)
+      : 'Денежное значение недопустимо.';
+    throw new BadRequestException({
+      code: 'VALIDATION_FAILED',
+      detail: 'Проверьте денежное значение.',
+      fieldErrors: [{ field: 'startingBalance', message: detail, code: 'invalid' }],
+    });
   }
 }
 

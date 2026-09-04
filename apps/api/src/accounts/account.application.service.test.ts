@@ -35,6 +35,24 @@ describe('AccountApplicationService', () => {
     );
   });
 
+
+  it('maps invalid starting balance to a field error', async () => {
+    const repository = repositoryDouble();
+    const service = createService(repository);
+    repository.findAccessibleWithRole.mockResolvedValue(ownerBudget());
+
+    await expect(
+      service.update(ownerId, budgetId, 'account-id', { startingBalance: '1.234' }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'VALIDATION_FAILED',
+        fieldErrors: [
+          expect.objectContaining({ field: 'startingBalance', message: expect.any(String) }),
+        ],
+      }),
+    });
+  });
+
   it('maps current balance from server starting balance', () => {
     const service = createService(repositoryDouble());
 
