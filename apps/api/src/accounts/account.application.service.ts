@@ -153,10 +153,7 @@ export class AccountApplicationService {
       ...(input.lastFourDigits !== undefined ? { lastFourDigits: input.lastFourDigits } : {}),
       ...(input.startingBalance !== undefined
         ? {
-            startingBalanceMinor: parseStartingBalance(
-              input.startingBalance,
-              allowNegativeBalance,
-            ),
+            startingBalanceMinor: parseStartingBalance(input.startingBalance, allowNegativeBalance),
           }
         : {}),
       ...(input.accountingStartDate !== undefined
@@ -174,9 +171,10 @@ function parseStartingBalance(value: string, allowNegativeBalance: boolean): big
     if (!(error instanceof BadRequestException)) throw error;
 
     const response = error.getResponse();
-    const detail = typeof response === 'object' && response !== null && 'detail' in response
-      ? String(response.detail)
-      : 'Денежное значение недопустимо.';
+    const detail =
+      typeof response === 'object' && response !== null && 'detail' in response
+        ? String(response.detail)
+        : 'Денежное значение недопустимо.';
     throw new BadRequestException({
       code: 'VALIDATION_FAILED',
       detail: 'Проверьте денежное значение.',

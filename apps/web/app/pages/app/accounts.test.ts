@@ -15,7 +15,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => mocks.auth }));
-vi.mock('../../composables/useBudgetReferenceData.js', () => ({ useBudgetReferenceData: () => mocks.api }));
+vi.mock('../../composables/useBudgetReferenceData.js', () => ({
+  useBudgetReferenceData: () => mocks.api,
+}));
 
 import AccountsPage from './accounts.vue';
 
@@ -40,10 +42,14 @@ function mountPage() {
     global: {
       stubs: {
         NuxtLink: { template: '<a><slot /></a>' },
-        AccountCard: { template: '<article><strong>{{ account.name }}</strong><slot name="actions" /></article>', props: ['account'] },
+        AccountCard: {
+          template: '<article><strong>{{ account.name }}</strong><slot name="actions" /></article>',
+          props: ['account'],
+        },
         UiConfirmDialog: {
           props: ['open'],
-          template: '<div v-if="open" data-confirm-dialog><button data-confirm="archive-account" @click="$emit(\'confirm\')">Подтвердить</button><button @click="$emit(\'cancel\')">Отмена</button></div>',
+          template:
+            '<div v-if="open" data-confirm-dialog><button data-confirm="archive-account" @click="$emit(\'confirm\')">Подтвердить</button><button @click="$emit(\'cancel\')">Отмена</button></div>',
         },
       },
     },
@@ -55,7 +61,14 @@ describe('accounts page', () => {
     vi.clearAllMocks();
     mocks.auth.currentData.value = {
       user: { id: 'user-id', email: 'owner@example.test', displayName: null },
-      workspaces: [{ id: 'workspace-id', name: 'Семья', role: 'OWNER', budgets: [{ id: 'budget-id', name: 'Бюджет', primaryCurrency: 'RUB' }] }],
+      workspaces: [
+        {
+          id: 'workspace-id',
+          name: 'Семья',
+          role: 'OWNER',
+          budgets: [{ id: 'budget-id', name: 'Бюджет', primaryCurrency: 'RUB' }],
+        },
+      ],
     };
     mocks.api.listAccounts.mockResolvedValue([]);
   });
@@ -73,14 +86,20 @@ describe('accounts page', () => {
     await wrapper.get('form[data-account-form]').trigger('submit');
     await flushPromises();
 
-    expect(mocks.api.createAccount).toHaveBeenCalledWith('budget-id', expect.objectContaining({ startingBalance: '123.45' }));
+    expect(mocks.api.createAccount).toHaveBeenCalledWith(
+      'budget-id',
+      expect.objectContaining({ startingBalance: '123.45' }),
+    );
     expect(mocks.api.listAccounts).toHaveBeenCalledTimes(2);
     expect(wrapper.text()).toContain('Основной счёт');
   });
 
   it('requires explicit archive confirmation', async () => {
     mocks.api.listAccounts.mockResolvedValue([account]);
-    mocks.api.archiveAccount.mockResolvedValue({ ...account, archivedAt: '2026-09-04T00:00:00.000Z' });
+    mocks.api.archiveAccount.mockResolvedValue({
+      ...account,
+      archivedAt: '2026-09-04T00:00:00.000Z',
+    });
     const wrapper = mountPage();
 
     await flushPromises();

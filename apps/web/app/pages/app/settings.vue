@@ -206,7 +206,13 @@ onMounted(() => {
         <h1 id="settings-title">Бюджет</h1>
         <p class="settings-page__description">Параметры финансового цикла и справочных данных.</p>
 
-        <UiStatus v-if="summary" class="settings-page__summary" :label="summary" :tone="fieldErrors && Object.keys(fieldErrors).length ? 'danger' : 'success'" aria-live="polite" />
+        <UiStatus
+          v-if="summary"
+          class="settings-page__summary"
+          :label="summary"
+          :tone="fieldErrors && Object.keys(fieldErrors).length ? 'danger' : 'success'"
+          aria-live="polite"
+        />
 
         <form class="settings-form" @submit.prevent="saveSettings">
           <UiInput
@@ -244,11 +250,11 @@ onMounted(() => {
           <fieldset class="settings-form__options">
             <legend>Баланс и распределение</legend>
             <label class="settings-form__checkbox">
-              <input v-model="form.allowNegativeBalance" type="checkbox">
+              <input v-model="form.allowNegativeBalance" type="checkbox" />
               <span>Разрешить отрицательный баланс</span>
             </label>
             <label class="settings-form__checkbox">
-              <input v-model="form.incomeAllocationRuleEnabled" type="checkbox">
+              <input v-model="form.incomeAllocationRuleEnabled" type="checkbox" />
               <span>Настроить автоматическое распределение дохода</span>
             </label>
           </fieldset>

@@ -196,7 +196,9 @@ h2 {
   font: inherit;
   font-weight: var(--hf-font-weight-bold);
   cursor: pointer;
-  transition: background-color 180ms ease, transform 180ms ease;
+  transition:
+    background-color 180ms ease,
+    transform 180ms ease;
 }
 
 .primary-action:hover:not(:disabled) {

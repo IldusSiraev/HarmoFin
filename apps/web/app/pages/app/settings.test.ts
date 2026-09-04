@@ -118,9 +118,10 @@ describe('settings page', () => {
   it('disables template action while request is pending and reloads server data', async () => {
     let completeRequest: (() => void) | undefined;
     mocks.api.initializeTemplate.mockImplementation(
-      () => new Promise<void>((resolve) => {
-        completeRequest = resolve;
-      }),
+      () =>
+        new Promise<void>((resolve) => {
+          completeRequest = resolve;
+        }),
     );
     const wrapper = mountPage();
 

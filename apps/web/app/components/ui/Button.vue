@@ -36,11 +36,7 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
 <template>
   <button
     class="ui-button"
-    :class="[
-      `ui-button--${variant}`,
-      `ui-button--${size}`,
-      { 'ui-button--full-width': fullWidth },
-    ]"
+    :class="[`ui-button--${variant}`, `ui-button--${size}`, { 'ui-button--full-width': fullWidth }]"
     :type="type"
     :disabled="disabled || loading"
     :aria-busy="loading || undefined"
@@ -65,7 +61,10 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
   border-radius: var(--hf-button-radius);
   font-weight: var(--hf-button-font-weight);
   line-height: 1.25;
-  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
 }
 
 .ui-button--sm {

@@ -35,7 +35,6 @@ describe('AccountApplicationService', () => {
     );
   });
 
-
   it('maps invalid starting balance to a field error', async () => {
     const repository = repositoryDouble();
     const service = createService(repository);

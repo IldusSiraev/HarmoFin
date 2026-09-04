@@ -48,9 +48,11 @@ function getErrorId() {
 }
 
 function getDescribedBy() {
-  return [props.hint ? getHintId() : undefined, props.error ? getErrorId() : undefined]
-    .filter(Boolean)
-    .join(' ') || undefined;
+  return (
+    [props.hint ? getHintId() : undefined, props.error ? getErrorId() : undefined]
+      .filter(Boolean)
+      .join(' ') || undefined
+  );
 }
 
 function handleChange(event: Event) {

@@ -25,7 +25,16 @@ import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js'
 defineOptions({ name: 'AppEnvelopesPage' });
 definePageMeta({ middleware: 'auth' });
 
-const envelopeFields = ['name', 'envelopeType', 'startingBalance', 'monthlyPlannedAmount', 'targetAmount', 'targetDate', 'displayOrder', 'comment'] as const;
+const envelopeFields = [
+  'name',
+  'envelopeType',
+  'startingBalance',
+  'monthlyPlannedAmount',
+  'targetAmount',
+  'targetDate',
+  'displayOrder',
+  'comment',
+] as const;
 const { currentData, loadMe } = useAuth();
 const api = useBudgetReferenceData();
 const formHelper = useReferenceDataForm(envelopeFields);
@@ -260,7 +269,11 @@ onMounted(() => {
           <template #action><UiButton @click="loadPage">Повторить</UiButton></template>
         </UiEmptyState>
       </template>
-      <UiEmptyState v-else-if="!budgetId" title="Бюджет не выбран" description="Выберите бюджет, чтобы управлять конвертами." />
+      <UiEmptyState
+        v-else-if="!budgetId"
+        title="Бюджет не выбран"
+        description="Выберите бюджет, чтобы управлять конвертами."
+      />
       <template v-else>
         <div class="reference-page__title-row">
           <div>
@@ -271,40 +284,120 @@ onMounted(() => {
           <UiButton data-action="create-envelope" @click="startCreate">Создать конверт</UiButton>
         </div>
 
-        <UiStatus v-if="summary" class="reference-page__summary" :label="summary" tone="info" aria-live="polite" />
+        <UiStatus
+          v-if="summary"
+          class="reference-page__summary"
+          :label="summary"
+          tone="info"
+          aria-live="polite"
+        />
         <div class="reference-page__filter">
-          <UiSelect :model-value="status" name="status" label="Показать конверты" :options="getStatusOptions()" @update:model-value="changeStatus" />
+          <UiSelect
+            :model-value="status"
+            name="status"
+            label="Показать конверты"
+            :options="getStatusOptions()"
+            @update:model-value="changeStatus"
+          />
         </div>
 
-        <form v-if="formVisible" class="reference-form" data-envelope-form @submit.prevent="saveEnvelope">
+        <form
+          v-if="formVisible"
+          class="reference-form"
+          data-envelope-form
+          @submit.prevent="saveEnvelope"
+        >
           <h2>{{ editingId ? 'Изменить конверт' : 'Новый конверт' }}</h2>
-          <UiInput v-model="form.name" name="name" label="Название конверта" :error="getFieldError('name')" required />
-          <UiSelect v-model="form.envelopeType" name="envelopeType" label="Тип конверта" :options="getEnvelopeTypeOptions()" :error="getFieldError('envelopeType')" required />
-          <FinanceMoneyInput v-model="form.startingBalance" name="startingBalance" label="Начальный баланс" hint="Оставьте пустым при редактировании, чтобы сохранить текущий баланс." :error="getFieldError('startingBalance')" :required="!editingId" />
-          <p v-if="negativeBalanceAllowed()" class="reference-form__note">Отрицательный баланс разрешён настройками бюджета.</p>
-          <FinanceMoneyInput v-model="form.monthlyPlannedAmount" name="monthlyPlannedAmount" label="План на месяц" :error="getFieldError('monthlyPlannedAmount')" />
-          <FinanceMoneyInput v-model="form.targetAmount" name="targetAmount" label="Целевая сумма" :error="getFieldError('targetAmount')" />
-          <UiInput v-model="form.targetDate" name="targetDate" label="Дата цели" type="date" :error="getFieldError('targetDate')" />
-          <UiInput v-model="form.displayOrder" name="displayOrder" label="Порядок отображения" inputmode="numeric" :error="getFieldError('displayOrder')" required />
+          <UiInput
+            v-model="form.name"
+            name="name"
+            label="Название конверта"
+            :error="getFieldError('name')"
+            required
+          />
+          <UiSelect
+            v-model="form.envelopeType"
+            name="envelopeType"
+            label="Тип конверта"
+            :options="getEnvelopeTypeOptions()"
+            :error="getFieldError('envelopeType')"
+            required
+          />
+          <FinanceMoneyInput
+            v-model="form.startingBalance"
+            name="startingBalance"
+            label="Начальный баланс"
+            hint="Оставьте пустым при редактировании, чтобы сохранить текущий баланс."
+            :error="getFieldError('startingBalance')"
+            :required="!editingId"
+          />
+          <p v-if="negativeBalanceAllowed()" class="reference-form__note">
+            Отрицательный баланс разрешён настройками бюджета.
+          </p>
+          <FinanceMoneyInput
+            v-model="form.monthlyPlannedAmount"
+            name="monthlyPlannedAmount"
+            label="План на месяц"
+            :error="getFieldError('monthlyPlannedAmount')"
+          />
+          <FinanceMoneyInput
+            v-model="form.targetAmount"
+            name="targetAmount"
+            label="Целевая сумма"
+            :error="getFieldError('targetAmount')"
+          />
+          <UiInput
+            v-model="form.targetDate"
+            name="targetDate"
+            label="Дата цели"
+            type="date"
+            :error="getFieldError('targetDate')"
+          />
+          <UiInput
+            v-model="form.displayOrder"
+            name="displayOrder"
+            label="Порядок отображения"
+            inputmode="numeric"
+            :error="getFieldError('displayOrder')"
+            required
+          />
           <label class="reference-form__field">
             <span>Комментарий</span>
-            <textarea v-model="form.comment" name="comment" :aria-invalid="getFieldError('comment') ? 'true' : undefined" />
+            <textarea
+              v-model="form.comment"
+              name="comment"
+              :aria-invalid="getFieldError('comment') ? 'true' : undefined"
+            />
             <small v-if="getFieldError('comment')">{{ getFieldError('comment') }}</small>
           </label>
           <div class="reference-form__actions">
             <UiButton type="submit" :loading="saving">Сохранить конверт</UiButton>
-            <UiButton type="button" variant="tertiary" :disabled="saving" @click="cancelForm">Отмена</UiButton>
+            <UiButton type="button" variant="tertiary" :disabled="saving" @click="cancelForm"
+              >Отмена</UiButton
+            >
           </div>
         </form>
 
-        <UiEmptyState v-if="envelopes.length === 0" title="Конвертов пока нет" description="Добавьте конверт, чтобы планировать деньги.">
+        <UiEmptyState
+          v-if="envelopes.length === 0"
+          title="Конвертов пока нет"
+          description="Добавьте конверт, чтобы планировать деньги."
+        >
           <template #action><UiButton @click="startCreate">Создать конверт</UiButton></template>
         </UiEmptyState>
         <div v-else class="reference-grid">
           <EnvelopeCard v-for="envelope in envelopes" :key="envelope.id" :envelope="envelope">
             <template #actions>
-              <UiButton variant="secondary" data-action="edit-envelope" @click="startEdit(envelope)">Изменить</UiButton>
-              <UiButton v-if="!envelope.archivedAt" variant="danger" data-action="archive-envelope" @click="requestArchive(envelope)">Переместить в архив</UiButton>
+              <UiButton variant="secondary" data-action="edit-envelope" @click="startEdit(envelope)"
+                >Изменить</UiButton
+              >
+              <UiButton
+                v-if="!envelope.archivedAt"
+                variant="danger"
+                data-action="archive-envelope"
+                @click="requestArchive(envelope)"
+                >Переместить в архив</UiButton
+              >
             </template>
           </EnvelopeCard>
         </div>
@@ -326,26 +419,134 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.reference-page { min-height: 100vh; color: var(--hf-color-text); background: var(--hf-color-page-background); }
-.reference-page__header { display: flex; align-items: center; justify-content: space-between; gap: var(--hf-space-4); max-width: 70rem; margin: 0 auto; padding: var(--hf-space-5) var(--hf-space-8); }
-.reference-page__wordmark, .reference-page__header nav a { color: var(--hf-color-text); text-decoration: none; }
-.reference-page__wordmark { font-size: 1.125rem; font-weight: var(--hf-font-weight-bold); letter-spacing: -0.04em; }
-.reference-page__header nav { display: flex; flex-wrap: wrap; gap: var(--hf-space-4); }
-.reference-page__header nav a { font-weight: var(--hf-font-weight-medium); }
-.reference-page__content { max-width: 70rem; margin: var(--hf-space-8) auto 0; padding: var(--hf-space-8); }
-.reference-page__title-row { display: flex; align-items: end; justify-content: space-between; gap: var(--hf-space-6); }
-.reference-page__kicker { margin: 0 0 var(--hf-space-2); color: var(--hf-color-action-primary-hover); font-size: 0.875rem; font-weight: var(--hf-font-weight-semibold); text-transform: uppercase; }
-.reference-page h1, .reference-page h2, .reference-page__description { margin: 0; }
-.reference-page h1 { font-size: clamp(2rem, 5vw, 3.25rem); letter-spacing: -0.04em; }
-.reference-page__description { margin-top: var(--hf-space-3); color: var(--hf-color-text-muted); }
-.reference-page__summary { margin-top: var(--hf-space-5); }
-.reference-page__filter { max-width: 18rem; margin-top: var(--hf-space-6); }
-.reference-form { display: grid; gap: var(--hf-space-5); max-width: 38rem; margin: var(--hf-space-6) 0; padding: var(--hf-space-6); border: 1px solid var(--hf-color-border); border-radius: var(--hf-card-radius); background: var(--hf-color-surface); }
-.reference-form__field { display: grid; gap: var(--hf-space-2); color: var(--hf-color-text); font-weight: var(--hf-font-weight-medium); }
-.reference-form__field textarea { min-height: 6rem; padding: var(--hf-space-3); resize: vertical; color: var(--hf-color-text); border: 1px solid var(--hf-color-border-strong); border-radius: var(--hf-control-radius); background: var(--hf-color-surface); font: inherit; }
-.reference-form__field small { color: var(--hf-color-text-danger); font-weight: var(--hf-font-weight-regular); }
-.reference-form__note { margin: calc(var(--hf-space-4) * -1) 0 0; color: var(--hf-color-text-muted); font-size: 0.875rem; }
-.reference-form__actions { display: flex; flex-wrap: wrap; gap: var(--hf-space-3); }
-.reference-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: var(--hf-space-5); margin-top: var(--hf-space-6); }
-@media (max-width: 47.9375rem) { .reference-page__header, .reference-page__content { padding-right: var(--hf-space-5); padding-left: var(--hf-space-5); } .reference-page__title-row { align-items: stretch; flex-direction: column; } .reference-page__title-row > :last-child { align-self: start; } }
+.reference-page {
+  min-height: 100vh;
+  color: var(--hf-color-text);
+  background: var(--hf-color-page-background);
+}
+.reference-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hf-space-4);
+  max-width: 70rem;
+  margin: 0 auto;
+  padding: var(--hf-space-5) var(--hf-space-8);
+}
+.reference-page__wordmark,
+.reference-page__header nav a {
+  color: var(--hf-color-text);
+  text-decoration: none;
+}
+.reference-page__wordmark {
+  font-size: 1.125rem;
+  font-weight: var(--hf-font-weight-bold);
+  letter-spacing: -0.04em;
+}
+.reference-page__header nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hf-space-4);
+}
+.reference-page__header nav a {
+  font-weight: var(--hf-font-weight-medium);
+}
+.reference-page__content {
+  max-width: 70rem;
+  margin: var(--hf-space-8) auto 0;
+  padding: var(--hf-space-8);
+}
+.reference-page__title-row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--hf-space-6);
+}
+.reference-page__kicker {
+  margin: 0 0 var(--hf-space-2);
+  color: var(--hf-color-action-primary-hover);
+  font-size: 0.875rem;
+  font-weight: var(--hf-font-weight-semibold);
+  text-transform: uppercase;
+}
+.reference-page h1,
+.reference-page h2,
+.reference-page__description {
+  margin: 0;
+}
+.reference-page h1 {
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  letter-spacing: -0.04em;
+}
+.reference-page__description {
+  margin-top: var(--hf-space-3);
+  color: var(--hf-color-text-muted);
+}
+.reference-page__summary {
+  margin-top: var(--hf-space-5);
+}
+.reference-page__filter {
+  max-width: 18rem;
+  margin-top: var(--hf-space-6);
+}
+.reference-form {
+  display: grid;
+  gap: var(--hf-space-5);
+  max-width: 38rem;
+  margin: var(--hf-space-6) 0;
+  padding: var(--hf-space-6);
+  border: 1px solid var(--hf-color-border);
+  border-radius: var(--hf-card-radius);
+  background: var(--hf-color-surface);
+}
+.reference-form__field {
+  display: grid;
+  gap: var(--hf-space-2);
+  color: var(--hf-color-text);
+  font-weight: var(--hf-font-weight-medium);
+}
+.reference-form__field textarea {
+  min-height: 6rem;
+  padding: var(--hf-space-3);
+  resize: vertical;
+  color: var(--hf-color-text);
+  border: 1px solid var(--hf-color-border-strong);
+  border-radius: var(--hf-control-radius);
+  background: var(--hf-color-surface);
+  font: inherit;
+}
+.reference-form__field small {
+  color: var(--hf-color-text-danger);
+  font-weight: var(--hf-font-weight-regular);
+}
+.reference-form__note {
+  margin: calc(var(--hf-space-4) * -1) 0 0;
+  color: var(--hf-color-text-muted);
+  font-size: 0.875rem;
+}
+.reference-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hf-space-3);
+}
+.reference-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: var(--hf-space-5);
+  margin-top: var(--hf-space-6);
+}
+@media (max-width: 47.9375rem) {
+  .reference-page__header,
+  .reference-page__content {
+    padding-right: var(--hf-space-5);
+    padding-left: var(--hf-space-5);
+  }
+  .reference-page__title-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .reference-page__title-row > :last-child {
+    align-self: start;
+  }
+}
 </style>

@@ -30,7 +30,10 @@ function getEnvelopeTypeLabel(envelopeType: EnvelopeDto['envelopeType']) {
           <h2 class="envelope-card__title">{{ envelope.name }}</h2>
           <p class="envelope-card__type">{{ getEnvelopeTypeLabel(envelope.envelopeType) }}</p>
         </div>
-        <UiStatus :label="envelope.archivedAt ? 'В архиве' : 'Активен'" :tone="envelope.archivedAt ? 'neutral' : 'success'" />
+        <UiStatus
+          :label="envelope.archivedAt ? 'В архиве' : 'Активен'"
+          :tone="envelope.archivedAt ? 'neutral' : 'success'"
+        />
       </div>
     </template>
 

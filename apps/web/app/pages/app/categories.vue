@@ -125,7 +125,12 @@ async function changeStatus(value: string) {
 
 function parentOptions() {
   return categories.value
-    .filter((category) => category.categoryType === form.categoryType && !category.archivedAt && category.id !== editingId.value)
+    .filter(
+      (category) =>
+        category.categoryType === form.categoryType &&
+        !category.archivedAt &&
+        category.id !== editingId.value,
+    )
     .map((category) => ({ value: category.id, label: category.name }));
 }
 
@@ -226,56 +231,142 @@ onMounted(() => {
           <template #action><UiButton @click="loadPage">Повторить</UiButton></template>
         </UiEmptyState>
       </template>
-      <UiEmptyState v-else-if="!budgetId" title="Бюджет не выбран" description="Выберите бюджет, чтобы управлять категориями." />
+      <UiEmptyState
+        v-else-if="!budgetId"
+        title="Бюджет не выбран"
+        description="Выберите бюджет, чтобы управлять категориями."
+      />
       <template v-else>
         <div class="reference-page__title-row">
           <div>
             <p class="reference-page__kicker">Справочники</p>
             <h1 id="categories-title">Категории</h1>
-            <p class="reference-page__description">Разделяйте доходы и расходы для будущего учёта.</p>
+            <p class="reference-page__description">
+              Разделяйте доходы и расходы для будущего учёта.
+            </p>
           </div>
           <UiButton data-action="create-category" @click="startCreate">Создать категорию</UiButton>
         </div>
 
-        <UiStatus v-if="summary" class="reference-page__summary" :label="summary" tone="info" aria-live="polite" />
+        <UiStatus
+          v-if="summary"
+          class="reference-page__summary"
+          :label="summary"
+          tone="info"
+          aria-live="polite"
+        />
         <div class="reference-page__filter">
-          <UiSelect :model-value="status" name="status" label="Показать категории" :options="getStatusOptions()" @update:model-value="changeStatus" />
+          <UiSelect
+            :model-value="status"
+            name="status"
+            label="Показать категории"
+            :options="getStatusOptions()"
+            @update:model-value="changeStatus"
+          />
         </div>
 
-        <form v-if="formVisible" class="reference-form" data-category-form @submit.prevent="saveCategory">
+        <form
+          v-if="formVisible"
+          class="reference-form"
+          data-category-form
+          @submit.prevent="saveCategory"
+        >
           <h2>{{ editingId ? 'Изменить категорию' : 'Новая категория' }}</h2>
-          <UiInput v-model="form.name" name="name" label="Название категории" :error="getFieldError('name')" required />
-          <UiSelect v-if="!editingId" v-model="form.categoryType" name="categoryType" label="Тип категории" :options="getCategoryTypeOptions()" :error="getFieldError('categoryType')" required />
-          <UiSelect v-model="form.parentId" name="parentId" label="Родительская категория" placeholder="Без родительской категории" :options="parentOptions()" :error="getFieldError('parentId')" />
-          <UiInput v-model="form.displayOrder" name="displayOrder" label="Порядок отображения" inputmode="numeric" :error="getFieldError('displayOrder')" required />
+          <UiInput
+            v-model="form.name"
+            name="name"
+            label="Название категории"
+            :error="getFieldError('name')"
+            required
+          />
+          <UiSelect
+            v-if="!editingId"
+            v-model="form.categoryType"
+            name="categoryType"
+            label="Тип категории"
+            :options="getCategoryTypeOptions()"
+            :error="getFieldError('categoryType')"
+            required
+          />
+          <UiSelect
+            v-model="form.parentId"
+            name="parentId"
+            label="Родительская категория"
+            placeholder="Без родительской категории"
+            :options="parentOptions()"
+            :error="getFieldError('parentId')"
+          />
+          <UiInput
+            v-model="form.displayOrder"
+            name="displayOrder"
+            label="Порядок отображения"
+            inputmode="numeric"
+            :error="getFieldError('displayOrder')"
+            required
+          />
           <label class="reference-form__field">
             <span>Комментарий</span>
-            <textarea v-model="form.comment" name="comment" :aria-invalid="getFieldError('comment') ? 'true' : undefined" />
+            <textarea
+              v-model="form.comment"
+              name="comment"
+              :aria-invalid="getFieldError('comment') ? 'true' : undefined"
+            />
             <small v-if="getFieldError('comment')">{{ getFieldError('comment') }}</small>
           </label>
           <div class="reference-form__actions">
             <UiButton type="submit" :loading="saving">Сохранить категорию</UiButton>
-            <UiButton type="button" variant="tertiary" :disabled="saving" @click="cancelForm">Отмена</UiButton>
+            <UiButton type="button" variant="tertiary" :disabled="saving" @click="cancelForm"
+              >Отмена</UiButton
+            >
           </div>
         </form>
 
         <div class="category-sections">
-          <section v-for="type in ['INCOME', 'EXPENSE'] as const" :key="type" class="category-section" :aria-labelledby="`${type.toLowerCase()}-categories-title`">
-            <h2 :id="`${type.toLowerCase()}-categories-title`">{{ type === 'INCOME' ? 'Доходы' : 'Расходы' }}</h2>
-            <UiEmptyState v-if="categoriesOfType(type).length === 0" :title="type === 'INCOME' ? 'Доходов пока нет' : 'Расходов пока нет'" description="Добавьте категорию, чтобы она появилась в списке." />
+          <section
+            v-for="type in ['INCOME', 'EXPENSE'] as const"
+            :key="type"
+            class="category-section"
+            :aria-labelledby="`${type.toLowerCase()}-categories-title`"
+          >
+            <h2 :id="`${type.toLowerCase()}-categories-title`">
+              {{ type === 'INCOME' ? 'Доходы' : 'Расходы' }}
+            </h2>
+            <UiEmptyState
+              v-if="categoriesOfType(type).length === 0"
+              :title="type === 'INCOME' ? 'Доходов пока нет' : 'Расходов пока нет'"
+              description="Добавьте категорию, чтобы она появилась в списке."
+            />
             <div v-else class="category-grid">
-              <article v-for="category in categoriesOfType(type)" :key="category.id" class="category-card">
+              <article
+                v-for="category in categoriesOfType(type)"
+                :key="category.id"
+                class="category-card"
+              >
                 <div class="category-card__header">
                   <div>
                     <h3>{{ category.name }}</h3>
                     <p>Порядок: {{ category.displayOrder }}</p>
                   </div>
-                  <UiStatus :label="category.archivedAt ? 'В архиве' : 'Активна'" :tone="category.archivedAt ? 'neutral' : 'success'" />
+                  <UiStatus
+                    :label="category.archivedAt ? 'В архиве' : 'Активна'"
+                    :tone="category.archivedAt ? 'neutral' : 'success'"
+                  />
                 </div>
                 <p v-if="category.comment" class="category-card__comment">{{ category.comment }}</p>
                 <div class="category-card__actions">
-                  <UiButton variant="secondary" data-action="edit-category" @click="startEdit(category)">Изменить</UiButton>
-                  <UiButton v-if="!category.archivedAt" variant="danger" data-action="archive-category" @click="requestArchive(category)">Переместить в архив</UiButton>
+                  <UiButton
+                    variant="secondary"
+                    data-action="edit-category"
+                    @click="startEdit(category)"
+                    >Изменить</UiButton
+                  >
+                  <UiButton
+                    v-if="!category.archivedAt"
+                    variant="danger"
+                    data-action="archive-category"
+                    @click="requestArchive(category)"
+                    >Переместить в архив</UiButton
+                  >
                 </div>
               </article>
             </div>
@@ -299,33 +390,169 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.reference-page { min-height: 100vh; color: var(--hf-color-text); background: var(--hf-color-page-background); }
-.reference-page__header { display: flex; align-items: center; justify-content: space-between; gap: var(--hf-space-4); max-width: 70rem; margin: 0 auto; padding: var(--hf-space-5) var(--hf-space-8); }
-.reference-page__wordmark, .reference-page__header nav a { color: var(--hf-color-text); text-decoration: none; }
-.reference-page__wordmark { font-size: 1.125rem; font-weight: var(--hf-font-weight-bold); letter-spacing: -0.04em; }
-.reference-page__header nav { display: flex; flex-wrap: wrap; gap: var(--hf-space-4); }
-.reference-page__header nav a { font-weight: var(--hf-font-weight-medium); }
-.reference-page__content { max-width: 70rem; margin: var(--hf-space-8) auto 0; padding: var(--hf-space-8); }
-.reference-page__title-row { display: flex; align-items: end; justify-content: space-between; gap: var(--hf-space-6); }
-.reference-page__kicker { margin: 0 0 var(--hf-space-2); color: var(--hf-color-action-primary-hover); font-size: 0.875rem; font-weight: var(--hf-font-weight-semibold); text-transform: uppercase; }
-.reference-page h1, .reference-page h2, .reference-page h3, .reference-page__description { margin: 0; }
-.reference-page h1 { font-size: clamp(2rem, 5vw, 3.25rem); letter-spacing: -0.04em; }
-.reference-page__description { margin-top: var(--hf-space-3); color: var(--hf-color-text-muted); }
-.reference-page__summary { margin-top: var(--hf-space-5); }
-.reference-page__filter { max-width: 18rem; margin-top: var(--hf-space-6); }
-.reference-form { display: grid; gap: var(--hf-space-5); max-width: 38rem; margin: var(--hf-space-6) 0; padding: var(--hf-space-6); border: 1px solid var(--hf-color-border); border-radius: var(--hf-card-radius); background: var(--hf-color-surface); }
-.reference-form__field { display: grid; gap: var(--hf-space-2); color: var(--hf-color-text); font-weight: var(--hf-font-weight-medium); }
-.reference-form__field textarea { min-height: 6rem; padding: var(--hf-space-3); resize: vertical; color: var(--hf-color-text); border: 1px solid var(--hf-color-border-strong); border-radius: var(--hf-control-radius); background: var(--hf-color-surface); font: inherit; }
-.reference-form__field small { color: var(--hf-color-text-danger); font-weight: var(--hf-font-weight-regular); }
-.reference-form__actions, .category-card__actions { display: flex; flex-wrap: wrap; gap: var(--hf-space-3); }
-.category-sections { display: grid; gap: var(--hf-space-8); margin-top: var(--hf-space-8); }
-.category-section { display: grid; gap: var(--hf-space-4); }
-.category-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: var(--hf-space-5); }
-.category-card { display: grid; gap: var(--hf-space-4); padding: var(--hf-space-5); border: 1px solid var(--hf-color-border); border-radius: var(--hf-card-radius); background: var(--hf-color-surface); box-shadow: var(--hf-shadow-card); }
-.category-card__header { display: flex; align-items: start; justify-content: space-between; gap: var(--hf-space-4); }
-.category-card h3, .category-card p { margin: 0; }
-.category-card h3 { font-size: 1.125rem; }
-.category-card__header p, .category-card__comment { color: var(--hf-color-text-muted); }
-.category-card__header p { margin-top: var(--hf-space-1); font-size: 0.875rem; }
-@media (max-width: 47.9375rem) { .reference-page__header, .reference-page__content { padding-right: var(--hf-space-5); padding-left: var(--hf-space-5); } .reference-page__title-row { align-items: stretch; flex-direction: column; } .reference-page__title-row > :last-child { align-self: start; } }
+.reference-page {
+  min-height: 100vh;
+  color: var(--hf-color-text);
+  background: var(--hf-color-page-background);
+}
+.reference-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hf-space-4);
+  max-width: 70rem;
+  margin: 0 auto;
+  padding: var(--hf-space-5) var(--hf-space-8);
+}
+.reference-page__wordmark,
+.reference-page__header nav a {
+  color: var(--hf-color-text);
+  text-decoration: none;
+}
+.reference-page__wordmark {
+  font-size: 1.125rem;
+  font-weight: var(--hf-font-weight-bold);
+  letter-spacing: -0.04em;
+}
+.reference-page__header nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hf-space-4);
+}
+.reference-page__header nav a {
+  font-weight: var(--hf-font-weight-medium);
+}
+.reference-page__content {
+  max-width: 70rem;
+  margin: var(--hf-space-8) auto 0;
+  padding: var(--hf-space-8);
+}
+.reference-page__title-row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--hf-space-6);
+}
+.reference-page__kicker {
+  margin: 0 0 var(--hf-space-2);
+  color: var(--hf-color-action-primary-hover);
+  font-size: 0.875rem;
+  font-weight: var(--hf-font-weight-semibold);
+  text-transform: uppercase;
+}
+.reference-page h1,
+.reference-page h2,
+.reference-page h3,
+.reference-page__description {
+  margin: 0;
+}
+.reference-page h1 {
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  letter-spacing: -0.04em;
+}
+.reference-page__description {
+  margin-top: var(--hf-space-3);
+  color: var(--hf-color-text-muted);
+}
+.reference-page__summary {
+  margin-top: var(--hf-space-5);
+}
+.reference-page__filter {
+  max-width: 18rem;
+  margin-top: var(--hf-space-6);
+}
+.reference-form {
+  display: grid;
+  gap: var(--hf-space-5);
+  max-width: 38rem;
+  margin: var(--hf-space-6) 0;
+  padding: var(--hf-space-6);
+  border: 1px solid var(--hf-color-border);
+  border-radius: var(--hf-card-radius);
+  background: var(--hf-color-surface);
+}
+.reference-form__field {
+  display: grid;
+  gap: var(--hf-space-2);
+  color: var(--hf-color-text);
+  font-weight: var(--hf-font-weight-medium);
+}
+.reference-form__field textarea {
+  min-height: 6rem;
+  padding: var(--hf-space-3);
+  resize: vertical;
+  color: var(--hf-color-text);
+  border: 1px solid var(--hf-color-border-strong);
+  border-radius: var(--hf-control-radius);
+  background: var(--hf-color-surface);
+  font: inherit;
+}
+.reference-form__field small {
+  color: var(--hf-color-text-danger);
+  font-weight: var(--hf-font-weight-regular);
+}
+.reference-form__actions,
+.category-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hf-space-3);
+}
+.category-sections {
+  display: grid;
+  gap: var(--hf-space-8);
+  margin-top: var(--hf-space-8);
+}
+.category-section {
+  display: grid;
+  gap: var(--hf-space-4);
+}
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: var(--hf-space-5);
+}
+.category-card {
+  display: grid;
+  gap: var(--hf-space-4);
+  padding: var(--hf-space-5);
+  border: 1px solid var(--hf-color-border);
+  border-radius: var(--hf-card-radius);
+  background: var(--hf-color-surface);
+  box-shadow: var(--hf-shadow-card);
+}
+.category-card__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--hf-space-4);
+}
+.category-card h3,
+.category-card p {
+  margin: 0;
+}
+.category-card h3 {
+  font-size: 1.125rem;
+}
+.category-card__header p,
+.category-card__comment {
+  color: var(--hf-color-text-muted);
+}
+.category-card__header p {
+  margin-top: var(--hf-space-1);
+  font-size: 0.875rem;
+}
+@media (max-width: 47.9375rem) {
+  .reference-page__header,
+  .reference-page__content {
+    padding-right: var(--hf-space-5);
+    padding-left: var(--hf-space-5);
+  }
+  .reference-page__title-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .reference-page__title-row > :last-child {
+    align-self: start;
+  }
+}
 </style>

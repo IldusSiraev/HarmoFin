@@ -4,12 +4,7 @@ export type ReferenceStatus = 'active' | 'archived' | 'all';
 export type AccountType = 'BANK_ACCOUNT' | 'BANK_CARD' | 'CASH';
 export type CategoryType = 'INCOME' | 'EXPENSE';
 export type EnvelopeType =
-  | 'CURRENT_EXPENSES'
-  | 'MANDATORY_EXPENSES'
-  | 'SAVINGS_GOAL'
-  | 'RESERVE'
-  | 'FREE_MONEY'
-  | 'CUSTOM';
+  'CURRENT_EXPENSES' | 'MANDATORY_EXPENSES' | 'SAVINGS_GOAL' | 'RESERVE' | 'FREE_MONEY' | 'CUSTOM';
 
 export interface BudgetDto {
   id: string;
@@ -156,7 +151,11 @@ export interface BudgetReferenceDataApi {
   listAccounts(budgetId: string, status?: ReferenceStatus): Promise<AccountDto[]>;
   getAccount(budgetId: string, accountId: string): Promise<AccountDto>;
   createAccount(budgetId: string, input: CreateAccountInput): Promise<AccountDto>;
-  updateAccount(budgetId: string, accountId: string, input: UpdateAccountInput): Promise<AccountDto>;
+  updateAccount(
+    budgetId: string,
+    accountId: string,
+    input: UpdateAccountInput,
+  ): Promise<AccountDto>;
   archiveAccount(budgetId: string, accountId: string): Promise<AccountDto>;
   listCategories(
     budgetId: string,
@@ -165,12 +164,20 @@ export interface BudgetReferenceDataApi {
   ): Promise<CategoryDto[]>;
   getCategory(budgetId: string, categoryId: string): Promise<CategoryDto>;
   createCategory(budgetId: string, input: CreateCategoryInput): Promise<CategoryDto>;
-  updateCategory(budgetId: string, categoryId: string, input: UpdateCategoryInput): Promise<CategoryDto>;
+  updateCategory(
+    budgetId: string,
+    categoryId: string,
+    input: UpdateCategoryInput,
+  ): Promise<CategoryDto>;
   archiveCategory(budgetId: string, categoryId: string): Promise<CategoryDto>;
   listEnvelopes(budgetId: string, status?: ReferenceStatus): Promise<EnvelopeDto[]>;
   getEnvelope(budgetId: string, envelopeId: string): Promise<EnvelopeDto>;
   createEnvelope(budgetId: string, input: CreateEnvelopeInput): Promise<EnvelopeDto>;
-  updateEnvelope(budgetId: string, envelopeId: string, input: UpdateEnvelopeInput): Promise<EnvelopeDto>;
+  updateEnvelope(
+    budgetId: string,
+    envelopeId: string,
+    input: UpdateEnvelopeInput,
+  ): Promise<EnvelopeDto>;
   archiveEnvelope(budgetId: string, envelopeId: string): Promise<EnvelopeDto>;
 }
 
@@ -201,7 +208,10 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
   return {
     getBudget: (budgetId) => api.request<BudgetDto>(budgetPath(budgetId)),
     updateBudget: (budgetId, input) =>
-      api.request<BudgetDto>(budgetPath(budgetId), { method: 'PATCH', body: JSON.stringify(input) }),
+      api.request<BudgetDto>(budgetPath(budgetId), {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+      }),
     initializeTemplate: (budgetId) =>
       api.request<ReferenceTemplateResult>(`${budgetPath(budgetId)}/reference-template`, {
         method: 'POST',
@@ -210,7 +220,10 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
       api.request<AccountDto[]>(withQuery(accountPath(budgetId), { status })),
     getAccount: (budgetId, accountId) => api.request<AccountDto>(accountPath(budgetId, accountId)),
     createAccount: (budgetId, input) =>
-      api.request<AccountDto>(accountPath(budgetId), { method: 'POST', body: JSON.stringify(input) }),
+      api.request<AccountDto>(accountPath(budgetId), {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
     updateAccount: (budgetId, accountId, input) =>
       api.request<AccountDto>(accountPath(budgetId, accountId), {
         method: 'PATCH',
@@ -220,9 +233,13 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
       api.request<AccountDto>(`${accountPath(budgetId, accountId)}/archive`, { method: 'POST' }),
     listCategories: (budgetId, type, status) =>
       api.request<CategoryDto[]>(withQuery(categoryPath(budgetId), { type, status })),
-    getCategory: (budgetId, categoryId) => api.request<CategoryDto>(categoryPath(budgetId, categoryId)),
+    getCategory: (budgetId, categoryId) =>
+      api.request<CategoryDto>(categoryPath(budgetId, categoryId)),
     createCategory: (budgetId, input) =>
-      api.request<CategoryDto>(categoryPath(budgetId), { method: 'POST', body: JSON.stringify(input) }),
+      api.request<CategoryDto>(categoryPath(budgetId), {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
     updateCategory: (budgetId, categoryId, input) =>
       api.request<CategoryDto>(categoryPath(budgetId, categoryId), {
         method: 'PATCH',
@@ -232,9 +249,13 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
       api.request<CategoryDto>(`${categoryPath(budgetId, categoryId)}/archive`, { method: 'POST' }),
     listEnvelopes: (budgetId, status) =>
       api.request<EnvelopeDto[]>(withQuery(envelopePath(budgetId), { status })),
-    getEnvelope: (budgetId, envelopeId) => api.request<EnvelopeDto>(envelopePath(budgetId, envelopeId)),
+    getEnvelope: (budgetId, envelopeId) =>
+      api.request<EnvelopeDto>(envelopePath(budgetId, envelopeId)),
     createEnvelope: (budgetId, input) =>
-      api.request<EnvelopeDto>(envelopePath(budgetId), { method: 'POST', body: JSON.stringify(input) }),
+      api.request<EnvelopeDto>(envelopePath(budgetId), {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
     updateEnvelope: (budgetId, envelopeId, input) =>
       api.request<EnvelopeDto>(envelopePath(budgetId, envelopeId), {
         method: 'PATCH',

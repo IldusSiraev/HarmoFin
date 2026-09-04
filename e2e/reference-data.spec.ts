@@ -2,7 +2,9 @@ import { expect, test } from '@playwright/test';
 
 const password = 'e2e-password-10';
 
-test('owner initializes template and manages account through server-confirmed data', async ({ page }) => {
+test('owner initializes template and manages account through server-confirmed data', async ({
+  page,
+}) => {
   await registerAndReachApp(page);
 
   await page.goto('/app/settings');
@@ -45,7 +47,9 @@ test('owner initializes template and manages account through server-confirmed da
   await expect(page.getByRole('article').getByText('В архиве')).toBeVisible();
 });
 
-test('owner creates typed categories and envelope without client balance arithmetic', async ({ page }) => {
+test('owner creates typed categories and envelope without client balance arithmetic', async ({
+  page,
+}) => {
   await registerAndReachApp(page);
 
   await page.goto('/app/categories');

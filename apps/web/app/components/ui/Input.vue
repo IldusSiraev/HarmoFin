@@ -42,15 +42,7 @@ function getInputId() {
 
 function getInputMode() {
   return props.inputmode as
-    | 'none'
-    | 'text'
-    | 'tel'
-    | 'url'
-    | 'email'
-    | 'numeric'
-    | 'decimal'
-    | 'search'
-    | undefined;
+    'none' | 'text' | 'tel' | 'url' | 'email' | 'numeric' | 'decimal' | 'search' | undefined;
 }
 
 function getHintId() {
@@ -62,9 +54,11 @@ function getErrorId() {
 }
 
 function getDescribedBy() {
-  return [props.hint ? getHintId() : undefined, props.error ? getErrorId() : undefined]
-    .filter(Boolean)
-    .join(' ') || undefined;
+  return (
+    [props.hint ? getHintId() : undefined, props.error ? getErrorId() : undefined]
+      .filter(Boolean)
+      .join(' ') || undefined
+  );
 }
 
 function handleInput(event: Event) {
@@ -95,7 +89,7 @@ function handleInput(event: Event) {
       :readonly="readonly"
       @input="handleInput"
       @blur="emit('blur', $event)"
-    >
+    />
     <p v-if="hint" :id="getHintId()" class="ui-field__hint">{{ hint }}</p>
     <p v-if="error" :id="getErrorId()" class="ui-field__error">{{ error }}</p>
   </div>

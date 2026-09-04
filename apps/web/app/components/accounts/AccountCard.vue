@@ -27,7 +27,10 @@ function getAccountTypeLabel(accountType: AccountDto['accountType']) {
           <h2 class="account-card__title">{{ account.name }}</h2>
           <p class="account-card__type">{{ getAccountTypeLabel(account.accountType) }}</p>
         </div>
-        <UiStatus :label="account.archivedAt ? 'В архиве' : 'Активен'" :tone="account.archivedAt ? 'neutral' : 'success'" />
+        <UiStatus
+          :label="account.archivedAt ? 'В архиве' : 'Активен'"
+          :tone="account.archivedAt ? 'neutral' : 'success'"
+        />
       </div>
     </template>
 

@@ -15,10 +15,14 @@ const confirmProps = (overrides: Record<string, unknown> = {}) => ({
 
 describe('UiConfirmDialog', () => {
   beforeEach(() => {
-    vi.spyOn(HTMLDialogElement.prototype, 'showModal').mockImplementation(function (this: HTMLDialogElement) {
+    vi.spyOn(HTMLDialogElement.prototype, 'showModal').mockImplementation(function (
+      this: HTMLDialogElement,
+    ) {
       this.setAttribute('open', '');
     });
-    vi.spyOn(HTMLDialogElement.prototype, 'close').mockImplementation(function (this: HTMLDialogElement) {
+    vi.spyOn(HTMLDialogElement.prototype, 'close').mockImplementation(function (
+      this: HTMLDialogElement,
+    ) {
       this.removeAttribute('open');
     });
   });

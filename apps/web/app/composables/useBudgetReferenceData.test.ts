@@ -66,7 +66,10 @@ describe('useReferenceDataForm', () => {
       fieldErrors: [{ field: 'other', message: 'Не доверять.', code: 'custom' }],
     });
 
-    expect(form.errorMessage(known)).toEqual({ summary: 'Укажите данные формы.', fields: { name: 'Укажите название.' } });
+    expect(form.errorMessage(known)).toEqual({
+      summary: 'Укажите данные формы.',
+      fields: { name: 'Укажите название.' },
+    });
     expect(form.errorMessage(unknown)).toEqual({
       summary: 'Не удалось выполнить действие. Повторите попытку.',
       fields: {},
