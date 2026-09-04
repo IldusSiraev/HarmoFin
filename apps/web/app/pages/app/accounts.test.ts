@@ -93,7 +93,6 @@ describe('accounts page', () => {
     expect(mocks.api.listAccounts).toHaveBeenCalledTimes(2);
     expect(wrapper.text()).toContain('Основной счёт');
   });
-
   it('requires explicit archive confirmation', async () => {
     mocks.api.listAccounts.mockResolvedValue([account]);
     mocks.api.archiveAccount.mockResolvedValue({
@@ -108,5 +107,15 @@ describe('accounts page', () => {
     await wrapper.get('[data-confirm="archive-account"]').trigger('click');
     await flushPromises();
     expect(mocks.api.archiveAccount).toHaveBeenCalledWith('budget-id', 'account-id');
+  });
+
+  it('offers transfer with selected active account', async () => {
+    mocks.api.listAccounts.mockResolvedValue([account]);
+    const wrapper = mountPage();
+
+    await flushPromises();
+    const link = wrapper.get('[data-action="transfer-from-account"]');
+    expect(link.text()).toContain('Перевести со счёта');
+    expect(link.attributes('to')).toContain('sourceAccountId=account-id');
   });
 });
