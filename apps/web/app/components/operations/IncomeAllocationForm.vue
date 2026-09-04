@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 
 import type { AllocationProposal } from '../../composables/useBudgetReferenceData.js';
+import { normalizeDecimal } from '../../composables/useOperationForm.js';
 import FinanceMoneyInput from '../finance/FinanceMoneyInput.vue';
 import UiButton from '../ui/Button.vue';
 import UiSelect from '../ui/Select.vue';
@@ -36,7 +37,7 @@ function startEditing() {
 
 function apply() {
   emit('submit', {
-    amount: amount.value,
+    amount: normalizeDecimal(amount.value),
     occurredOn: occurredOn.value,
     accountId: accountId.value,
     envelopeId: envelopeId.value,

@@ -32,6 +32,7 @@ vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) =>
   useBudgetReferenceData: () => api,
 }));
 
+import { ApiRequestError } from '../../composables/useApiClient.js';
 import OperationsPage from './operations.vue';
 
 describe('operations page', () => {
@@ -51,6 +52,71 @@ describe('operations page', () => {
     await wrapper.get('[data-action="create-operation"]').trigger('click');
     expect(wrapper.text()).toContain('Создать черновик');
     expect(wrapper.text()).toContain('Подтвердить операцию');
+  });
+
+  it('shows API money validation beside operation amount', async () => {
+    api.createTransaction.mockRejectedValueOnce(
+      new ApiRequestError(400, {
+        code: 'VALIDATION_FAILED',
+        detail: 'Допустимо не более двух знаков после запятой.',
+        fieldErrors: [],
+      }),
+    );
+    const wrapper = mount(OperationsPage);
+    await flushPromises();
+
+    await wrapper.get('[data-action="create-operation"]').trigger('click');
+    await wrapper.get('input[name="amount"]').setValue('1.234');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Укажите данные формы.');
+    expect(wrapper.get('input[name="amount"]').attributes('aria-invalid')).toBe('true');
+  });
+
+  it('hides a rejected generic allocation proposal without creating allocation', async () => {
+    api.listTransactions.mockResolvedValue({
+      items: [
+        {
+          id: 'income-id',
+          budgetId: 'budget-id',
+          transactionType: 'INCOME',
+          status: 'CONFIRMED',
+          amountMinor: '1200000',
+          currency: 'RUB',
+          scale: 2,
+          occurredOn: '2026-09-04',
+          accountId: 'account-id',
+          categoryId: 'category-id',
+          envelopeId: null,
+          sourceDescription: null,
+          merchantName: null,
+          isPlanned: false,
+          comment: null,
+          confirmedAt: '2026-09-04T00:00:00.000Z',
+          cancelledAt: null,
+          deletedAt: null,
+          accountCurrentBalanceMinor: '1200000',
+          envelopeCurrentBalanceMinor: null,
+          unallocatedMinor: '1200000',
+          allocationProposal: {
+            targetEnvelopeId: 'envelope-id',
+            amountMinor: '1200000',
+            currency: 'RUB',
+            scale: 2,
+          },
+        },
+      ],
+      nextCursor: null,
+    });
+    const wrapper = mount(OperationsPage);
+    await flushPromises();
+
+    await wrapper.get('.allocation-form button:last-child').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain('Применить предложение');
+    expect(api.createIncomeAllocation).not.toHaveBeenCalled();
   });
 
   it('renders no-budget empty state without inventing budget id', async () => {

@@ -20,6 +20,7 @@ import {
   type TransactionDto,
 } from '../../composables/useBudgetReferenceData.js';
 import { useAuth } from '../../composables/useAuth.js';
+import { ApiRequestError } from '../../composables/useApiClient.js';
 
 defineOptions({ name: 'OperationsJournalPage' });
 definePageMeta({ middleware: 'auth' });
@@ -29,9 +30,12 @@ const api = useBudgetReferenceData();
 const transactions = ref<TransactionDto[]>([]);
 const nextCursor = ref<string | null>(null);
 const loading = ref(true);
+const hydrated = ref(false);
 const pending = ref(false);
 const error = ref('');
+const formErrors = ref<Partial<Record<string, string>>>({});
 const statusText = ref('');
+const rejectedProposalIds = ref<Set<string>>(new Set());
 const formOpen = ref(false);
 const form = ref<OperationFormModel>(createOperationForm());
 const selectedTransaction = ref<TransactionDto | null>(null);
@@ -59,7 +63,10 @@ const categories = ref<
 >([]);
 const envelopes = ref<Array<{ value: string; label: string }>>([]);
 
-onMounted(() => void load());
+onMounted(() => {
+  hydrated.value = true;
+  void load();
+});
 
 async function load(append = false) {
   if (!budget.value) {
@@ -99,8 +106,28 @@ async function load(append = false) {
 
 function openCreate() {
   form.value = createOperationForm();
+  formErrors.value = {};
   selectedTransaction.value = null;
   formOpen.value = true;
+}
+function mapFormError(exception: unknown): string {
+  if (!(exception instanceof ApiRequestError))
+    return 'Не удалось сохранить операцию. Повторите попытку.';
+
+  const fieldErrors = Object.fromEntries(
+    (exception.problem.fieldErrors ?? []).map((field) => [field.field, field.message]),
+  );
+  if (
+    Object.keys(fieldErrors).length === 0 &&
+    exception.problem.code === 'VALIDATION_FAILED' &&
+    /денеж|знак/iu.test(exception.problem.detail)
+  ) {
+    fieldErrors.amount = exception.problem.detail;
+  }
+  formErrors.value = fieldErrors;
+  return Object.keys(formErrors.value).length > 0
+    ? 'Укажите данные формы.'
+    : 'Не удалось сохранить операцию. Повторите попытку.';
 }
 function receiveForm(input: CreateTransactionInput) {
   if (input.status === 'CONFIRMED') {
@@ -112,13 +139,15 @@ function receiveForm(input: CreateTransactionInput) {
 async function saveCreate(input: CreateTransactionInput) {
   if (!budget.value) return;
   pending.value = true;
+  error.value = '';
+  formErrors.value = {};
   try {
     await api.createTransaction(budget.value.id, input, crypto.randomUUID());
     formOpen.value = false;
     statusText.value = input.status === 'DRAFT' ? 'Черновик сохранён.' : 'Операция подтверждена.';
     await load();
-  } catch {
-    error.value = 'Не удалось сохранить операцию. Повторите попытку.';
+  } catch (exception) {
+    error.value = mapFormError(exception);
   } finally {
     pending.value = false;
   }
@@ -184,10 +213,15 @@ async function saveAllocation(
     pending.value = false;
   }
 }
+
+function rejectAllocationProposal(transactionId: string) {
+  rejectedProposalIds.value = new Set([...rejectedProposalIds.value, transactionId]);
+  statusText.value = 'Предложение распределения отклонено.';
+}
 </script>
 
 <template>
-  <main class="operations-page">
+  <main v-if="hydrated" class="operations-page">
     <header class="operations-page__header">
       <div>
         <p class="operations-page__eyebrow">Журнал</p>
@@ -252,6 +286,7 @@ async function saveAllocation(
         :accounts="accounts"
         :categories="categories"
         :envelopes="envelopes"
+        :errors="formErrors"
         :pending="pending"
         @submit="receiveForm"
       />
@@ -289,13 +324,18 @@ async function saveAllocation(
             >
           </div>
           <IncomeAllocationForm
-            v-if="transaction.status === 'CONFIRMED' && transaction.transactionType === 'INCOME'"
+            v-if="
+              transaction.status === 'CONFIRMED' &&
+              transaction.transactionType === 'INCOME' &&
+              !rejectedProposalIds.has(transaction.id)
+            "
             :proposal="transaction.allocationProposal"
             :remaining-minor="transaction.unallocatedMinor"
             :accounts="accounts"
             :envelopes="envelopes"
             :pending="pending"
             @submit="saveAllocation(transaction, $event)"
+            @reject="rejectAllocationProposal(transaction.id)"
           />
         </article>
       </section>
