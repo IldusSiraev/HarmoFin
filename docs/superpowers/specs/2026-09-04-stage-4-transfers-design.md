@@ -96,5 +96,6 @@ Playwright covers desktop and `375px`: protected route, source-account prefill, 
 2. Implement transfer repository/application service/API/OpenAPI and real PostgreSQL coverage.
 3. Extend typed web facade and transfer page/form/account entry point.
 4. Add browser coverage, manual desktop/mobile verification and final quality gate.
+5. Before Stage 5 starts, complete Stage 3b for operation edit/restore, complete journal filters, cycles, periods, dashboard and reports.
 
 A detailed implementation plan is written only after review of this design.

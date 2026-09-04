@@ -21,6 +21,7 @@
 - Every financial mutation requires and reuses existing idempotency behavior. UI never retries financial writes with a new key automatically.
 - Use Russian UI and user-facing error text. Keep code and API identifiers English.
 - Exclude unified `/app/operations` transfer feed, transfer edit/restore, cycles, dashboard, reports, plans, notifications, worker jobs, imports, multi-currency, collaboration, AI, billing and deployment.
+- Before Stage 5 begins, schedule and complete Stage 3b: operation edit/restore, complete journal filters, cycles, periods, dashboard and report scope.
 
 ---
 
