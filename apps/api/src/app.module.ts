@@ -9,6 +9,7 @@ import type { ApiConfig } from './config/env.js';
 import { DatabaseModule } from './database/database.module.js';
 import { EnvelopeModule } from './envelopes/envelope.module.js';
 import { HealthModule } from './health/health.module.js';
+import { TransactionModule } from './transactions/transaction.module.js';
 import { WorkspaceModule } from './workspaces/workspace.module.js';
 
 @Module({})
@@ -25,6 +26,7 @@ export class AppModule {
         AccountModule.register(),
         CategoryModule.register(),
         EnvelopeModule.register(),
+        TransactionModule.register(),
       ],
       providers: [{ provide: API_CONFIG, useValue: config }],
       exports: [API_CONFIG],
