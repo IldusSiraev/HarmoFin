@@ -1,5 +1,6 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 
+import { IncomeAllocationRepository } from '../allocations/income-allocation.repository.js';
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { TransactionApplicationService } from './transaction.application.service.js';
@@ -20,9 +21,13 @@ export class TransactionModule {
         },
         {
           provide: TransactionApplicationService,
-          useFactory: (repository: TransactionRepository) =>
-            new TransactionApplicationService(repository, new IdempotencyService()),
-          inject: [TransactionRepository],
+          useFactory: (repository: TransactionRepository, prisma: PrismaService) =>
+            new TransactionApplicationService(
+              repository,
+              new IdempotencyService(),
+              new IncomeAllocationRepository(prisma),
+            ),
+          inject: [TransactionRepository, PrismaService],
         },
       ],
     };

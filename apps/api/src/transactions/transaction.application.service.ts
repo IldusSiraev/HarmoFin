@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { ConflictException, Injectable, UnprocessableEntityException } from '@nestjs/common';
 
+import { IncomeAllocationRepository } from '../allocations/income-allocation.repository.js';
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
 import {
@@ -44,6 +45,13 @@ export interface TransactionView {
   deletedAt: string | null;
   accountCurrentBalanceMinor: string;
   envelopeCurrentBalanceMinor: string | null;
+  unallocatedMinor: string;
+  allocationProposal: {
+    targetEnvelopeId: string;
+    amountMinor: string;
+    currency: 'RUB';
+    scale: 2;
+  } | null;
 }
 
 export interface TransactionListView {
@@ -56,6 +64,7 @@ export class TransactionApplicationService {
   constructor(
     private readonly repository: TransactionRepository,
     private readonly idempotency: IdempotencyService,
+    private readonly allocations?: IncomeAllocationRepository,
   ) {}
 
   async list(
@@ -67,7 +76,9 @@ export class TransactionApplicationService {
     if (!budget) throw resourceNotFound();
     const result = await this.repository.list(userId, budgetId, listQuery(input));
     return {
-      items: result.items.map((transaction) => this.toView(transaction)),
+      items: await Promise.all(
+        result.items.map((transaction) => this.toViewWithAllocationProposal(transaction)),
+      ),
       nextCursor: result.nextCursor,
     };
   }
@@ -75,7 +86,7 @@ export class TransactionApplicationService {
   async get(userId: string, budgetId: string, transactionId: string): Promise<TransactionView> {
     const transaction = await this.repository.find(userId, budgetId, transactionId);
     if (!transaction) throw resourceNotFound();
-    return this.toView(transaction);
+    return this.toViewWithAllocationProposal(transaction);
   }
 
   async create(
@@ -99,7 +110,7 @@ export class TransactionApplicationService {
             budget.allowNegativeBalance,
           );
           const transaction = await this.repository.create(tx, data, userId, requestId);
-          return { status: 201, body: this.toView(transaction) };
+          return { status: 201, body: await this.toViewWithAllocationProposal(transaction) };
         },
       );
       return result.body;
@@ -134,7 +145,7 @@ export class TransactionApplicationService {
             budget.allowNegativeBalance,
           );
           const transaction = await this.repository.update(tx, current, data, userId, requestId);
-          return { status: 200, body: this.toView(transaction) };
+          return { status: 200, body: await this.toViewWithAllocationProposal(transaction) };
         },
       );
       return result.body;
@@ -174,7 +185,7 @@ export class TransactionApplicationService {
             userId,
             requestId,
           );
-          return { status: 200, body: this.toView(transaction) };
+          return { status: 200, body: await this.toViewWithAllocationProposal(transaction) };
         },
       );
       return result.body;
@@ -203,7 +214,7 @@ export class TransactionApplicationService {
             userId,
             requestId,
           );
-          return { status: 200, body: this.toView(transaction) };
+          return { status: 200, body: await this.toViewWithAllocationProposal(transaction) };
         },
       );
       return result.body;
@@ -232,7 +243,7 @@ export class TransactionApplicationService {
             userId,
             requestId,
           );
-          return { status: 200, body: this.toView(transaction) };
+          return { status: 200, body: await this.toViewWithAllocationProposal(transaction) };
         },
       );
       return result.body;
@@ -264,7 +275,55 @@ export class TransactionApplicationService {
         transaction.envelopeCurrentBalanceMinor === null
           ? null
           : formatMinorUnits(transaction.envelopeCurrentBalanceMinor),
+      unallocatedMinor:
+        transaction.transactionType === 'INCOME' ? formatMinorUnits(transaction.amountMinor) : '0',
+      allocationProposal: null,
     };
+  }
+
+  private async toViewWithAllocationProposal(
+    transaction: TransactionRecord,
+  ): Promise<TransactionView> {
+    const view = this.toView(transaction);
+    if (
+      !this.allocations ||
+      transaction.transactionType !== 'INCOME' ||
+      transaction.status !== 'CONFIRMED'
+    ) {
+      return view;
+    }
+
+    return this.allocations.runTransaction(async (tx) => {
+      const [rule, confirmedTotal] = await Promise.all([
+        this.allocations?.findBudgetAllocationRule(transaction.budgetId),
+        this.allocations?.sumConfirmedForIncome(tx, transaction.budgetId, transaction.id),
+      ]);
+      const unallocatedMinor = transaction.amountMinor - (confirmedTotal ?? 0n);
+      if (
+        !rule?.enabled ||
+        rule.sourceCategoryId !== transaction.categoryId ||
+        !rule.targetEnvelopeId ||
+        unallocatedMinor <= 0n
+      ) {
+        return { ...view, unallocatedMinor: formatMinorUnits(unallocatedMinor) };
+      }
+      const target = await this.allocations?.findActiveProposalEnvelope(
+        transaction.budgetId,
+        rule.targetEnvelopeId,
+      );
+      return {
+        ...view,
+        unallocatedMinor: formatMinorUnits(unallocatedMinor),
+        allocationProposal: target
+          ? {
+              targetEnvelopeId: target.id,
+              amountMinor: formatMinorUnits(unallocatedMinor),
+              currency: 'RUB',
+              scale: 2,
+            }
+          : null,
+      };
+    });
   }
 
   private async requireMutationBudget(userId: string, budgetId: string) {

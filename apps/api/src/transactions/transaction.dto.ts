@@ -70,6 +70,20 @@ export class UpdateTransactionRequest {
   confirm?: true;
 }
 
+export class AllocationProposalResponse {
+  @ApiProperty({ type: String, format: 'uuid' })
+  targetEnvelopeId!: string;
+
+  @ApiProperty({ type: String, pattern: minorPattern })
+  amountMinor!: string;
+
+  @ApiProperty({ enum: ['RUB'] })
+  currency!: 'RUB';
+
+  @ApiProperty({ type: Number, enum: [2] })
+  scale!: 2;
+}
+
 export class TransactionResponse {
   @ApiProperty({ type: String, format: 'uuid' })
   id!: string;
@@ -130,6 +144,12 @@ export class TransactionResponse {
 
   @ApiProperty({ type: String, pattern: minorPattern, nullable: true })
   envelopeCurrentBalanceMinor!: string | null;
+
+  @ApiProperty({ type: String, pattern: minorPattern })
+  unallocatedMinor!: string;
+
+  @ApiProperty({ type: AllocationProposalResponse, nullable: true })
+  allocationProposal!: AllocationProposalResponse | null;
 }
 
 export class TransactionListResponse {

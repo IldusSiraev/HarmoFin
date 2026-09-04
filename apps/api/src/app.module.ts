@@ -1,5 +1,6 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 
+import { IncomeAllocationModule } from './allocations/income-allocation.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AccountModule } from './accounts/account.module.js';
 import { BudgetModule } from './budgets/budget.module.js';
@@ -27,6 +28,7 @@ export class AppModule {
         CategoryModule.register(),
         EnvelopeModule.register(),
         TransactionModule.register(),
+        IncomeAllocationModule.register(),
       ],
       providers: [{ provide: API_CONFIG, useValue: config }],
       exports: [API_CONFIG],
