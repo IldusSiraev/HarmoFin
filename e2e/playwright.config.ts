@@ -15,7 +15,7 @@ const testEnvironment = {
 
 export default defineConfig({
   testDir: '.',
-  testMatch: 'auth.spec.ts',
+  testMatch: '*.spec.ts',
   timeout: 30_000,
   use: {
     baseURL: 'http://localhost:3000',
