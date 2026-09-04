@@ -153,6 +153,8 @@ async function saveCategory() {
         comment: optionalText(form.comment),
       };
       await api.updateCategory(id, editingId.value, input);
+      await loadCategories();
+      summary.value = 'Категория обновлена.';
     } else {
       const input: CreateCategoryInput = {
         name: form.name,
@@ -162,9 +164,9 @@ async function saveCategory() {
         comment: optionalText(form.comment),
       };
       await api.createCategory(id, input);
+      await loadCategories();
+      summary.value = 'Категория создана.';
     }
-    await loadCategories();
-    summary.value = editingId.value ? 'Категория обновлена.' : 'Категория создана.';
     cancelForm();
   } catch (error) {
     const mapped = formHelper.errorMessage(error);

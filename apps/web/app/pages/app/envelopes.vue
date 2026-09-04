@@ -183,6 +183,8 @@ async function saveEnvelope() {
         input.startingBalance = formHelper.normalizeDecimal(form.startingBalance);
       }
       await api.updateEnvelope(id, editingId.value, input);
+      await loadEnvelopes();
+      summary.value = 'Конверт обновлён.';
     } else {
       const input: CreateEnvelopeInput = {
         name: form.name,
@@ -196,9 +198,9 @@ async function saveEnvelope() {
         comment: optionalText(form.comment),
       };
       await api.createEnvelope(id, input);
+      await loadEnvelopes();
+      summary.value = 'Конверт создан.';
     }
-    await loadEnvelopes();
-    summary.value = editingId.value ? 'Конверт обновлён.' : 'Конверт создан.';
     cancelForm();
   } catch (error) {
     const mapped = formHelper.errorMessage(error);

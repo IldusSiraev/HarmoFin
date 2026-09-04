@@ -35,6 +35,7 @@ const saving = ref(false);
 const archiving = ref(false);
 const formVisible = ref(false);
 const editingId = ref<string | null>(null);
+const editingAccount = ref<AccountDto | null>(null);
 const archiveTarget = ref<AccountDto | null>(null);
 const status = ref<ReferenceStatus>('active');
 const fieldErrors = ref<Partial<Record<(typeof accountFields)[number], string>>>({});
@@ -79,6 +80,7 @@ function resetForm() {
 function startCreate() {
   resetForm();
   editingId.value = null;
+  editingAccount.value = null;
   formVisible.value = true;
   summary.value = '';
 }
@@ -93,6 +95,7 @@ function startEdit(account: AccountDto) {
   form.comment = account.comment ?? '';
   fieldErrors.value = {};
   editingId.value = account.id;
+  editingAccount.value = account;
   formVisible.value = true;
   summary.value = '';
 }
@@ -100,6 +103,7 @@ function startEdit(account: AccountDto) {
 function cancelForm() {
   formVisible.value = false;
   editingId.value = null;
+  editingAccount.value = null;
   resetForm();
 }
 
@@ -143,19 +147,33 @@ async function saveAccount() {
   fieldErrors.value = {};
 
   try {
-    if (editingId.value) {
-      const input: UpdateAccountInput = {
-        name: form.name,
-        accountType: form.accountType,
-        bankName: optionalText(form.bankName),
-        lastFourDigits: optionalText(form.lastFourDigits),
-        accountingStartDate: form.accountingStartDate,
-        comment: optionalText(form.comment),
-      };
+    if (editingId.value && editingAccount.value) {
+      const current = editingAccount.value;
+      const input: UpdateAccountInput = {};
+      const bankName = optionalText(form.bankName);
+      const lastFourDigits = optionalText(form.lastFourDigits);
+      const comment = optionalText(form.comment);
+
+      if (form.name !== current.name) input.name = form.name;
+      if (form.accountType !== current.accountType) input.accountType = form.accountType;
+      if (bankName !== current.bankName) input.bankName = bankName;
+      if (lastFourDigits !== current.lastFourDigits) input.lastFourDigits = lastFourDigits;
+      if (form.accountingStartDate !== current.accountingStartDate) {
+        input.accountingStartDate = form.accountingStartDate;
+      }
+      if (comment !== current.comment) input.comment = comment;
       if (form.startingBalance.trim()) {
         input.startingBalance = formHelper.normalizeDecimal(form.startingBalance);
       }
+      if (Object.keys(input).length === 0) {
+        summary.value = 'Нет изменений для сохранения.';
+        cancelForm();
+        return;
+      }
+
       await api.updateAccount(id, editingId.value, input);
+      await loadAccounts();
+      summary.value = 'Счёт обновлён.';
     } else {
       const input: CreateAccountInput = {
         name: form.name,
@@ -168,9 +186,9 @@ async function saveAccount() {
         comment: optionalText(form.comment),
       };
       await api.createAccount(id, input);
+      await loadAccounts();
+      summary.value = 'Счёт создан.';
     }
-    await loadAccounts();
-    summary.value = editingId.value ? 'Счёт обновлён.' : 'Счёт создан.';
     cancelForm();
   } catch (error) {
     const mapped = formHelper.errorMessage(error);
