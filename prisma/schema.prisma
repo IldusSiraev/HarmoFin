@@ -76,6 +76,13 @@ enum IncomeAllocationStatus {
   DELETED
 }
 
+enum TransferStatus {
+  DRAFT
+  CONFIRMED
+  CANCELLED
+  DELETED
+}
+
 model User {
   id              String     @id @db.Uuid
   email           String     @unique @db.VarChar(320)
@@ -176,6 +183,7 @@ model Budget {
   envelopes          Envelope[]
   transactions       Transaction[]
   incomeAllocations  IncomeAllocation[]
+  transfers          Transfer[]
   idempotencyRecords IdempotencyRecord[]
 
   @@index([workspaceId, status])
@@ -198,9 +206,11 @@ model Account {
   createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt            DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  budget            Budget             @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  transactions      Transaction[]
-  incomeAllocations IncomeAllocation[]
+  budget                     Budget             @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  transactions               Transaction[]
+  incomeAllocations          IncomeAllocation[]
+  transferPartsAsSource      TransferPart[]     @relation("TransferPartSourceAccount")
+  transferPartsAsDestination TransferPart[]     @relation("TransferPartDestinationAccount")
 
   @@unique([id, budgetId])
   @@index([budgetId, archivedAt])
@@ -248,9 +258,11 @@ model Envelope {
   createdAt                 DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                 DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  budget            Budget             @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  transactions      Transaction[]
-  incomeAllocations IncomeAllocation[]
+  budget                     Budget             @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  transactions               Transaction[]
+  incomeAllocations          IncomeAllocation[]
+  transferPartsAsSource      TransferPart[]     @relation("TransferPartSourceEnvelope")
+  transferPartsAsDestination TransferPart[]     @relation("TransferPartDestinationEnvelope")
 
   @@unique([id, budgetId])
   @@index([budgetId, archivedAt])
@@ -323,6 +335,59 @@ model IncomeAllocation {
   @@index([budgetId, incomeTransactionId, status])
   @@index([budgetId, envelopeId, occurredOn])
   @@map("income_allocations")
+}
+
+model Transfer {
+  id              String         @id @db.Uuid
+  budgetId        String         @map("budget_id") @db.Uuid
+  status          TransferStatus @default(DRAFT)
+  totalMinor      BigInt         @map("total_minor")
+  currency        String         @default("RUB") @db.Char(3)
+  scale           Int            @default(2) @db.SmallInt
+  occurredOn      DateTime       @map("occurred_on") @db.Date
+  comment         String?        @db.VarChar(500)
+  confirmedAt     DateTime?      @map("confirmed_at") @db.Timestamptz(3)
+  cancelledAt     DateTime?      @map("cancelled_at") @db.Timestamptz(3)
+  deletedAt       DateTime?      @map("deleted_at") @db.Timestamptz(3)
+  createdByUserId String         @map("created_by_user_id") @db.Uuid
+  updatedByUserId String         @map("updated_by_user_id") @db.Uuid
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  budget Budget         @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  parts  TransferPart[]
+
+  @@unique([id, budgetId])
+  @@index([budgetId, occurredOn, createdAt])
+  @@index([budgetId, status, occurredOn])
+  @@map("transfers")
+}
+
+model TransferPart {
+  id                    String   @id @db.Uuid
+  transferId            String   @map("transfer_id") @db.Uuid
+  budgetId              String   @map("budget_id") @db.Uuid
+  sourceAccountId       String   @map("source_account_id") @db.Uuid
+  destinationAccountId  String   @map("destination_account_id") @db.Uuid
+  sourceEnvelopeId      String   @map("source_envelope_id") @db.Uuid
+  destinationEnvelopeId String   @map("destination_envelope_id") @db.Uuid
+  amountMinor           BigInt   @map("amount_minor")
+  comment               String?  @db.VarChar(500)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  transfer            Transfer @relation(fields: [transferId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  sourceAccount       Account  @relation("TransferPartSourceAccount", fields: [sourceAccountId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  destinationAccount  Account  @relation("TransferPartDestinationAccount", fields: [destinationAccountId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  sourceEnvelope      Envelope @relation("TransferPartSourceEnvelope", fields: [sourceEnvelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  destinationEnvelope Envelope @relation("TransferPartDestinationEnvelope", fields: [destinationEnvelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([id, budgetId])
+  @@index([budgetId, sourceAccountId])
+  @@index([budgetId, destinationAccountId])
+  @@index([budgetId, sourceEnvelopeId])
+  @@index([budgetId, destinationEnvelopeId])
+  @@map("transfer_parts")
 }
 
 model IdempotencyRecord {

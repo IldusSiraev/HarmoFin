@@ -26,6 +26,28 @@ export class FinancialBalanceRepository {
               AND transaction."transaction_type" = 'EXPENSE'
               AND transaction."status" = 'CONFIRMED'
           ), 0)
+          - COALESCE((
+            SELECT SUM(part."amount_minor")
+            FROM "transfer_parts" AS part
+            INNER JOIN "transfers" AS transfer
+              ON transfer."id" = part."transfer_id"
+              AND transfer."budget_id" = part."budget_id"
+            WHERE part."budget_id" = ${budgetId}::uuid
+              AND transfer."budget_id" = ${budgetId}::uuid
+              AND part."source_account_id" = ${accountId}::uuid
+              AND transfer."status" = 'CONFIRMED'
+          ), 0)
+          + COALESCE((
+            SELECT SUM(part."amount_minor")
+            FROM "transfer_parts" AS part
+            INNER JOIN "transfers" AS transfer
+              ON transfer."id" = part."transfer_id"
+              AND transfer."budget_id" = part."budget_id"
+            WHERE part."budget_id" = ${budgetId}::uuid
+              AND transfer."budget_id" = ${budgetId}::uuid
+              AND part."destination_account_id" = ${accountId}::uuid
+              AND transfer."status" = 'CONFIRMED'
+          ), 0)
         )::BIGINT
         FROM "accounts" AS account
         WHERE account."id" = ${accountId}::uuid
@@ -59,6 +81,28 @@ export class FinancialBalanceRepository {
               AND transaction."envelope_id" = ${envelopeId}::uuid
               AND transaction."transaction_type" = 'EXPENSE'
               AND transaction."status" = 'CONFIRMED'
+          ), 0)
+          - COALESCE((
+            SELECT SUM(part."amount_minor")
+            FROM "transfer_parts" AS part
+            INNER JOIN "transfers" AS transfer
+              ON transfer."id" = part."transfer_id"
+              AND transfer."budget_id" = part."budget_id"
+            WHERE part."budget_id" = ${budgetId}::uuid
+              AND transfer."budget_id" = ${budgetId}::uuid
+              AND part."source_envelope_id" = ${envelopeId}::uuid
+              AND transfer."status" = 'CONFIRMED'
+          ), 0)
+          + COALESCE((
+            SELECT SUM(part."amount_minor")
+            FROM "transfer_parts" AS part
+            INNER JOIN "transfers" AS transfer
+              ON transfer."id" = part."transfer_id"
+              AND transfer."budget_id" = part."budget_id"
+            WHERE part."budget_id" = ${budgetId}::uuid
+              AND transfer."budget_id" = ${budgetId}::uuid
+              AND part."destination_envelope_id" = ${envelopeId}::uuid
+              AND transfer."status" = 'CONFIRMED'
           ), 0)
         )::BIGINT
         FROM "envelopes" AS envelope
