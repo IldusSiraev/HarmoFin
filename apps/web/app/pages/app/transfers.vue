@@ -29,6 +29,7 @@ const accounts = ref<Array<{ value: string; label: string }>>([]);
 const envelopes = ref<Array<{ value: string; label: string }>>([]);
 const nextCursor = ref<string | null>(null);
 const loading = ref(true);
+const hydrated = ref(false);
 const pending = ref(false);
 const error = ref('');
 const statusText = ref('');
@@ -46,6 +47,7 @@ const confirmation = ref<
 const budgetId = computed(() => auth.currentData.value?.workspaces[0]?.budgets[0]?.id ?? null);
 
 onMounted(() => {
+  hydrated.value = true;
   void load();
 });
 
@@ -186,14 +188,16 @@ function dialogDescription() {
 </script>
 
 <template>
-  <main class="transfers-page">
+  <main v-if="hydrated" class="transfers-page" data-hydrated="true">
     <header class="transfers-page__header">
       <div>
         <p class="transfers-page__eyebrow">Движение денег</p>
         <h1>Переводы</h1>
         <p>Перемещайте деньги между счетами, сохраняя назначение по конвертам.</p>
       </div>
-      <UiButton data-action="create-transfer" @click="openCreate">Новый перевод</UiButton>
+      <UiButton data-action="create-transfer" :disabled="loading" @click="openCreate"
+        >Новый перевод</UiButton
+      >
     </header>
 
     <p v-if="statusText" class="transfers-page__status" role="status">{{ statusText }}</p>
