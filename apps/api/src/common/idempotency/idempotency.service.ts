@@ -27,7 +27,7 @@ export class IdempotencyService {
     write: () => Promise<IdempotencyResult<T>>,
   ): Promise<IdempotencyResult<T>> {
     await tx.$queryRaw`
-      SELECT pg_advisory_xact_lock(hashtextextended(${idempotencyLockKey(input)}, 0))
+      SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${idempotencyLockKey(input)}, 0))
     `;
 
     const existing = await this.find(tx, input);
