@@ -297,7 +297,6 @@ export class TransferRepository {
           parts: {
             create: data.parts.map((part) => ({
               id: createUuidV7(),
-              budgetId: data.budgetId,
               ...part,
             })),
           },
