@@ -52,15 +52,20 @@ describe('AccountApplicationService', () => {
     });
   });
 
-  it('maps current balance from server starting balance', () => {
+  it('maps current balance from server projection without losing precision', () => {
     const service = createService(repositoryDouble());
 
-    expect(service.toView(account({ startingBalanceMinor: 9_007_199_254_740_993n }))).toMatchObject(
-      {
-        startingBalanceMinor: '9007199254740993',
-        currentBalanceMinor: '9007199254740993',
-      },
-    );
+    expect(
+      service.toView(
+        account({
+          startingBalanceMinor: 9_007_199_254_740_993n,
+          currentBalanceMinor: 9_007_199_254_740_994n,
+        }),
+      ),
+    ).toMatchObject({
+      startingBalanceMinor: '9007199254740993',
+      currentBalanceMinor: '9007199254740994',
+    });
   });
 
   function createService(repository: ReturnType<typeof repositoryDouble>) {
@@ -115,6 +120,7 @@ describe('AccountApplicationService', () => {
       accountingStartDate: new Date('2026-09-01T00:00:00.000Z'),
       comment: 'Не попадёт в аудит',
       archivedAt: null,
+      currentBalanceMinor: 0n,
       ...overrides,
     };
   }

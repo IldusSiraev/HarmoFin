@@ -144,6 +144,110 @@ export interface UpdateEnvelopeInput {
   comment?: string | null | undefined;
 }
 
+export type TransactionType = 'INCOME' | 'EXPENSE';
+export type TransactionStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED';
+
+export interface AllocationProposal {
+  targetEnvelopeId: string;
+  amountMinor: string;
+  currency: 'RUB';
+  scale: 2;
+}
+
+export interface TransactionDto {
+  id: string;
+  budgetId: string;
+  transactionType: TransactionType;
+  status: TransactionStatus;
+  amountMinor: string;
+  currency: 'RUB';
+  scale: 2;
+  occurredOn: string;
+  accountId: string;
+  categoryId: string;
+  envelopeId: string | null;
+  sourceDescription: string | null;
+  merchantName: string | null;
+  isPlanned: boolean;
+  comment: string | null;
+  confirmedAt: string | null;
+  cancelledAt: string | null;
+  deletedAt: string | null;
+  accountCurrentBalanceMinor: string;
+  envelopeCurrentBalanceMinor: string | null;
+  unallocatedMinor: string;
+  allocationProposal: AllocationProposal | null;
+}
+
+export interface TransactionListInput {
+  limit?: number | undefined;
+  cursor?: string | undefined;
+  type?: TransactionType | undefined;
+  status?: TransactionStatus | undefined;
+  from?: string | undefined;
+  to?: string | undefined;
+  accountId?: string | undefined;
+  categoryId?: string | undefined;
+  envelopeId?: string | undefined;
+}
+
+export interface TransactionListResult {
+  items: TransactionDto[];
+  nextCursor: string | null;
+}
+
+export interface CreateTransactionInput {
+  transactionType: TransactionType;
+  status: 'DRAFT' | 'CONFIRMED';
+  amount: string;
+  occurredOn: string;
+  accountId: string;
+  categoryId: string;
+  envelopeId?: string | null | undefined;
+  sourceDescription?: string | null | undefined;
+  merchantName?: string | null | undefined;
+  isPlanned: boolean;
+  comment?: string | null | undefined;
+}
+
+export interface UpdateTransactionInput {
+  amount?: string | undefined;
+  occurredOn?: string | undefined;
+  accountId?: string | undefined;
+  categoryId?: string | undefined;
+  envelopeId?: string | null | undefined;
+  sourceDescription?: string | null | undefined;
+  merchantName?: string | null | undefined;
+  isPlanned?: boolean | undefined;
+  comment?: string | null | undefined;
+  confirm?: true | undefined;
+}
+
+export interface IncomeAllocationDto {
+  id: string;
+  budgetId: string;
+  incomeTransactionId: string;
+  status: 'CONFIRMED' | 'CANCELLED' | 'DELETED';
+  amountMinor: string;
+  currency: 'RUB';
+  scale: 2;
+  occurredOn: string;
+  accountId: string;
+  envelopeId: string;
+  comment: string | null;
+  deletedAt: string | null;
+  remainingUnallocatedMinor: string;
+  envelopeCurrentBalanceMinor: string;
+}
+
+export interface CreateIncomeAllocationInput {
+  amount: string;
+  occurredOn: string;
+  accountId: string;
+  envelopeId: string;
+  comment?: string | null | undefined;
+}
+
 export interface BudgetReferenceDataApi {
   getBudget(budgetId: string): Promise<BudgetDto>;
   updateBudget(budgetId: string, input: UpdateBudgetInput): Promise<BudgetDto>;
@@ -179,6 +283,40 @@ export interface BudgetReferenceDataApi {
     input: UpdateEnvelopeInput,
   ): Promise<EnvelopeDto>;
   archiveEnvelope(budgetId: string, envelopeId: string): Promise<EnvelopeDto>;
+  listTransactions(budgetId: string, input?: TransactionListInput): Promise<TransactionListResult>;
+  getTransaction(budgetId: string, transactionId: string): Promise<TransactionDto>;
+  createTransaction(
+    budgetId: string,
+    input: CreateTransactionInput,
+    idempotencyKey: string,
+  ): Promise<TransactionDto>;
+  updateTransaction(
+    budgetId: string,
+    transactionId: string,
+    input: UpdateTransactionInput,
+    idempotencyKey: string,
+  ): Promise<TransactionDto>;
+  confirmTransaction(
+    budgetId: string,
+    transactionId: string,
+    idempotencyKey: string,
+  ): Promise<TransactionDto>;
+  cancelTransaction(
+    budgetId: string,
+    transactionId: string,
+    idempotencyKey: string,
+  ): Promise<TransactionDto>;
+  deleteTransaction(
+    budgetId: string,
+    transactionId: string,
+    idempotencyKey: string,
+  ): Promise<TransactionDto>;
+  createIncomeAllocation(
+    budgetId: string,
+    transactionId: string,
+    input: CreateIncomeAllocationInput,
+    idempotencyKey: string,
+  ): Promise<IncomeAllocationDto>;
 }
 
 type RequestClient = {
@@ -203,6 +341,19 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
   function envelopePath(budgetId: string, envelopeId?: string) {
     const path = `${budgetPath(budgetId)}/envelopes`;
     return envelopeId ? `${path}/${encodeURIComponent(envelopeId)}` : path;
+  }
+
+  function transactionPath(budgetId: string, transactionId?: string) {
+    const path = `${budgetPath(budgetId)}/transactions`;
+    return transactionId ? `${path}/${encodeURIComponent(transactionId)}` : path;
+  }
+
+  function allocationPath(budgetId: string, transactionId: string) {
+    return `${transactionPath(budgetId, transactionId)}/allocations`;
+  }
+
+  function idempotent(idempotencyKey: string): HeadersInit {
+    return { 'Idempotency-Key': idempotencyKey };
   }
 
   return {
@@ -263,6 +414,53 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
       }),
     archiveEnvelope: (budgetId, envelopeId) =>
       api.request<EnvelopeDto>(`${envelopePath(budgetId, envelopeId)}/archive`, { method: 'POST' }),
+    listTransactions: (budgetId, input = {}) =>
+      api.request<TransactionListResult>(
+        withQuery(
+          transactionPath(budgetId),
+          Object.fromEntries(
+            Object.entries(input).map(([name, value]) => [
+              name,
+              value === undefined ? undefined : String(value),
+            ]),
+          ),
+        ),
+      ),
+    getTransaction: (budgetId, transactionId) =>
+      api.request<TransactionDto>(transactionPath(budgetId, transactionId)),
+    createTransaction: (budgetId, input, idempotencyKey) =>
+      api.request<TransactionDto>(transactionPath(budgetId), {
+        method: 'POST',
+        headers: idempotent(idempotencyKey),
+        body: JSON.stringify(input),
+      }),
+    updateTransaction: (budgetId, transactionId, input, idempotencyKey) =>
+      api.request<TransactionDto>(transactionPath(budgetId, transactionId), {
+        method: 'PATCH',
+        headers: idempotent(idempotencyKey),
+        body: JSON.stringify(input),
+      }),
+    confirmTransaction: (budgetId, transactionId, idempotencyKey) =>
+      api.request<TransactionDto>(`${transactionPath(budgetId, transactionId)}/confirm`, {
+        method: 'POST',
+        headers: idempotent(idempotencyKey),
+      }),
+    cancelTransaction: (budgetId, transactionId, idempotencyKey) =>
+      api.request<TransactionDto>(`${transactionPath(budgetId, transactionId)}/cancel`, {
+        method: 'POST',
+        headers: idempotent(idempotencyKey),
+      }),
+    deleteTransaction: (budgetId, transactionId, idempotencyKey) =>
+      api.request<TransactionDto>(transactionPath(budgetId, transactionId), {
+        method: 'DELETE',
+        headers: idempotent(idempotencyKey),
+      }),
+    createIncomeAllocation: (budgetId, transactionId, input, idempotencyKey) =>
+      api.request<IncomeAllocationDto>(allocationPath(budgetId, transactionId), {
+        method: 'POST',
+        headers: idempotent(idempotencyKey),
+        body: JSON.stringify(input),
+      }),
   };
 }
 

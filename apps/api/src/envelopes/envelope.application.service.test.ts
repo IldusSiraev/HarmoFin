@@ -40,14 +40,19 @@ describe('EnvelopeApplicationService', () => {
     ).rejects.toMatchObject({ response: expect.objectContaining({ code: 'VALIDATION_FAILED' }) });
   });
 
-  it('formats signed starting balance and maps current balance from it', () => {
+  it('maps current balance from server projection without losing precision', () => {
     const service = createService(repositoryDouble());
 
     expect(
-      service.toView(envelope({ startingBalanceMinor: -9_007_199_254_740_993n })),
+      service.toView(
+        envelope({
+          startingBalanceMinor: -9_007_199_254_740_993n,
+          currentBalanceMinor: -9_007_199_254_740_994n,
+        }),
+      ),
     ).toMatchObject({
       startingBalanceMinor: '-9007199254740993',
-      currentBalanceMinor: '-9007199254740993',
+      currentBalanceMinor: '-9007199254740994',
     });
   });
 
@@ -101,6 +106,7 @@ describe('EnvelopeApplicationService', () => {
       displayOrder: 0,
       comment: 'Не попадёт в аудит',
       archivedAt: null,
+      currentBalanceMinor: 0n,
       ...overrides,
     };
   }

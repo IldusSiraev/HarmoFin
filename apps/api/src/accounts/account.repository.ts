@@ -1,5 +1,6 @@
 import { Prisma, type AccountType } from '@prisma/client';
 
+import { FinancialBalanceRepository } from '../common/finance/financial-balance.repository.js';
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
 import { duplicateName } from '../common/reference-data/reference-data.errors.js';
 import type { ReferenceDataStatus } from '../common/reference-data/reference-data.types.js';
@@ -18,6 +19,7 @@ export interface AccountRecord {
   accountingStartDate: Date;
   comment: string | null;
   archivedAt: Date | null;
+  currentBalanceMinor: bigint;
 }
 
 export interface AccountCreateData {
@@ -43,7 +45,10 @@ export interface AccountUpdateData {
 }
 
 export class AccountRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly balances = new FinancialBalanceRepository(),
+  ) {}
 
   async findAccessibleWithRole(userId: string, budgetId: string) {
     return this.prisma.budget.findFirst({
@@ -66,21 +71,27 @@ export class AccountRepository {
     budgetId: string,
     status: ReferenceDataStatus,
   ): Promise<AccountRecord[]> {
-    return this.prisma.account.findMany({
-      where: {
-        budgetId,
-        ...archiveWhere(status),
-        budget: activeBudgetWhere(userId, budgetId),
-      },
-      select: accountSelect,
-      orderBy: { createdAt: 'asc' },
+    return this.prisma.$transaction(async (tx) => {
+      const accounts = await tx.account.findMany({
+        where: {
+          budgetId,
+          ...archiveWhere(status),
+          budget: activeBudgetWhere(userId, budgetId),
+        },
+        select: accountSelect,
+        orderBy: { createdAt: 'asc' },
+      });
+      return this.withCurrentBalances(tx, accounts);
     });
   }
 
   async find(userId: string, budgetId: string, accountId: string): Promise<AccountRecord | null> {
-    return this.prisma.account.findFirst({
-      where: { id: accountId, budgetId, budget: activeBudgetWhere(userId, budgetId) },
-      select: accountSelect,
+    return this.prisma.$transaction(async (tx) => {
+      const account = await tx.account.findFirst({
+        where: { id: accountId, budgetId, budget: activeBudgetWhere(userId, budgetId) },
+        select: accountSelect,
+      });
+      return account ? this.withCurrentBalance(tx, account) : null;
     });
   }
 
@@ -114,7 +125,7 @@ export class AccountRepository {
             newValues: auditValues(account),
           },
         });
-        return account;
+        return this.withCurrentBalance(tx, account);
       });
     } catch (error) {
       throwDuplicateName(error);
@@ -164,7 +175,7 @@ export class AccountRepository {
             newValues: auditValues(account),
           },
         });
-        return account;
+        return this.withCurrentBalance(tx, account);
       });
     } catch (error) {
       throwDuplicateName(error);
@@ -183,7 +194,7 @@ export class AccountRepository {
         select: accountSelect,
       });
       if (!current) return null;
-      if (current.archivedAt) return current;
+      if (current.archivedAt) return this.withCurrentBalance(tx, current);
       const account = await tx.account.update({
         where: { id: accountId },
         data: { archivedAt: new Date() },
@@ -208,8 +219,25 @@ export class AccountRepository {
           newValues: auditValues(account),
         },
       });
-      return account;
+      return this.withCurrentBalance(tx, account);
     });
+  }
+
+  private async withCurrentBalances(
+    tx: Prisma.TransactionClient,
+    accounts: Array<Omit<AccountRecord, 'currentBalanceMinor'>>,
+  ): Promise<AccountRecord[]> {
+    return Promise.all(accounts.map((account) => this.withCurrentBalance(tx, account)));
+  }
+
+  private async withCurrentBalance(
+    tx: Prisma.TransactionClient,
+    account: Omit<AccountRecord, 'currentBalanceMinor'>,
+  ): Promise<AccountRecord> {
+    return {
+      ...account,
+      currentBalanceMinor: await this.balances.accountBalance(tx, account.budgetId, account.id),
+    };
   }
 }
 
@@ -240,7 +268,7 @@ function archiveWhere(status: ReferenceDataStatus) {
   return {};
 }
 
-function auditValues(account: AccountRecord) {
+function auditValues(account: Omit<AccountRecord, 'currentBalanceMinor'>) {
   return {
     name: account.name,
     accountType: account.accountType,

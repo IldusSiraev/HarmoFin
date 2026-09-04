@@ -1,5 +1,6 @@
 import { Prisma, type EnvelopeType } from '@prisma/client';
 
+import { FinancialBalanceRepository } from '../common/finance/financial-balance.repository.js';
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
 import { duplicateName } from '../common/reference-data/reference-data.errors.js';
 import type { ReferenceDataStatus } from '../common/reference-data/reference-data.types.js';
@@ -20,6 +21,7 @@ export interface EnvelopeRecord {
   displayOrder: number;
   comment: string | null;
   archivedAt: Date | null;
+  currentBalanceMinor: bigint;
 }
 
 export interface EnvelopeCreateData {
@@ -47,7 +49,10 @@ export interface EnvelopeUpdateData {
 }
 
 export class EnvelopeRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly balances = new FinancialBalanceRepository(),
+  ) {}
 
   async findAccessibleWithRole(userId: string, budgetId: string) {
     return this.prisma.budget.findFirst({
@@ -70,21 +75,27 @@ export class EnvelopeRepository {
     budgetId: string,
     status: ReferenceDataStatus,
   ): Promise<EnvelopeRecord[]> {
-    return this.prisma.envelope.findMany({
-      where: {
-        budgetId,
-        ...archiveWhere(status),
-        budget: activeBudgetWhere(userId, budgetId),
-      },
-      select: envelopeSelect,
-      orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+    return this.prisma.$transaction(async (tx) => {
+      const envelopes = await tx.envelope.findMany({
+        where: {
+          budgetId,
+          ...archiveWhere(status),
+          budget: activeBudgetWhere(userId, budgetId),
+        },
+        select: envelopeSelect,
+        orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+      });
+      return this.withCurrentBalances(tx, envelopes);
     });
   }
 
   async find(userId: string, budgetId: string, envelopeId: string): Promise<EnvelopeRecord | null> {
-    return this.prisma.envelope.findFirst({
-      where: { id: envelopeId, budgetId, budget: activeBudgetWhere(userId, budgetId) },
-      select: envelopeSelect,
+    return this.prisma.$transaction(async (tx) => {
+      const envelope = await tx.envelope.findFirst({
+        where: { id: envelopeId, budgetId, budget: activeBudgetWhere(userId, budgetId) },
+        select: envelopeSelect,
+      });
+      return envelope ? this.withCurrentBalance(tx, envelope) : null;
     });
   }
 
@@ -118,7 +129,7 @@ export class EnvelopeRepository {
             newValues: auditValues(envelope),
           },
         });
-        return envelope;
+        return this.withCurrentBalance(tx, envelope);
       });
     } catch (error) {
       throwDuplicateName(error);
@@ -163,7 +174,7 @@ export class EnvelopeRepository {
             newValues: auditValues(envelope),
           },
         });
-        return envelope;
+        return this.withCurrentBalance(tx, envelope);
       });
     } catch (error) {
       throwDuplicateName(error);
@@ -182,7 +193,7 @@ export class EnvelopeRepository {
         select: envelopeSelect,
       });
       if (!current) return null;
-      if (current.archivedAt) return current;
+      if (current.archivedAt) return this.withCurrentBalance(tx, current);
       const [budget, envelope] = await Promise.all([
         tx.budget.findUniqueOrThrow({ where: { id: budgetId }, select: { workspaceId: true } }),
         tx.envelope.update({
@@ -206,8 +217,25 @@ export class EnvelopeRepository {
           newValues: auditValues(envelope),
         },
       });
-      return envelope;
+      return this.withCurrentBalance(tx, envelope);
     });
+  }
+
+  private async withCurrentBalances(
+    tx: Prisma.TransactionClient,
+    envelopes: Array<Omit<EnvelopeRecord, 'currentBalanceMinor'>>,
+  ): Promise<EnvelopeRecord[]> {
+    return Promise.all(envelopes.map((envelope) => this.withCurrentBalance(tx, envelope)));
+  }
+
+  private async withCurrentBalance(
+    tx: Prisma.TransactionClient,
+    envelope: Omit<EnvelopeRecord, 'currentBalanceMinor'>,
+  ): Promise<EnvelopeRecord> {
+    return {
+      ...envelope,
+      currentBalanceMinor: await this.balances.envelopeBalance(tx, envelope.budgetId, envelope.id),
+    };
   }
 }
 
@@ -238,7 +266,7 @@ function archiveWhere(status: ReferenceDataStatus) {
   return {};
 }
 
-function auditValues(envelope: EnvelopeRecord) {
+function auditValues(envelope: Omit<EnvelopeRecord, 'currentBalanceMinor'>) {
   return {
     name: envelope.name,
     envelopeType: envelope.envelopeType,

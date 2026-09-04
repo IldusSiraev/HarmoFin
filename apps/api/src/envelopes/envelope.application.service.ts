@@ -122,7 +122,7 @@ export class EnvelopeApplicationService {
       currency: 'RUB',
       scale: 2,
       startingBalanceMinor,
-      currentBalanceMinor: startingBalanceMinor,
+      currentBalanceMinor: formatMinorUnits(envelope.currentBalanceMinor),
       monthlyPlannedAmountMinor:
         envelope.monthlyPlannedAmountMinor === null
           ? null

@@ -112,7 +112,7 @@ export class AccountApplicationService {
       currency: 'RUB',
       scale: 2,
       startingBalanceMinor,
-      currentBalanceMinor: startingBalanceMinor,
+      currentBalanceMinor: formatMinorUnits(account.currentBalanceMinor),
       accountingStartDate: formatDate(account.accountingStartDate),
       comment: account.comment,
       archivedAt: account.archivedAt?.toISOString() ?? null,

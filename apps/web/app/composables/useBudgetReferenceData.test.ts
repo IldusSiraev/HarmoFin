@@ -76,3 +76,58 @@ describe('useReferenceDataForm', () => {
     });
   });
 });
+
+const transaction = {
+  id: 'transaction-id',
+  budgetId: 'budget-id',
+  transactionType: 'EXPENSE' as const,
+  status: 'DRAFT' as const,
+  amountMinor: '12345',
+  currency: 'RUB' as const,
+  scale: 2 as const,
+  occurredOn: '2026-09-04',
+  accountId: 'account-id',
+  categoryId: 'category-id',
+  envelopeId: 'envelope-id',
+  sourceDescription: null,
+  merchantName: 'Магазин',
+  isPlanned: false,
+  comment: null,
+  confirmedAt: null,
+  cancelledAt: null,
+  deletedAt: null,
+  accountCurrentBalanceMinor: '100000',
+  envelopeCurrentBalanceMinor: '50000',
+  unallocatedMinor: '0',
+  allocationProposal: null,
+};
+
+describe('operations API client', () => {
+  it('sends idempotency key and unchanged decimal amount', async () => {
+    const request = vi.fn().mockResolvedValue(transaction);
+    const data = createBudgetReferenceData({ request });
+
+    await data.createTransaction(
+      'budget-id',
+      {
+        transactionType: 'EXPENSE',
+        status: 'DRAFT',
+        amount: '123.45',
+        occurredOn: '2026-09-04',
+        accountId: 'account-id',
+        categoryId: 'category-id',
+        envelopeId: 'envelope-id',
+        merchantName: 'Магазин',
+        isPlanned: false,
+      },
+      'key-1',
+    );
+
+    expect(request).toHaveBeenCalledWith('/api/v1/budgets/budget-id/transactions', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'key-1' },
+      body: expect.any(String),
+    });
+    expect(JSON.parse(request.mock.calls[0]?.[1].body)).toMatchObject({ amount: '123.45' });
+  });
+});
