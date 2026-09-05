@@ -216,6 +216,16 @@ export class TransactionRepository {
     amountMinor: bigint,
     replacing?: TransactionRecord,
   ): Promise<boolean> {
+    await tx.$queryRaw`
+      SELECT "id" FROM "accounts"
+      WHERE "id" = ${accountId}::uuid AND "budget_id" = ${budgetId}::uuid
+      FOR UPDATE
+    `;
+    await tx.$queryRaw`
+      SELECT "id" FROM "envelopes"
+      WHERE "id" = ${envelopeId}::uuid AND "budget_id" = ${budgetId}::uuid
+      FOR UPDATE
+    `;
     const [accountBalance, envelopeBalance] = await Promise.all([
       this.balances.accountBalance(tx, budgetId, accountId),
       this.balances.envelopeBalance(tx, budgetId, envelopeId),

@@ -221,6 +221,7 @@ export class TransferRepository {
       SELECT "id" FROM "accounts"
       WHERE "budget_id" = ${budgetId}::uuid
         AND "id" IN (${Prisma.join(accountIds.map((id) => Prisma.sql`${id}::uuid`))})
+      ORDER BY "id"
       FOR UPDATE
     `;
     if (uniqueEnvelopeIds.length > 0) {
@@ -228,6 +229,7 @@ export class TransferRepository {
         SELECT "id" FROM "envelopes"
         WHERE "budget_id" = ${budgetId}::uuid
           AND "id" IN (${Prisma.join(uniqueEnvelopeIds.map((id) => Prisma.sql`${id}::uuid`))})
+        ORDER BY "id"
         FOR UPDATE
       `;
     }

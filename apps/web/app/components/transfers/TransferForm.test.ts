@@ -38,4 +38,19 @@ describe('TransferForm', () => {
     await removeButton.trigger('click');
     expect(wrapper.findAll('[data-transfer-part]')).toHaveLength(1);
   });
+
+  it('resets the default destination envelope after changing source envelope', async () => {
+    const wrapper = mount(TransferForm, {
+      props: { accounts, envelopes, model: createTransferForm() },
+    });
+
+    const source = wrapper.get('select[name="sourceEnvelopeId-0"]');
+    await source.setValue('repair');
+    await source.setValue('mandatory');
+    await wrapper.get('form').trigger('submit');
+
+    expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
+      parts: [{ sourceEnvelopeId: 'mandatory', amount: '' }],
+    });
+  });
 });

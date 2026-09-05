@@ -131,6 +131,13 @@ export class TransferApplicationService {
           const current = await this.requireMutableTransfer(tx, userId, budgetId, transferId);
           const [firstPart] = current.parts;
           if (current.status !== 'DRAFT' || !firstPart) throw invalidTransferState();
+          await this.assertActiveReferences(
+            tx,
+            budgetId,
+            firstPart.sourceAccountId,
+            firstPart.destinationAccountId,
+            current.parts,
+          );
           if (!budget.allowNegativeBalance) {
             const capacity = await this.repository.assertConfirmedTransferCapacity(
               tx,
@@ -271,25 +278,13 @@ export class TransferApplicationService {
     const partsTotal = parts.reduce((total, part) => total + part.amountMinor, 0n);
     if (partsTotal !== totalMinor) throw partsTotalMismatch();
 
-    const references = await this.repository.findActiveReferences(
+    await this.assertActiveReferences(
       tx,
       budgetId,
       input.sourceAccountId,
       input.destinationAccountId,
-      parts.flatMap((part) => [part.sourceEnvelopeId, part.destinationEnvelopeId]),
+      parts,
     );
-    const envelopes = new Map(references.envelopes.map((envelope) => [envelope.id, envelope]));
-    if (
-      !isActiveRubReference(references.sourceAccount) ||
-      !isActiveRubReference(references.destinationAccount) ||
-      parts.some(
-        (part) =>
-          !isActiveRubReference(envelopes.get(part.sourceEnvelopeId) ?? null) ||
-          !isActiveRubReference(envelopes.get(part.destinationEnvelopeId) ?? null),
-      )
-    ) {
-      throw invalidReference();
-    }
     if (input.status === 'CONFIRMED' && !allowNegativeBalance) {
       const capacity = await this.repository.assertConfirmedTransferCapacity(
         tx,
@@ -311,6 +306,37 @@ export class TransferApplicationService {
       updatedByUserId: userId,
       parts,
     };
+  }
+
+  private async assertActiveReferences(
+    tx: Parameters<TransferRepository['findActiveReferences']>[0],
+    budgetId: string,
+    sourceAccountId: string,
+    destinationAccountId: string,
+    parts: Array<{
+      sourceEnvelopeId: string;
+      destinationEnvelopeId: string;
+    }>,
+  ): Promise<void> {
+    const references = await this.repository.findActiveReferences(
+      tx,
+      budgetId,
+      sourceAccountId,
+      destinationAccountId,
+      parts.flatMap((part) => [part.sourceEnvelopeId, part.destinationEnvelopeId]),
+    );
+    const envelopes = new Map(references.envelopes.map((envelope) => [envelope.id, envelope]));
+    if (
+      !isActiveRubReference(references.sourceAccount) ||
+      !isActiveRubReference(references.destinationAccount) ||
+      parts.some(
+        (part) =>
+          !isActiveRubReference(envelopes.get(part.sourceEnvelopeId) ?? null) ||
+          !isActiveRubReference(envelopes.get(part.destinationEnvelopeId) ?? null),
+      )
+    ) {
+      throw invalidReference();
+    }
   }
 
   private async requireMutationBudget(userId: string, budgetId: string) {

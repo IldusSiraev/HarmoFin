@@ -42,7 +42,7 @@ watch(
 
 function updateSourceEnvelope(part: TransferPartFormModel, value: string) {
   part.sourceEnvelopeId = value;
-  if (!part.destinationEnvelopeId) part.destinationEnvelopeId = value;
+  part.destinationEnvelopeId = value;
 }
 
 function submit(status: 'DRAFT' | 'CONFIRMED') {

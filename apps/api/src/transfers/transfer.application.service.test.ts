@@ -114,9 +114,28 @@ describe('TransferApplicationService', () => {
     ).rejects.toMatchObject({ response: expect.objectContaining({ code: 'FORBIDDEN' }) });
   });
 
+  it('revalidates active references before confirming a draft transfer', async () => {
+    const repository = repositoryDouble();
+    repository.findAccessibleWithRole.mockResolvedValue(accessibleBudget('OWNER'));
+    repository.findForMutation.mockResolvedValue(transfer({ status: 'DRAFT' }));
+    repository.findActiveReferences.mockResolvedValue({
+      ...activeReferences(),
+      sourceAccount: null,
+    });
+    const service = createService(repository);
+
+    await expect(
+      service.confirm(ownerId, budgetId, transferId, 'confirm-key'),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'REFERENCE_INVALID' }),
+    });
+    expect(repository.updateLifecycle).not.toHaveBeenCalled();
+  });
+
   it('confirms drafts, cancels drafts, deletes non-deleted transfers and blocks terminal transitions', async () => {
     const repository = repositoryDouble();
     repository.findAccessibleWithRole.mockResolvedValue(accessibleBudget('OWNER'));
+    repository.findActiveReferences.mockResolvedValue(activeReferences());
     repository.findForMutation.mockResolvedValueOnce(transfer({ status: 'DRAFT' }));
     repository.assertConfirmedTransferCapacity.mockResolvedValue(true);
     repository.updateLifecycle.mockResolvedValueOnce(transfer({ status: 'CONFIRMED' }));
