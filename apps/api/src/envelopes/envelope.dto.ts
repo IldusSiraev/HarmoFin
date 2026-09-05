@@ -16,6 +16,9 @@ export class CreateEnvelopeRequest {
   @ApiProperty({ enum: envelopeTypes })
   envelopeType!: string;
 
+  @ApiProperty({ enum: ['FIRST', 'SECOND'], nullable: true, required: false })
+  periodSlot?: 'FIRST' | 'SECOND' | null;
+
   @ApiProperty({ enum: ['RUB'] })
   currency!: 'RUB';
 
@@ -54,6 +57,9 @@ export class UpdateEnvelopeRequest {
 
   @ApiProperty({ enum: envelopeTypes, required: false })
   envelopeType?: string;
+
+  @ApiProperty({ enum: ['FIRST', 'SECOND'], nullable: true, required: false })
+  periodSlot?: 'FIRST' | 'SECOND' | null;
 
   @ApiProperty({ type: String, required: false, pattern: '^[+-]?(0|[1-9]\\d*)(?:\\.\\d+)?$' })
   startingBalance?: string;
@@ -99,6 +105,9 @@ export class EnvelopeResponse {
 
   @ApiProperty({ enum: envelopeTypes })
   envelopeType!: string;
+
+  @ApiProperty({ enum: ['FIRST', 'SECOND'], nullable: true })
+  periodSlot!: 'FIRST' | 'SECOND' | null;
 
   @ApiProperty({ enum: ['RUB'] })
   currency!: 'RUB';

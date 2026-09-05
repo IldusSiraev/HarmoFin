@@ -9,9 +9,12 @@ const envelopeTypes = [
   'CUSTOM',
 ] as const;
 
+const periodSlot = z.enum(['FIRST', 'SECOND']).nullable().optional();
+
 const envelopeFields = {
   name: z.string().trim().min(1).max(120),
   envelopeType: z.enum(envelopeTypes),
+  periodSlot,
   currency: z.literal('RUB'),
   startingBalance: z.string().min(1).max(64),
   monthlyPlannedAmount: z.string().min(1).max(64).nullable().optional(),
@@ -27,6 +30,7 @@ export const updateEnvelopeSchema = z
   .object({
     name: envelopeFields.name.optional(),
     envelopeType: envelopeFields.envelopeType.optional(),
+    periodSlot,
     startingBalance: envelopeFields.startingBalance.optional(),
     monthlyPlannedAmount: envelopeFields.monthlyPlannedAmount,
     targetAmount: envelopeFields.targetAmount,

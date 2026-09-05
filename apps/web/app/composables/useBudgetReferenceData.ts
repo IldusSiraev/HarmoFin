@@ -5,6 +5,7 @@ export type AccountType = 'BANK_ACCOUNT' | 'BANK_CARD' | 'CASH';
 export type CategoryType = 'INCOME' | 'EXPENSE';
 export type EnvelopeType =
   'CURRENT_EXPENSES' | 'MANDATORY_EXPENSES' | 'SAVINGS_GOAL' | 'RESERVE' | 'FREE_MONEY' | 'CUSTOM';
+export type PeriodSlot = 'FIRST' | 'SECOND';
 
 export interface BudgetDto {
   id: string;
@@ -109,6 +110,7 @@ export interface EnvelopeDto {
   templateKey: string | null;
   name: string;
   envelopeType: EnvelopeType;
+  periodSlot: PeriodSlot | null;
   currency: 'RUB';
   scale: 2;
   startingBalanceMinor: string;
@@ -124,6 +126,7 @@ export interface EnvelopeDto {
 export interface CreateEnvelopeInput {
   name: string;
   envelopeType: EnvelopeType;
+  periodSlot?: PeriodSlot | null | undefined;
   currency: 'RUB';
   startingBalance: string;
   monthlyPlannedAmount?: string | null | undefined;
@@ -136,6 +139,7 @@ export interface CreateEnvelopeInput {
 export interface UpdateEnvelopeInput {
   name?: string | undefined;
   envelopeType?: EnvelopeType | undefined;
+  periodSlot?: PeriodSlot | null | undefined;
   startingBalance?: string | undefined;
   monthlyPlannedAmount?: string | null | undefined;
   targetAmount?: string | null | undefined;

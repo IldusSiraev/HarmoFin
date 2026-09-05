@@ -20,6 +20,13 @@ export function duplicateName(): ConflictException {
   });
 }
 
+export function periodSlotAlreadyAssigned(): ConflictException {
+  return new ConflictException({
+    code: 'PERIOD_SLOT_ALREADY_ASSIGNED',
+    detail: 'Слот периода уже назначен активному конверту.',
+  });
+}
+
 export function invalidReference(): BadRequestException {
   return new BadRequestException({
     code: 'REFERENCE_INVALID',

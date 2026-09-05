@@ -16,6 +16,7 @@ import {
   type CreateEnvelopeInput,
   type EnvelopeDto,
   type EnvelopeType,
+  type PeriodSlot,
   type ReferenceStatus,
   type UpdateEnvelopeInput,
   useBudgetReferenceData,
@@ -28,6 +29,7 @@ definePageMeta({ middleware: 'auth' });
 const envelopeFields = [
   'name',
   'envelopeType',
+  'periodSlot',
   'startingBalance',
   'monthlyPlannedAmount',
   'targetAmount',
@@ -53,6 +55,7 @@ const fieldErrors = ref<Partial<Record<(typeof envelopeFields)[number], string>>
 const form = reactive({
   name: '',
   envelopeType: 'CURRENT_EXPENSES' as EnvelopeType,
+  periodSlot: '' as '' | PeriodSlot,
   startingBalance: '',
   monthlyPlannedAmount: '',
   targetAmount: '',
@@ -88,6 +91,7 @@ function getFieldError(field: (typeof envelopeFields)[number]) {
 function resetForm() {
   form.name = '';
   form.envelopeType = 'CURRENT_EXPENSES';
+  form.periodSlot = '';
   form.startingBalance = '';
   form.monthlyPlannedAmount = '';
   form.targetAmount = '';
@@ -107,6 +111,7 @@ function startCreate() {
 function startEdit(envelope: EnvelopeDto) {
   form.name = envelope.name;
   form.envelopeType = envelope.envelopeType;
+  form.periodSlot = envelope.periodSlot ?? '';
   form.startingBalance = '';
   form.monthlyPlannedAmount = '';
   form.targetAmount = '';
@@ -164,6 +169,11 @@ function optionalMoney(value: string) {
   return value.trim() ? formHelper.normalizeDecimal(value) : null;
 }
 
+function changeEnvelopeType(value: string) {
+  form.envelopeType = value as EnvelopeType;
+  if (form.envelopeType !== 'CURRENT_EXPENSES') form.periodSlot = '';
+}
+
 async function saveEnvelope() {
   const id = budgetId.value;
   if (!id) return;
@@ -176,6 +186,7 @@ async function saveEnvelope() {
       const input: UpdateEnvelopeInput = {
         name: form.name,
         envelopeType: form.envelopeType,
+        periodSlot: form.periodSlot || null,
         targetDate: form.targetDate || null,
         displayOrder: Number(form.displayOrder),
         comment: optionalText(form.comment),
@@ -198,6 +209,7 @@ async function saveEnvelope() {
       const input: CreateEnvelopeInput = {
         name: form.name,
         envelopeType: form.envelopeType,
+        periodSlot: form.periodSlot || null,
         currency: 'RUB',
         startingBalance: formHelper.normalizeDecimal(form.startingBalance),
         monthlyPlannedAmount: optionalMoney(form.monthlyPlannedAmount),
@@ -322,6 +334,19 @@ onMounted(() => {
             :options="getEnvelopeTypeOptions()"
             :error="getFieldError('envelopeType')"
             required
+            @update:model-value="changeEnvelopeType"
+          />
+          <UiSelect
+            v-if="form.envelopeType === 'CURRENT_EXPENSES'"
+            v-model="form.periodSlot"
+            name="periodSlot"
+            label="Период текущих расходов"
+            :options="[
+              { value: '', label: 'Не относится к периоду' },
+              { value: 'FIRST', label: 'Первый период' },
+              { value: 'SECOND', label: 'Второй период' },
+            ]"
+            :error="getFieldError('periodSlot')"
           />
           <FinanceMoneyInput
             v-model="form.startingBalance"

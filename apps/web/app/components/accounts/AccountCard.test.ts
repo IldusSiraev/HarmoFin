@@ -40,6 +40,7 @@ describe('reference data cards', () => {
           templateKey: null,
           name: 'Ремонт',
           envelopeType: 'SAVINGS_GOAL',
+          periodSlot: null,
           currency: 'RUB',
           scale: 2,
           startingBalanceMinor: '0',

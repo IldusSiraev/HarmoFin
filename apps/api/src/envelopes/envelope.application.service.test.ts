@@ -56,6 +56,15 @@ describe('EnvelopeApplicationService', () => {
     });
   });
 
+  it('exposes configured period slot', () => {
+    const service = createService(repositoryDouble());
+    const record = { ...envelope(), periodSlot: 'FIRST' } as EnvelopeRecord & {
+      periodSlot: 'FIRST';
+    };
+
+    expect((service.toView(record) as { periodSlot?: string }).periodSlot).toBe('FIRST');
+  });
+
   function createService(repository: ReturnType<typeof repositoryDouble>) {
     return new EnvelopeApplicationService(
       repository as unknown as EnvelopeRepository,
@@ -103,6 +112,7 @@ describe('EnvelopeApplicationService', () => {
       monthlyPlannedAmountMinor: null,
       targetAmountMinor: null,
       targetDate: null,
+      periodSlot: null,
       displayOrder: 0,
       comment: 'Не попадёт в аудит',
       archivedAt: null,

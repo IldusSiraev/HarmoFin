@@ -1,8 +1,11 @@
-import { Prisma, type EnvelopeType } from '@prisma/client';
+import { Prisma, type EnvelopeType, type PeriodSlot } from '@prisma/client';
 
 import { FinancialBalanceRepository } from '../common/finance/financial-balance.repository.js';
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
-import { duplicateName } from '../common/reference-data/reference-data.errors.js';
+import {
+  duplicateName,
+  periodSlotAlreadyAssigned,
+} from '../common/reference-data/reference-data.errors.js';
 import type { ReferenceDataStatus } from '../common/reference-data/reference-data.types.js';
 import { PrismaService } from '../database/prisma.service.js';
 
@@ -18,6 +21,7 @@ export interface EnvelopeRecord {
   monthlyPlannedAmountMinor: bigint | null;
   targetAmountMinor: bigint | null;
   targetDate: Date | null;
+  periodSlot: PeriodSlot | null;
   displayOrder: number;
   comment: string | null;
   archivedAt: Date | null;
@@ -28,6 +32,7 @@ export interface EnvelopeCreateData {
   budgetId: string;
   name: string;
   envelopeType: EnvelopeType;
+  periodSlot: PeriodSlot | null;
   currency: 'RUB';
   startingBalanceMinor: bigint;
   monthlyPlannedAmountMinor: bigint | null;
@@ -44,6 +49,7 @@ export interface EnvelopeUpdateData {
   monthlyPlannedAmountMinor?: bigint | null;
   targetAmountMinor?: bigint | null;
   targetDate?: Date | null;
+  periodSlot?: PeriodSlot | null;
   displayOrder?: number;
   comment?: string | null;
 }
@@ -111,6 +117,17 @@ export class EnvelopeRepository {
           select: { workspaceId: true },
         });
         if (!budget) return null;
+        if (input.periodSlot) {
+          const slotOwner = await tx.envelope.findFirst({
+            where: {
+              budgetId: input.budgetId,
+              archivedAt: null,
+              periodSlot: input.periodSlot,
+            },
+            select: { id: true },
+          });
+          if (slotOwner) throw periodSlotAlreadyAssigned();
+        }
         const envelope = await tx.envelope.create({
           data: { id: createUuidV7(), ...input },
           select: envelopeSelect,
@@ -155,6 +172,18 @@ export class EnvelopeRepository {
           select: envelopeSelect,
         });
         if (!current) return null;
+        if (input.periodSlot) {
+          const slotOwner = await tx.envelope.findFirst({
+            where: {
+              budgetId,
+              archivedAt: null,
+              periodSlot: input.periodSlot,
+              id: { not: envelopeId },
+            },
+            select: { id: true },
+          });
+          if (slotOwner) throw periodSlotAlreadyAssigned();
+        }
         const [budget, envelope] = await Promise.all([
           tx.budget.findUniqueOrThrow({ where: { id: budgetId }, select: { workspaceId: true } }),
           tx.envelope.update({ where: { id: envelopeId }, data: input, select: envelopeSelect }),
@@ -276,6 +305,7 @@ function auditValues(envelope: Omit<EnvelopeRecord, 'currentBalanceMinor'>) {
     monthlyPlannedAmountMinor: envelope.monthlyPlannedAmountMinor?.toString() ?? null,
     targetAmountMinor: envelope.targetAmountMinor?.toString() ?? null,
     targetDate: envelope.targetDate?.toISOString().slice(0, 10) ?? null,
+    periodSlot: envelope.periodSlot,
     displayOrder: envelope.displayOrder,
     archivedAt: envelope.archivedAt?.toISOString() ?? null,
   };
@@ -283,6 +313,10 @@ function auditValues(envelope: Omit<EnvelopeRecord, 'currentBalanceMinor'>) {
 
 function throwDuplicateName(error: unknown): never {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+    const target = Array.isArray(error.meta?.target)
+      ? error.meta.target.join(',')
+      : String(error.meta?.target ?? '');
+    if (target.includes('envelopes_active_period_slot_key')) throw periodSlotAlreadyAssigned();
     throw duplicateName();
   }
   throw error;
@@ -300,6 +334,7 @@ const envelopeSelect = {
   monthlyPlannedAmountMinor: true,
   targetAmountMinor: true,
   targetDate: true,
+  periodSlot: true,
   displayOrder: true,
   comment: true,
   archivedAt: true,
