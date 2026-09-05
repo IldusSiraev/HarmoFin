@@ -196,6 +196,71 @@ export interface TransactionListResult {
   nextCursor: string | null;
 }
 
+export type TransferStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED';
+
+export interface TransferPartDto {
+  id: string;
+  transferId: string;
+  budgetId: string;
+  sourceAccountId: string;
+  destinationAccountId: string;
+  sourceEnvelopeId: string;
+  destinationEnvelopeId: string;
+  amountMinor: string;
+  comment: string | null;
+  sourceAccountCurrentBalanceMinor: string;
+  destinationAccountCurrentBalanceMinor: string;
+  sourceEnvelopeCurrentBalanceMinor: string;
+  destinationEnvelopeCurrentBalanceMinor: string;
+}
+
+export interface TransferDto {
+  id: string;
+  budgetId: string;
+  status: TransferStatus;
+  totalMinor: string;
+  currency: 'RUB';
+  scale: 2;
+  occurredOn: string;
+  comment: string | null;
+  confirmedAt: string | null;
+  cancelledAt: string | null;
+  deletedAt: string | null;
+  parts: TransferPartDto[];
+}
+
+export interface TransferPartInput {
+  sourceEnvelopeId: string;
+  destinationEnvelopeId?: string | undefined;
+  amount: string;
+  comment?: string | null | undefined;
+}
+
+export interface CreateTransferInput {
+  status: 'DRAFT' | 'CONFIRMED';
+  total: string;
+  occurredOn: string;
+  sourceAccountId: string;
+  destinationAccountId: string;
+  parts: TransferPartInput[];
+  comment?: string | null | undefined;
+}
+
+export interface TransferListInput {
+  limit?: number | undefined;
+  cursor?: string | undefined;
+  status?: TransferStatus | undefined;
+  from?: string | undefined;
+  to?: string | undefined;
+  accountId?: string | undefined;
+  envelopeId?: string | undefined;
+}
+
+export interface TransferListResult {
+  items: TransferDto[];
+  nextCursor: string | null;
+}
+
 export interface CreateTransactionInput {
   transactionType: TransactionType;
   status: 'DRAFT' | 'CONFIRMED';
@@ -311,6 +376,28 @@ export interface BudgetReferenceDataApi {
     transactionId: string,
     idempotencyKey: string,
   ): Promise<TransactionDto>;
+  listTransfers(budgetId: string, input?: TransferListInput): Promise<TransferListResult>;
+  getTransfer(budgetId: string, transferId: string): Promise<TransferDto>;
+  createTransfer(
+    budgetId: string,
+    input: CreateTransferInput,
+    idempotencyKey: string,
+  ): Promise<TransferDto>;
+  confirmTransfer(
+    budgetId: string,
+    transferId: string,
+    idempotencyKey: string,
+  ): Promise<TransferDto>;
+  cancelTransfer(
+    budgetId: string,
+    transferId: string,
+    idempotencyKey: string,
+  ): Promise<TransferDto>;
+  deleteTransfer(
+    budgetId: string,
+    transferId: string,
+    idempotencyKey: string,
+  ): Promise<TransferDto>;
   createIncomeAllocation(
     budgetId: string,
     transactionId: string,
@@ -346,6 +433,11 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
   function transactionPath(budgetId: string, transactionId?: string) {
     const path = `${budgetPath(budgetId)}/transactions`;
     return transactionId ? `${path}/${encodeURIComponent(transactionId)}` : path;
+  }
+
+  function transferPath(budgetId: string, transferId?: string) {
+    const path = `${budgetPath(budgetId)}/transfers`;
+    return transferId ? `${path}/${encodeURIComponent(transferId)}` : path;
   }
 
   function allocationPath(budgetId: string, transactionId: string) {
@@ -452,6 +544,41 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
       }),
     deleteTransaction: (budgetId, transactionId, idempotencyKey) =>
       api.request<TransactionDto>(transactionPath(budgetId, transactionId), {
+        method: 'DELETE',
+        headers: idempotent(idempotencyKey),
+      }),
+    listTransfers: (budgetId, input = {}) =>
+      api.request<TransferListResult>(
+        withQuery(
+          transferPath(budgetId),
+          Object.fromEntries(
+            Object.entries(input).map(([name, value]) => [
+              name,
+              value === undefined ? undefined : String(value),
+            ]),
+          ),
+        ),
+      ),
+    getTransfer: (budgetId, transferId) =>
+      api.request<TransferDto>(transferPath(budgetId, transferId)),
+    createTransfer: (budgetId, input, idempotencyKey) =>
+      api.request<TransferDto>(transferPath(budgetId), {
+        method: 'POST',
+        headers: idempotent(idempotencyKey),
+        body: JSON.stringify(input),
+      }),
+    confirmTransfer: (budgetId, transferId, idempotencyKey) =>
+      api.request<TransferDto>(`${transferPath(budgetId, transferId)}/confirm`, {
+        method: 'POST',
+        headers: idempotent(idempotencyKey),
+      }),
+    cancelTransfer: (budgetId, transferId, idempotencyKey) =>
+      api.request<TransferDto>(`${transferPath(budgetId, transferId)}/cancel`, {
+        method: 'POST',
+        headers: idempotent(idempotencyKey),
+      }),
+    deleteTransfer: (budgetId, transferId, idempotencyKey) =>
+      api.request<TransferDto>(transferPath(budgetId, transferId), {
         method: 'DELETE',
         headers: idempotent(idempotencyKey),
       }),

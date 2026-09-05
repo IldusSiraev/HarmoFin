@@ -23,9 +23,15 @@ describe('FinancialBalanceRepository', () => {
     const envelopeSql = sqlText(queryRaw.mock.calls[1]?.[0]);
     expect(accountSql).toContain('"transaction_type" = \'INCOME\'');
     expect(accountSql).toContain('"transaction_type" = \'EXPENSE\'');
+    expect(accountSql).toContain('"transfer_parts"');
+    expect(accountSql).toContain('"source_account_id"');
+    expect(accountSql).toContain('"destination_account_id"');
     expect(accountSql).toContain('"status" = \'CONFIRMED\'');
     expect(accountSql).toContain('::uuid');
     expect(envelopeSql).toContain('"income_allocations"');
+    expect(envelopeSql).toContain('"transfer_parts"');
+    expect(envelopeSql).toContain('"source_envelope_id"');
+    expect(envelopeSql).toContain('"destination_envelope_id"');
     expect(envelopeSql).toContain('"status" = \'CONFIRMED\'');
     expect(envelopeSql).toContain('::uuid');
   });

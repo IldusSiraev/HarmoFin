@@ -370,6 +370,13 @@ onMounted(() => {
               <UiButton variant="secondary" data-action="edit-account" @click="startEdit(account)"
                 >Изменить</UiButton
               >
+              <NuxtLink
+                v-if="!account.archivedAt"
+                class="account-transfer-link"
+                data-action="transfer-from-account"
+                :to="`/app/transfers?sourceAccountId=${encodeURIComponent(account.id)}`"
+                >Перевести со счёта</NuxtLink
+              >
               <UiButton
                 v-if="!account.archivedAt"
                 variant="danger"
@@ -508,6 +515,17 @@ onMounted(() => {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
   gap: var(--hf-space-5);
   margin-top: var(--hf-space-6);
+}
+.account-transfer-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--hf-control-height-md);
+  color: var(--hf-color-action-primary-hover);
+  font-weight: var(--hf-font-weight-medium);
+  text-decoration: none;
+}
+.account-transfer-link:hover {
+  text-decoration: underline;
 }
 @media (max-width: 47.9375rem) {
   .reference-page__header,

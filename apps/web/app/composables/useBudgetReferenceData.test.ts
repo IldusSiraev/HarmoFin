@@ -131,3 +131,29 @@ describe('operations API client', () => {
     expect(JSON.parse(request.mock.calls[0]?.[1].body)).toMatchObject({ amount: '123.45' });
   });
 });
+
+describe('transfers API client', () => {
+  it('sends transfer parts and idempotency key to transfer endpoint', async () => {
+    const request = vi.fn().mockResolvedValue({});
+    const data = createBudgetReferenceData({ request });
+
+    await data.createTransfer(
+      'budget-id',
+      {
+        status: 'CONFIRMED',
+        total: '1000.00',
+        occurredOn: '2026-09-05',
+        sourceAccountId: 'source-account',
+        destinationAccountId: 'destination-account',
+        parts: [{ sourceEnvelopeId: 'envelope-id', amount: '1000.00' }],
+      },
+      'transfer-key',
+    );
+
+    expect(request).toHaveBeenCalledWith('/api/v1/budgets/budget-id/transfers', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'transfer-key' },
+      body: expect.any(String),
+    });
+  });
+});
