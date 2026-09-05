@@ -123,6 +123,35 @@ export class IncomeAllocationController {
     );
   }
 
+  @Post('budgets/:budgetId/allocations/:allocationId/restore')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    schema: { type: 'string', minLength: 1, maxLength: 128 },
+  })
+  @ApiOkResponse({ type: IncomeAllocationResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  restore(
+    @Param('budgetId') budgetId: string,
+    @Param('allocationId') allocationId: string,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.restore(
+      contextOf(request).userId,
+      budgetId,
+      allocationId,
+      validKey(key),
+      request.id,
+    );
+  }
+
   @Delete('budgets/:budgetId/allocations/:allocationId')
   @HttpCode(200)
   @UseGuards(CsrfGuard)

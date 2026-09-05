@@ -23,6 +23,7 @@ export interface TransactionRecord {
   confirmedAt: Date | null;
   cancelledAt: Date | null;
   deletedAt: Date | null;
+  preDeleteStatus: TransactionStatus | null;
   createdAt: Date;
   accountCurrentBalanceMinor: bigint;
   envelopeCurrentBalanceMinor: bigint | null;
@@ -175,6 +176,11 @@ export class TransactionRepository {
     budgetId: string,
     transactionId: string,
   ): Promise<TransactionRecord | null> {
+    await tx.$queryRaw`
+      SELECT "id" FROM "transactions"
+      WHERE "id" = ${transactionId}::uuid AND "budget_id" = ${budgetId}::uuid
+      FOR UPDATE
+    `;
     const row = await tx.transaction.findFirst({
       where: { id: transactionId, budgetId, budget: activeBudgetWhere(userId, budgetId) },
       select: transactionSelect,
@@ -324,7 +330,7 @@ export class TransactionRepository {
         updatedByUserId: userId,
         ...(status === 'CONFIRMED' ? { confirmedAt: now } : {}),
         ...(status === 'CANCELLED' ? { cancelledAt: now } : {}),
-        ...(status === 'DELETED' ? { deletedAt: now } : {}),
+        ...(status === 'DELETED' ? { deletedAt: now, preDeleteStatus: current.status } : {}),
       },
       select: transactionSelect,
     });
@@ -348,6 +354,61 @@ export class TransactionRepository {
       },
     });
     return this.withBalance(tx, transaction);
+  }
+
+  async restoreLifecycle(
+    tx: Prisma.TransactionClient,
+    current: TransactionRecord,
+    status: 'DRAFT' | 'CONFIRMED' | 'CANCELLED',
+    userId: string,
+    requestId?: string,
+  ): Promise<TransactionRecord> {
+    const transaction = await tx.transaction.update({
+      where: { id: current.id },
+      data: {
+        status,
+        deletedAt: null,
+        preDeleteStatus: null,
+        updatedByUserId: userId,
+      },
+      select: transactionSelect,
+    });
+    const budget = await tx.budget.findUniqueOrThrow({
+      where: { id: current.budgetId },
+      select: { workspaceId: true },
+    });
+    await tx.auditEvent.create({
+      data: {
+        id: createUuidV7(),
+        actorUserId: userId,
+        workspaceId: budget.workspaceId,
+        budgetId: current.budgetId,
+        entityType: 'transaction',
+        entityId: current.id,
+        action: 'RESTORED',
+        source: 'API',
+        requestId: requestId ?? null,
+        oldValues: auditValues(current),
+        newValues: auditValues(transaction),
+      },
+    });
+    return this.withBalance(tx, transaction);
+  }
+
+  async findConfirmedAllocationsForIncome(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    incomeTransactionId: string,
+  ): Promise<Array<{ id: string; amountMinor: bigint }>> {
+    return tx.$queryRaw<Array<{ id: string; amountMinor: bigint }>>`
+      SELECT "id", "amount_minor" AS "amountMinor"
+      FROM "income_allocations"
+      WHERE "budget_id" = ${budgetId}::uuid
+        AND "income_transaction_id" = ${incomeTransactionId}::uuid
+        AND "status" = 'CONFIRMED'
+      ORDER BY "id"
+      FOR UPDATE
+    `;
   }
 
   private async withBalances(
@@ -400,6 +461,7 @@ function auditValues(
     confirmedAt: transaction.confirmedAt?.toISOString() ?? null,
     cancelledAt: transaction.cancelledAt?.toISOString() ?? null,
     deletedAt: transaction.deletedAt?.toISOString() ?? null,
+    preDeleteStatus: transaction.preDeleteStatus,
   };
 }
 
@@ -445,5 +507,6 @@ const transactionSelect = {
   confirmedAt: true,
   cancelledAt: true,
   deletedAt: true,
+  preDeleteStatus: true,
   createdAt: true,
 } as const;

@@ -77,6 +77,10 @@ export const updateTransactionSchema = z
     message: 'Необходимо передать хотя бы одно поле для изменения.',
   });
 
+export const resolveIncomeDeletionSchema = z
+  .object({ allocationResolution: z.enum(['CANCEL', 'DELETE']) })
+  .strict();
+
 export const listTransactionsSchema = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).default(25),
@@ -93,4 +97,5 @@ export const listTransactionsSchema = z
 
 export type CreateTransactionInput = z.output<typeof createTransactionSchema>;
 export type UpdateTransactionInput = z.output<typeof updateTransactionSchema>;
+export type ResolveIncomeDeletionInput = z.output<typeof resolveIncomeDeletionSchema>;
 export type ListTransactionsInput = z.output<typeof listTransactionsSchema>;

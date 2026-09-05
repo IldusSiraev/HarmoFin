@@ -32,6 +32,7 @@ import { CsrfGuard } from '../common/security/csrf.guard.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import {
   CreateTransactionRequest,
+  ResolveIncomeDeletionRequest,
   TransactionListResponse,
   TransactionResponse,
   UpdateTransactionRequest,
@@ -42,6 +43,8 @@ import {
   type CreateTransactionInput,
   type ListTransactionsInput,
   listTransactionsSchema,
+  resolveIncomeDeletionSchema,
+  type ResolveIncomeDeletionInput,
   type UpdateTransactionInput,
   updateTransactionSchema,
 } from './transaction.schemas.js';
@@ -197,6 +200,68 @@ export class TransactionController {
       contextOf(request).userId,
       budgetId,
       transactionId,
+      validKey(key),
+      request.id,
+    );
+  }
+
+  @Post('budgets/:budgetId/transactions/:transactionId/restore')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    schema: { type: 'string', minLength: 1, maxLength: 128 },
+  })
+  @ApiOkResponse({ type: TransactionResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  restore(
+    @Param('budgetId') budgetId: string,
+    @Param('transactionId') transactionId: string,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.restore(
+      contextOf(request).userId,
+      budgetId,
+      transactionId,
+      validKey(key),
+      request.id,
+    );
+  }
+
+  @Post('budgets/:budgetId/transactions/:transactionId/delete-with-allocations')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    schema: { type: 'string', minLength: 1, maxLength: 128 },
+  })
+  @ApiBody({ type: ResolveIncomeDeletionRequest })
+  @ApiOkResponse({ type: TransactionResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  deleteWithAllocations(
+    @Param('budgetId') budgetId: string,
+    @Param('transactionId') transactionId: string,
+    @Body(new ZodValidationPipe(resolveIncomeDeletionSchema)) input: ResolveIncomeDeletionInput,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.deleteWithAllocations(
+      contextOf(request).userId,
+      budgetId,
+      transactionId,
+      input,
       validKey(key),
       request.id,
     );

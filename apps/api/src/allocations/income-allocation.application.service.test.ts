@@ -108,6 +108,38 @@ describe('IncomeAllocationApplicationService', () => {
     });
   });
 
+  it('restores deleted allocation only when its source income remains confirmed', async () => {
+    const repository = repositoryDouble();
+    repository.findAccessibleWithRole.mockResolvedValue(accessibleBudget());
+    repository.findForMutation.mockResolvedValue({
+      ...allocation({ status: 'DELETED', deletedAt: new Date('2026-09-05T12:00:00.000Z') }),
+      preDeleteStatus: 'CONFIRMED',
+    });
+    repository.findConfirmedIncome.mockResolvedValue(confirmedIncome());
+    repository.sumConfirmedForIncome.mockResolvedValue(0n);
+    repository.findActiveTargets.mockResolvedValue(activeTargets());
+    repository.restore.mockResolvedValue(allocation({ status: 'CONFIRMED', deletedAt: null }));
+    const service = createService(repository) as unknown as {
+      restore(
+        userId: string,
+        budgetId: string,
+        allocationId: string,
+        key: string,
+      ): Promise<unknown>;
+    };
+
+    await expect(
+      service.restore(ownerId, budgetId, 'allocation-id', 'restore-key'),
+    ).resolves.toMatchObject({
+      status: 'CONFIRMED',
+    });
+    expect(repository.restore).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: 'DELETED', preDeleteStatus: 'CONFIRMED' }),
+      ownerId,
+      undefined,
+    );
+  });
   function createService(repository: ReturnType<typeof repositoryDouble>) {
     return new IncomeAllocationApplicationService(
       repository as never,
@@ -127,6 +159,7 @@ describe('IncomeAllocationApplicationService', () => {
       create: vi.fn(),
       findForMutation: vi.fn(),
       delete: vi.fn(),
+      restore: vi.fn(),
       findBudgetAllocationRule: vi.fn(),
       findActiveProposalEnvelope: vi.fn(),
     };
@@ -172,6 +205,7 @@ describe('IncomeAllocationApplicationService', () => {
       remainingUnallocatedMinor: 0n,
       envelopeCurrentBalanceMinor: 0n,
       deletedAt: null,
+      preDeleteStatus: null,
       ...overrides,
     };
   }

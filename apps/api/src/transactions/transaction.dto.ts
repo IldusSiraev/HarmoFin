@@ -70,6 +70,11 @@ export class UpdateTransactionRequest {
   confirm?: true;
 }
 
+export class ResolveIncomeDeletionRequest {
+  @ApiProperty({ enum: ['CANCEL', 'DELETE'] })
+  allocationResolution!: 'CANCEL' | 'DELETE';
+}
+
 export class AllocationProposalResponse {
   @ApiProperty({ type: String, format: 'uuid' })
   targetEnvelopeId!: string;
