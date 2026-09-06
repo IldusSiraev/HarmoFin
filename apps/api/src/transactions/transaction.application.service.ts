@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { ConflictException, Injectable, UnprocessableEntityException } from '@nestjs/common';
 
 import { IncomeAllocationRepository } from '../allocations/income-allocation.repository.js';
+import { cycleAndPeriodFor } from '../cycles/cycle-period.domain.js';
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
 import {
@@ -75,7 +76,13 @@ export class TransactionApplicationService {
   ): Promise<TransactionListView> {
     const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
     if (!budget) throw resourceNotFound();
-    const result = await this.repository.list(userId, budgetId, listQuery(input));
+    const role = budget.workspace.memberships[0]?.role;
+    if ((input.status === 'DELETED' || input.status === 'all') && role !== 'OWNER') {
+      throw forbidden();
+    }
+    const referencesExist = await this.repository.validateJournalReferences(budgetId, input);
+    if (!referencesExist) throw resourceNotFound();
+    const result = await this.repository.list(userId, budgetId, listQuery(input, budget));
     return {
       items: await Promise.all(
         result.items.map((transaction) => this.toViewWithAllocationProposal(transaction)),
@@ -631,17 +638,31 @@ export class TransactionApplicationService {
   }
 }
 
-function listQuery(input: ListTransactionsInput): TransactionListQuery {
+function listQuery(
+  input: ListTransactionsInput,
+  budget: {
+    cycleStartDay: number;
+    periodBoundaryOffset: number;
+    timezone: string;
+  },
+): TransactionListQuery {
+  const cycle = input.cycleStart ? cycleAndPeriodFor(budget, input.cycleStart).cycle : null;
+  const period = input.periodStart ? cycleAndPeriodFor(budget, input.periodStart).period : null;
   return {
     limit: input.limit,
     ...(input.cursor ? { cursor: input.cursor } : {}),
+    ...(input.search ? { search: input.search } : {}),
     ...(input.type ? { transactionType: input.type } : {}),
     ...(input.status ? { status: input.status } : {}),
     ...(input.from ? { from: parseDate(input.from) } : {}),
     ...(input.to ? { to: parseDate(input.to) } : {}),
+    ...(cycle ? { cycle: { start: parseDate(cycle.start), end: parseDate(cycle.end) } } : {}),
+    ...(period ? { period: { start: parseDate(period.start), end: parseDate(period.end) } } : {}),
     ...(input.accountId ? { accountId: input.accountId } : {}),
     ...(input.categoryId ? { categoryId: input.categoryId } : {}),
     ...(input.envelopeId ? { envelopeId: input.envelopeId } : {}),
+    sortBy: input.sortBy,
+    sortDirection: input.sortDirection,
   };
 }
 

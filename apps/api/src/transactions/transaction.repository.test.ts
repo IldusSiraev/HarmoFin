@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { TransactionRepository } from './transaction.repository.js';
+import {
+  decodeJournalCursor,
+  encodeJournalCursor,
+  TransactionRepository,
+} from './transaction.repository.js';
 
 describe('TransactionRepository', () => {
   it('locks account and envelope before checking confirmed expense capacity', async () => {
@@ -22,5 +26,30 @@ describe('TransactionRepository', () => {
     ).resolves.toBe(true);
 
     expect(queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects malformed and mismatched journal cursors', () => {
+    const amountCursor = encodeJournalCursor({
+      v: 1,
+      sortBy: 'amount',
+      sortDirection: 'asc',
+      value: '1000',
+      createdAt: '2026-09-05T00:00:00.000Z',
+      id: '00000000-0000-4000-8000-000000000001',
+    });
+
+    for (const [value, sortBy, sortDirection] of [
+      ['not-a-cursor', 'occurredOn', 'desc'],
+      [amountCursor, 'occurredOn', 'desc'],
+    ] as const) {
+      try {
+        decodeJournalCursor(value, sortBy, sortDirection);
+        throw new Error('Expected cursor validation failure.');
+      } catch (error) {
+        expect(error).toMatchObject({
+          response: { code: 'VALIDATION_FAILED', detail: 'Некорректный курсор журнала.' },
+        });
+      }
+    }
   });
 });

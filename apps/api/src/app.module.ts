@@ -1,6 +1,7 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 
 import { IncomeAllocationModule } from './allocations/income-allocation.module.js';
+import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AccountModule } from './accounts/account.module.js';
 import { BudgetModule } from './budgets/budget.module.js';
@@ -24,6 +25,7 @@ export class AppModule {
         DatabaseModule.register(config),
         HealthModule,
         AuthModule.register(config),
+        AuditModule.register(),
         WorkspaceModule.register(),
         BudgetModule.register(),
         CycleModule.register(),

@@ -20,6 +20,7 @@ import {
   ApiCreatedResponse,
   ApiHeader,
   ApiOkResponse,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -61,8 +62,32 @@ export class TransactionController {
   ) {}
 
   @Get('budgets/:budgetId/transactions')
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    schema: { type: 'integer', minimum: 1, maximum: 100 },
+  })
+  @ApiQuery({ name: 'cursor', required: false, schema: { type: 'string', maxLength: 512 } })
+  @ApiQuery({ name: 'search', required: false, schema: { type: 'string', maxLength: 250 } })
+  @ApiQuery({ name: 'from', required: false, schema: { type: 'string', format: 'date' } })
+  @ApiQuery({ name: 'to', required: false, schema: { type: 'string', format: 'date' } })
+  @ApiQuery({ name: 'cycleStart', required: false, schema: { type: 'string', format: 'date' } })
+  @ApiQuery({ name: 'periodStart', required: false, schema: { type: 'string', format: 'date' } })
+  @ApiQuery({ name: 'accountId', required: false, schema: { type: 'string', format: 'uuid' } })
+  @ApiQuery({ name: 'categoryId', required: false, schema: { type: 'string', format: 'uuid' } })
+  @ApiQuery({ name: 'envelopeId', required: false, schema: { type: 'string', format: 'uuid' } })
+  @ApiQuery({ name: 'type', required: false, enum: ['INCOME', 'EXPENSE'] })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['DRAFT', 'CONFIRMED', 'CANCELLED', 'DELETED', 'all'],
+  })
+  @ApiQuery({ name: 'sortBy', required: false, enum: ['occurredOn', 'amount'] })
+  @ApiQuery({ name: 'sortDirection', required: false, enum: ['asc', 'desc'] })
   @ApiOkResponse({ type: TransactionListResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   list(
     @Param('budgetId') budgetId: string,
