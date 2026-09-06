@@ -290,7 +290,7 @@ export class TransactionApplicationService {
           budgetId,
           userId,
           key,
-          `transaction.delete-with-allocations:${transactionId}`,
+          `transaction.resolve-delete:${transactionId}`,
           input,
         ),
         async () => {
@@ -687,6 +687,7 @@ function incomeHasConfirmedAllocations(allocations: Array<{ id: string }>): Conf
     code: 'INCOME_HAS_CONFIRMED_ALLOCATIONS',
     detail: 'Подтверждённый доход имеет связанные распределения.',
     allocationIds: allocations.map((allocation) => allocation.id),
+    allocationCount: allocations.length,
   });
 }
 

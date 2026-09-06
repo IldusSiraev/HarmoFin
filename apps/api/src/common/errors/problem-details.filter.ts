@@ -12,6 +12,8 @@ interface ApplicationErrorBody {
   code?: unknown;
   detail?: unknown;
   fieldErrors?: unknown;
+  allocationIds?: unknown;
+  allocationCount?: unknown;
 }
 
 interface FieldError {
@@ -44,6 +46,12 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       ...(isFieldErrors(applicationError.fieldErrors)
         ? { fieldErrors: applicationError.fieldErrors }
         : {}),
+      ...(isStringArray(applicationError.allocationIds)
+        ? { allocationIds: applicationError.allocationIds }
+        : {}),
+      ...(isNonNegativeInteger(applicationError.allocationCount)
+        ? { allocationCount: applicationError.allocationCount }
+        : {}),
     };
 
     reply.type('application/problem+json').status(status).send(problem);
@@ -66,6 +74,14 @@ function isFieldErrors(value: unknown): value is FieldError[] {
         typeof fieldError.code === 'string',
     )
   );
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 function titleForStatus(status: number): string {
