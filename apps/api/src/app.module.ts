@@ -9,6 +9,7 @@ import { CategoryModule } from './categories/category.module.js';
 import { API_CONFIG } from './common/security/security.constants.js';
 import type { ApiConfig } from './config/env.js';
 import { CycleModule } from './cycles/cycle.module.js';
+import { DashboardModule } from './dashboard/dashboard.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { EnvelopeModule } from './envelopes/envelope.module.js';
 import { HealthModule } from './health/health.module.js';
@@ -29,6 +30,7 @@ export class AppModule {
         WorkspaceModule.register(),
         BudgetModule.register(),
         CycleModule.register(),
+        DashboardModule.register(),
         AccountModule.register(),
         CategoryModule.register(),
         EnvelopeModule.register(),
