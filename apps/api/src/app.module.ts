@@ -14,6 +14,7 @@ import { DatabaseModule } from './database/database.module.js';
 import { EnvelopeModule } from './envelopes/envelope.module.js';
 import { HealthModule } from './health/health.module.js';
 import { TransactionModule } from './transactions/transaction.module.js';
+import { ReportModule } from './reports/report.module.js';
 import { TransferModule } from './transfers/transfer.module.js';
 import { WorkspaceModule } from './workspaces/workspace.module.js';
 
@@ -37,6 +38,7 @@ export class AppModule {
         TransactionModule.register(),
         IncomeAllocationModule.register(),
         TransferModule.register(),
+        ReportModule.register(),
       ],
       providers: [{ provide: API_CONFIG, useValue: config }],
       exports: [API_CONFIG],
