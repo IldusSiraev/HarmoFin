@@ -1,4 +1,8 @@
-import type { CreateTransactionInput, TransactionDto } from './useBudgetReferenceData.js';
+import type {
+  CreateTransactionInput,
+  TransactionDto,
+  UpdateTransactionInput,
+} from './useBudgetReferenceData.js';
 
 export type OperationFormModel = {
   transactionType: 'INCOME' | 'EXPENSE';
@@ -44,6 +48,22 @@ export function toTransactionInput(
   };
 }
 
+export function toUpdateTransactionInput(
+  model: OperationFormModel,
+  confirm: boolean,
+): UpdateTransactionInput {
+  return {
+    amount: normalizeDecimal(model.amount),
+    occurredOn: model.occurredOn,
+    accountId: model.accountId,
+    categoryId: model.categoryId,
+    ...(model.transactionType === 'EXPENSE'
+      ? { envelopeId: model.envelopeId, merchantName: model.merchantName || undefined }
+      : { sourceDescription: model.sourceDescription || undefined }),
+    isPlanned: model.isPlanned,
+    ...(confirm ? { confirm: true } : {}),
+  };
+}
 export function normalizeDecimal(value: string): string {
   return value.replaceAll(/(?:\s|\xA0)/g, '').replace(',', '.');
 }

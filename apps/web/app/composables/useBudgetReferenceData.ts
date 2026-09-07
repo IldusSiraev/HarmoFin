@@ -186,13 +186,18 @@ export interface TransactionDto {
 export interface TransactionListInput {
   limit?: number | undefined;
   cursor?: string | undefined;
+  search?: string | undefined;
   type?: TransactionType | undefined;
-  status?: TransactionStatus | undefined;
+  status?: TransactionStatus | 'all' | undefined;
   from?: string | undefined;
   to?: string | undefined;
+  cycleStart?: string | undefined;
+  periodStart?: string | undefined;
   accountId?: string | undefined;
   categoryId?: string | undefined;
   envelopeId?: string | undefined;
+  sortBy?: 'occurredOn' | 'amount' | undefined;
+  sortDirection?: 'asc' | 'desc' | undefined;
 }
 
 export interface TransactionListResult {
@@ -292,6 +297,10 @@ export interface UpdateTransactionInput {
   confirm?: true | undefined;
 }
 
+export interface ResolveIncomeDeletionInput {
+  allocationResolution: 'CANCEL' | 'DELETE';
+}
+
 export interface IncomeAllocationDto {
   id: string;
   budgetId: string;
@@ -307,6 +316,18 @@ export interface IncomeAllocationDto {
   deletedAt: string | null;
   remainingUnallocatedMinor: string;
   envelopeCurrentBalanceMinor: string;
+}
+
+export interface AuditEventDto {
+  id: string;
+  createdAt: string;
+  actor: { id: string; displayName: string | null; email: string } | null;
+  entityType: string;
+  entityId: string | null;
+  action: string;
+  source: string;
+  oldValues: Record<string, unknown> | null;
+  newValues: Record<string, unknown> | null;
 }
 
 export interface CreateIncomeAllocationInput {
@@ -380,6 +401,22 @@ export interface BudgetReferenceDataApi {
     transactionId: string,
     idempotencyKey: string,
   ): Promise<TransactionDto>;
+  restoreTransaction(
+    budgetId: string,
+    transactionId: string,
+    idempotencyKey: string,
+  ): Promise<TransactionDto>;
+  deleteTransactionWithAllocations(
+    budgetId: string,
+    transactionId: string,
+    input: ResolveIncomeDeletionInput,
+    idempotencyKey: string,
+  ): Promise<TransactionDto>;
+  listTransactionAllocations(
+    budgetId: string,
+    transactionId: string,
+  ): Promise<IncomeAllocationDto[]>;
+  listTransactionAudit(budgetId: string, transactionId: string): Promise<AuditEventDto[]>;
   listTransfers(budgetId: string, input?: TransferListInput): Promise<TransferListResult>;
   getTransfer(budgetId: string, transferId: string): Promise<TransferDto>;
   createTransfer(
@@ -406,6 +443,11 @@ export interface BudgetReferenceDataApi {
     budgetId: string,
     transactionId: string,
     input: CreateIncomeAllocationInput,
+    idempotencyKey: string,
+  ): Promise<IncomeAllocationDto>;
+  restoreIncomeAllocation(
+    budgetId: string,
+    allocationId: string,
     idempotencyKey: string,
   ): Promise<IncomeAllocationDto>;
 }
@@ -551,6 +593,26 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
         method: 'DELETE',
         headers: idempotent(idempotencyKey),
       }),
+    restoreTransaction: (budgetId, transactionId, idempotencyKey) =>
+      api.request<TransactionDto>(`${transactionPath(budgetId, transactionId)}/restore`, {
+        method: 'POST',
+        headers: idempotent(idempotencyKey),
+      }),
+    deleteTransactionWithAllocations: (budgetId, transactionId, input, idempotencyKey) =>
+      api.request<TransactionDto>(
+        `${transactionPath(budgetId, transactionId)}/delete-with-allocations`,
+        {
+          method: 'POST',
+          headers: idempotent(idempotencyKey),
+          body: JSON.stringify(input),
+        },
+      ),
+    listTransactionAllocations: (budgetId, transactionId) =>
+      api.request<IncomeAllocationDto[]>(allocationPath(budgetId, transactionId)),
+    listTransactionAudit: (budgetId, transactionId) =>
+      api
+        .request<{ items: AuditEventDto[] }>(`${transactionPath(budgetId, transactionId)}/audit`)
+        .then((result) => result.items),
     listTransfers: (budgetId, input = {}) =>
       api.request<TransferListResult>(
         withQuery(
@@ -592,6 +654,11 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
         headers: idempotent(idempotencyKey),
         body: JSON.stringify(input),
       }),
+    restoreIncomeAllocation: (budgetId, allocationId, idempotencyKey) =>
+      api.request<IncomeAllocationDto>(
+        `${budgetPath(budgetId)}/allocations/${encodeURIComponent(allocationId)}/restore`,
+        { method: 'POST', headers: idempotent(idempotencyKey) },
+      ),
   };
 }
 

@@ -2,7 +2,11 @@
 import { reactive, watch } from 'vue';
 
 import type { CategoryDto, TransactionDto } from '../../composables/useBudgetReferenceData.js';
-import { toTransactionInput, type OperationFormModel } from '../../composables/useOperationForm.js';
+import {
+  toTransactionInput,
+  toUpdateTransactionInput,
+  type OperationFormModel,
+} from '../../composables/useOperationForm.js';
 import FinanceMoneyInput from '../finance/FinanceMoneyInput.vue';
 import UiButton from '../ui/Button.vue';
 import UiInput from '../ui/Input.vue';
@@ -24,7 +28,11 @@ const props = withDefaults(
   { errors: () => ({}), pending: false, current: null },
 );
 
-const emit = defineEmits<{ submit: [input: ReturnType<typeof toTransactionInput>] }>();
+const emit = defineEmits<{
+  submit: [
+    input: ReturnType<typeof toTransactionInput> | ReturnType<typeof toUpdateTransactionInput>,
+  ];
+}>();
 const form = reactive({ ...props.model });
 
 watch(
@@ -51,6 +59,10 @@ function categoriesFor(type: 'INCOME' | 'EXPENSE') {
 }
 
 function submit(status: 'DRAFT' | 'CONFIRMED') {
+  if (props.mode === 'edit') {
+    emit('submit', toUpdateTransactionInput(form, props.current?.status === 'CONFIRMED'));
+    return;
+  }
   emit('submit', toTransactionInput(form, status));
 }
 </script>
@@ -126,12 +138,19 @@ function submit(status: 'DRAFT' | 'CONFIRMED') {
       />
     </template>
     <div class="operation-form__actions">
-      <UiButton type="submit" variant="secondary" :disabled="pending" :loading="pending"
-        >Создать черновик</UiButton
-      >
-      <UiButton type="button" :disabled="pending" @click="submit('CONFIRMED')"
-        >Подтвердить операцию</UiButton
-      >
+      <template v-if="mode === 'edit'">
+        <UiButton type="submit" data-action="save-operation" :disabled="pending" :loading="pending"
+          >Сохранить изменения</UiButton
+        >
+      </template>
+      <template v-else>
+        <UiButton type="submit" variant="secondary" :disabled="pending" :loading="pending"
+          >Создать черновик</UiButton
+        >
+        <UiButton type="button" :disabled="pending" @click="submit('CONFIRMED')"
+          >Подтвердить операцию</UiButton
+        >
+      </template>
     </div>
   </form>
 </template>

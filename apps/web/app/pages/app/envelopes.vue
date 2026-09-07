@@ -416,6 +416,11 @@ onMounted(() => {
               <UiButton variant="secondary" data-action="edit-envelope" @click="startEdit(envelope)"
                 >Изменить</UiButton
               >
+              <NuxtLink
+                class="envelope-journal-link"
+                :to="`/app/operations?envelopeId=${encodeURIComponent(envelope.id)}`"
+                >Операции конверта</NuxtLink
+              >
               <UiButton
                 v-if="!envelope.archivedAt"
                 variant="danger"
@@ -559,6 +564,17 @@ onMounted(() => {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
   gap: var(--hf-space-5);
   margin-top: var(--hf-space-6);
+}
+.envelope-journal-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--hf-control-height-md);
+  color: var(--hf-color-action-primary-hover);
+  font-weight: var(--hf-font-weight-medium);
+  text-decoration: none;
+}
+.envelope-journal-link:hover {
+  text-decoration: underline;
 }
 @media (max-width: 47.9375rem) {
   .reference-page__header,
