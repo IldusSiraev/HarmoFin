@@ -603,7 +603,7 @@ model IdempotencyRecord {
   budgetId       String   @map("budget_id") @db.Uuid
   actorUserId    String   @map("actor_user_id") @db.Uuid
   key            String   @db.VarChar(128)
-  operation      String   @db.VarChar(64)
+  operation      String   @db.VarChar(128)
   requestHash    String   @map("request_hash") @db.Char(64)
   responseStatus Int      @map("response_status") @db.SmallInt
   responseBody   Json     @map("response_body")
