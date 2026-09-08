@@ -338,7 +338,41 @@ export interface CreateIncomeAllocationInput {
   comment?: string | null | undefined;
 }
 
+export type DashboardWarning = {
+  subject: 'ACCOUNT' | 'ENVELOPE';
+  id: string;
+  balanceMinor: string;
+};
+
+export type DashboardBalance = {
+  id: string;
+  name: string;
+  balanceMinor: string;
+};
+
+export type DashboardSummaryDto = {
+  cycle: { start: string; end: string };
+  period: { id: 'FIRST' | 'SECOND'; start: string; end: string };
+  totalAccountMoneyMinor: string;
+  accounts: DashboardBalance[];
+  envelopes: DashboardBalance[];
+  unallocatedIncomeMinor: string;
+  periodLimit:
+    | {
+        state: 'available';
+        envelopeId: string;
+        limitMinor: string;
+        spentMinor: string;
+        remainingMinor: string;
+        daysUntilBoundary: number;
+        averageRemainingDailyLimitMinor: string;
+      }
+    | { state: 'unavailable' };
+  warnings: DashboardWarning[];
+};
+
 export interface BudgetReferenceDataApi {
+  getDashboardSummary(budgetId: string): Promise<DashboardSummaryDto>;
   getBudget(budgetId: string): Promise<BudgetDto>;
   updateBudget(budgetId: string, input: UpdateBudgetInput): Promise<BudgetDto>;
   initializeTemplate(budgetId: string): Promise<ReferenceTemplateResult>;
@@ -495,6 +529,8 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
   }
 
   return {
+    getDashboardSummary: (budgetId) =>
+      api.request<DashboardSummaryDto>(`${budgetPath(budgetId)}/summary`),
     getBudget: (budgetId) => api.request<BudgetDto>(budgetPath(budgetId)),
     updateBudget: (budgetId, input) =>
       api.request<BudgetDto>(budgetPath(budgetId), {
