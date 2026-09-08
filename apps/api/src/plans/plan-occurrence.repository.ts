@@ -10,12 +10,17 @@ export class PlanOccurrenceRepository {
       budgetId: string;
       status: TransactionStatus;
       confirmedAt: Date | null;
-      workspaceId: string;
     },
     actorUserId: string,
     requestId?: string,
   ): Promise<void> {
     if (transaction.status !== 'CONFIRMED') return;
+    await tx.$queryRaw`
+      SELECT "id" FROM "plan_occurrences"
+      WHERE "transaction_id" = ${transaction.id}::uuid
+        AND "budget_id" = ${transaction.budgetId}::uuid
+      FOR UPDATE
+    `;
     const occurrence = await tx.planOccurrence.findFirst({
       where: {
         transactionId: transaction.id,
@@ -43,11 +48,15 @@ export class PlanOccurrenceRepository {
         actedByUserId: actorUserId,
       },
     });
+    const budget = await tx.budget.findUniqueOrThrow({
+      where: { id: transaction.budgetId },
+      select: { workspaceId: true },
+    });
     await tx.auditEvent.create({
       data: {
         id: createUuidV7(),
         actorUserId,
-        workspaceId: transaction.workspaceId,
+        workspaceId: budget.workspaceId,
         budgetId: transaction.budgetId,
         entityType: 'plan_occurrence',
         entityId: occurrence.id,

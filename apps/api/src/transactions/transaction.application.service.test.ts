@@ -38,13 +38,15 @@ describe('TransactionApplicationService', () => {
     repository.findAccessibleWithRole.mockResolvedValue(accessibleBudget('OWNER'));
     repository.findForMutation.mockResolvedValue(transaction({ status: 'DRAFT' }));
     repository.assertConfirmedExpenseCapacity.mockResolvedValue(false);
-    const service = createService(repository);
+    const occurrences = { completeForConfirmedTransaction: vi.fn() };
+    const service = createService(repository, occurrences);
 
     await expect(
       service.confirm(ownerId, budgetId, transactionId, 'confirm-key'),
     ).rejects.toMatchObject({
       response: expect.objectContaining({ code: 'INSUFFICIENT_BALANCE' }),
     });
+    expect(occurrences.completeForConfirmedTransaction).not.toHaveBeenCalled();
   });
 
   it('requires active same-budget references with category matching operation type', async () => {
@@ -83,6 +85,26 @@ describe('TransactionApplicationService', () => {
     ).rejects.toMatchObject({
       response: expect.objectContaining({ code: 'FORBIDDEN' }),
     });
+  });
+
+  it('completes an occurrence only for a confirmed transaction', async () => {
+    const repository = repositoryDouble();
+    repository.findAccessibleWithRole.mockResolvedValue(accessibleBudget('OWNER'));
+    repository.findForMutation.mockResolvedValue(transaction({ status: 'DRAFT' }));
+    repository.updateLifecycle.mockResolvedValue(
+      transaction({ status: 'CONFIRMED', confirmedAt: new Date('2026-09-10T12:00:00.000Z') }),
+    );
+    const occurrences = { completeForConfirmedTransaction: vi.fn().mockResolvedValue(undefined) };
+    const service = createService(repository, occurrences);
+
+    await service.confirm(ownerId, budgetId, transactionId, 'occurrence-confirm-key');
+
+    expect(occurrences.completeForConfirmedTransaction).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ id: transactionId, status: 'CONFIRMED' }),
+      ownerId,
+      undefined,
+    );
   });
 
   it('allows draft confirmation, draft cancellation and confirmed logical deletion', async () => {
@@ -202,12 +224,17 @@ describe('TransactionApplicationService', () => {
     });
   });
 
-  function createService(repository: ReturnType<typeof repositoryDouble>) {
+  function createService(
+    repository: ReturnType<typeof repositoryDouble>,
+    occurrences?: { completeForConfirmedTransaction: ReturnType<typeof vi.fn> },
+  ) {
     return new TransactionApplicationService(
       repository as never,
       {
         execute: async (_tx: unknown, _input: unknown, write: () => Promise<unknown>) => write(),
       } as never,
+      undefined,
+      occurrences as never,
     );
   }
 
