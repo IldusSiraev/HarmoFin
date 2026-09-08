@@ -211,6 +211,35 @@ export interface PlanOccurrenceDto {
   cancellationReason: 'PLAN_CHANGED' | 'PLAN_DISABLED' | 'PLAN_DELETED' | null;
 }
 
+export type NotificationType =
+  | 'PLAN_UPCOMING'
+  | 'PLAN_TODAY'
+  | 'PLAN_OVERDUE'
+  | 'UNALLOCATED_INCOME'
+  | 'NEGATIVE_ACCOUNT'
+  | 'NEGATIVE_ENVELOPE'
+  | 'INSUFFICIENT_MANDATORY_OBLIGATIONS';
+
+export interface NotificationDto {
+  id: string;
+  budgetId: string;
+  notificationType: NotificationType;
+  occurrenceId: string | null;
+  relatedEntityType: string | null;
+  relatedEntityId: string | null;
+  title: string;
+  body: string;
+  actionPath: string | null;
+  readAt: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationListResult {
+  items: NotificationDto[];
+  nextCursor: string | null;
+}
+
 export type TransactionType = 'INCOME' | 'EXPENSE';
 export type TransactionStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED';
 
@@ -510,6 +539,19 @@ export interface BudgetReferenceDataApi {
     input: UpdateEnvelopeInput,
   ): Promise<EnvelopeDto>;
   archiveEnvelope(budgetId: string, envelopeId: string): Promise<EnvelopeDto>;
+  listNotifications(
+    budgetId: string,
+    input?: { state?: 'unread' | 'read' | 'all' | undefined; cursor?: string | undefined },
+  ): Promise<NotificationListResult>;
+  markNotificationRead(
+    budgetId: string,
+    notificationId: string,
+    idempotencyKey: string,
+  ): Promise<NotificationDto>;
+  markAllNotificationsRead(
+    budgetId: string,
+    idempotencyKey: string,
+  ): Promise<{ updatedCount: number }>;
   listRegularPlans(
     budgetId: string,
     status?: 'active' | 'inactive' | 'all',
@@ -657,6 +699,11 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
     return `${budgetPath(budgetId)}/reports/${encodeURIComponent(key)}`;
   }
 
+  function notificationPath(budgetId: string, notificationId?: string) {
+    const path = `${budgetPath(budgetId)}/notifications`;
+    return notificationId ? `${path}/${encodeURIComponent(notificationId)}` : path;
+  }
+
   function planPath(budgetId: string, planId?: string) {
     const path = `${budgetPath(budgetId)}/plans`;
     return planId ? `${path}/${encodeURIComponent(planId)}` : path;
@@ -756,6 +803,18 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
       }),
     archiveEnvelope: (budgetId, envelopeId) =>
       api.request<EnvelopeDto>(`${envelopePath(budgetId, envelopeId)}/archive`, { method: 'POST' }),
+    listNotifications: (budgetId, input = {}) =>
+      api.request<NotificationListResult>(withQuery(notificationPath(budgetId), input)),
+    markNotificationRead: (budgetId, notificationId, idempotencyKey) =>
+      api.request<NotificationDto>(`${notificationPath(budgetId, notificationId)}/read`, {
+        method: 'POST',
+        headers: idempotent(idempotencyKey),
+      }),
+    markAllNotificationsRead: (budgetId, idempotencyKey) =>
+      api.request<{ updatedCount: number }>(`${notificationPath(budgetId)}/read-all`, {
+        method: 'POST',
+        headers: idempotent(idempotencyKey),
+      }),
     listRegularPlans: (budgetId, status) =>
       api
         .request<{ items: RegularPlanDto[] }>(withQuery(planPath(budgetId), { status }))

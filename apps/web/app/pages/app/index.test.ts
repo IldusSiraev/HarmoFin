@@ -74,6 +74,7 @@ describe('dashboard page', () => {
     expect(text).toContain('Ипотека');
     expect(wrapper.get('a[href="/app/operations"]')).toBeTruthy();
     expect(wrapper.get('a[href="/app/plans"]')).toBeTruthy();
+    expect(wrapper.get('a[href="/app/notifications"]')).toBeTruthy();
     expect(wrapper.get('a[href="/app/plans?occurrence=occurrence-id"]')).toBeTruthy();
   });
 

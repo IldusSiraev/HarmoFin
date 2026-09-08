@@ -82,6 +82,7 @@ async function signOut() {
           <NuxtLink to="/app/accounts">Счета</NuxtLink>
           <NuxtLink to="/app/envelopes">Конверты</NuxtLink>
           <NuxtLink to="/app/plans">Планы</NuxtLink>
+          <NuxtLink to="/app/notifications">Уведомления</NuxtLink>
           <NuxtLink to="/app/analytics">Аналитика</NuxtLink>
         </nav>
         <section class="dashboard-grid" aria-label="Сводка бюджета">
