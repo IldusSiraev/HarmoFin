@@ -13,7 +13,7 @@ test('registers, protects app, logs out, and logs back in', async ({ page }) => 
   await page.getByLabel('Пароль').fill(password);
   await page.getByRole('button', { name: 'Создать аккаунт' }).click();
   await expect(page).toHaveURL(/\/app$/);
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Мой бюджет');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Семейный бюджет');
   await expect(page.evaluate(() => Object.keys(localStorage))).resolves.not.toContain('auth');
 
   await page.getByRole('button', { name: 'Выйти' }).click();

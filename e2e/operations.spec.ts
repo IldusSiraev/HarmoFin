@@ -21,7 +21,9 @@ test('owner accepts generic income allocation and logically deletes confirmed in
   await page.goto('/app/operations');
   await page.getByRole('button', { name: 'Удалить' }).click();
   await page.getByRole('button', { name: 'Подтвердить', exact: true }).click();
-  await expect(page.getByText('Удалена')).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: 'Подтвердить', exact: true }).click();
+  await page.getByLabel('Статус').selectOption('DELETED');
+  await expect(page.getByText('Удалена', { exact: true })).toBeVisible();
 });
 
 test('owner changes and rejects non-binding generic allocation proposals', async ({ page }) => {
@@ -31,7 +33,7 @@ test('owner changes and rejects non-binding generic allocation proposals', async
   await configureIncomeAllocationRule(page);
 
   await createIncome(page, '12 000,00', 'CONFIRMED');
-  await page.getByRole('button', { name: 'Изменить' }).click();
+  await page.getByLabel('Распределение дохода').getByRole('button', { name: 'Изменить' }).click();
   await page.getByLabel('Сумма распределения').fill('1 000,00');
   await page.getByRole('button', { name: 'Сохранить распределение' }).click();
   await expect(page.getByText(/доступно 1100000 минимальных единиц/)).toBeVisible();
@@ -50,8 +52,8 @@ test('browser retry with same idempotency key creates one income', async ({ page
   await page.goto('/app/operations');
   await page.getByRole('button', { name: 'Добавить операцию' }).click();
   await page.getByLabel('Тип операции').selectOption('INCOME');
-  await page.getByLabel('Счёт').selectOption({ label: 'Основная карта' });
-  await page.getByLabel('Категория').selectOption({ label: 'Шабашка' });
+  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная карта' });
+  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Шабашка' });
   await page.getByLabel('Сумма').fill('10,00');
   const requestPromise = page.waitForRequest(
     (request) => request.method() === 'POST' && /\/transactions$/.test(request.url()),
@@ -97,9 +99,9 @@ test('owner sees financial validation and server-confirmed expense lifecycle', a
 
   await page.goto('/app/operations');
   await page.getByRole('button', { name: 'Добавить операцию' }).click();
-  await page.getByLabel('Счёт').selectOption({ label: 'Основная карта' });
-  await page.getByLabel('Категория').selectOption({ label: 'Продукты' });
-  await page.getByLabel('Конверт').selectOption({ label: 'Продукты на неделю' });
+  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная карта' });
+  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Продукты' });
+  await page.getByLabel(/^Конверт\s*\*?$/).selectOption({ label: 'Продукты на неделю' });
   await page.getByLabel('Сумма').fill('1.234');
   await page.getByRole('button', { name: 'Создать черновик' }).click();
   await expect(page.getByLabel('Сумма')).toHaveAttribute('aria-invalid', 'true');
@@ -113,7 +115,7 @@ test('owner sees financial validation and server-confirmed expense lifecycle', a
   await page.goto('/app/operations');
   await createExpense(page, '1 000,00', 'CONFIRMED');
   await expect(page.getByRole('alert')).toContainText(
-    'Не удалось сохранить операцию. Повторите попытку.',
+    'Недостаточно средств на счёте или в конверте.',
   );
   await expect(page.getByText('Подтверждена', { exact: true })).toHaveCount(1);
 
@@ -188,7 +190,7 @@ async function configureIncomeAllocationRule(page: Page): Promise<void> {
   await page.goto('/app/settings');
   await page.getByLabel('Настроить автоматическое распределение дохода').check();
   await page.getByLabel('Категория дохода').selectOption({ label: 'Шабашка' });
-  await page.getByLabel('Конверт').selectOption({ label: 'Свободные' });
+  await page.getByLabel(/^Конверт\s*\*?$/).selectOption({ label: 'Свободные' });
   await page.getByRole('button', { name: 'Сохранить настройки' }).click();
   await expect(page.getByText('Настройки бюджета сохранены.')).toBeVisible();
 }
@@ -201,8 +203,8 @@ async function createIncome(
   await page.goto('/app/operations');
   await page.getByRole('button', { name: 'Добавить операцию' }).click();
   await page.getByLabel('Тип операции').selectOption('INCOME');
-  await page.getByLabel('Счёт').selectOption({ label: 'Основная карта' });
-  await page.getByLabel('Категория').selectOption({ label: 'Шабашка' });
+  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная карта' });
+  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Шабашка' });
   await page.getByLabel('Сумма').fill(amount);
   await page
     .getByRole('button', { name: status === 'DRAFT' ? 'Создать черновик' : 'Подтвердить операцию' })
@@ -221,9 +223,9 @@ async function createExpense(
   status: 'DRAFT' | 'CONFIRMED',
 ): Promise<void> {
   await page.getByRole('button', { name: 'Добавить операцию' }).click();
-  await page.getByLabel('Счёт').selectOption({ label: 'Основная карта' });
-  await page.getByLabel('Категория').selectOption({ label: 'Продукты' });
-  await page.getByLabel('Конверт').selectOption({ label: 'Продукты на неделю' });
+  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная карта' });
+  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Продукты' });
+  await page.getByLabel(/^Конверт\s*\*?$/).selectOption({ label: 'Продукты на неделю' });
   await page.getByLabel('Сумма').fill(amount);
   await page
     .getByRole('button', { name: status === 'DRAFT' ? 'Создать черновик' : 'Подтвердить операцию' })

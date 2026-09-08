@@ -306,10 +306,9 @@ function filterQuery() {
   return Object.fromEntries(
     Object.entries({
       ...transactionFilters(),
-      ...(filters.value.sortBy !== 'occurredOn' ? { sortBy: filters.value.sortBy } : {}),
-      ...(filters.value.sortDirection !== 'desc'
-        ? { sortDirection: filters.value.sortDirection }
-        : {}),
+      sortBy: filters.value.sortBy === 'occurredOn' ? undefined : filters.value.sortBy,
+      sortDirection:
+        filters.value.sortDirection === 'desc' ? undefined : filters.value.sortDirection,
     }).filter(([, value]) => value !== '' && value !== undefined),
   );
 }
@@ -493,15 +492,15 @@ function rejectAllocationProposal(transactionId: string) {
         />
         <UiSelect
           v-model="filters.accountId"
-          name="accountId"
-          label="Счёт"
+          name="journal-account-id"
+          label="Счёт в журнале"
           :options="[{ value: '', label: 'Все счета' }, ...accounts]"
           @update:model-value="applyFilters"
         />
         <UiSelect
           v-model="filters.categoryId"
-          name="categoryId"
-          label="Категория"
+          name="journal-category-id"
+          label="Категория в журнале"
           :options="[
             { value: '', label: 'Все категории' },
             ...categories.map((item) => ({ value: item.id, label: item.name })),
@@ -510,8 +509,8 @@ function rejectAllocationProposal(transactionId: string) {
         />
         <UiSelect
           v-model="filters.envelopeId"
-          name="envelopeId"
-          label="Конверт"
+          name="journal-envelope-id"
+          label="Конверт в журнале"
           :options="[{ value: '', label: 'Все конверты' }, ...envelopes]"
           @update:model-value="applyFilters"
         />

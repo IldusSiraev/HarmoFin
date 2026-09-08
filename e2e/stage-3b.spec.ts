@@ -41,6 +41,7 @@ test('owner edits, resolves allocation deletion, restores operation, and sees au
   await expect(page.getByText('Удалена', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Восстановить' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Подтвердить', exact: true }).click();
+  await page.getByLabel('Статус').selectOption('');
   await expect(page.getByText('Подтверждена', { exact: true })).toBeVisible();
 });
 
@@ -65,14 +66,22 @@ test('journal filters, sort, reset, direct links, and dashboard use server data'
   await expect(page.getByText('Карта Stage 3b')).toBeVisible();
 
   await page.goto('/app/accounts');
-  await page.getByRole('link', { name: 'Операции счёта' }).click();
+  await page
+    .getByRole('article')
+    .filter({ hasText: 'Карта Stage 3b' })
+    .getByRole('link', { name: 'Операции счёта' })
+    .click();
   await expect(page).toHaveURL(/\/app\/operations\?accountId=/);
-  await expect(page.getByLabel('Счёт')).toHaveValue(/.+/);
+  await expect(page.getByLabel('Счёт в журнале')).toHaveValue(/.+/);
 
   await page.goto('/app/envelopes');
-  await page.getByRole('link', { name: 'Операции конверта' }).click();
+  await page
+    .getByRole('article')
+    .filter({ hasText: 'Продукты Stage 3b' })
+    .getByRole('link', { name: 'Операции конверта' })
+    .click();
   await expect(page).toHaveURL(/\/app\/operations\?envelopeId=/);
-  await expect(page.getByLabel('Конверт')).toHaveValue(/.+/);
+  await expect(page.getByLabel('Конверт в журнале')).toHaveValue(/.+/);
 
   await page.getByLabel('Поиск').fill('Супермаркет Stage 3b');
   await expect(page.getByText('Супермаркет Stage 3b')).toBeVisible();
@@ -80,6 +89,7 @@ test('journal filters, sort, reset, direct links, and dashboard use server data'
     /search=%D0%A1%D1%83%D0%BF%D0%B5%D1%80%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82/,
   );
   await page.getByRole('button', { name: 'Сортировать по сумме' }).click();
+  await expect(page).toHaveURL(/sortBy=amount/);
   await page.getByRole('button', { name: 'Сортировать по сумме' }).click();
   await expect(page).toHaveURL(/sortBy=amount.*sortDirection=asc/);
   await page.getByRole('button', { name: 'Сбросить фильтры' }).click();
@@ -169,7 +179,7 @@ async function configureIncomeAllocationRule(page: Page): Promise<void> {
   await page.goto('/app/settings');
   await page.getByLabel('Настроить автоматическое распределение дохода').check();
   await page.getByLabel('Категория дохода').selectOption({ label: 'Шабашка' });
-  await page.getByLabel('Конверт').selectOption({ label: 'Свободные' });
+  await page.getByLabel(/^Конверт\s*\*?$/).selectOption({ label: 'Свободные' });
   await page.getByRole('button', { name: 'Сохранить настройки' }).click();
   await expect(page.getByText('Настройки бюджета сохранены.')).toBeVisible();
 }
@@ -178,8 +188,8 @@ async function createIncome(page: Page, source: string, amount: string): Promise
   await page.goto('/app/operations');
   await page.getByRole('button', { name: 'Добавить операцию' }).click();
   await page.getByLabel('Тип операции').selectOption('INCOME');
-  await page.getByLabel('Счёт').selectOption({ label: 'Основная Stage 3b' });
-  await page.getByLabel('Категория').selectOption({ label: 'Шабашка' });
+  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная Stage 3b' });
+  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Шабашка' });
   await page.getByLabel('Источник дохода').fill(source);
   await page.getByLabel('Сумма').fill(amount);
   await page.getByRole('button', { name: 'Подтвердить операцию' }).click();
@@ -196,9 +206,9 @@ async function createExpense(
 ): Promise<void> {
   await page.goto('/app/operations');
   await page.getByRole('button', { name: 'Добавить операцию' }).click();
-  await page.getByLabel('Счёт').selectOption({ label: account });
-  await page.getByLabel('Категория').selectOption({ label: 'Продукты' });
-  await page.getByLabel('Конверт').selectOption({ label: envelope });
+  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: account });
+  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Продукты' });
+  await page.getByLabel(/^Конверт\s*\*?$/).selectOption({ label: envelope });
   await page.getByLabel('Получатель или магазин').fill(merchant);
   await page.getByLabel('Сумма').fill(amount);
   await page.getByRole('button', { name: 'Подтвердить операцию' }).click();
