@@ -88,6 +88,54 @@ enum TransferStatus {
   DELETED
 }
 
+enum RegularPlanType {
+  INCOME
+  EXPENSE
+  SAVINGS
+}
+
+enum PlanRecurrence {
+  ONE_TIME
+  MONTHLY
+  EVERY_N_MONTHS
+  YEARLY
+}
+
+enum PlanOccurrenceStatus {
+  PENDING
+  DUE
+  SKIPPED
+  COMPLETED
+  CANCELLED
+}
+
+enum PlanOccurrenceCancellationReason {
+  PLAN_CHANGED
+  PLAN_DISABLED
+  PLAN_DELETED
+}
+
+enum WorkerJobType {
+  MATERIALIZE_PLAN_OCCURRENCES
+  EVALUATE_BUDGET_NOTIFICATIONS
+}
+
+enum WorkerJobStatus {
+  PENDING
+  RUNNING
+  FAILED
+}
+
+enum NotificationType {
+  PLAN_UPCOMING
+  PLAN_TODAY
+  PLAN_OVERDUE
+  UNALLOCATED_INCOME
+  NEGATIVE_ACCOUNT
+  NEGATIVE_ENVELOPE
+  INSUFFICIENT_MANDATORY_OBLIGATIONS
+}
+
 model User {
   id              String     @id @db.Uuid
   email           String     @unique @db.VarChar(320)
@@ -102,8 +150,12 @@ model User {
   memberships        WorkspaceMembership[]
   ownedWorkspaces    Workspace[]           @relation("WorkspaceOwner")
   recoveryTokens     RecoveryToken[]
-  auditEvents        AuditEvent[]          @relation("AuditActor")
-  idempotencyRecords IdempotencyRecord[]
+  auditEvents          AuditEvent[]          @relation("AuditActor")
+  idempotencyRecords   IdempotencyRecord[]
+  createdRegularPlans  RegularPlan[]          @relation("RegularPlanCreator")
+  updatedRegularPlans  RegularPlan[]          @relation("RegularPlanUpdater")
+  actedPlanOccurrences PlanOccurrence[]       @relation("PlanOccurrenceActor")
+  notifications        Notification[]
 
   @@map("users")
 }
@@ -141,6 +193,9 @@ model Workspace {
   memberships  WorkspaceMembership[]
   budgets      Budget[]
   auditEvents  AuditEvent[]
+  regularPlans RegularPlan[]
+  occurrences  PlanOccurrence[]
+  notifications Notification[]
 
   @@index([ownerId, status])
   @@map("workspaces")
@@ -190,7 +245,11 @@ model Budget {
   incomeAllocations  IncomeAllocation[]
   transfers          Transfer[]
   idempotencyRecords IdempotencyRecord[]
+  regularPlans       RegularPlan[]
+  occurrences        PlanOccurrence[]
+  notifications      Notification[]
 
+  @@unique([id, workspaceId])
   @@index([workspaceId, status])
   @@map("budgets")
 }
@@ -216,6 +275,8 @@ model Account {
   incomeAllocations          IncomeAllocation[]
   transferPartsAsSource      TransferPart[]     @relation("TransferPartSourceAccount")
   transferPartsAsDestination TransferPart[]     @relation("TransferPartDestinationAccount")
+  regularPlans               RegularPlan[]      @relation("RegularPlanDefaultAccount")
+  occurrenceSnapshots        PlanOccurrence[]   @relation("PlanOccurrenceDefaultAccount")
 
   @@unique([id, budgetId])
   @@index([budgetId, archivedAt])
@@ -237,8 +298,10 @@ model Category {
 
   budget       Budget        @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   parent       Category?     @relation("CategoryParent", fields: [parentId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
-  children     Category[]    @relation("CategoryParent")
-  transactions Transaction[]
+  children            Category[]       @relation("CategoryParent")
+  transactions        Transaction[]
+  regularPlans        RegularPlan[]     @relation("RegularPlanCategory")
+  occurrenceSnapshots PlanOccurrence[]  @relation("PlanOccurrenceCategory")
 
   @@unique([id, budgetId])
   @@index([budgetId, categoryType, archivedAt])
@@ -269,6 +332,8 @@ model Envelope {
   incomeAllocations          IncomeAllocation[]
   transferPartsAsSource      TransferPart[]     @relation("TransferPartSourceEnvelope")
   transferPartsAsDestination TransferPart[]     @relation("TransferPartDestinationEnvelope")
+  regularPlans               RegularPlan[]      @relation("RegularPlanEnvelope")
+  occurrenceSnapshots        PlanOccurrence[]   @relation("PlanOccurrenceEnvelope")
 
   @@unique([id, budgetId])
   @@index([budgetId, archivedAt])
@@ -303,8 +368,9 @@ model Transaction {
   budget      Budget             @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   account     Account            @relation(fields: [accountId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
   category    Category           @relation(fields: [categoryId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
-  envelope    Envelope?          @relation(fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
-  allocations IncomeAllocation[]
+  envelope       Envelope?          @relation(fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  allocations    IncomeAllocation[]
+  planOccurrence PlanOccurrence?    @relation("PlanOccurrenceTransaction")
 
   @@unique([id, budgetId])
   @@index([budgetId, occurredOn, createdAt])
@@ -396,6 +462,140 @@ model TransferPart {
   @@index([budgetId, sourceEnvelopeId])
   @@index([budgetId, destinationEnvelopeId])
   @@map("transfer_parts")
+}
+
+model RegularPlan {
+  id               String          @id @db.Uuid
+  workspaceId      String          @map("workspace_id") @db.Uuid
+  budgetId         String          @map("budget_id") @db.Uuid
+  name             String          @db.VarChar(120)
+  planType         RegularPlanType @map("plan_type")
+  amountMinor      BigInt          @map("amount_minor")
+  currency         String          @default("RUB") @db.Char(3)
+  scale            Int             @default(2) @db.SmallInt
+  anchorOn         DateTime        @map("anchor_on") @db.Date
+  startOn          DateTime        @map("start_on") @db.Date
+  endOn            DateTime?       @map("end_on") @db.Date
+  recurrence       PlanRecurrence
+  intervalMonths   Int?            @map("interval_months") @db.SmallInt
+  accountId        String?         @map("account_id") @db.Uuid
+  categoryId       String?         @map("category_id") @db.Uuid
+  envelopeId       String?         @map("envelope_id") @db.Uuid
+  comment          String?         @db.VarChar(500)
+  isActive         Boolean         @default(true) @map("is_active")
+  disabledAt       DateTime?       @map("disabled_at") @db.Timestamptz(3)
+  deletedAt        DateTime?       @map("deleted_at") @db.Timestamptz(3)
+  createdByUserId  String          @map("created_by_user_id") @db.Uuid
+  updatedByUserId  String          @map("updated_by_user_id") @db.Uuid
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace      Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  budget         Budget     @relation(fields: [budgetId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Cascade)
+  account        Account?   @relation("RegularPlanDefaultAccount", fields: [accountId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  category       Category?  @relation("RegularPlanCategory", fields: [categoryId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  envelope       Envelope?  @relation("RegularPlanEnvelope", fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  createdBy      User       @relation("RegularPlanCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  updatedBy      User       @relation("RegularPlanUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  occurrences    PlanOccurrence[]
+
+  @@unique([id, budgetId])
+  @@index([budgetId, isActive, deletedAt])
+  @@index([budgetId, startOn, endOn])
+  @@map("regular_plans")
+}
+
+model PlanOccurrence {
+  id                 String                           @id @db.Uuid
+  workspaceId        String                           @map("workspace_id") @db.Uuid
+  budgetId           String                           @map("budget_id") @db.Uuid
+  planId             String                           @map("plan_id") @db.Uuid
+  scheduledOn        DateTime                         @map("scheduled_on") @db.Date
+  planName           String                           @map("plan_name") @db.VarChar(120)
+  planType           RegularPlanType                  @map("plan_type")
+  amountMinor        BigInt                           @map("amount_minor")
+  currency           String                           @default("RUB") @db.Char(3)
+  scale              Int                              @default(2) @db.SmallInt
+  accountId          String?                          @map("account_id") @db.Uuid
+  categoryId         String?                          @map("category_id") @db.Uuid
+  envelopeId         String?                          @map("envelope_id") @db.Uuid
+  comment            String?                          @db.VarChar(500)
+  status             PlanOccurrenceStatus             @default(PENDING)
+  transactionId      String?                          @map("transaction_id") @db.Uuid
+  skippedAt          DateTime?                        @map("skipped_at") @db.Timestamptz(3)
+  completedAt        DateTime?                        @map("completed_at") @db.Timestamptz(3)
+  cancelledAt        DateTime?                        @map("cancelled_at") @db.Timestamptz(3)
+  cancellationReason PlanOccurrenceCancellationReason? @map("cancellation_reason")
+  actedByUserId      String?                          @map("acted_by_user_id") @db.Uuid
+  createdAt          DateTime                         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  budget         Budget         @relation(fields: [budgetId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Cascade)
+  plan           RegularPlan    @relation(fields: [planId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  account        Account?       @relation("PlanOccurrenceDefaultAccount", fields: [accountId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  category       Category?      @relation("PlanOccurrenceCategory", fields: [categoryId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  envelope       Envelope?      @relation("PlanOccurrenceEnvelope", fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  transaction    Transaction?   @relation("PlanOccurrenceTransaction", fields: [transactionId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  actedBy        User?          @relation("PlanOccurrenceActor", fields: [actedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  notifications  Notification[] @relation("OccurrenceNotifications")
+
+  @@unique([id, budgetId])
+  @@unique([transactionId, budgetId])
+  @@unique([planId, scheduledOn])
+  @@index([budgetId, status, scheduledOn])
+  @@index([planId, scheduledOn])
+  @@map("plan_occurrences")
+}
+
+model Notification {
+  id                String           @id @db.Uuid
+  workspaceId       String           @map("workspace_id") @db.Uuid
+  budgetId          String           @map("budget_id") @db.Uuid
+  userId            String           @map("user_id") @db.Uuid
+  notificationType  NotificationType @map("notification_type")
+  occurrenceId      String?          @map("occurrence_id") @db.Uuid
+  relatedEntityType String?          @map("related_entity_type") @db.VarChar(64)
+  relatedEntityId   String?          @map("related_entity_id") @db.Uuid
+  title             String           @db.VarChar(200)
+  body              String           @db.VarChar(1000)
+  actionPath        String?          @map("action_path") @db.VarChar(512)
+  notificationKey   String           @map("notification_key") @db.VarChar(255)
+  readAt            DateTime?        @map("read_at") @db.Timestamptz(3)
+  resolvedAt        DateTime?        @map("resolved_at") @db.Timestamptz(3)
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace  Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  budget     Budget          @relation(fields: [budgetId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Cascade)
+  user       User            @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  occurrence PlanOccurrence? @relation("OccurrenceNotifications", fields: [occurrenceId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([budgetId, userId, notificationKey])
+  @@index([budgetId, userId, readAt, createdAt])
+  @@index([budgetId, occurrenceId, notificationType])
+  @@map("notifications")
+}
+
+model WorkerJob {
+  id              String          @id @db.Uuid
+  jobType         WorkerJobType   @map("job_type")
+  payload         Json
+  jobKey          String          @unique @map("job_key") @db.VarChar(128)
+  status          WorkerJobStatus @default(PENDING)
+  attempts        Int             @default(0)
+  runAt           DateTime        @map("run_at") @db.Timestamptz(3)
+  lockedAt        DateTime?       @map("locked_at") @db.Timestamptz(3)
+  leaseExpiresAt  DateTime?       @map("lease_expires_at") @db.Timestamptz(3)
+  lastRunAt       DateTime?       @map("last_run_at") @db.Timestamptz(3)
+  completedAt     DateTime?       @map("completed_at") @db.Timestamptz(3)
+  lastError       String?         @map("last_error") @db.VarChar(500)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([status, runAt])
+  @@index([status, leaseExpiresAt])
+  @@map("worker_jobs")
 }
 
 model IdempotencyRecord {

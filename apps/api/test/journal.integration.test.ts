@@ -325,6 +325,9 @@ describe('operations journal API', () => {
       })
     ).map((budget) => budget.id);
     await prisma.auditEvent.deleteMany({ where: { workspaceId: session.workspaceId } });
+    await prisma.notification.deleteMany({ where: { budgetId: { in: budgetIds } } });
+    await prisma.planOccurrence.deleteMany({ where: { budgetId: { in: budgetIds } } });
+    await prisma.regularPlan.deleteMany({ where: { budgetId: { in: budgetIds } } });
     await prisma.idempotencyRecord.deleteMany({ where: { budgetId: { in: budgetIds } } });
     await prisma.transferPart.deleteMany({ where: { budgetId: { in: budgetIds } } });
     await prisma.transfer.deleteMany({ where: { budgetId: { in: budgetIds } } });
