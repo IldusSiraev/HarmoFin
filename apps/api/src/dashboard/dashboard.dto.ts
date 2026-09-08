@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiExtraModels, ApiProperty } from '@nestjs/swagger';
 
 class CycleRangeResponse {
   @ApiProperty({ type: String, format: 'date' })
@@ -63,6 +63,7 @@ class PeriodLimitUnavailableResponse {
   state!: 'unavailable';
 }
 
+@ApiExtraModels(PeriodLimitAvailableResponse, PeriodLimitUnavailableResponse)
 export class DashboardSummaryResponse {
   @ApiProperty({ type: CycleRangeResponse })
   cycle!: CycleRangeResponse;
@@ -83,6 +84,8 @@ export class DashboardSummaryResponse {
   unallocatedIncomeMinor!: string;
 
   @ApiProperty({
+    type: 'object',
+    additionalProperties: true,
     oneOf: [
       { $ref: '#/components/schemas/PeriodLimitAvailableResponse' },
       { $ref: '#/components/schemas/PeriodLimitUnavailableResponse' },
