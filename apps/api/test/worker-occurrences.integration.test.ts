@@ -147,8 +147,8 @@ describe('plan occurrence worker handler', () => {
   it('materializes bounded occurrences idempotently and transitions due records without balances', async () => {
     const now = new Date('2026-02-28T12:00:00.000Z');
 
-    await handler.execute(now);
-    await handler.execute(now);
+    await handler.execute(now, budgetId);
+    await handler.execute(now, budgetId);
 
     const occurrences = await prisma.planOccurrence.findMany({
       where: { planId },

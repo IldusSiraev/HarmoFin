@@ -7,9 +7,13 @@ import { datesForPlanInWindow } from './recurrence.js';
 export class PlanOccurrenceHandler {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async execute(now: Date): Promise<void> {
+  async execute(now: Date, budgetId?: string): Promise<void> {
     const budgets = await this.prisma.budget.findMany({
-      where: { status: 'ACTIVE', workspace: { status: 'ACTIVE' } },
+      where: {
+        status: 'ACTIVE',
+        workspace: { status: 'ACTIVE' },
+        ...(budgetId ? { id: budgetId } : {}),
+      },
       select: { id: true, workspaceId: true, timezone: true },
     });
     for (const budget of budgets) {

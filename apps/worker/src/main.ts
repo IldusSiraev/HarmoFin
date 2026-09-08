@@ -4,13 +4,17 @@ import { createWorkerDatabase } from './database.js';
 import { JobRunner } from './job-runner.js';
 import { WorkerJobRepository } from './job.repository.js';
 import { PlanOccurrenceHandler } from './plan-occurrence.handler.js';
+import { NotificationRuleHandler } from './notification.handler.js';
 import { WorkerRuntime } from './runtime.js';
 
 const config = loadWorkerConfig(process.env);
 const database = createWorkerDatabase(config);
 const runner = new JobRunner(
   new WorkerJobRepository(database),
-  { MATERIALIZE_PLAN_OCCURRENCES: new PlanOccurrenceHandler(database) },
+  {
+    MATERIALIZE_PLAN_OCCURRENCES: new PlanOccurrenceHandler(database),
+    EVALUATE_BUDGET_NOTIFICATIONS: new NotificationRuleHandler(database),
+  },
   {
     pollIntervalMs: config.pollIntervalMs,
     concurrency: config.concurrency,
