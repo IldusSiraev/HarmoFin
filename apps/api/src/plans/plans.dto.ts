@@ -4,7 +4,7 @@ const decimalPattern = '^(0|[1-9]\\d*)(?:\\.\\d+)?$';
 const minorPattern = '^-?\\d+$';
 
 export class CreateRegularPlanRequest {
-  @ApiProperty({ minLength: 1, maxLength: 120 })
+  @ApiProperty({ type: String, minLength: 1, maxLength: 120 })
   name!: string;
 
   @ApiProperty({ enum: ['INCOME', 'EXPENSE', 'SAVINGS'] })
@@ -25,7 +25,7 @@ export class CreateRegularPlanRequest {
   @ApiProperty({ enum: ['ONE_TIME', 'MONTHLY', 'EVERY_N_MONTHS', 'YEARLY'] })
   recurrence!: 'ONE_TIME' | 'MONTHLY' | 'EVERY_N_MONTHS' | 'YEARLY';
 
-  @ApiPropertyOptional({ minimum: 2, maximum: 120, nullable: true })
+  @ApiPropertyOptional({ type: Number, minimum: 2, maximum: 120, nullable: true })
   intervalMonths?: number | null;
 
   @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
@@ -37,15 +37,15 @@ export class CreateRegularPlanRequest {
   @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
   envelopeId?: string | null;
 
-  @ApiPropertyOptional({ maxLength: 500, nullable: true })
+  @ApiPropertyOptional({ type: String, maxLength: 500, nullable: true })
   comment?: string | null;
 
-  @ApiPropertyOptional({ default: true })
+  @ApiPropertyOptional({ type: Boolean, default: true })
   isActive?: boolean;
 }
 
 export class UpdateRegularPlanRequest {
-  @ApiPropertyOptional({ minLength: 1, maxLength: 120 })
+  @ApiPropertyOptional({ type: String, minLength: 1, maxLength: 120 })
   name?: string;
 
   @ApiPropertyOptional({ enum: ['INCOME', 'EXPENSE', 'SAVINGS'] })
@@ -66,7 +66,7 @@ export class UpdateRegularPlanRequest {
   @ApiPropertyOptional({ enum: ['ONE_TIME', 'MONTHLY', 'EVERY_N_MONTHS', 'YEARLY'] })
   recurrence?: 'ONE_TIME' | 'MONTHLY' | 'EVERY_N_MONTHS' | 'YEARLY';
 
-  @ApiPropertyOptional({ minimum: 2, maximum: 120, nullable: true })
+  @ApiPropertyOptional({ type: Number, minimum: 2, maximum: 120, nullable: true })
   intervalMonths?: number | null;
 
   @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
@@ -78,10 +78,10 @@ export class UpdateRegularPlanRequest {
   @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
   envelopeId?: string | null;
 
-  @ApiPropertyOptional({ maxLength: 500, nullable: true })
+  @ApiPropertyOptional({ type: String, maxLength: 500, nullable: true })
   comment?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: Boolean })
   isActive?: boolean;
 }
 
@@ -89,7 +89,7 @@ export class RegularPlanResponse {
   @ApiProperty({ type: String, format: 'uuid' })
   id!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   name!: string;
 
   @ApiProperty({ type: String, format: 'uuid' })
@@ -119,7 +119,7 @@ export class RegularPlanResponse {
   @ApiProperty({ enum: ['ONE_TIME', 'MONTHLY', 'EVERY_N_MONTHS', 'YEARLY'] })
   recurrence!: string;
 
-  @ApiProperty({ nullable: true })
+  @ApiProperty({ type: Number, nullable: true })
   intervalMonths!: number | null;
 
   @ApiProperty({ type: String, format: 'uuid', nullable: true })
@@ -131,10 +131,10 @@ export class RegularPlanResponse {
   @ApiProperty({ type: String, format: 'uuid', nullable: true })
   envelopeId!: string | null;
 
-  @ApiProperty({ nullable: true })
+  @ApiProperty({ type: String, nullable: true })
   comment!: string | null;
 
-  @ApiProperty()
+  @ApiProperty({ type: Boolean })
   isActive!: boolean;
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
@@ -156,6 +156,9 @@ export class PlanOccurrenceResponse {
   @ApiProperty({ type: String, format: 'uuid' })
   planId!: string;
 
+  @ApiProperty({ type: String })
+  planName!: string;
+
   @ApiProperty({ enum: ['INCOME', 'EXPENSE', 'SAVINGS'] })
   planType!: 'INCOME' | 'EXPENSE' | 'SAVINGS';
 
@@ -167,6 +170,24 @@ export class PlanOccurrenceResponse {
 
   @ApiProperty({ type: String, pattern: minorPattern })
   amountMinor!: string;
+
+  @ApiProperty({ enum: ['RUB'] })
+  currency!: 'RUB';
+
+  @ApiProperty({ enum: [2] })
+  scale!: 2;
+
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  accountId!: string | null;
+
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  categoryId!: string | null;
+
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  envelopeId!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  comment!: string | null;
 
   @ApiProperty({ type: String, format: 'uuid', nullable: true })
   transactionId!: string | null;

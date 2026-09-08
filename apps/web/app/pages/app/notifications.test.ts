@@ -73,6 +73,21 @@ describe('notifications page', () => {
     expect(api.listNotifications).toHaveBeenCalledTimes(2);
   });
 
+  it('marks all unread notifications and reports server result', async () => {
+    api.markAllNotificationsRead.mockResolvedValue({ updatedCount: 1 });
+    const wrapper = mount(NotificationsPage, {
+      global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } },
+    });
+    await flushPromises();
+
+    await wrapper.get('button').trigger('click');
+    await flushPromises();
+
+    expect(api.markAllNotificationsRead).toHaveBeenCalledWith('budget-id', expect.any(String));
+    expect(wrapper.text()).toContain('Все уведомления отмечены прочитанными.');
+    expect(wrapper.text()).toContain('Прочитано');
+  });
+
   it('renders unread state with text', async () => {
     const wrapper = mount(NotificationsPage);
     await flushPromises();

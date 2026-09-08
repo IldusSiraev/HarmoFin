@@ -39,7 +39,7 @@ class UpcomingObligationResponse {
   @ApiProperty({ type: String, format: 'uuid' })
   occurrenceId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   planName!: string;
 
   @ApiProperty({ type: String, format: 'date' })
@@ -60,7 +60,7 @@ class UpcomingObligationResponse {
   @ApiProperty({ type: String, format: 'uuid', nullable: true })
   envelopeId!: string | null;
 
-  @ApiProperty({ pattern: '^/app/plans\\?occurrence=' })
+  @ApiProperty({ type: String, pattern: '^/app/plans\\?occurrence=' })
   actionPath!: string;
 }
 

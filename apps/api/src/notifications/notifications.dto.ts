@@ -23,19 +23,19 @@ export class NotificationResponse {
   @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
   occurrenceId!: string | null;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiPropertyOptional({ type: String, nullable: true })
   relatedEntityType!: string | null;
 
   @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
   relatedEntityId!: string | null;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   title!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   body!: string;
 
-  @ApiPropertyOptional({ nullable: true, pattern: '^/app(?:/|$)' })
+  @ApiPropertyOptional({ type: String, nullable: true, pattern: '^/app(?:/|$)' })
   actionPath!: string | null;
 
   @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
@@ -57,6 +57,6 @@ export class NotificationListResponse {
 }
 
 export class MarkAllNotificationsReadResponse {
-  @ApiProperty({ minimum: 0 })
+  @ApiProperty({ type: Number, minimum: 0 })
   updatedCount!: number;
 }
