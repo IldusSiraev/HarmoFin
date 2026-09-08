@@ -27,6 +27,7 @@ describe('DashboardApplicationService', () => {
           spentMinor: 2_500n,
         },
         warnings: [],
+        upcomingObligations: [],
       }),
     };
     const service = new DashboardApplicationService(repository as never);
@@ -45,6 +46,50 @@ describe('DashboardApplicationService', () => {
     });
   });
 
+  it('serializes server-projected upcoming obligations', async () => {
+    const repository = {
+      findAccessible: vi.fn().mockResolvedValue({
+        id: budgetId,
+        cycleStartDay: 10,
+        periodBoundaryOffset: 15,
+        timezone: 'Europe/Moscow',
+      }),
+      summary: vi.fn().mockResolvedValue({
+        totalAccountMoneyMinor: 0n,
+        accounts: [],
+        envelopes: [],
+        unallocatedIncomeMinor: 0n,
+        periodEnvelope: null,
+        warnings: [],
+        upcomingObligations: [
+          {
+            occurrenceId: '00000000-0000-4000-8000-000000000003',
+            planName: 'Ипотека',
+            scheduledOn: new Date('2026-09-10T00:00:00.000Z'),
+            amountMinor: 3_600_000n,
+            currency: 'RUB',
+            scale: 2,
+            status: 'DUE' as const,
+            envelopeId: '00000000-0000-4000-8000-000000000004',
+          },
+        ],
+      }),
+    };
+    const service = new DashboardApplicationService(repository as never);
+
+    await expect(service.summary(userId, budgetId, '2026-09-10')).resolves.toMatchObject({
+      upcomingObligations: [
+        {
+          occurrenceId: '00000000-0000-4000-8000-000000000003',
+          scheduledOn: '2026-09-10',
+          amountMinor: '3600000',
+          status: 'DUE',
+          actionPath: '/app/plans?occurrence=00000000-0000-4000-8000-000000000003',
+        },
+      ],
+    });
+  });
+
   it('does not invent a period limit when configured slot is missing', async () => {
     const repository = {
       findAccessible: vi.fn().mockResolvedValue({
@@ -60,6 +105,7 @@ describe('DashboardApplicationService', () => {
         unallocatedIncomeMinor: 0n,
         periodEnvelope: null,
         warnings: [],
+        upcomingObligations: [],
       }),
     };
     const service = new DashboardApplicationService(repository as never);

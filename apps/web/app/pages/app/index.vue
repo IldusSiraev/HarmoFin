@@ -4,6 +4,7 @@ import { definePageMeta, navigateTo } from '#imports';
 
 import BalanceList from '../../components/dashboard/BalanceList.vue';
 import PeriodLimitCard from '../../components/dashboard/PeriodLimitCard.vue';
+import UpcomingObligations from '../../components/dashboard/UpcomingObligations.vue';
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
@@ -96,6 +97,7 @@ async function signOut() {
             </p>
           </section>
           <PeriodLimitCard :period-limit="summary.periodLimit" />
+          <UpcomingObligations :items="summary.upcomingObligations" />
           <BalanceList
             title="Счета"
             :items="summary.accounts"

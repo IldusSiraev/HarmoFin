@@ -376,6 +376,18 @@ export type DashboardBalance = {
   balanceMinor: string;
 };
 
+export type UpcomingObligationDto = {
+  occurrenceId: string;
+  planName: string;
+  scheduledOn: string;
+  amountMinor: string;
+  currency: 'RUB';
+  scale: 2;
+  status: 'PENDING' | 'DUE';
+  envelopeId: string | null;
+  actionPath: string;
+};
+
 export type DashboardSummaryDto = {
   cycle: { start: string; end: string };
   period: { id: 'FIRST' | 'SECOND'; start: string; end: string };
@@ -395,6 +407,7 @@ export type DashboardSummaryDto = {
       }
     | { state: 'unavailable' };
   warnings: DashboardWarning[];
+  upcomingObligations: UpcomingObligationDto[];
 };
 
 export interface BudgetReferenceDataApi {
