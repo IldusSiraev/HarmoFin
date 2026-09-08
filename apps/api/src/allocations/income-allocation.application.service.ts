@@ -135,6 +135,38 @@ export class IncomeAllocationApplicationService {
     });
   }
 
+  async restore(
+    userId: string,
+    budgetId: string,
+    allocationId: string,
+    key: string,
+    requestId?: string,
+  ): Promise<IncomeAllocationView> {
+    await this.requireOwnerBudget(userId, budgetId);
+    return this.repository.runTransaction(async (tx) => {
+      const result = await this.idempotency.execute<IncomeAllocationView>(
+        tx,
+        idempotencyInput(budgetId, userId, key, `income-allocation.restore:${allocationId}`, {}),
+        async () => {
+          const current = await this.requireDeletedAllocation(tx, userId, budgetId, allocationId);
+          const status = restoredAllocationStatus(current.preDeleteStatus);
+          if (status === 'CONFIRMED') {
+            const income = await this.requireConfirmedIncome(
+              tx,
+              budgetId,
+              current.incomeTransactionId,
+            );
+            await this.validateTargets(tx, budgetId, current.accountId, current.envelopeId);
+            await this.assertAllocationTotal(tx, budgetId, income, current.amountMinor);
+          }
+          const allocation = await this.repository.restore(tx, current, userId, requestId);
+          return { status: 200, body: this.toView(allocation) };
+        },
+      );
+      return result.body;
+    });
+  }
+
   async listForIncome(
     userId: string,
     budgetId: string,
@@ -289,6 +321,24 @@ export class IncomeAllocationApplicationService {
     return allocation;
   }
 
+  private async requireDeletedAllocation(
+    tx: Parameters<IncomeAllocationRepository['findForMutation']>[0],
+    userId: string,
+    budgetId: string,
+    allocationId: string,
+  ): Promise<IncomeAllocationRecord> {
+    const allocation = await this.repository.findForMutation(tx, userId, budgetId, allocationId);
+    if (!allocation) throw resourceNotFound();
+    if (allocation.status !== 'DELETED') throw allocationStateInvalid();
+    return allocation;
+  }
+
+  private async requireOwnerBudget(userId: string, budgetId: string) {
+    const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
+    if (!budget) throw resourceNotFound();
+    if (budget.workspace.memberships[0]?.role !== 'OWNER') throw forbidden();
+  }
+
   private async requireMutationBudget(userId: string, budgetId: string) {
     const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
     if (!budget) throw resourceNotFound();
@@ -321,6 +371,13 @@ function parsePositiveAmount(value: string): bigint {
 
 function parseDate(value: string): Date {
   return new Date(`${value}T00:00:00.000Z`);
+}
+
+function restoredAllocationStatus(
+  status: IncomeAllocationRecord['preDeleteStatus'],
+): 'CONFIRMED' | 'CANCELLED' {
+  if (status === 'CONFIRMED' || status === 'CANCELLED') return status;
+  throw allocationStateInvalid();
 }
 
 function allocationExceedsIncome(): ConflictException {

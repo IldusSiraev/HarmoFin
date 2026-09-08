@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { ConflictException, Injectable, UnprocessableEntityException } from '@nestjs/common';
 
 import { IncomeAllocationRepository } from '../allocations/income-allocation.repository.js';
+import { cycleAndPeriodFor } from '../cycles/cycle-period.domain.js';
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
 import {
@@ -20,6 +21,7 @@ import {
 import type {
   CreateTransactionInput,
   ListTransactionsInput,
+  ResolveIncomeDeletionInput,
   UpdateTransactionInput,
 } from './transaction.schemas.js';
 
@@ -74,7 +76,13 @@ export class TransactionApplicationService {
   ): Promise<TransactionListView> {
     const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
     if (!budget) throw resourceNotFound();
-    const result = await this.repository.list(userId, budgetId, listQuery(input));
+    const role = budget.workspace.memberships[0]?.role;
+    if ((input.status === 'DELETED' || input.status === 'all') && role !== 'OWNER') {
+      throw forbidden();
+    }
+    const referencesExist = await this.repository.validateJournalReferences(budgetId, input);
+    if (!referencesExist) throw resourceNotFound();
+    const result = await this.repository.list(userId, budgetId, listQuery(input, budget));
     return {
       items: await Promise.all(
         result.items.map((transaction) => this.toViewWithAllocationProposal(transaction)),
@@ -144,6 +152,22 @@ export class TransactionApplicationService {
             input,
             budget.allowNegativeBalance,
           );
+          if (
+            current.transactionType === 'INCOME' &&
+            current.status === 'CONFIRMED' &&
+            data.amountMinor !== undefined
+          ) {
+            const allocations = await this.repository.findConfirmedAllocationsForIncome(
+              tx,
+              budgetId,
+              current.id,
+            );
+            const allocatedMinor = allocations.reduce(
+              (total, allocation) => total + allocation.amountMinor,
+              0n,
+            );
+            if (allocatedMinor > data.amountMinor) throw allocationsExceedIncome();
+          }
           const transaction = await this.repository.update(tx, current, data, userId, requestId);
           return { status: 200, body: await this.toViewWithAllocationProposal(transaction) };
         },
@@ -236,10 +260,126 @@ export class TransactionApplicationService {
         async () => {
           const current = await this.requireMutableTransaction(tx, userId, budgetId, transactionId);
           if (current.status === 'DELETED') throw invalidTransactionState();
+          const allocations =
+            current.transactionType === 'INCOME' && current.status === 'CONFIRMED'
+              ? await this.repository.findConfirmedAllocationsForIncome(tx, budgetId, current.id)
+              : [];
+          if (allocations.length > 0) throw incomeHasConfirmedAllocations(allocations);
           const transaction = await this.repository.updateLifecycle(
             tx,
             current,
             'DELETED',
+            userId,
+            requestId,
+          );
+          return { status: 200, body: await this.toViewWithAllocationProposal(transaction) };
+        },
+      );
+      return result.body;
+    });
+  }
+
+  async deleteWithAllocations(
+    userId: string,
+    budgetId: string,
+    transactionId: string,
+    input: ResolveIncomeDeletionInput,
+    key: string,
+    requestId?: string,
+  ): Promise<TransactionView> {
+    await this.requireMutationBudget(userId, budgetId);
+    const allocations = this.allocations;
+    if (!allocations) throw new Error('Income allocation repository is required.');
+    return this.repository.runTransaction(async (tx) => {
+      const result = await this.idempotency.execute<TransactionView>(
+        tx,
+        idempotencyInput(
+          budgetId,
+          userId,
+          key,
+          `transaction.resolve-delete:${transactionId}`,
+          input,
+        ),
+        async () => {
+          const current = await this.requireMutableTransaction(tx, userId, budgetId, transactionId);
+          if (current.transactionType !== 'INCOME' || current.status !== 'CONFIRMED') {
+            throw invalidTransactionState();
+          }
+          const linked = await this.repository.findConfirmedAllocationsForIncome(
+            tx,
+            budgetId,
+            current.id,
+          );
+          if (linked.length === 0) throw invalidTransactionState();
+          for (const linkedAllocation of linked) {
+            const allocation = await allocations.findForMutation(
+              tx,
+              userId,
+              budgetId,
+              linkedAllocation.id,
+            );
+            if (!allocation || allocation.status !== 'CONFIRMED') throw invalidTransactionState();
+            if (input.allocationResolution === 'CANCEL') {
+              await allocations.cancel(tx, allocation, userId, requestId);
+            } else {
+              await allocations.delete(tx, allocation, userId, requestId);
+            }
+          }
+          const transaction = await this.repository.updateLifecycle(
+            tx,
+            current,
+            'DELETED',
+            userId,
+            requestId,
+          );
+          return { status: 200, body: await this.toViewWithAllocationProposal(transaction) };
+        },
+      );
+      return result.body;
+    });
+  }
+
+  async restore(
+    userId: string,
+    budgetId: string,
+    transactionId: string,
+    key: string,
+    requestId?: string,
+  ): Promise<TransactionView> {
+    const budget = await this.requireOwnerBudget(userId, budgetId);
+    return this.repository.runTransaction(async (tx) => {
+      const result = await this.idempotency.execute<TransactionView>(
+        tx,
+        idempotencyInput(budgetId, userId, key, `transaction.restore:${transactionId}`, {}),
+        async () => {
+          const current = await this.requireMutableTransaction(tx, userId, budgetId, transactionId);
+          if (current.status !== 'DELETED') throw invalidTransactionState();
+          const status = restoredTransactionStatus(current.preDeleteStatus);
+          if (status === 'CONFIRMED') {
+            await this.validateReferences(
+              tx,
+              budgetId,
+              current.transactionType,
+              current.accountId,
+              current.categoryId,
+              current.envelopeId,
+            );
+            if (current.transactionType === 'EXPENSE') {
+              if (!current.envelopeId) throw invalidReference();
+              const capacity = await this.repository.assertConfirmedExpenseCapacity(
+                tx,
+                budgetId,
+                current.accountId,
+                current.envelopeId,
+                current.amountMinor,
+              );
+              if (!budget.allowNegativeBalance && !capacity) throw insufficientBalance();
+            }
+          }
+          const transaction = await this.repository.restoreLifecycle(
+            tx,
+            current,
+            status,
             userId,
             requestId,
           );
@@ -324,6 +464,13 @@ export class TransactionApplicationService {
           : null,
       };
     });
+  }
+
+  private async requireOwnerBudget(userId: string, budgetId: string) {
+    const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
+    if (!budget) throw resourceNotFound();
+    if (budget.workspace.memberships[0]?.role !== 'OWNER') throw forbidden();
+    return budget;
   }
 
   private async requireMutationBudget(userId: string, budgetId: string) {
@@ -491,17 +638,31 @@ export class TransactionApplicationService {
   }
 }
 
-function listQuery(input: ListTransactionsInput): TransactionListQuery {
+function listQuery(
+  input: ListTransactionsInput,
+  budget: {
+    cycleStartDay: number;
+    periodBoundaryOffset: number;
+    timezone: string;
+  },
+): TransactionListQuery {
+  const cycle = input.cycleStart ? cycleAndPeriodFor(budget, input.cycleStart).cycle : null;
+  const period = input.periodStart ? cycleAndPeriodFor(budget, input.periodStart).period : null;
   return {
     limit: input.limit,
     ...(input.cursor ? { cursor: input.cursor } : {}),
+    ...(input.search ? { search: input.search } : {}),
     ...(input.type ? { transactionType: input.type } : {}),
     ...(input.status ? { status: input.status } : {}),
     ...(input.from ? { from: parseDate(input.from) } : {}),
     ...(input.to ? { to: parseDate(input.to) } : {}),
+    ...(cycle ? { cycle: { start: parseDate(cycle.start), end: parseDate(cycle.end) } } : {}),
+    ...(period ? { period: { start: parseDate(period.start), end: parseDate(period.end) } } : {}),
     ...(input.accountId ? { accountId: input.accountId } : {}),
     ...(input.categoryId ? { categoryId: input.categoryId } : {}),
     ...(input.envelopeId ? { envelopeId: input.envelopeId } : {}),
+    sortBy: input.sortBy,
+    sortDirection: input.sortDirection,
   };
 }
 
@@ -533,6 +694,29 @@ function validateFieldCompatibility(
   ) {
     throw invalidReference();
   }
+}
+
+function restoredTransactionStatus(
+  status: TransactionRecord['preDeleteStatus'],
+): 'DRAFT' | 'CONFIRMED' | 'CANCELLED' {
+  if (status === 'DRAFT' || status === 'CONFIRMED' || status === 'CANCELLED') return status;
+  throw invalidTransactionState();
+}
+
+function incomeHasConfirmedAllocations(allocations: Array<{ id: string }>): ConflictException {
+  return new ConflictException({
+    code: 'INCOME_HAS_CONFIRMED_ALLOCATIONS',
+    detail: 'Подтверждённый доход имеет связанные распределения.',
+    allocationIds: allocations.map((allocation) => allocation.id),
+    allocationCount: allocations.length,
+  });
+}
+
+function allocationsExceedIncome(): ConflictException {
+  return new ConflictException({
+    code: 'ALLOCATION_EXCEEDS_INCOME',
+    detail: 'Сумма распределений превышает доход.',
+  });
 }
 
 function invalidTransactionState(): ConflictException {

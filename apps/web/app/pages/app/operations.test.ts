@@ -10,7 +10,12 @@ const api = {
   confirmTransaction: vi.fn(),
   cancelTransaction: vi.fn(),
   deleteTransaction: vi.fn(),
+  restoreTransaction: vi.fn(),
+  deleteTransactionWithAllocations: vi.fn(),
+  listTransactionAllocations: vi.fn(),
+  listTransactionAudit: vi.fn(),
   createIncomeAllocation: vi.fn(),
+  restoreIncomeAllocation: vi.fn(),
 };
 const auth = {
   currentData: {
@@ -25,7 +30,11 @@ const auth = {
   loadMe: vi.fn(),
 };
 
-vi.mock('#imports', () => ({ definePageMeta: vi.fn() }));
+vi.mock('#imports', () => ({
+  definePageMeta: vi.fn(),
+  navigateTo: vi.fn(),
+  useRoute: () => ({ query: {} }),
+}));
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => auth }));
 vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -48,7 +57,10 @@ describe('operations page', () => {
     const wrapper = mount(OperationsPage);
     await flushPromises();
 
-    expect(api.listTransactions).toHaveBeenCalledWith('budget-id', {});
+    expect(api.listTransactions).toHaveBeenCalledWith('budget-id', {
+      sortBy: 'occurredOn',
+      sortDirection: 'desc',
+    });
     await wrapper.get('[data-action="create-operation"]').trigger('click');
     expect(wrapper.text()).toContain('Создать черновик');
     expect(wrapper.text()).toContain('Подтвердить операцию');
@@ -117,6 +129,45 @@ describe('operations page', () => {
 
     expect(wrapper.text()).not.toContain('Применить предложение');
     expect(api.createIncomeAllocation).not.toHaveBeenCalled();
+  });
+
+  it('preloads edit form for selected operation', async () => {
+    api.listTransactions.mockResolvedValue({
+      items: [
+        {
+          id: 'expense-id',
+          budgetId: 'budget-id',
+          transactionType: 'EXPENSE',
+          status: 'CONFIRMED',
+          amountMinor: '125000',
+          currency: 'RUB',
+          scale: 2,
+          occurredOn: '2026-09-05',
+          accountId: 'account-id',
+          categoryId: 'category-id',
+          envelopeId: 'envelope-id',
+          sourceDescription: null,
+          merchantName: 'Магазин',
+          isPlanned: false,
+          comment: null,
+          confirmedAt: '2026-09-05T00:00:00.000Z',
+          cancelledAt: null,
+          deletedAt: null,
+          accountCurrentBalanceMinor: '0',
+          envelopeCurrentBalanceMinor: '0',
+          unallocatedMinor: '0',
+          allocationProposal: null,
+        },
+      ],
+      nextCursor: null,
+    });
+    const wrapper = mount(OperationsPage);
+    await flushPromises();
+
+    await wrapper.get('[data-action="edit-operation"]').trigger('click');
+
+    expect((wrapper.get('input[name="amount"]').element as HTMLInputElement).value).toBe('1250.00');
+    expect(wrapper.text()).toContain('Сохранить изменения');
   });
 
   it('renders no-budget empty state without inventing budget id', async () => {

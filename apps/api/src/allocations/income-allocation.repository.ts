@@ -28,6 +28,7 @@ export interface IncomeAllocationRecord {
   envelopeId: string;
   comment: string | null;
   deletedAt: Date | null;
+  preDeleteStatus: IncomeAllocationStatus | null;
   remainingUnallocatedMinor: bigint;
   envelopeCurrentBalanceMinor: bigint;
 }
@@ -202,7 +203,12 @@ export class IncomeAllocationRepository {
   ): Promise<IncomeAllocationRecord> {
     const allocation = await tx.incomeAllocation.update({
       where: { id: current.id },
-      data: { status: 'DELETED', deletedAt: new Date(), updatedByUserId: userId },
+      data: {
+        status: 'DELETED',
+        deletedAt: new Date(),
+        preDeleteStatus: current.status,
+        updatedByUserId: userId,
+      },
       select: allocationSelect,
     });
     const budget = await tx.budget.findUniqueOrThrow({
@@ -223,12 +229,79 @@ export class IncomeAllocationRepository {
     return this.withConsequences(tx, allocation);
   }
 
+  async cancel(
+    tx: Prisma.TransactionClient,
+    current: IncomeAllocationRecord,
+    userId: string,
+    requestId?: string,
+  ): Promise<IncomeAllocationRecord> {
+    const allocation = await tx.incomeAllocation.update({
+      where: { id: current.id },
+      data: { status: 'CANCELLED', updatedByUserId: userId },
+      select: allocationSelect,
+    });
+    const budget = await tx.budget.findUniqueOrThrow({
+      where: { id: current.budgetId },
+      select: { workspaceId: true },
+    });
+    await tx.auditEvent.create({
+      data: auditCreate(
+        budget.workspaceId,
+        current.budgetId,
+        allocation,
+        userId,
+        requestId,
+        'CANCELLED',
+        current,
+      ),
+    });
+    return this.withConsequences(tx, allocation);
+  }
+
+  async restore(
+    tx: Prisma.TransactionClient,
+    current: IncomeAllocationRecord,
+    userId: string,
+    requestId?: string,
+  ): Promise<IncomeAllocationRecord> {
+    const status = current.preDeleteStatus;
+    if (status !== 'CONFIRMED' && status !== 'CANCELLED') {
+      throw new Error('Invalid allocation pre-delete status.');
+    }
+    const allocation = await tx.incomeAllocation.update({
+      where: { id: current.id },
+      data: { status, deletedAt: null, preDeleteStatus: null, updatedByUserId: userId },
+      select: allocationSelect,
+    });
+    const budget = await tx.budget.findUniqueOrThrow({
+      where: { id: current.budgetId },
+      select: { workspaceId: true },
+    });
+    await tx.auditEvent.create({
+      data: auditCreate(
+        budget.workspaceId,
+        current.budgetId,
+        allocation,
+        userId,
+        requestId,
+        'RESTORED',
+        current,
+      ),
+    });
+    return this.withConsequences(tx, allocation);
+  }
+
   async findForMutation(
     tx: Prisma.TransactionClient,
     userId: string,
     budgetId: string,
     allocationId: string,
   ): Promise<IncomeAllocationRecord | null> {
+    await tx.$queryRaw`
+      SELECT "id" FROM "income_allocations"
+      WHERE "id" = ${allocationId}::uuid AND "budget_id" = ${budgetId}::uuid
+      FOR UPDATE
+    `;
     const allocation = await tx.incomeAllocation.findFirst({
       where: { id: allocationId, budgetId, budget: activeBudgetWhere(userId, budgetId) },
       select: allocationSelect,
@@ -320,6 +393,7 @@ function auditValues(
     accountId: allocation.accountId,
     envelopeId: allocation.envelopeId,
     status: allocation.status,
+    preDeleteStatus: allocation.preDeleteStatus,
   };
 }
 
@@ -363,4 +437,5 @@ const allocationSelect = {
   envelopeId: true,
   comment: true,
   deletedAt: true,
+  preDeleteStatus: true,
 } as const;

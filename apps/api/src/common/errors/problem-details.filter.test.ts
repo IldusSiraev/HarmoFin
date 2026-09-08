@@ -53,6 +53,33 @@ describe('ProblemDetailsFilter', () => {
     );
     expect(send.mock.calls[0]?.[0]).not.toHaveProperty('password');
   });
+
+  it('preserves safe linked allocation consequences', () => {
+    const send = vi.fn();
+    const reply = {
+      type: vi.fn().mockReturnThis(),
+      status: vi.fn().mockReturnThis(),
+      send,
+    };
+    const host = createHost(reply, 'request-4');
+    const exception = new HttpException(
+      {
+        code: 'INCOME_HAS_CONFIRMED_ALLOCATIONS',
+        detail: 'Подтверждённый доход имеет связанные распределения.',
+        allocationIds: ['allocation-1'],
+        allocationCount: 1,
+        comment: 'must-not-leak',
+      },
+      HttpStatus.CONFLICT,
+    );
+
+    new ProblemDetailsFilter().catch(exception, host);
+
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ allocationIds: ['allocation-1'], allocationCount: 1 }),
+    );
+    expect(send.mock.calls[0]?.[0]).not.toHaveProperty('comment');
+  });
 });
 
 function createHost(reply: object, requestId: string) {

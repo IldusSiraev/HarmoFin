@@ -20,6 +20,7 @@ import {
   ApiCreatedResponse,
   ApiHeader,
   ApiOkResponse,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -32,6 +33,7 @@ import { CsrfGuard } from '../common/security/csrf.guard.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import {
   CreateTransactionRequest,
+  ResolveIncomeDeletionRequest,
   TransactionListResponse,
   TransactionResponse,
   UpdateTransactionRequest,
@@ -42,6 +44,8 @@ import {
   type CreateTransactionInput,
   type ListTransactionsInput,
   listTransactionsSchema,
+  resolveIncomeDeletionSchema,
+  type ResolveIncomeDeletionInput,
   type UpdateTransactionInput,
   updateTransactionSchema,
 } from './transaction.schemas.js';
@@ -58,8 +62,32 @@ export class TransactionController {
   ) {}
 
   @Get('budgets/:budgetId/transactions')
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    schema: { type: 'integer', minimum: 1, maximum: 100 },
+  })
+  @ApiQuery({ name: 'cursor', required: false, schema: { type: 'string', maxLength: 512 } })
+  @ApiQuery({ name: 'search', required: false, schema: { type: 'string', maxLength: 250 } })
+  @ApiQuery({ name: 'from', required: false, schema: { type: 'string', format: 'date' } })
+  @ApiQuery({ name: 'to', required: false, schema: { type: 'string', format: 'date' } })
+  @ApiQuery({ name: 'cycleStart', required: false, schema: { type: 'string', format: 'date' } })
+  @ApiQuery({ name: 'periodStart', required: false, schema: { type: 'string', format: 'date' } })
+  @ApiQuery({ name: 'accountId', required: false, schema: { type: 'string', format: 'uuid' } })
+  @ApiQuery({ name: 'categoryId', required: false, schema: { type: 'string', format: 'uuid' } })
+  @ApiQuery({ name: 'envelopeId', required: false, schema: { type: 'string', format: 'uuid' } })
+  @ApiQuery({ name: 'type', required: false, enum: ['INCOME', 'EXPENSE'] })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['DRAFT', 'CONFIRMED', 'CANCELLED', 'DELETED', 'all'],
+  })
+  @ApiQuery({ name: 'sortBy', required: false, enum: ['occurredOn', 'amount'] })
+  @ApiQuery({ name: 'sortDirection', required: false, enum: ['asc', 'desc'] })
   @ApiOkResponse({ type: TransactionListResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   list(
     @Param('budgetId') budgetId: string,
@@ -197,6 +225,68 @@ export class TransactionController {
       contextOf(request).userId,
       budgetId,
       transactionId,
+      validKey(key),
+      request.id,
+    );
+  }
+
+  @Post('budgets/:budgetId/transactions/:transactionId/restore')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    schema: { type: 'string', minLength: 1, maxLength: 128 },
+  })
+  @ApiOkResponse({ type: TransactionResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  restore(
+    @Param('budgetId') budgetId: string,
+    @Param('transactionId') transactionId: string,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.restore(
+      contextOf(request).userId,
+      budgetId,
+      transactionId,
+      validKey(key),
+      request.id,
+    );
+  }
+
+  @Post('budgets/:budgetId/transactions/:transactionId/delete-with-allocations')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    schema: { type: 'string', minLength: 1, maxLength: 128 },
+  })
+  @ApiBody({ type: ResolveIncomeDeletionRequest })
+  @ApiOkResponse({ type: TransactionResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  deleteWithAllocations(
+    @Param('budgetId') budgetId: string,
+    @Param('transactionId') transactionId: string,
+    @Body(new ZodValidationPipe(resolveIncomeDeletionSchema)) input: ResolveIncomeDeletionInput,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.deleteWithAllocations(
+      contextOf(request).userId,
+      budgetId,
+      transactionId,
+      input,
       validKey(key),
       request.id,
     );

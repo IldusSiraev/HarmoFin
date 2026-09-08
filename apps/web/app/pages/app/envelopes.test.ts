@@ -25,6 +25,7 @@ const envelope = {
   templateKey: null,
   name: 'Ремонт',
   envelopeType: 'SAVINGS_GOAL' as const,
+  periodSlot: null,
   currency: 'RUB' as const,
   scale: 2 as const,
   startingBalanceMinor: '0',
@@ -121,5 +122,15 @@ describe('envelopes page', () => {
     await wrapper.get('[data-confirm="archive-envelope"]').trigger('click');
     await flushPromises();
     expect(mocks.api.archiveEnvelope).toHaveBeenCalledWith('budget-id', 'envelope-id');
+  });
+
+  it('shows period slot selection only for current-expense envelope', async () => {
+    const wrapper = mountPage();
+
+    await flushPromises();
+    await wrapper.get('[data-action="create-envelope"]').trigger('click');
+    await wrapper.get('select[name="envelopeType"]').setValue('CURRENT_EXPENSES');
+
+    expect(wrapper.get('select[name="periodSlot"]').text()).toContain('Первый период');
   });
 });

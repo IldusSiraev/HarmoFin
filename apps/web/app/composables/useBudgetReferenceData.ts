@@ -5,6 +5,7 @@ export type AccountType = 'BANK_ACCOUNT' | 'BANK_CARD' | 'CASH';
 export type CategoryType = 'INCOME' | 'EXPENSE';
 export type EnvelopeType =
   'CURRENT_EXPENSES' | 'MANDATORY_EXPENSES' | 'SAVINGS_GOAL' | 'RESERVE' | 'FREE_MONEY' | 'CUSTOM';
+export type PeriodSlot = 'FIRST' | 'SECOND';
 
 export interface BudgetDto {
   id: string;
@@ -109,6 +110,7 @@ export interface EnvelopeDto {
   templateKey: string | null;
   name: string;
   envelopeType: EnvelopeType;
+  periodSlot: PeriodSlot | null;
   currency: 'RUB';
   scale: 2;
   startingBalanceMinor: string;
@@ -124,6 +126,7 @@ export interface EnvelopeDto {
 export interface CreateEnvelopeInput {
   name: string;
   envelopeType: EnvelopeType;
+  periodSlot?: PeriodSlot | null | undefined;
   currency: 'RUB';
   startingBalance: string;
   monthlyPlannedAmount?: string | null | undefined;
@@ -136,6 +139,7 @@ export interface CreateEnvelopeInput {
 export interface UpdateEnvelopeInput {
   name?: string | undefined;
   envelopeType?: EnvelopeType | undefined;
+  periodSlot?: PeriodSlot | null | undefined;
   startingBalance?: string | undefined;
   monthlyPlannedAmount?: string | null | undefined;
   targetAmount?: string | null | undefined;
@@ -182,13 +186,18 @@ export interface TransactionDto {
 export interface TransactionListInput {
   limit?: number | undefined;
   cursor?: string | undefined;
+  search?: string | undefined;
   type?: TransactionType | undefined;
-  status?: TransactionStatus | undefined;
+  status?: TransactionStatus | 'all' | undefined;
   from?: string | undefined;
   to?: string | undefined;
+  cycleStart?: string | undefined;
+  periodStart?: string | undefined;
   accountId?: string | undefined;
   categoryId?: string | undefined;
   envelopeId?: string | undefined;
+  sortBy?: 'occurredOn' | 'amount' | undefined;
+  sortDirection?: 'asc' | 'desc' | undefined;
 }
 
 export interface TransactionListResult {
@@ -288,6 +297,10 @@ export interface UpdateTransactionInput {
   confirm?: true | undefined;
 }
 
+export interface ResolveIncomeDeletionInput {
+  allocationResolution: 'CANCEL' | 'DELETE';
+}
+
 export interface IncomeAllocationDto {
   id: string;
   budgetId: string;
@@ -305,6 +318,18 @@ export interface IncomeAllocationDto {
   envelopeCurrentBalanceMinor: string;
 }
 
+export interface AuditEventDto {
+  id: string;
+  createdAt: string;
+  actor: { id: string; displayName: string | null; email: string } | null;
+  entityType: string;
+  entityId: string | null;
+  action: string;
+  source: string;
+  oldValues: Record<string, unknown> | null;
+  newValues: Record<string, unknown> | null;
+}
+
 export interface CreateIncomeAllocationInput {
   amount: string;
   occurredOn: string;
@@ -313,7 +338,68 @@ export interface CreateIncomeAllocationInput {
   comment?: string | null | undefined;
 }
 
+export type ReportKey =
+  | 'expenses-by-category'
+  | 'expenses-by-period'
+  | 'expenses-by-cycle'
+  | 'incomes-by-cycle'
+  | 'savings-reallocation-by-cycle'
+  | 'net-cash-flow'
+  | 'account-balances'
+  | 'envelope-balances'
+  | 'savings-goals';
+
+export type ReportFilters = {
+  from?: string | undefined;
+  to?: string | undefined;
+  accountId?: string | undefined;
+  categoryId?: string | undefined;
+  envelopeId?: string | undefined;
+  type?: TransactionType | undefined;
+  currency?: 'RUB' | undefined;
+};
+
+export type ReportDto = {
+  key: ReportKey;
+  rows: Array<Record<string, unknown>>;
+};
+
+export type DashboardWarning = {
+  subject: 'ACCOUNT' | 'ENVELOPE';
+  id: string;
+  balanceMinor: string;
+};
+
+export type DashboardBalance = {
+  id: string;
+  name: string;
+  balanceMinor: string;
+};
+
+export type DashboardSummaryDto = {
+  cycle: { start: string; end: string };
+  period: { id: 'FIRST' | 'SECOND'; start: string; end: string };
+  totalAccountMoneyMinor: string;
+  accounts: DashboardBalance[];
+  envelopes: DashboardBalance[];
+  unallocatedIncomeMinor: string;
+  periodLimit:
+    | {
+        state: 'available';
+        envelopeId: string;
+        limitMinor: string;
+        spentMinor: string;
+        remainingMinor: string;
+        daysUntilBoundary: number;
+        averageRemainingDailyLimitMinor: string;
+      }
+    | { state: 'unavailable' };
+  warnings: DashboardWarning[];
+};
+
 export interface BudgetReferenceDataApi {
+  getReport(budgetId: string, key: ReportKey, filters?: ReportFilters): Promise<ReportDto>;
+  getDashboardSummary(budgetId: string): Promise<DashboardSummaryDto>;
   getBudget(budgetId: string): Promise<BudgetDto>;
   updateBudget(budgetId: string, input: UpdateBudgetInput): Promise<BudgetDto>;
   initializeTemplate(budgetId: string): Promise<ReferenceTemplateResult>;
@@ -376,6 +462,22 @@ export interface BudgetReferenceDataApi {
     transactionId: string,
     idempotencyKey: string,
   ): Promise<TransactionDto>;
+  restoreTransaction(
+    budgetId: string,
+    transactionId: string,
+    idempotencyKey: string,
+  ): Promise<TransactionDto>;
+  deleteTransactionWithAllocations(
+    budgetId: string,
+    transactionId: string,
+    input: ResolveIncomeDeletionInput,
+    idempotencyKey: string,
+  ): Promise<TransactionDto>;
+  listTransactionAllocations(
+    budgetId: string,
+    transactionId: string,
+  ): Promise<IncomeAllocationDto[]>;
+  listTransactionAudit(budgetId: string, transactionId: string): Promise<AuditEventDto[]>;
   listTransfers(budgetId: string, input?: TransferListInput): Promise<TransferListResult>;
   getTransfer(budgetId: string, transferId: string): Promise<TransferDto>;
   createTransfer(
@@ -404,6 +506,11 @@ export interface BudgetReferenceDataApi {
     input: CreateIncomeAllocationInput,
     idempotencyKey: string,
   ): Promise<IncomeAllocationDto>;
+  restoreIncomeAllocation(
+    budgetId: string,
+    allocationId: string,
+    idempotencyKey: string,
+  ): Promise<IncomeAllocationDto>;
 }
 
 type RequestClient = {
@@ -430,6 +537,10 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
     return envelopeId ? `${path}/${encodeURIComponent(envelopeId)}` : path;
   }
 
+  function reportPath(budgetId: string, key: ReportKey) {
+    return `${budgetPath(budgetId)}/reports/${encodeURIComponent(key)}`;
+  }
+
   function transactionPath(budgetId: string, transactionId?: string) {
     const path = `${budgetPath(budgetId)}/transactions`;
     return transactionId ? `${path}/${encodeURIComponent(transactionId)}` : path;
@@ -449,6 +560,20 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
   }
 
   return {
+    getReport: (budgetId, key, filters = {}) =>
+      api.request<ReportDto>(
+        withQuery(
+          reportPath(budgetId, key),
+          Object.fromEntries(
+            Object.entries(filters).map(([name, value]) => [
+              name,
+              value === undefined ? undefined : String(value),
+            ]),
+          ),
+        ),
+      ),
+    getDashboardSummary: (budgetId) =>
+      api.request<DashboardSummaryDto>(`${budgetPath(budgetId)}/summary`),
     getBudget: (budgetId) => api.request<BudgetDto>(budgetPath(budgetId)),
     updateBudget: (budgetId, input) =>
       api.request<BudgetDto>(budgetPath(budgetId), {
@@ -547,6 +672,26 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
         method: 'DELETE',
         headers: idempotent(idempotencyKey),
       }),
+    restoreTransaction: (budgetId, transactionId, idempotencyKey) =>
+      api.request<TransactionDto>(`${transactionPath(budgetId, transactionId)}/restore`, {
+        method: 'POST',
+        headers: idempotent(idempotencyKey),
+      }),
+    deleteTransactionWithAllocations: (budgetId, transactionId, input, idempotencyKey) =>
+      api.request<TransactionDto>(
+        `${transactionPath(budgetId, transactionId)}/delete-with-allocations`,
+        {
+          method: 'POST',
+          headers: idempotent(idempotencyKey),
+          body: JSON.stringify(input),
+        },
+      ),
+    listTransactionAllocations: (budgetId, transactionId) =>
+      api.request<IncomeAllocationDto[]>(allocationPath(budgetId, transactionId)),
+    listTransactionAudit: (budgetId, transactionId) =>
+      api
+        .request<{ items: AuditEventDto[] }>(`${transactionPath(budgetId, transactionId)}/audit`)
+        .then((result) => result.items),
     listTransfers: (budgetId, input = {}) =>
       api.request<TransferListResult>(
         withQuery(
@@ -588,6 +733,11 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
         headers: idempotent(idempotencyKey),
         body: JSON.stringify(input),
       }),
+    restoreIncomeAllocation: (budgetId, allocationId, idempotencyKey) =>
+      api.request<IncomeAllocationDto>(
+        `${budgetPath(budgetId)}/allocations/${encodeURIComponent(allocationId)}/restore`,
+        { method: 'POST', headers: idempotent(idempotencyKey) },
+      ),
   };
 }
 

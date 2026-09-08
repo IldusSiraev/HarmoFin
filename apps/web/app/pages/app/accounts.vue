@@ -371,6 +371,11 @@ onMounted(() => {
                 >Изменить</UiButton
               >
               <NuxtLink
+                class="account-transfer-link"
+                :to="`/app/operations?accountId=${encodeURIComponent(account.id)}`"
+                >Операции счёта</NuxtLink
+              >
+              <NuxtLink
                 v-if="!account.archivedAt"
                 class="account-transfer-link"
                 data-action="transfer-from-account"

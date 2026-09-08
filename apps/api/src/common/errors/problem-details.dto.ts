@@ -32,4 +32,10 @@ export class ProblemDetailsResponse {
 
   @ApiPropertyOptional({ type: [FieldErrorResponse] })
   fieldErrors?: FieldErrorResponse[];
+
+  @ApiPropertyOptional({ type: [String], format: 'uuid' })
+  allocationIds?: string[];
+
+  @ApiPropertyOptional({ type: Number, minimum: 1 })
+  allocationCount?: number;
 }

@@ -77,20 +77,39 @@ export const updateTransactionSchema = z
     message: 'Необходимо передать хотя бы одно поле для изменения.',
   });
 
+export const resolveIncomeDeletionSchema = z
+  .object({ allocationResolution: z.enum(['CANCEL', 'DELETE']) })
+  .strict();
+
 export const listTransactionsSchema = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).default(25),
     cursor: z.string().min(1).max(512).optional(),
+    search: z.string().trim().min(1).max(250).optional(),
     type: z.enum(['INCOME', 'EXPENSE']).optional(),
-    status: z.enum(['DRAFT', 'CONFIRMED', 'CANCELLED', 'DELETED']).optional(),
+    status: z.enum(['DRAFT', 'CONFIRMED', 'CANCELLED', 'DELETED', 'all']).optional(),
     from: z.string().date().optional(),
     to: z.string().date().optional(),
+    cycleStart: z.string().date().optional(),
+    periodStart: z.string().date().optional(),
     accountId: accountId.optional(),
     categoryId: categoryId.optional(),
     envelopeId: envelopeId.optional(),
+    sortBy: z.enum(['occurredOn', 'amount']).default('occurredOn'),
+    sortDirection: z.enum(['asc', 'desc']).default('desc'),
   })
-  .strict();
+  .strict()
+  .superRefine((input, context) => {
+    if (input.from && input.to && input.from > input.to) {
+      context.addIssue({
+        code: 'custom',
+        path: ['to'],
+        message: 'Дата окончания не может быть раньше даты начала.',
+      });
+    }
+  });
 
 export type CreateTransactionInput = z.output<typeof createTransactionSchema>;
 export type UpdateTransactionInput = z.output<typeof updateTransactionSchema>;
+export type ResolveIncomeDeletionInput = z.output<typeof resolveIncomeDeletionSchema>;
 export type ListTransactionsInput = z.output<typeof listTransactionsSchema>;

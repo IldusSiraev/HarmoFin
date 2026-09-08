@@ -132,6 +132,58 @@ describe('TransactionApplicationService', () => {
     });
   });
 
+  it('restores deleted confirmed transaction only for owner', async () => {
+    const repository = repositoryDouble();
+    repository.findAccessibleWithRole.mockResolvedValue(accessibleBudget('OWNER'));
+    repository.findActiveReferences.mockResolvedValue(activeExpenseReferences());
+    repository.findForMutation.mockResolvedValue({
+      ...transaction({
+        status: 'DELETED',
+        deletedAt: new Date('2026-09-05T12:00:00.000Z'),
+      }),
+      preDeleteStatus: 'CONFIRMED',
+    } as TransactionRecord & { preDeleteStatus: 'CONFIRMED' });
+    repository.restoreLifecycle.mockResolvedValue(transaction({ status: 'CONFIRMED' }));
+    const service = createService(repository) as unknown as {
+      restore(
+        userId: string,
+        budgetId: string,
+        transactionId: string,
+        key: string,
+      ): Promise<unknown>;
+    };
+
+    await expect(
+      service.restore(ownerId, budgetId, transactionId, 'restore-key'),
+    ).resolves.toMatchObject({
+      status: 'CONFIRMED',
+    });
+    expect(repository.restoreLifecycle).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: 'DELETED', preDeleteStatus: 'CONFIRMED' }),
+      'CONFIRMED',
+      ownerId,
+      undefined,
+    );
+  });
+
+  it('requires allocation resolution before deleting confirmed income', async () => {
+    const repository = repositoryDouble();
+    repository.findAccessibleWithRole.mockResolvedValue(accessibleBudget('OWNER'));
+    repository.findForMutation.mockResolvedValue(
+      transaction({ transactionType: 'INCOME', status: 'CONFIRMED', envelopeId: null }),
+    );
+    repository.findConfirmedAllocationsForIncome.mockResolvedValue([{ id: 'allocation-id' }]);
+    repository.updateLifecycle.mockResolvedValue(transaction({ status: 'DELETED' }));
+    const service = createService(repository);
+
+    await expect(
+      service.delete(ownerId, budgetId, transactionId, 'delete-key'),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'INCOME_HAS_CONFIRMED_ALLOCATIONS' }),
+    });
+    expect(repository.updateLifecycle).not.toHaveBeenCalled();
+  });
   it('serializes bigint financial consequences as canonical strings', () => {
     const service = createService(repositoryDouble());
 
@@ -167,7 +219,9 @@ describe('TransactionApplicationService', () => {
       assertConfirmedExpenseCapacity: vi.fn().mockResolvedValue(true),
       create: vi.fn(),
       findForMutation: vi.fn(),
+      findConfirmedAllocationsForIncome: vi.fn(),
       updateLifecycle: vi.fn(),
+      restoreLifecycle: vi.fn(),
       update: vi.fn(),
     };
   }
@@ -227,6 +281,7 @@ describe('TransactionApplicationService', () => {
       confirmedAt: null,
       cancelledAt: null,
       deletedAt: null,
+      preDeleteStatus: null,
       createdAt: new Date('2026-09-04T00:00:00.000Z'),
       accountCurrentBalanceMinor: 0n,
       envelopeCurrentBalanceMinor: 0n,

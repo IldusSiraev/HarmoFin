@@ -58,6 +58,11 @@ enum EnvelopeType {
   CUSTOM
 }
 
+enum PeriodSlot {
+  FIRST
+  SECOND
+}
+
 enum TransactionType {
   INCOME
   EXPENSE
@@ -252,6 +257,7 @@ model Envelope {
   monthlyPlannedAmountMinor BigInt?      @map("monthly_planned_amount_minor")
   targetAmountMinor         BigInt?      @map("target_amount_minor")
   targetDate                DateTime?    @map("target_date") @db.Date
+  periodSlot                PeriodSlot?  @map("period_slot")
   displayOrder              Int          @map("display_order")
   comment                   String?      @db.VarChar(500)
   archivedAt                DateTime?    @map("archived_at") @db.Timestamptz(3)
@@ -288,6 +294,7 @@ model Transaction {
   confirmedAt       DateTime?         @map("confirmed_at") @db.Timestamptz(3)
   cancelledAt       DateTime?         @map("cancelled_at") @db.Timestamptz(3)
   deletedAt         DateTime?         @map("deleted_at") @db.Timestamptz(3)
+  preDeleteStatus   TransactionStatus? @map("pre_delete_status")
   createdByUserId   String            @map("created_by_user_id") @db.Uuid
   updatedByUserId   String            @map("updated_by_user_id") @db.Uuid
   createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -321,6 +328,7 @@ model IncomeAllocation {
   envelopeId          String                 @map("envelope_id") @db.Uuid
   comment             String?                @db.VarChar(500)
   deletedAt           DateTime?              @map("deleted_at") @db.Timestamptz(3)
+  preDeleteStatus     IncomeAllocationStatus? @map("pre_delete_status")
   createdByUserId     String                 @map("created_by_user_id") @db.Uuid
   updatedByUserId     String                 @map("updated_by_user_id") @db.Uuid
   createdAt           DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)

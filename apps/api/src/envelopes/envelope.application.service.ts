@@ -1,3 +1,4 @@
+import { type EnvelopeType, type PeriodSlot } from '@prisma/client';
 import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
@@ -31,6 +32,7 @@ export interface EnvelopeView {
   monthlyPlannedAmountMinor: string | null;
   targetAmountMinor: string | null;
   targetDate: string | null;
+  periodSlot: 'FIRST' | 'SECOND' | null;
   displayOrder: number;
   comment: string | null;
   archivedAt: string | null;
@@ -130,6 +132,7 @@ export class EnvelopeApplicationService {
       targetAmountMinor:
         envelope.targetAmountMinor === null ? null : formatMinorUnits(envelope.targetAmountMinor),
       targetDate: envelope.targetDate === null ? null : formatDate(envelope.targetDate),
+      periodSlot: envelope.periodSlot,
       displayOrder: envelope.displayOrder,
       comment: envelope.comment,
       archivedAt: envelope.archivedAt?.toISOString() ?? null,
@@ -160,6 +163,7 @@ export class EnvelopeApplicationService {
       budgetId,
       name: input.name,
       envelopeType: input.envelopeType,
+      periodSlot: periodSlotFor(input.envelopeType, input.periodSlot ?? null),
       currency: input.currency,
       startingBalanceMinor: parseDecimalToMinorUnits(
         input.startingBalance,
@@ -189,11 +193,24 @@ export class EnvelopeApplicationService {
         : input.targetDate === null
           ? null
           : parseDate(input.targetDate);
+    const envelopeType = input.envelopeType ?? current.envelopeType;
+    const requestedPeriodSlot =
+      input.periodSlot === undefined ? current.periodSlot : input.periodSlot;
+    const periodSlot =
+      envelopeType === 'CURRENT_EXPENSES'
+        ? requestedPeriodSlot
+        : input.periodSlot === undefined
+          ? null
+          : periodSlotFor(envelopeType, requestedPeriodSlot);
     validateTarget(targetAmountMinor, targetDate);
 
     return {
       ...(input.name !== undefined ? { name: input.name } : {}),
-      ...(input.envelopeType !== undefined ? { envelopeType: input.envelopeType } : {}),
+      ...(input.envelopeType !== undefined ? { envelopeType } : {}),
+      ...(input.periodSlot !== undefined ||
+      (input.envelopeType !== undefined && envelopeType !== current.envelopeType)
+        ? { periodSlot }
+        : {}),
       ...(input.startingBalance !== undefined
         ? {
             startingBalanceMinor: parseDecimalToMinorUnits(
@@ -232,6 +249,26 @@ function validateTarget(targetAmountMinor: bigint | null, targetDate: Date | nul
       ],
     });
   }
+}
+
+function periodSlotFor(
+  envelopeType: EnvelopeType,
+  periodSlot: PeriodSlot | null,
+): PeriodSlot | null {
+  if (periodSlot !== null && envelopeType !== 'CURRENT_EXPENSES') {
+    throw new BadRequestException({
+      code: 'REFERENCE_INVALID',
+      detail: 'Слот периода доступен только для конверта текущих расходов.',
+      fieldErrors: [
+        {
+          field: 'periodSlot',
+          message: 'Выберите тип «Текущие расходы» для слота периода.',
+          code: 'invalid',
+        },
+      ],
+    });
+  }
+  return periodSlot;
 }
 
 function parseDate(value: string): Date {

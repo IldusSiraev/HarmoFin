@@ -1,4 +1,4 @@
-import { CategoryType, EnvelopeType } from '@prisma/client';
+import { CategoryType, EnvelopeType, type PeriodSlot } from '@prisma/client';
 
 import { invalidReference } from '../common/reference-data/reference-data.errors.js';
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
@@ -230,15 +230,18 @@ export class BudgetRepository {
       }
       if (envelopesToCreate.length > 0) {
         await tx.envelope.createMany({
-          data: envelopesToCreate.map(([templateKey, name, envelopeType, displayOrder]) => ({
-            id: createUuidV7(),
-            budgetId,
-            templateKey,
-            name,
-            envelopeType,
-            startingBalanceMinor: 0n,
-            displayOrder,
-          })),
+          data: envelopesToCreate.map(
+            ([templateKey, name, envelopeType, displayOrder, periodSlot]) => ({
+              id: createUuidV7(),
+              budgetId,
+              templateKey,
+              name,
+              envelopeType,
+              periodSlot,
+              startingBalanceMinor: 0n,
+              displayOrder,
+            }),
+          ),
         });
       }
 
@@ -302,6 +305,7 @@ type DefaultEnvelope = readonly [
   name: string,
   envelopeType: EnvelopeType,
   displayOrder: number,
+  periodSlot: PeriodSlot | null,
 ];
 
 const DEFAULT_INCOME_CATEGORIES = [
@@ -365,12 +369,12 @@ const DEFAULT_CATEGORIES: readonly DefaultCategory[] = [
 ];
 
 const DEFAULT_ENVELOPES: readonly DefaultEnvelope[] = [
-  ['envelope-current-10-24', 'Текущие 10–24', EnvelopeType.CURRENT_EXPENSES, 0],
-  ['envelope-current-25-9', 'Текущие 25–9', EnvelopeType.CURRENT_EXPENSES, 1],
-  ['envelope-mandatory', 'Обязательные', EnvelopeType.MANDATORY_EXPENSES, 2],
-  ['envelope-repair', 'Ремонт', EnvelopeType.SAVINGS_GOAL, 3],
-  ['envelope-car', 'Автомобиль', EnvelopeType.SAVINGS_GOAL, 4],
-  ['envelope-free', 'Свободные', EnvelopeType.FREE_MONEY, 5],
+  ['envelope-current-10-24', 'Текущие 10–24', EnvelopeType.CURRENT_EXPENSES, 0, 'FIRST'],
+  ['envelope-current-25-9', 'Текущие 25–9', EnvelopeType.CURRENT_EXPENSES, 1, 'SECOND'],
+  ['envelope-mandatory', 'Обязательные', EnvelopeType.MANDATORY_EXPENSES, 2, null],
+  ['envelope-repair', 'Ремонт', EnvelopeType.SAVINGS_GOAL, 3, null],
+  ['envelope-car', 'Автомобиль', EnvelopeType.SAVINGS_GOAL, 4, null],
+  ['envelope-free', 'Свободные', EnvelopeType.FREE_MONEY, 5, null],
 ];
 
 const DEFAULT_CATEGORY_KEYS = DEFAULT_CATEGORIES.map(([templateKey]) => templateKey);
