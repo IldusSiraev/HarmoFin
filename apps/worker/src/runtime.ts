@@ -7,6 +7,11 @@ export interface WorkerLogger {
   stopped(signal: NodeJS.Signals): void;
 }
 
+export interface WorkerJobRunner {
+  start(): Promise<void>;
+  stop(): Promise<void>;
+}
+
 export interface KeepAliveHandle {
   close(): void;
 }
@@ -19,6 +24,7 @@ export class WorkerRuntime {
 
   constructor(
     private readonly logger: WorkerLogger,
+    private readonly runner: WorkerJobRunner = noOpRunner,
     private readonly createKeepAlive: KeepAliveFactory = createMessageChannelKeepAlive,
   ) {}
 
@@ -26,7 +32,7 @@ export class WorkerRuntime {
     return this.currentState;
   }
 
-  start(): void {
+  async start(): Promise<void> {
     if (this.currentState === 'stopped') {
       throw new Error('Worker has already stopped');
     }
@@ -35,6 +41,7 @@ export class WorkerRuntime {
       return;
     }
 
+    await this.runner.start();
     this.keepAlive = this.createKeepAlive();
     this.currentState = 'running';
     this.logger.started();
@@ -46,12 +53,18 @@ export class WorkerRuntime {
     }
 
     this.currentState = 'stopping';
+    await this.runner.stop();
     this.keepAlive?.close();
     this.keepAlive = undefined;
     this.currentState = 'stopped';
     this.logger.stopped(signal);
   }
 }
+
+const noOpRunner: WorkerJobRunner = {
+  async start(): Promise<void> {},
+  async stop(): Promise<void> {},
+};
 
 function createMessageChannelKeepAlive(): KeepAliveHandle {
   const { port1, port2 } = new MessageChannel();
