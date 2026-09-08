@@ -338,6 +338,32 @@ export interface CreateIncomeAllocationInput {
   comment?: string | null | undefined;
 }
 
+export type ReportKey =
+  | 'expenses-by-category'
+  | 'expenses-by-period'
+  | 'expenses-by-cycle'
+  | 'incomes-by-cycle'
+  | 'savings-reallocation-by-cycle'
+  | 'net-cash-flow'
+  | 'account-balances'
+  | 'envelope-balances'
+  | 'savings-goals';
+
+export type ReportFilters = {
+  from?: string | undefined;
+  to?: string | undefined;
+  accountId?: string | undefined;
+  categoryId?: string | undefined;
+  envelopeId?: string | undefined;
+  type?: TransactionType | undefined;
+  currency?: 'RUB' | undefined;
+};
+
+export type ReportDto = {
+  key: ReportKey;
+  rows: Array<Record<string, unknown>>;
+};
+
 export type DashboardWarning = {
   subject: 'ACCOUNT' | 'ENVELOPE';
   id: string;
@@ -372,6 +398,7 @@ export type DashboardSummaryDto = {
 };
 
 export interface BudgetReferenceDataApi {
+  getReport(budgetId: string, key: ReportKey, filters?: ReportFilters): Promise<ReportDto>;
   getDashboardSummary(budgetId: string): Promise<DashboardSummaryDto>;
   getBudget(budgetId: string): Promise<BudgetDto>;
   updateBudget(budgetId: string, input: UpdateBudgetInput): Promise<BudgetDto>;
@@ -510,6 +537,10 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
     return envelopeId ? `${path}/${encodeURIComponent(envelopeId)}` : path;
   }
 
+  function reportPath(budgetId: string, key: ReportKey) {
+    return `${budgetPath(budgetId)}/reports/${encodeURIComponent(key)}`;
+  }
+
   function transactionPath(budgetId: string, transactionId?: string) {
     const path = `${budgetPath(budgetId)}/transactions`;
     return transactionId ? `${path}/${encodeURIComponent(transactionId)}` : path;
@@ -529,6 +560,18 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
   }
 
   return {
+    getReport: (budgetId, key, filters = {}) =>
+      api.request<ReportDto>(
+        withQuery(
+          reportPath(budgetId, key),
+          Object.fromEntries(
+            Object.entries(filters).map(([name, value]) => [
+              name,
+              value === undefined ? undefined : String(value),
+            ]),
+          ),
+        ),
+      ),
     getDashboardSummary: (budgetId) =>
       api.request<DashboardSummaryDto>(`${budgetPath(budgetId)}/summary`),
     getBudget: (budgetId) => api.request<BudgetDto>(budgetPath(budgetId)),
