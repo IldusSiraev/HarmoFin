@@ -52,7 +52,7 @@ journalFilters
 - Actual amount is the sum of linked transactions only where transaction `status = CONFIRMED`. An occurrence with a linked draft, cancelled draft, no transaction or manual completion contributes `0` actual.
 - `varianceMinor = actualMinor - plannedMinor` is calculated by the server using `BIGINT`.
 - Account, category and envelope filters apply to occurrence snapshot references. This keeps a report about the original plan stable when a user changes the actual operation before confirmation.
-- Rows are ordered by `planName` then `planId`; empty input returns an empty list. A row link opens the server-filtered journal for actual confirmed transactions when such a filter is meaningful; no link claims that a draft is actual.
+- Rows are ordered by `planName` then `planId`; empty input returns an empty list. A row link opens the journal with server-produced `{ planId, status: CONFIRMED }`; Stage 6 adds this read-only journal filter through the linked occurrence relation. No link claims that a draft is actual.
 
 ### Goal progress
 
