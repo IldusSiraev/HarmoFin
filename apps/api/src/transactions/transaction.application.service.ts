@@ -669,6 +669,7 @@ function listQuery(
     ...(input.accountId ? { accountId: input.accountId } : {}),
     ...(input.categoryId ? { categoryId: input.categoryId } : {}),
     ...(input.envelopeId ? { envelopeId: input.envelopeId } : {}),
+    ...(input.planId ? { planId: input.planId } : {}),
     sortBy: input.sortBy,
     sortDirection: input.sortDirection,
   };

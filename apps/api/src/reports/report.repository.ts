@@ -168,6 +168,38 @@ export class ReportRepository {
       (envelope) => envelope.targetAmountMinor !== null || envelope.targetDate !== null,
     );
   }
+
+  async planOccurrences(budgetId: string, filters: ReportFilters) {
+    return this.prisma.planOccurrence.findMany({
+      where: {
+        budgetId,
+        planType: { in: ['INCOME', 'EXPENSE'] },
+        status: { not: 'CANCELLED' },
+        ...(filters.accountId ? { accountId: filters.accountId } : {}),
+        ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
+        ...(filters.envelopeId ? { envelopeId: filters.envelopeId } : {}),
+        ...(filters.from || filters.to
+          ? {
+              scheduledOn: {
+                ...(filters.from ? { gte: dateValue(filters.from) } : {}),
+                ...(filters.to ? { lte: dateValue(filters.to) } : {}),
+              },
+            }
+          : {}),
+      },
+      select: {
+        planId: true,
+        planName: true,
+        planType: true,
+        amountMinor: true,
+        status: true,
+        accountId: true,
+        categoryId: true,
+        envelopeId: true,
+        transaction: { select: { status: true, amountMinor: true } },
+      },
+    });
+  }
 }
 
 function dateValue(value: string): Date {

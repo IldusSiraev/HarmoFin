@@ -76,6 +76,7 @@ export class TransactionController {
   @ApiQuery({ name: 'accountId', required: false, schema: { type: 'string', format: 'uuid' } })
   @ApiQuery({ name: 'categoryId', required: false, schema: { type: 'string', format: 'uuid' } })
   @ApiQuery({ name: 'envelopeId', required: false, schema: { type: 'string', format: 'uuid' } })
+  @ApiQuery({ name: 'planId', required: false, schema: { type: 'string', format: 'uuid' } })
   @ApiQuery({ name: 'type', required: false, enum: ['INCOME', 'EXPENSE'] })
   @ApiQuery({
     name: 'status',

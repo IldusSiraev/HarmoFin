@@ -40,6 +40,9 @@ export class ReportApplicationService {
     if (key === 'savings-goals') {
       return { key, rows: goalRows(await this.repository.savingsGoals(budgetId)) };
     }
+    if (key === 'plan-vs-actual') {
+      return { key, rows: planVsActualRows(await this.repository.planOccurrences(budgetId, filters)) };
+    }
 
     const [transactions, transferParts] = await Promise.all([
       this.repository.transactions(budgetId, filters),
@@ -70,6 +73,80 @@ type TransactionRow = {
 };
 
 type CycleSettings = { cycleStartDay: number; periodBoundaryOffset: number; timezone: string };
+
+type PlanOccurrenceRow = {
+  planId: string;
+  planName: string;
+  planType: 'INCOME' | 'EXPENSE' | 'SAVINGS';
+  amountMinor: bigint;
+  status: 'PENDING' | 'DUE' | 'SKIPPED' | 'COMPLETED' | 'CANCELLED';
+  accountId: string | null;
+  categoryId: string | null;
+  envelopeId: string | null;
+  transaction: { status: 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED'; amountMinor: bigint } | null;
+};
+
+export type PlanVsActualRow = {
+  planId: string;
+  planName: string;
+  planType: 'INCOME' | 'EXPENSE';
+  plannedMinor: string;
+  actualMinor: string;
+  varianceMinor: string;
+  plannedOccurrenceCount: number;
+  confirmedOccurrenceCount: number;
+  journalFilters: { planId: string; status: 'CONFIRMED' };
+};
+
+function planVsActualRows(rows: PlanOccurrenceRow[]): PlanVsActualRow[] {
+  const grouped = new Map<
+    string,
+    {
+      planName: string;
+      planType: 'INCOME' | 'EXPENSE';
+      plannedMinor: bigint;
+      actualMinor: bigint;
+      plannedOccurrenceCount: number;
+      confirmedOccurrenceCount: number;
+    }
+  >();
+
+  for (const row of rows) {
+    if (row.status === 'CANCELLED' || row.planType === 'SAVINGS') continue;
+    const current = grouped.get(row.planId) ?? {
+      planName: row.planName,
+      planType: row.planType,
+      plannedMinor: 0n,
+      actualMinor: 0n,
+      plannedOccurrenceCount: 0,
+      confirmedOccurrenceCount: 0,
+    };
+    current.plannedMinor += row.amountMinor;
+    current.plannedOccurrenceCount += 1;
+    if (row.transaction?.status === 'CONFIRMED') {
+      current.actualMinor += row.transaction.amountMinor;
+      current.confirmedOccurrenceCount += 1;
+    }
+    grouped.set(row.planId, current);
+  }
+
+  return [...grouped.entries()]
+    .sort(([leftId, left], [rightId, right]) => {
+      const comparison = left.planName.localeCompare(right.planName, 'ru');
+      return comparison === 0 ? leftId.localeCompare(rightId) : comparison;
+    })
+    .map(([planId, row]) => ({
+      planId,
+      planName: row.planName,
+      planType: row.planType,
+      plannedMinor: formatMinorUnits(row.plannedMinor),
+      actualMinor: formatMinorUnits(row.actualMinor),
+      varianceMinor: formatMinorUnits(row.actualMinor - row.plannedMinor),
+      plannedOccurrenceCount: row.plannedOccurrenceCount,
+      confirmedOccurrenceCount: row.confirmedOccurrenceCount,
+      journalFilters: { planId, status: 'CONFIRMED' },
+    }));
+}
 
 function expensesByCategory(rows: TransactionRow[]) {
   const grouped = new Map<string, { id: string; name: string; amountMinor: bigint }>();

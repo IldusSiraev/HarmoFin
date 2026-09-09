@@ -10,6 +10,51 @@ export class ReportResponse {
   rows!: Array<Record<string, unknown>>;
 }
 
+export class PlanVsActualJournalFilters {
+  @ApiProperty({ type: String, format: 'uuid' })
+  planId!: string;
+
+  @ApiProperty({ enum: ['CONFIRMED'] })
+  status!: 'CONFIRMED';
+}
+
+export class PlanVsActualRow {
+  @ApiProperty({ type: String, format: 'uuid' })
+  planId!: string;
+
+  @ApiProperty()
+  planName!: string;
+
+  @ApiProperty({ enum: ['INCOME', 'EXPENSE'] })
+  planType!: 'INCOME' | 'EXPENSE';
+
+  @ApiProperty({ type: String, pattern: '^-?\\d+$' })
+  plannedMinor!: string;
+
+  @ApiProperty({ type: String, pattern: '^-?\\d+$' })
+  actualMinor!: string;
+
+  @ApiProperty({ type: String, pattern: '^-?\\d+$' })
+  varianceMinor!: string;
+
+  @ApiProperty({ type: Number, minimum: 0 })
+  plannedOccurrenceCount!: number;
+
+  @ApiProperty({ type: Number, minimum: 0 })
+  confirmedOccurrenceCount!: number;
+
+  @ApiProperty({ type: PlanVsActualJournalFilters })
+  journalFilters!: PlanVsActualJournalFilters;
+}
+
+export class PlanVsActualReportResponse {
+  @ApiProperty({ enum: ['plan-vs-actual'] })
+  key!: 'plan-vs-actual';
+
+  @ApiProperty({ type: [PlanVsActualRow] })
+  rows!: PlanVsActualRow[];
+}
+
 export class ReportQuery {
   @ApiPropertyOptional({ type: String, format: 'date' })
   from?: string;

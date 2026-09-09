@@ -28,6 +28,8 @@ let foreign: Session;
 let accountId: string;
 let categoryId: string;
 let envelopeId: string;
+let reportPlanId: string;
+let foreignPlanId: string;
 
 describe('reports API', () => {
   beforeAll(async () => {
@@ -102,6 +104,29 @@ describe('reports API', () => {
         journalFilters: { from: '2026-08-10', to: '2026-09-09' },
       }),
     ]);
+  });
+
+  it('calculates plan/fact by occurrence date and confirmed linked actual only', async () => {
+    const response = await getReport('plan-vs-actual', {
+      from: '2026-08-10',
+      to: '2026-09-09',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      key: 'plan-vs-actual',
+      rows: [
+        {
+          planId: reportPlanId,
+          plannedMinor: '450000',
+          actualMinor: '170000',
+          varianceMinor: '-280000',
+          plannedOccurrenceCount: 3,
+          confirmedOccurrenceCount: 1,
+          journalFilters: { planId: reportPlanId, status: 'CONFIRMED' },
+        },
+      ],
+    });
   });
 
   it('rejects oversized ranges, foreign filter IDs and foreign budgets', async () => {
@@ -269,6 +294,157 @@ describe('reports API', () => {
         sourceEnvelopeId: envelopeId,
         destinationEnvelopeId: goalEnvelopeId,
         amountMinor: 500n,
+      },
+    });
+
+    const planAccountId = randomUUID();
+    const planCategoryId = randomUUID();
+    const planEnvelopeId = randomUUID();
+    const confirmedActualId = randomUUID();
+    const draftActualId = randomUUID();
+    reportPlanId = randomUUID();
+    await prisma.account.create({
+      data: {
+        id: planAccountId,
+        budgetId: owner.budgetId,
+        name: 'Счёт плана отчёта',
+        accountType: 'CASH',
+        startingBalanceMinor: 0n,
+        accountingStartDate: occurredOn,
+      },
+    });
+    await prisma.category.create({
+      data: {
+        id: planCategoryId,
+        budgetId: owner.budgetId,
+        name: 'Ипотека отчёт',
+        categoryType: 'EXPENSE',
+        displayOrder: 2,
+      },
+    });
+    await prisma.envelope.create({
+      data: {
+        id: planEnvelopeId,
+        budgetId: owner.budgetId,
+        name: 'Конверт плана отчёта',
+        envelopeType: 'MANDATORY_EXPENSES',
+        startingBalanceMinor: 0n,
+        displayOrder: 2,
+      },
+    });
+    await prisma.transaction.createMany({
+      data: [
+        {
+          id: confirmedActualId,
+          budgetId: owner.budgetId,
+          transactionType: 'EXPENSE',
+          status: 'CONFIRMED',
+          amountMinor: 170_000n,
+          occurredOn: new Date('2026-10-10T00:00:00.000Z'),
+          accountId: planAccountId,
+          categoryId: planCategoryId,
+          envelopeId: planEnvelopeId,
+          confirmedAt: new Date(),
+          createdByUserId: owner.userId,
+          updatedByUserId: owner.userId,
+        },
+        {
+          id: draftActualId,
+          budgetId: owner.budgetId,
+          transactionType: 'EXPENSE',
+          status: 'DRAFT',
+          amountMinor: 150_000n,
+          occurredOn: new Date('2026-08-25T00:00:00.000Z'),
+          accountId: planAccountId,
+          categoryId: planCategoryId,
+          envelopeId: planEnvelopeId,
+          createdByUserId: owner.userId,
+          updatedByUserId: owner.userId,
+        },
+      ],
+    });
+    await prisma.regularPlan.create({
+      data: {
+        id: reportPlanId,
+        workspaceId: owner.workspaceId,
+        budgetId: owner.budgetId,
+        name: 'Ипотека',
+        planType: 'EXPENSE',
+        amountMinor: 150_000n,
+        anchorOn: occurredOn,
+        startOn: occurredOn,
+        recurrence: 'MONTHLY',
+        accountId: planAccountId,
+        categoryId: planCategoryId,
+        envelopeId: planEnvelopeId,
+        createdByUserId: owner.userId,
+        updatedByUserId: owner.userId,
+      },
+    });
+    await prisma.planOccurrence.createMany({
+      data: [
+        {
+          id: randomUUID(),
+          workspaceId: owner.workspaceId,
+          budgetId: owner.budgetId,
+          planId: reportPlanId,
+          scheduledOn: new Date('2026-08-10T00:00:00.000Z'),
+          planName: 'Ипотека',
+          planType: 'EXPENSE',
+          amountMinor: 150_000n,
+          accountId: planAccountId,
+          categoryId: planCategoryId,
+          envelopeId: planEnvelopeId,
+          status: 'COMPLETED',
+          transactionId: confirmedActualId,
+          completedAt: new Date(),
+        },
+        {
+          id: randomUUID(),
+          workspaceId: owner.workspaceId,
+          budgetId: owner.budgetId,
+          planId: reportPlanId,
+          scheduledOn: new Date('2026-08-20T00:00:00.000Z'),
+          planName: 'Ипотека',
+          planType: 'EXPENSE',
+          amountMinor: 150_000n,
+          accountId: planAccountId,
+          categoryId: planCategoryId,
+          envelopeId: planEnvelopeId,
+          status: 'SKIPPED',
+          skippedAt: new Date(),
+        },
+        {
+          id: randomUUID(),
+          workspaceId: owner.workspaceId,
+          budgetId: owner.budgetId,
+          planId: reportPlanId,
+          scheduledOn: new Date('2026-08-25T00:00:00.000Z'),
+          planName: 'Ипотека',
+          planType: 'EXPENSE',
+          amountMinor: 150_000n,
+          accountId: planAccountId,
+          categoryId: planCategoryId,
+          envelopeId: planEnvelopeId,
+          status: 'PENDING',
+          transactionId: draftActualId,
+        },
+      ],
+    });
+    foreignPlanId = randomUUID();
+    await prisma.regularPlan.create({
+      data: {
+        id: foreignPlanId,
+        workspaceId: foreign.workspaceId,
+        budgetId: foreign.budgetId,
+        name: 'Чужой план',
+        planType: 'SAVINGS',
+        amountMinor: 1_000n,
+        anchorOn: occurredOn,
+        startOn: occurredOn,
+        recurrence: 'MONTHLY',
+        createdByUserId: foreign.userId,
+        updatedByUserId: foreign.userId,
       },
     });
   }

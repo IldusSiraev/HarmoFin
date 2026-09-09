@@ -95,6 +95,7 @@ export const listTransactionsSchema = z
     accountId: accountId.optional(),
     categoryId: categoryId.optional(),
     envelopeId: envelopeId.optional(),
+    planId: z.string().uuid().optional(),
     sortBy: z.enum(['occurredOn', 'amount']).default('occurredOn'),
     sortDirection: z.enum(['asc', 'desc']).default('desc'),
   })

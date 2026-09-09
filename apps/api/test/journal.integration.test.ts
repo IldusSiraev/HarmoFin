@@ -37,6 +37,8 @@ let references: References;
 let smallerExpenseId: string;
 let largerExpenseId: string;
 let deletedExpenseId: string;
+let planId: string;
+let foreignPlanId: string;
 
 describe('operations journal API', () => {
   beforeAll(async () => {
@@ -112,6 +114,18 @@ describe('operations journal API', () => {
     ]);
   });
 
+  it('filters confirmed journal rows by an accessible plan', async () => {
+    const filtered = await listJournal({ planId, status: 'CONFIRMED' });
+    const foreignPlan = await listJournal({ planId: foreignPlanId, status: 'CONFIRMED' });
+
+    expect(filtered.statusCode).toBe(200);
+    expect(filtered.json<{ items: Array<{ id: string }> }>().items.map((item) => item.id)).toEqual([
+      smallerExpenseId,
+    ]);
+    expect(foreignPlan.statusCode).toBe(404);
+    expect(foreignPlan.json()).toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
+  });
+
   it('returns validation error for malformed cursor and unknown filter ID', async () => {
     const malformed = await listJournal({ cursor: 'invalid', sortBy: 'amount' });
     const unknownReference = await listJournal({ accountId: randomUUID() });
@@ -180,6 +194,60 @@ describe('operations journal API', () => {
       url: `/api/v1/budgets/${owner.budgetId}/transactions/${deletedExpenseId}`,
       headers: { origin, 'x-csrf-token': owner.csrfToken, 'idempotency-key': 'journal-delete' },
       cookies: { harmofin_session: owner.cookie },
+    });
+
+    planId = randomUUID();
+    await prisma.regularPlan.create({
+      data: {
+        id: planId,
+        workspaceId: owner.workspaceId,
+        budgetId: owner.budgetId,
+        name: 'План журнала',
+        planType: 'EXPENSE',
+        amountMinor: 1_000n,
+        anchorOn: new Date('2026-08-25T00:00:00.000Z'),
+        startOn: new Date('2026-08-25T00:00:00.000Z'),
+        recurrence: 'MONTHLY',
+        accountId: references.accountId,
+        categoryId: references.expenseCategoryId,
+        envelopeId: references.envelopeId,
+        createdByUserId: owner.userId,
+        updatedByUserId: owner.userId,
+      },
+    });
+    await prisma.planOccurrence.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: owner.workspaceId,
+        budgetId: owner.budgetId,
+        planId,
+        scheduledOn: new Date('2026-08-25T00:00:00.000Z'),
+        planName: 'План журнала',
+        planType: 'EXPENSE',
+        amountMinor: 1_000n,
+        accountId: references.accountId,
+        categoryId: references.expenseCategoryId,
+        envelopeId: references.envelopeId,
+        status: 'COMPLETED',
+        transactionId: smallerExpenseId,
+        completedAt: new Date(),
+      },
+    });
+    foreignPlanId = randomUUID();
+    await prisma.regularPlan.create({
+      data: {
+        id: foreignPlanId,
+        workspaceId: foreign.workspaceId,
+        budgetId: foreign.budgetId,
+        name: 'Чужой план журнала',
+        planType: 'SAVINGS',
+        amountMinor: 1_000n,
+        anchorOn: new Date('2026-08-25T00:00:00.000Z'),
+        startOn: new Date('2026-08-25T00:00:00.000Z'),
+        recurrence: 'MONTHLY',
+        createdByUserId: foreign.userId,
+        updatedByUserId: foreign.userId,
+      },
     });
   }
 

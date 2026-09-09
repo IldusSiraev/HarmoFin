@@ -1,5 +1,13 @@
 import { Controller, Get, Inject, Param, Query, Req, UseGuards } from '@nestjs/common';
-import { ApiCookieAuth, ApiOkResponse, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiCookieAuth,
+  ApiExtraModels,
+  ApiOkResponse,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 
 import { SessionAuthGuard } from '../auth/session-auth.guard.js';
@@ -7,7 +15,7 @@ import { ProblemDetailsResponse } from '../common/errors/problem-details.dto.js'
 import type { RequestContext } from '../common/request-context/request-context.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import { ReportApplicationService } from './report.application.service.js';
-import { ReportResponse } from './report.dto.js';
+import { PlanVsActualReportResponse, ReportResponse } from './report.dto.js';
 import {
   reportFiltersSchema,
   reportKeySchema,
@@ -25,6 +33,7 @@ export class ReportController {
   ) {}
 
   @Get('budgets/:budgetId/reports/:reportKey')
+  @ApiExtraModels(ReportResponse, PlanVsActualReportResponse)
   @ApiQuery({ name: 'from', required: false, schema: { type: 'string', format: 'date' } })
   @ApiQuery({ name: 'to', required: false, schema: { type: 'string', format: 'date' } })
   @ApiQuery({ name: 'accountId', required: false, schema: { type: 'string', format: 'uuid' } })
@@ -32,7 +41,14 @@ export class ReportController {
   @ApiQuery({ name: 'envelopeId', required: false, schema: { type: 'string', format: 'uuid' } })
   @ApiQuery({ name: 'type', required: false, enum: ['INCOME', 'EXPENSE'] })
   @ApiQuery({ name: 'currency', required: false, enum: ['RUB'] })
-  @ApiOkResponse({ type: ReportResponse })
+  @ApiOkResponse({
+    schema: {
+      oneOf: [
+        { $ref: getSchemaPath(ReportResponse) },
+        { $ref: getSchemaPath(PlanVsActualReportResponse) },
+      ],
+    },
+  })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })

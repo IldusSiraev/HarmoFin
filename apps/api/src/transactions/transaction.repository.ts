@@ -77,6 +77,7 @@ export interface TransactionListQuery {
   accountId?: string;
   categoryId?: string;
   envelopeId?: string;
+  planId?: string;
   sortBy: JournalSortBy;
   sortDirection: JournalSortDirection;
 }
@@ -121,9 +122,10 @@ export class TransactionRepository {
       accountId?: string | undefined;
       categoryId?: string | undefined;
       envelopeId?: string | undefined;
+      planId?: string | undefined;
     },
   ): Promise<boolean> {
-    const [account, category, envelope] = await Promise.all([
+    const [account, category, envelope, plan] = await Promise.all([
       references.accountId
         ? this.prisma.account.findFirst({
             where: { id: references.accountId, budgetId },
@@ -142,8 +144,14 @@ export class TransactionRepository {
             select: { id: true },
           })
         : Promise.resolve(true),
+      references.planId
+        ? this.prisma.regularPlan.findFirst({
+            where: { id: references.planId, budgetId },
+            select: { id: true },
+          })
+        : Promise.resolve(true),
     ]);
-    return Boolean(account && category && envelope);
+    return Boolean(account && category && envelope && plan);
   }
   async list(
     userId: string,
@@ -178,6 +186,9 @@ export class TransactionRepository {
           ...(query.accountId ? { accountId: query.accountId } : {}),
           ...(query.categoryId ? { categoryId: query.categoryId } : {}),
           ...(query.envelopeId ? { envelopeId: query.envelopeId } : {}),
+          ...(query.planId
+            ? { planOccurrence: { planId: query.planId, budgetId } }
+            : {}),
           AND: [
             statusCondition(query.status),
             ...(query.search ? [searchCondition(query.search)] : []),
