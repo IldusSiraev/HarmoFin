@@ -23,7 +23,7 @@ const account = {
 describe('useBudgetReferenceData', () => {
   it('sends account decimal string unchanged to API client', async () => {
     const request = vi.fn().mockResolvedValue(account);
-    const data = createBudgetReferenceData({ request });
+    const data = createBudgetReferenceData({ request, requestBlob: vi.fn() });
 
     await data.createAccount('budget-id', {
       name: 'Основной счёт',
@@ -121,7 +121,7 @@ describe('reports API client', () => {
       ],
     };
     const request = vi.fn().mockResolvedValue(response);
-    const data = createBudgetReferenceData({ request });
+    const data = createBudgetReferenceData({ request, requestBlob: vi.fn() });
 
     const report = await data.getReport('budget-id', 'plan-vs-actual');
 
@@ -130,10 +130,31 @@ describe('reports API client', () => {
   });
 });
 
+describe('CSV export API client', () => {
+  it('downloads CSV with journal filters but without pagination', async () => {
+    const request = vi.fn();
+    const requestBlob = vi.fn().mockResolvedValue(new Blob(['csv']));
+    const data = createBudgetReferenceData({ request, requestBlob });
+
+    await data.downloadTransactionsCsv('budget-id', {
+      search: 'магазин',
+      limit: 25,
+      cursor: 'cursor-value',
+      status: 'CONFIRMED',
+      sortBy: 'amount',
+      sortDirection: 'asc',
+    });
+
+    expect(requestBlob).toHaveBeenCalledWith(
+      '/api/v1/budgets/budget-id/exports/transactions.csv?search=%D0%BC%D0%B0%D0%B3%D0%B0%D0%B7%D0%B8%D0%BD&status=CONFIRMED&sortBy=amount&sortDirection=asc',
+    );
+  });
+});
+
 describe('plans API client', () => {
   it('creates an occurrence draft with an idempotency key', async () => {
     const request = vi.fn().mockResolvedValue(transaction);
-    const data = createBudgetReferenceData({ request });
+    const data = createBudgetReferenceData({ request, requestBlob: vi.fn() });
 
     await data.createPlanOccurrenceDraft('budget-id', 'occurrence-id', 'draft-key');
 
@@ -147,7 +168,7 @@ describe('plans API client', () => {
 describe('notifications API client', () => {
   it('marks notification read with idempotency key', async () => {
     const request = vi.fn().mockResolvedValue({});
-    const data = createBudgetReferenceData({ request });
+    const data = createBudgetReferenceData({ request, requestBlob: vi.fn() });
 
     await data.markNotificationRead('budget-id', 'notification-id', 'read-key');
 
@@ -161,7 +182,7 @@ describe('notifications API client', () => {
 describe('operations API client', () => {
   it('sends idempotency key and unchanged decimal amount', async () => {
     const request = vi.fn().mockResolvedValue(transaction);
-    const data = createBudgetReferenceData({ request });
+    const data = createBudgetReferenceData({ request, requestBlob: vi.fn() });
 
     await data.createTransaction(
       'budget-id',
@@ -191,7 +212,7 @@ describe('operations API client', () => {
 describe('transfers API client', () => {
   it('sends transfer parts and idempotency key to transfer endpoint', async () => {
     const request = vi.fn().mockResolvedValue({});
-    const data = createBudgetReferenceData({ request });
+    const data = createBudgetReferenceData({ request, requestBlob: vi.fn() });
 
     await data.createTransfer(
       'budget-id',

@@ -1,4 +1,4 @@
-import { useApiClient } from './useApiClient.js';
+import { type RequestClient, useApiClient } from './useApiClient.js';
 
 export type ReferenceStatus = 'active' | 'archived' | 'all';
 export type AccountType = 'BANK_ACCOUNT' | 'BANK_CARD' | 'CASH';
@@ -288,6 +288,7 @@ export interface TransactionListInput {
   accountId?: string | undefined;
   categoryId?: string | undefined;
   envelopeId?: string | undefined;
+  planId?: string | undefined;
   sortBy?: 'occurredOn' | 'amount' | undefined;
   sortDirection?: 'asc' | 'desc' | undefined;
 }
@@ -296,6 +297,8 @@ export interface TransactionListResult {
   items: TransactionDto[];
   nextCursor: string | null;
 }
+
+export type TransactionExportInput = Omit<TransactionListInput, 'limit' | 'cursor'>;
 
 export type TransferStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED';
 
@@ -634,6 +637,7 @@ export interface BudgetReferenceDataApi {
     idempotencyKey: string,
   ): Promise<TransactionDto>;
   listTransactions(budgetId: string, input?: TransactionListInput): Promise<TransactionListResult>;
+  downloadTransactionsCsv(budgetId: string, input?: TransactionListInput): Promise<Blob>;
   getTransaction(budgetId: string, transactionId: string): Promise<TransactionDto>;
   createTransaction(
     budgetId: string,
@@ -711,10 +715,6 @@ export interface BudgetReferenceDataApi {
     idempotencyKey: string,
   ): Promise<IncomeAllocationDto>;
 }
-
-type RequestClient = {
-  request<T>(path: string, options?: RequestInit): Promise<T>;
-};
 
 export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDataApi {
   function budgetPath(budgetId: string) {
@@ -911,6 +911,20 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
           ),
         ),
       ),
+    downloadTransactionsCsv: (budgetId, input = {}) => {
+      const { limit: _limit, cursor: _cursor, ...filters } = input;
+      return api.requestBlob(
+        withQuery(
+          `${budgetPath(budgetId)}/exports/transactions.csv`,
+          Object.fromEntries(
+            Object.entries(filters).map(([name, value]) => [
+              name,
+              value === undefined ? undefined : String(value),
+            ]),
+          ),
+        ),
+      );
+    },
     getTransaction: (budgetId, transactionId) =>
       api.request<TransactionDto>(transactionPath(budgetId, transactionId)),
     createTransaction: (budgetId, input, idempotencyKey) =>

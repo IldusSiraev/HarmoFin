@@ -13,6 +13,11 @@ export class ApiRequestError extends Error {
   }
 }
 
+export interface RequestClient {
+  request<T>(path: string, options?: RequestInit): Promise<T>;
+  requestBlob(path: string, options?: RequestInit): Promise<Blob>;
+}
+
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export function createApiClient(fetcher: Fetcher, apiUrl: string, origin: string) {
@@ -58,6 +63,40 @@ export function createApiClient(fetcher: Fetcher, apiUrl: string, origin: string
     return body as T;
   }
 
+  async function requestBlob(path: string, options: RequestInit = {}): Promise<Blob> {
+    const method = options.method?.toUpperCase() ?? 'GET';
+    const headers = new Headers(options.headers);
+    headers.set('Origin', origin);
+    if (options.body && !headers.has('Content-Type'))
+      headers.set('Content-Type', 'application/json');
+    if (
+      isUnsafe(method) &&
+      path !== '/api/v1/auth/login' &&
+      path !== '/api/v1/auth/register' &&
+      !path.startsWith('/api/v1/auth/recovery/')
+    ) {
+      csrfToken ??= await getCsrfToken();
+      headers.set('X-CSRF-Token', csrfToken);
+    }
+
+    const response = await fetcher(`${apiUrl}${path}`, {
+      ...options,
+      method,
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      const problem = response.headers.get('content-type')?.includes('json')
+        ? ((await response.json()) as ProblemDetails)
+        : {
+            code: 'REQUEST_FAILED',
+            detail: 'Не удалось выполнить запрос. Повторите попытку.',
+          };
+      throw new ApiRequestError(response.status, problem);
+    }
+    return response.blob();
+  }
+
   async function getCsrfToken(): Promise<string> {
     const response = await fetcher(`${apiUrl}/api/v1/auth/csrf`, {
       credentials: 'include',
@@ -68,7 +107,7 @@ export function createApiClient(fetcher: Fetcher, apiUrl: string, origin: string
     return ((await response.json()) as { csrfToken: string }).csrfToken;
   }
 
-  return { request };
+  return { request, requestBlob };
 }
 
 export function useApiClient() {

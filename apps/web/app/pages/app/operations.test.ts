@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const api = {
   listTransactions: vi.fn(),
+  downloadTransactionsCsv: vi.fn(),
   getTransaction: vi.fn(),
   listAccounts: vi.fn(),
   listCategories: vi.fn(),
@@ -22,10 +23,15 @@ const auth = {
   currentData: {
     value: {
       user: { email: 'owner@harmofin.test' },
-      workspaces: [{ budgets: [{ id: 'budget-id', name: 'Бюджет', primaryCurrency: 'RUB' }] }],
+      workspaces: [
+        { role: 'OWNER', budgets: [{ id: 'budget-id', name: 'Бюджет', primaryCurrency: 'RUB' }] },
+      ],
     } as {
       user: { email: string };
-      workspaces: Array<{ budgets: Array<{ id: string; name: string; primaryCurrency: string }> }>;
+      workspaces: Array<{
+        role: string;
+        budgets: Array<{ id: string; name: string; primaryCurrency: string }>;
+      }>;
     } | null,
   },
   loadMe: vi.fn(),
@@ -49,6 +55,12 @@ import OperationsPage from './operations.vue';
 
 describe('operations page', () => {
   beforeEach(() => {
+    auth.currentData.value = {
+      user: { email: 'owner@harmofin.test' },
+      workspaces: [
+        { role: 'OWNER', budgets: [{ id: 'budget-id', name: 'Бюджет', primaryCurrency: 'RUB' }] },
+      ],
+    };
     vi.clearAllMocks();
     for (const key of Object.keys(routeQuery)) delete routeQuery[key];
     api.listTransactions.mockResolvedValue({ items: [], nextCursor: null });
@@ -69,6 +81,52 @@ describe('operations page', () => {
     await wrapper.get('[data-action="create-operation"]').trigger('click');
     expect(wrapper.text()).toContain('Создать черновик');
     expect(wrapper.text()).toContain('Подтвердить операцию');
+  });
+
+  it('lets owner download CSV with current journal filters', async () => {
+    routeQuery.status = 'CONFIRMED';
+    routeQuery.sortBy = 'amount';
+    api.downloadTransactionsCsv.mockResolvedValue(new Blob(['csv']));
+    const wrapper = mount(OperationsPage);
+    await flushPromises();
+
+    await wrapper.get('[data-action="download-csv"]').trigger('click');
+    await flushPromises();
+
+    expect(api.downloadTransactionsCsv).toHaveBeenCalledWith('budget-id', {
+      status: 'CONFIRMED',
+      sortBy: 'amount',
+      sortDirection: 'desc',
+    });
+  });
+
+  it('announces CSV download error to owner', async () => {
+    api.downloadTransactionsCsv.mockRejectedValue(
+      new ApiRequestError(422, {
+        code: 'EXPORT_LIMIT_EXCEEDED',
+        detail: 'Сузьте фильтры журнала.',
+      }),
+    );
+    const wrapper = mount(OperationsPage);
+    await flushPromises();
+
+    await wrapper.get('[data-action="download-csv"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.get('[role="alert"]').text()).toContain('Не удалось скачать CSV');
+  });
+
+  it('hides CSV download from editor', async () => {
+    auth.currentData.value = {
+      user: { email: 'editor@harmofin.test' },
+      workspaces: [
+        { role: 'EDITOR', budgets: [{ id: 'budget-id', name: 'Бюджет', primaryCurrency: 'RUB' }] },
+      ],
+    };
+    const wrapper = mount(OperationsPage);
+    await flushPromises();
+
+    expect(wrapper.find('[data-action="download-csv"]').exists()).toBe(false);
   });
 
   it('preloads draft from draftId query into operation editor', async () => {
