@@ -1,0 +1,54 @@
+{
+  servers {
+    timeouts {
+      read_body 15s
+      read_header 15s
+      write 30s
+      idle 2m
+    }
+  }
+}
+
+http://{$CADDY_SITE_ADDRESS} {
+  redir https://{host}{uri} permanent
+}
+
+https://{$CADDY_SITE_ADDRESS} {
+  encode zstd gzip
+
+  request_body {
+    max_size 1MB
+  }
+
+  header {
+    -Server
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "camera=(), geolocation=(), microphone=()"
+  }
+
+  handle /api/* {
+    reverse_proxy api:3001 {
+      header_up X-Request-ID {http.request.header.X-Request-ID}
+      transport http {
+        dial_timeout 5s
+        response_header_timeout 30s
+        read_timeout 30s
+        write_timeout 30s
+      }
+    }
+  }
+
+  handle {
+    reverse_proxy web:3000 {
+      header_up X-Request-ID {http.request.header.X-Request-ID}
+      transport http {
+        dial_timeout 5s
+        response_header_timeout 30s
+        read_timeout 30s
+        write_timeout 30s
+      }
+    }
+  }
+}
