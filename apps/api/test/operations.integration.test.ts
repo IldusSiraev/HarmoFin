@@ -379,6 +379,9 @@ describe('operations API', () => {
         select: { id: true },
       })
     ).map((item) => item.id);
+    await prisma.notification.deleteMany({ where: { budgetId: { in: budgetIds } } });
+    await prisma.planOccurrence.deleteMany({ where: { budgetId: { in: budgetIds } } });
+    await prisma.regularPlan.deleteMany({ where: { budgetId: { in: budgetIds } } });
     await prisma.idempotencyRecord.deleteMany({ where: { budgetId: { in: budgetIds } } });
     await prisma.incomeAllocation.deleteMany({ where: { budgetId: { in: budgetIds } } });
     await prisma.transaction.deleteMany({ where: { budgetId: { in: budgetIds } } });

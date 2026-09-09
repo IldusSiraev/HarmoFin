@@ -75,6 +75,14 @@ describe('dashboard summary API', () => {
         spentMinor: '500',
         remainingMinor: '2500',
       },
+      upcomingObligations: [
+        expect.objectContaining({
+          planName: 'Платёж summary',
+          amountMinor: '3600000',
+          status: 'PENDING',
+          actionPath: expect.stringContaining('/app/plans?occurrence='),
+        }),
+      ],
     });
   });
 
@@ -183,6 +191,39 @@ describe('dashboard summary API', () => {
         updatedByUserId: owner.userId,
       },
     });
+    const planId = randomUUID();
+    await prisma.regularPlan.create({
+      data: {
+        id: planId,
+        workspaceId: owner.workspaceId,
+        budgetId: owner.budgetId,
+        name: 'Платёж summary',
+        planType: 'EXPENSE',
+        amountMinor: 3_600_000n,
+        anchorOn: new Date(`${today}T00:00:00.000Z`),
+        startOn: new Date(`${today}T00:00:00.000Z`),
+        recurrence: 'MONTHLY',
+        categoryId: expenseCategoryId,
+        envelopeId,
+        createdByUserId: owner.userId,
+        updatedByUserId: owner.userId,
+      },
+    });
+    await prisma.planOccurrence.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: owner.workspaceId,
+        budgetId: owner.budgetId,
+        planId,
+        scheduledOn: new Date(`${today}T00:00:00.000Z`),
+        planName: 'Платёж summary',
+        planType: 'EXPENSE',
+        amountMinor: 3_600_000n,
+        categoryId: expenseCategoryId,
+        envelopeId,
+        status: 'PENDING',
+      },
+    });
     await prisma.transaction.create({
       data: {
         id: randomUUID(),
@@ -233,6 +274,9 @@ describe('dashboard summary API', () => {
       })
     ).map((budget) => budget.id);
     await prisma.auditEvent.deleteMany({ where: { workspaceId: session.workspaceId } });
+    await prisma.notification.deleteMany({ where: { budgetId: { in: budgetIds } } });
+    await prisma.planOccurrence.deleteMany({ where: { budgetId: { in: budgetIds } } });
+    await prisma.regularPlan.deleteMany({ where: { budgetId: { in: budgetIds } } });
     await prisma.idempotencyRecord.deleteMany({ where: { budgetId: { in: budgetIds } } });
     await prisma.transferPart.deleteMany({ where: { budgetId: { in: budgetIds } } });
     await prisma.transfer.deleteMany({ where: { budgetId: { in: budgetIds } } });

@@ -127,12 +127,30 @@ async function load(append = false) {
     accounts.value = accountData.map((item) => ({ value: item.id, label: item.name }));
     categories.value = categoryData;
     envelopes.value = envelopeData.map((item) => ({ value: item.id, label: item.name }));
+    await preloadDraft();
   } catch {
     if (version === requestVersion)
       error.value = 'Не удалось загрузить операции. Повторите попытку.';
   } finally {
     if (version === requestVersion) loading.value = false;
   }
+}
+
+async function preloadDraft() {
+  if (!budget.value || selectedTransaction.value || formOpen.value) return;
+  const draftId = typeof route.query.draftId === 'string' ? route.query.draftId : null;
+  if (!draftId || !isUuid(draftId)) return;
+  try {
+    const draft = await api.getTransaction(budget.value.id, draftId);
+    if (draft.status !== 'DRAFT') return;
+    openEdit(draft);
+  } catch {
+    error.value = 'Не удалось открыть черновик операции.';
+  }
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function openCreate() {

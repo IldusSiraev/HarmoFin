@@ -102,6 +102,34 @@ const transaction = {
   allocationProposal: null,
 };
 
+describe('plans API client', () => {
+  it('creates an occurrence draft with an idempotency key', async () => {
+    const request = vi.fn().mockResolvedValue(transaction);
+    const data = createBudgetReferenceData({ request });
+
+    await data.createPlanOccurrenceDraft('budget-id', 'occurrence-id', 'draft-key');
+
+    expect(request).toHaveBeenCalledWith(
+      '/api/v1/budgets/budget-id/plans/occurrences/occurrence-id/create-draft',
+      { method: 'POST', headers: { 'Idempotency-Key': 'draft-key' } },
+    );
+  });
+});
+
+describe('notifications API client', () => {
+  it('marks notification read with idempotency key', async () => {
+    const request = vi.fn().mockResolvedValue({});
+    const data = createBudgetReferenceData({ request });
+
+    await data.markNotificationRead('budget-id', 'notification-id', 'read-key');
+
+    expect(request).toHaveBeenCalledWith(
+      '/api/v1/budgets/budget-id/notifications/notification-id/read',
+      { method: 'POST', headers: { 'Idempotency-Key': 'read-key' } },
+    );
+  });
+});
+
 describe('operations API client', () => {
   it('sends idempotency key and unchanged decimal amount', async () => {
     const request = vi.fn().mockResolvedValue(transaction);

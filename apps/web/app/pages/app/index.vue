@@ -4,6 +4,7 @@ import { definePageMeta, navigateTo } from '#imports';
 
 import BalanceList from '../../components/dashboard/BalanceList.vue';
 import PeriodLimitCard from '../../components/dashboard/PeriodLimitCard.vue';
+import UpcomingObligations from '../../components/dashboard/UpcomingObligations.vue';
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
@@ -80,6 +81,8 @@ async function signOut() {
           <NuxtLink to="/app/operations">Операции</NuxtLink>
           <NuxtLink to="/app/accounts">Счета</NuxtLink>
           <NuxtLink to="/app/envelopes">Конверты</NuxtLink>
+          <NuxtLink to="/app/plans">Планы</NuxtLink>
+          <NuxtLink to="/app/notifications">Уведомления</NuxtLink>
           <NuxtLink to="/app/analytics">Аналитика</NuxtLink>
         </nav>
         <section class="dashboard-grid" aria-label="Сводка бюджета">
@@ -96,6 +99,7 @@ async function signOut() {
             </p>
           </section>
           <PeriodLimitCard :period-limit="summary.periodLimit" />
+          <UpcomingObligations :items="summary.upcomingObligations" />
           <BalanceList
             title="Счета"
             :items="summary.accounts"

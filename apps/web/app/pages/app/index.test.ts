@@ -41,6 +41,19 @@ const summary = {
     averageRemainingDailyLimitMinor: '1071',
   },
   warnings: [],
+  upcomingObligations: [
+    {
+      occurrenceId: 'occurrence-id',
+      planName: 'Ипотека',
+      scheduledOn: '2026-09-10',
+      amountMinor: '3600000',
+      currency: 'RUB',
+      scale: 2,
+      status: 'DUE',
+      envelopeId: 'envelope-id',
+      actionPath: '/app/plans?occurrence=occurrence-id',
+    },
+  ],
 };
 
 describe('dashboard page', () => {
@@ -58,7 +71,11 @@ describe('dashboard page', () => {
     const text = wrapper.text().replaceAll(' ', ' ');
     expect(text).toContain('Остаток:75,00 ₽');
     expect(text).toContain('Наличные');
+    expect(text).toContain('Ипотека');
     expect(wrapper.get('a[href="/app/operations"]')).toBeTruthy();
+    expect(wrapper.get('a[href="/app/plans"]')).toBeTruthy();
+    expect(wrapper.get('a[href="/app/notifications"]')).toBeTruthy();
+    expect(wrapper.get('a[href="/app/plans?occurrence=occurrence-id"]')).toBeTruthy();
   });
 
   it('shows retry after summary request error', async () => {

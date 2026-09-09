@@ -24,6 +24,17 @@ export type DashboardSummary = {
       }
     | { state: 'unavailable' };
   warnings: Array<{ subject: 'ACCOUNT' | 'ENVELOPE'; id: string; balanceMinor: string }>;
+  upcomingObligations: Array<{
+    occurrenceId: string;
+    planName: string;
+    scheduledOn: string;
+    amountMinor: string;
+    currency: 'RUB';
+    scale: 2;
+    status: 'PENDING' | 'DUE';
+    envelopeId: string | null;
+    actionPath: string;
+  }>;
 };
 
 @Injectable()
@@ -74,6 +85,17 @@ export class DashboardApplicationService {
         subject: warning.subject,
         id: warning.id,
         balanceMinor: formatMinorUnits(warning.balanceMinor),
+      })),
+      upcomingObligations: values.upcomingObligations.map((occurrence) => ({
+        occurrenceId: occurrence.occurrenceId,
+        planName: occurrence.planName,
+        scheduledOn: occurrence.scheduledOn.toISOString().slice(0, 10),
+        amountMinor: formatMinorUnits(occurrence.amountMinor),
+        currency: 'RUB',
+        scale: 2,
+        status: occurrence.status,
+        envelopeId: occurrence.envelopeId,
+        actionPath: `/app/plans?occurrence=${occurrence.occurrenceId}`,
       })),
     };
   }

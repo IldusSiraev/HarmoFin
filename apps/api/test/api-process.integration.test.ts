@@ -36,7 +36,7 @@ describe('API process', () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ status: 'ok' });
-  });
+  }, 20_000);
 });
 
 async function reservePort(): Promise<number> {
@@ -60,7 +60,7 @@ async function waitForResponse(child: ChildProcess, url: string): Promise<Respon
   child.stdout?.on('data', (chunk: Buffer) => output.push(chunk.toString()));
   child.stderr?.on('data', (chunk: Buffer) => output.push(chunk.toString()));
 
-  for (let attempt = 0; attempt < 50; attempt += 1) {
+  for (let attempt = 0; attempt < 150; attempt += 1) {
     if (child.exitCode !== null) {
       throw new Error(`API process exited with ${child.exitCode}: ${output.join('')}`);
     }

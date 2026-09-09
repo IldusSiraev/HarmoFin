@@ -35,6 +35,35 @@ class WarningResponse {
   balanceMinor!: string;
 }
 
+class UpcomingObligationResponse {
+  @ApiProperty({ type: String, format: 'uuid' })
+  occurrenceId!: string;
+
+  @ApiProperty({ type: String })
+  planName!: string;
+
+  @ApiProperty({ type: String, format: 'date' })
+  scheduledOn!: string;
+
+  @ApiProperty({ type: String, pattern: '^-?\\d+$' })
+  amountMinor!: string;
+
+  @ApiProperty({ enum: ['RUB'] })
+  currency!: 'RUB';
+
+  @ApiProperty({ enum: [2] })
+  scale!: 2;
+
+  @ApiProperty({ enum: ['PENDING', 'DUE'] })
+  status!: 'PENDING' | 'DUE';
+
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  envelopeId!: string | null;
+
+  @ApiProperty({ type: String, pattern: '^/app/plans\\?occurrence=' })
+  actionPath!: string;
+}
+
 class PeriodLimitAvailableResponse {
   @ApiProperty({ enum: ['available'] })
   state!: 'available';
@@ -95,4 +124,7 @@ export class DashboardSummaryResponse {
 
   @ApiProperty({ type: [WarningResponse] })
   warnings!: WarningResponse[];
+
+  @ApiProperty({ type: [UpcomingObligationResponse] })
+  upcomingObligations!: UpcomingObligationResponse[];
 }

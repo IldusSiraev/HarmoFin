@@ -20,7 +20,7 @@ describe('WorkerRuntime', () => {
     const logger = createFakeLogger();
     const runtime = new WorkerRuntime(logger);
 
-    runtime.start();
+    await runtime.start();
     expect(runtime.state).toBe('running');
     await runtime.stop('SIGTERM');
 
@@ -35,7 +35,7 @@ describe('WorkerRuntime', () => {
     const logger = createFakeLogger();
     const runtime = new WorkerRuntime(logger);
 
-    runtime.start();
+    await runtime.start();
     await runtime.stop('SIGINT');
     await runtime.stop('SIGTERM');
 
@@ -45,9 +45,9 @@ describe('WorkerRuntime', () => {
   it('keeps the process active until shutdown', async () => {
     const close = vi.fn();
     const createKeepAlive = vi.fn(() => ({ close }));
-    const runtime = new WorkerRuntime(createFakeLogger(), createKeepAlive);
+    const runtime = new WorkerRuntime(createFakeLogger(), undefined, createKeepAlive);
 
-    runtime.start();
+    await runtime.start();
 
     expect(createKeepAlive).toHaveBeenCalledOnce();
     expect(close).not.toHaveBeenCalled();
@@ -57,12 +57,28 @@ describe('WorkerRuntime', () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
+  it('starts and stops durable job runner', async () => {
+    const runner = {
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined),
+    };
+    const runtime = new WorkerRuntime(createFakeLogger(), runner as never, () => ({
+      close: vi.fn(),
+    }));
+
+    await runtime.start();
+    await runtime.stop('SIGTERM');
+
+    expect(runner.start).toHaveBeenCalledOnce();
+    expect(runner.stop).toHaveBeenCalledOnce();
+  });
+
   it('rejects starting after it stopped', async () => {
     const runtime = new WorkerRuntime(createFakeLogger());
 
-    runtime.start();
+    await runtime.start();
     await runtime.stop('SIGTERM');
 
-    expect(() => runtime.start()).toThrow('Worker has already stopped');
+    await expect(runtime.start()).rejects.toThrow('Worker has already stopped');
   });
 });

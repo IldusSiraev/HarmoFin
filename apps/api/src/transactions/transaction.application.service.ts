@@ -11,6 +11,7 @@ import {
   invalidReference,
   resourceNotFound,
 } from '../common/reference-data/reference-data.errors.js';
+import { PlanOccurrenceRepository } from '../plans/plan-occurrence.repository.js';
 import {
   TransactionRepository,
   type TransactionCreateData,
@@ -67,6 +68,7 @@ export class TransactionApplicationService {
     private readonly repository: TransactionRepository,
     private readonly idempotency: IdempotencyService,
     private readonly allocations?: IncomeAllocationRepository,
+    private readonly occurrences?: PlanOccurrenceRepository,
   ) {}
 
   async list(
@@ -206,6 +208,12 @@ export class TransactionApplicationService {
             tx,
             current,
             'CONFIRMED',
+            userId,
+            requestId,
+          );
+          await this.occurrences?.completeForConfirmedTransaction(
+            tx,
+            transaction,
             userId,
             requestId,
           );

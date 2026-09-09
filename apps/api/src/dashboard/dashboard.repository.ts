@@ -28,6 +28,16 @@ export type DashboardSummaryRecord = {
     spentMinor: bigint;
   } | null;
   warnings: Array<{ subject: 'ACCOUNT' | 'ENVELOPE'; id: string; balanceMinor: bigint }>;
+  upcomingObligations: Array<{
+    occurrenceId: string;
+    planName: string;
+    scheduledOn: Date;
+    amountMinor: bigint;
+    currency: string;
+    scale: number;
+    status: 'PENDING' | 'DUE';
+    envelopeId: string | null;
+  }>;
 };
 
 export class DashboardRepository {
@@ -55,28 +65,50 @@ export class DashboardRepository {
     asOf: Date,
   ): Promise<DashboardSummaryRecord> {
     return this.prisma.$transaction(async (tx) => {
-      const [accounts, envelopes, periodEnvelope, unallocatedIncomeMinor] = await Promise.all([
-        tx.account.findMany({
-          where: { budgetId, archivedAt: null, budget: activeBudgetWhere(userId, budgetId) },
-          select: { id: true, name: true },
-          orderBy: [{ createdAt: 'asc' }],
-        }),
-        tx.envelope.findMany({
-          where: { budgetId, archivedAt: null, budget: activeBudgetWhere(userId, budgetId) },
-          select: { id: true, name: true },
-          orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
-        }),
-        tx.envelope.findFirst({
-          where: {
-            budgetId,
-            archivedAt: null,
-            periodSlot: period.id,
-            budget: activeBudgetWhere(userId, budgetId),
-          },
-          select: { id: true },
-        }),
-        unallocatedIncome(tx, budgetId),
-      ]);
+      const [accounts, envelopes, periodEnvelope, unallocatedIncomeMinor, upcomingObligations] =
+        await Promise.all([
+          tx.account.findMany({
+            where: { budgetId, archivedAt: null, budget: activeBudgetWhere(userId, budgetId) },
+            select: { id: true, name: true },
+            orderBy: [{ createdAt: 'asc' }],
+          }),
+          tx.envelope.findMany({
+            where: { budgetId, archivedAt: null, budget: activeBudgetWhere(userId, budgetId) },
+            select: { id: true, name: true },
+            orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+          }),
+          tx.envelope.findFirst({
+            where: {
+              budgetId,
+              archivedAt: null,
+              periodSlot: period.id,
+              budget: activeBudgetWhere(userId, budgetId),
+            },
+            select: { id: true },
+          }),
+          unallocatedIncome(tx, budgetId),
+          tx.planOccurrence.findMany({
+            where: {
+              budgetId,
+              planType: 'EXPENSE',
+              status: { in: ['PENDING', 'DUE'] },
+              scheduledOn: { gte: asOf },
+              budget: activeBudgetWhere(userId, budgetId),
+            },
+            select: {
+              id: true,
+              planName: true,
+              scheduledOn: true,
+              amountMinor: true,
+              currency: true,
+              scale: true,
+              status: true,
+              envelopeId: true,
+            },
+            orderBy: [{ scheduledOn: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+            take: 5,
+          }),
+        ]);
       const accountBalances = await Promise.all(
         accounts.map(async (account) => ({
           ...account,
@@ -120,6 +152,16 @@ export class DashboardRepository {
         periodEnvelope:
           periodEnvelope && periodValues ? { id: periodEnvelope.id, ...periodValues } : null,
         warnings,
+        upcomingObligations: upcomingObligations.map((occurrence) => ({
+          occurrenceId: occurrence.id,
+          planName: occurrence.planName,
+          scheduledOn: occurrence.scheduledOn,
+          amountMinor: occurrence.amountMinor,
+          currency: occurrence.currency,
+          scale: occurrence.scale,
+          status: occurrence.status as 'PENDING' | 'DUE',
+          envelopeId: occurrence.envelopeId,
+        })),
       };
     });
   }

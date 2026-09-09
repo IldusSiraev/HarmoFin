@@ -1,3 +1,4 @@
+import { PlanOccurrenceRepository } from '../plans/plan-occurrence.repository.js';
 import { type DynamicModule, Module } from '@nestjs/common';
 
 import { IncomeAllocationRepository } from '../allocations/income-allocation.repository.js';
@@ -20,14 +21,23 @@ export class TransactionModule {
           inject: [PrismaService],
         },
         {
+          provide: PlanOccurrenceRepository,
+          useFactory: () => new PlanOccurrenceRepository(),
+        },
+        {
           provide: TransactionApplicationService,
-          useFactory: (repository: TransactionRepository, prisma: PrismaService) =>
+          useFactory: (
+            repository: TransactionRepository,
+            prisma: PrismaService,
+            occurrences: PlanOccurrenceRepository,
+          ) =>
             new TransactionApplicationService(
               repository,
               new IdempotencyService(),
               new IncomeAllocationRepository(prisma),
+              occurrences,
             ),
-          inject: [TransactionRepository, PrismaService],
+          inject: [TransactionRepository, PrismaService, PlanOccurrenceRepository],
         },
       ],
     };

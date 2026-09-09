@@ -148,6 +148,98 @@ export interface UpdateEnvelopeInput {
   comment?: string | null | undefined;
 }
 
+export type RegularPlanType = 'INCOME' | 'EXPENSE' | 'SAVINGS';
+export type PlanRecurrence = 'ONE_TIME' | 'MONTHLY' | 'EVERY_N_MONTHS' | 'YEARLY';
+export type PlanOccurrenceStatus = 'PENDING' | 'DUE' | 'SKIPPED' | 'COMPLETED' | 'CANCELLED';
+
+export interface RegularPlanDto {
+  id: string;
+  budgetId: string;
+  name: string;
+  planType: RegularPlanType;
+  amountMinor: string;
+  currency: 'RUB';
+  scale: 2;
+  anchorOn: string;
+  startOn: string;
+  endOn: string | null;
+  recurrence: PlanRecurrence;
+  intervalMonths: number | null;
+  accountId: string | null;
+  categoryId: string | null;
+  envelopeId: string | null;
+  comment: string | null;
+  isActive: boolean;
+  disabledAt: string | null;
+  deletedAt: string | null;
+}
+
+export interface CreateRegularPlanInput {
+  name: string;
+  planType: RegularPlanType;
+  amount: string;
+  anchorOn: string;
+  startOn: string;
+  endOn?: string | null | undefined;
+  recurrence: PlanRecurrence;
+  intervalMonths?: number | null | undefined;
+  accountId?: string | null | undefined;
+  categoryId?: string | null | undefined;
+  envelopeId?: string | null | undefined;
+  comment?: string | null | undefined;
+}
+
+export type UpdateRegularPlanInput = Partial<CreateRegularPlanInput> & {
+  isActive?: boolean | undefined;
+};
+
+export interface PlanOccurrenceDto {
+  id: string;
+  planId: string;
+  planName: string;
+  planType: RegularPlanType;
+  scheduledOn: string;
+  status: PlanOccurrenceStatus;
+  amountMinor: string;
+  currency: 'RUB';
+  scale: 2;
+  accountId: string | null;
+  categoryId: string | null;
+  envelopeId: string | null;
+  comment: string | null;
+  transactionId: string | null;
+  cancellationReason: 'PLAN_CHANGED' | 'PLAN_DISABLED' | 'PLAN_DELETED' | null;
+}
+
+export type NotificationType =
+  | 'PLAN_UPCOMING'
+  | 'PLAN_TODAY'
+  | 'PLAN_OVERDUE'
+  | 'UNALLOCATED_INCOME'
+  | 'NEGATIVE_ACCOUNT'
+  | 'NEGATIVE_ENVELOPE'
+  | 'INSUFFICIENT_MANDATORY_OBLIGATIONS';
+
+export interface NotificationDto {
+  id: string;
+  budgetId: string;
+  notificationType: NotificationType;
+  occurrenceId: string | null;
+  relatedEntityType: string | null;
+  relatedEntityId: string | null;
+  title: string;
+  body: string;
+  actionPath: string | null;
+  readAt: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationListResult {
+  items: NotificationDto[];
+  nextCursor: string | null;
+}
+
 export type TransactionType = 'INCOME' | 'EXPENSE';
 export type TransactionStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED';
 
@@ -376,6 +468,18 @@ export type DashboardBalance = {
   balanceMinor: string;
 };
 
+export type UpcomingObligationDto = {
+  occurrenceId: string;
+  planName: string;
+  scheduledOn: string;
+  amountMinor: string;
+  currency: 'RUB';
+  scale: 2;
+  status: 'PENDING' | 'DUE';
+  envelopeId: string | null;
+  actionPath: string;
+};
+
 export type DashboardSummaryDto = {
   cycle: { start: string; end: string };
   period: { id: 'FIRST' | 'SECOND'; start: string; end: string };
@@ -395,6 +499,7 @@ export type DashboardSummaryDto = {
       }
     | { state: 'unavailable' };
   warnings: DashboardWarning[];
+  upcomingObligations: UpcomingObligationDto[];
 };
 
 export interface BudgetReferenceDataApi {
@@ -434,6 +539,59 @@ export interface BudgetReferenceDataApi {
     input: UpdateEnvelopeInput,
   ): Promise<EnvelopeDto>;
   archiveEnvelope(budgetId: string, envelopeId: string): Promise<EnvelopeDto>;
+  listNotifications(
+    budgetId: string,
+    input?: { state?: 'unread' | 'read' | 'all' | undefined; cursor?: string | undefined },
+  ): Promise<NotificationListResult>;
+  markNotificationRead(
+    budgetId: string,
+    notificationId: string,
+    idempotencyKey: string,
+  ): Promise<NotificationDto>;
+  markAllNotificationsRead(
+    budgetId: string,
+    idempotencyKey: string,
+  ): Promise<{ updatedCount: number }>;
+  listRegularPlans(
+    budgetId: string,
+    status?: 'active' | 'inactive' | 'all',
+  ): Promise<RegularPlanDto[]>;
+  getRegularPlan(budgetId: string, planId: string): Promise<RegularPlanDto>;
+  createRegularPlan(
+    budgetId: string,
+    input: CreateRegularPlanInput,
+    idempotencyKey: string,
+  ): Promise<RegularPlanDto>;
+  updateRegularPlan(
+    budgetId: string,
+    planId: string,
+    input: UpdateRegularPlanInput,
+    idempotencyKey: string,
+  ): Promise<RegularPlanDto>;
+  deleteRegularPlan(
+    budgetId: string,
+    planId: string,
+    idempotencyKey: string,
+  ): Promise<RegularPlanDto>;
+  listPlanOccurrences(
+    budgetId: string,
+    input?: { planId?: string | undefined; status?: PlanOccurrenceStatus | undefined },
+  ): Promise<PlanOccurrenceDto[]>;
+  skipPlanOccurrence(
+    budgetId: string,
+    occurrenceId: string,
+    idempotencyKey: string,
+  ): Promise<PlanOccurrenceDto>;
+  completePlanOccurrence(
+    budgetId: string,
+    occurrenceId: string,
+    idempotencyKey: string,
+  ): Promise<PlanOccurrenceDto>;
+  createPlanOccurrenceDraft(
+    budgetId: string,
+    occurrenceId: string,
+    idempotencyKey: string,
+  ): Promise<TransactionDto>;
   listTransactions(budgetId: string, input?: TransactionListInput): Promise<TransactionListResult>;
   getTransaction(budgetId: string, transactionId: string): Promise<TransactionDto>;
   createTransaction(
@@ -541,6 +699,20 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
     return `${budgetPath(budgetId)}/reports/${encodeURIComponent(key)}`;
   }
 
+  function notificationPath(budgetId: string, notificationId?: string) {
+    const path = `${budgetPath(budgetId)}/notifications`;
+    return notificationId ? `${path}/${encodeURIComponent(notificationId)}` : path;
+  }
+
+  function planPath(budgetId: string, planId?: string) {
+    const path = `${budgetPath(budgetId)}/plans`;
+    return planId ? `${path}/${encodeURIComponent(planId)}` : path;
+  }
+
+  function occurrencePath(budgetId: string, occurrenceId: string) {
+    return `${planPath(budgetId)}/occurrences/${encodeURIComponent(occurrenceId)}`;
+  }
+
   function transactionPath(budgetId: string, transactionId?: string) {
     const path = `${budgetPath(budgetId)}/transactions`;
     return transactionId ? `${path}/${encodeURIComponent(transactionId)}` : path;
@@ -631,6 +803,61 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
       }),
     archiveEnvelope: (budgetId, envelopeId) =>
       api.request<EnvelopeDto>(`${envelopePath(budgetId, envelopeId)}/archive`, { method: 'POST' }),
+    listNotifications: (budgetId, input = {}) =>
+      api.request<NotificationListResult>(withQuery(notificationPath(budgetId), input)),
+    markNotificationRead: (budgetId, notificationId, idempotencyKey) =>
+      api.request<NotificationDto>(`${notificationPath(budgetId, notificationId)}/read`, {
+        method: 'POST',
+        headers: idempotent(idempotencyKey),
+      }),
+    markAllNotificationsRead: (budgetId, idempotencyKey) =>
+      api.request<{ updatedCount: number }>(`${notificationPath(budgetId)}/read-all`, {
+        method: 'POST',
+        headers: idempotent(idempotencyKey),
+      }),
+    listRegularPlans: (budgetId, status) =>
+      api
+        .request<{ items: RegularPlanDto[] }>(withQuery(planPath(budgetId), { status }))
+        .then((result) => result.items),
+    getRegularPlan: (budgetId, planId) => api.request<RegularPlanDto>(planPath(budgetId, planId)),
+    createRegularPlan: (budgetId, input, idempotencyKey) =>
+      api.request<RegularPlanDto>(planPath(budgetId), {
+        method: 'POST',
+        headers: idempotent(idempotencyKey),
+        body: JSON.stringify(input),
+      }),
+    updateRegularPlan: (budgetId, planId, input, idempotencyKey) =>
+      api.request<RegularPlanDto>(planPath(budgetId, planId), {
+        method: 'PATCH',
+        headers: idempotent(idempotencyKey),
+        body: JSON.stringify(input),
+      }),
+    deleteRegularPlan: (budgetId, planId, idempotencyKey) =>
+      api.request<RegularPlanDto>(planPath(budgetId, planId), {
+        method: 'DELETE',
+        headers: idempotent(idempotencyKey),
+      }),
+    listPlanOccurrences: (budgetId, input = {}) =>
+      api
+        .request<{ items: PlanOccurrenceDto[] }>(
+          withQuery(`${planPath(budgetId)}/occurrences`, input),
+        )
+        .then((result) => result.items),
+    skipPlanOccurrence: (budgetId, occurrenceId, idempotencyKey) =>
+      api.request<PlanOccurrenceDto>(`${occurrencePath(budgetId, occurrenceId)}/skip`, {
+        method: 'POST',
+        headers: idempotent(idempotencyKey),
+      }),
+    completePlanOccurrence: (budgetId, occurrenceId, idempotencyKey) =>
+      api.request<PlanOccurrenceDto>(`${occurrencePath(budgetId, occurrenceId)}/complete`, {
+        method: 'POST',
+        headers: idempotent(idempotencyKey),
+      }),
+    createPlanOccurrenceDraft: (budgetId, occurrenceId, idempotencyKey) =>
+      api.request<TransactionDto>(`${occurrencePath(budgetId, occurrenceId)}/create-draft`, {
+        method: 'POST',
+        headers: idempotent(idempotencyKey),
+      }),
     listTransactions: (budgetId, input = {}) =>
       api.request<TransactionListResult>(
         withQuery(
