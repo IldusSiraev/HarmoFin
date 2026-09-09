@@ -26,6 +26,10 @@ describe('PlanVsActualReport', () => {
       },
     });
 
+    expect(wrapper.get('[role="region"]').attributes()).toMatchObject({
+      'aria-labelledby': 'plan-vs-actual-title',
+      tabindex: '0',
+    });
     expect(wrapper.get('table').text()).toContain('Ипотека');
     expect(wrapper.text()).toContain('3 000,00');
     expect(wrapper.text()).toContain('1 700,00');
@@ -33,5 +37,11 @@ describe('PlanVsActualReport', () => {
     expect(wrapper.get('[data-journal-link]').attributes('href')).toBe(
       '/app/operations?planId=plan-id&status=CONFIRMED',
     );
+  });
+
+  it('renders Russian empty state', () => {
+    const wrapper = mount(PlanVsActualReport, { props: { rows: [] } });
+
+    expect(wrapper.text()).toContain('Нет плановых операций');
   });
 });

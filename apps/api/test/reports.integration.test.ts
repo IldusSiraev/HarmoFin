@@ -24,6 +24,8 @@ type Session = {
 let app: NestFastifyApplication;
 let server: FastifyInstance;
 let owner: Session;
+let editor: Session;
+let viewer: Session;
 let foreign: Session;
 let accountId: string;
 let categoryId: string;
@@ -55,13 +57,32 @@ describe('reports API', () => {
     server = app.getHttpAdapter().getInstance() as FastifyInstance;
     await server.ready();
     owner = await register(`reports-owner-${randomUUID()}@harmofin.test`);
+    editor = await register(`reports-editor-${randomUUID()}@harmofin.test`);
+    viewer = await register(`reports-viewer-${randomUUID()}@harmofin.test`);
     foreign = await register(`reports-foreign-${randomUUID()}@harmofin.test`);
+    await prisma.workspaceMembership.createMany({
+      data: [
+        {
+          id: randomUUID(),
+          workspaceId: owner.workspaceId,
+          userId: editor.userId,
+          role: 'EDITOR',
+        },
+        {
+          id: randomUUID(),
+          workspaceId: owner.workspaceId,
+          userId: viewer.userId,
+          role: 'VIEWER',
+        },
+      ],
+    });
     await seedReportData();
   });
 
   afterAll(async () => {
-    if (owner) await cleanup(owner);
-    if (foreign) await cleanup(foreign);
+    for (const session of [owner, editor, viewer, foreign]) {
+      if (session) await cleanup(session);
+    }
     await app.close();
     await prisma.$disconnect();
   });
@@ -76,6 +97,7 @@ describe('reports API', () => {
     'account-balances',
     'envelope-balances',
     'savings-goals',
+    'plan-vs-actual',
   ])('returns confirmed data for %s', async (key) => {
     const response = await getReport(key, { from: '2026-08-10', to: '2026-09-09' });
 
@@ -182,6 +204,21 @@ describe('reports API', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('allows editor and viewer to read scoped reports but not foreign users', async () => {
+    const [editorReport, viewerReport, foreignReport] = await Promise.all([
+      getReportFor(editor, 'plan-vs-actual', { from: '2026-08-10', to: '2026-09-09' }),
+      getReportFor(viewer, 'savings-goals', {}),
+      getReportFor(foreign, 'plan-vs-actual', {}),
+    ]);
+
+    expect(editorReport.statusCode).toBe(200);
+    expect(editorReport.json()).toMatchObject({ key: 'plan-vs-actual' });
+    expect(viewerReport.statusCode).toBe(200);
+    expect(viewerReport.json()).toMatchObject({ key: 'savings-goals' });
+    expect(foreignReport.statusCode).toBe(404);
+    expect(foreignReport.json()).toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
   });
 
   it('rejects oversized ranges, foreign filter IDs and foreign budgets', async () => {
@@ -538,10 +575,14 @@ describe('reports API', () => {
   }
 
   function getReport(key: string, query: Record<string, string>) {
+    return getReportFor(owner, key, query);
+  }
+
+  function getReportFor(session: Session, key: string, query: Record<string, string>) {
     return server.inject({
       method: 'GET',
       url: `/api/v1/budgets/${owner.budgetId}/reports/${key}?${new URLSearchParams(query)}`,
-      cookies: { harmofin_session: owner.cookie },
+      cookies: { harmofin_session: session.cookie },
     });
   }
 

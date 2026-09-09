@@ -28,6 +28,10 @@ describe('GoalProgressReport', () => {
       },
     });
 
+    expect(wrapper.get('[role="region"]').attributes()).toMatchObject({
+      'aria-labelledby': 'goal-progress-title',
+      tabindex: '0',
+    });
     expect(wrapper.get('progress').attributes()).toMatchObject({ max: '1000', value: '500' });
     expect(wrapper.get('progress').attributes('aria-valuetext')).toContain('500');
     expect(wrapper.text()).toContain('250,00');

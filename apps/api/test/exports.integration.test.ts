@@ -95,6 +95,21 @@ describe('CSV transactions export API', () => {
     expect(after).toBe(before);
   });
 
+  it('escapes adversarial cells and permits exactly 10,000 rows', async () => {
+    const [adversarial, atLimit] = await Promise.all([
+      exportCsv(owner, owner.budgetId, { search: 'export-adversarial' }),
+      exportCsv(owner, owner.budgetId, { search: 'export-limit-allowed' }),
+    ]);
+
+    expect(adversarial.statusCode).toBe(200);
+    expect(adversarial.body.startsWith('﻿')).toBe(true);
+    expect(adversarial.body).toContain("'+SUM(A1:A2)");
+    expect(adversarial.body).toContain("'-42");
+    expect(adversarial.body).toContain("'@cmd");
+    expect(adversarial.body).toContain('"строка; ""кавычки""\r\nследующая"');
+    expect(atLimit.statusCode).toBe(200);
+  });
+
   it('allows only owner and returns 404 for foreign budget or filter', async () => {
     const [editorResponse, viewerResponse, foreignBudget, foreignFilter] = await Promise.all([
       exportCsv(editor, owner.budgetId),
@@ -198,10 +213,26 @@ describe('CSV transactions export API', () => {
           createdByUserId: owner.userId,
           updatedByUserId: owner.userId,
         },
+        ...['+SUM(A1:A2)', '-42', '@cmd', 'строка; "кавычки"\r\nследующая'].map((comment) => ({
+          id: randomUUID(),
+          budgetId: owner.budgetId,
+          transactionType: 'EXPENSE' as const,
+          status: 'CONFIRMED' as const,
+          amountMinor: 1n,
+          occurredOn,
+          accountId,
+          categoryId,
+          envelopeId,
+          merchantName: 'export-adversarial',
+          comment,
+          confirmedAt: new Date(),
+          createdByUserId: owner.userId,
+          updatedByUserId: owner.userId,
+        })),
       ],
     });
     await prisma.transaction.createMany({
-      data: Array.from({ length: 10_001 }, () => ({
+      data: Array.from({ length: 10_001 }, (_, index) => ({
         id: randomUUID(),
         budgetId: owner.budgetId,
         transactionType: 'EXPENSE' as const,
@@ -211,7 +242,7 @@ describe('CSV transactions export API', () => {
         accountId,
         categoryId,
         envelopeId,
-        merchantName: 'export-limit',
+        merchantName: index < 10_000 ? 'export-limit-allowed' : 'export-limit',
         confirmedAt: new Date(),
         createdByUserId: owner.userId,
         updatedByUserId: owner.userId,

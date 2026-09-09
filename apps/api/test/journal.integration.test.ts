@@ -32,6 +32,8 @@ type References = {
 let app: NestFastifyApplication;
 let server: FastifyInstance;
 let owner: Session;
+let editor: Session;
+let viewer: Session;
 let foreign: Session;
 let references: References;
 let smallerExpenseId: string;
@@ -60,14 +62,31 @@ describe('operations journal API', () => {
     server = app.getHttpAdapter().getInstance() as FastifyInstance;
     await server.ready();
     owner = await register(`journal-owner-${randomUUID()}@harmofin.test`);
+    editor = await register(`journal-editor-${randomUUID()}@harmofin.test`);
+    viewer = await register(`journal-viewer-${randomUUID()}@harmofin.test`);
     foreign = await register(`journal-foreign-${randomUUID()}@harmofin.test`);
+    await prisma.workspaceMembership.createMany({
+      data: [
+        {
+          id: randomUUID(),
+          workspaceId: owner.workspaceId,
+          userId: editor.userId,
+          role: 'EDITOR',
+        },
+        {
+          id: randomUUID(),
+          workspaceId: owner.workspaceId,
+          userId: viewer.userId,
+          role: 'VIEWER',
+        },
+      ],
+    });
     references = await createReferences();
     await seedJournal();
   });
 
   afterAll(async () => {
-    await cleanup(owner);
-    await cleanup(foreign);
+    for (const session of [owner, editor, viewer, foreign]) await cleanup(session);
     await app.close();
     await prisma.$disconnect();
   });
@@ -114,14 +133,20 @@ describe('operations journal API', () => {
     ]);
   });
 
-  it('filters confirmed journal rows by an accessible plan', async () => {
-    const filtered = await listJournal({ planId, status: 'CONFIRMED' });
-    const foreignPlan = await listJournal({ planId: foreignPlanId, status: 'CONFIRMED' });
-
-    expect(filtered.statusCode).toBe(200);
-    expect(filtered.json<{ items: Array<{ id: string }> }>().items.map((item) => item.id)).toEqual([
-      smallerExpenseId,
+  it('filters accessible plan rows for owner, editor and viewer', async () => {
+    const [ownerJournal, editorJournal, viewerJournal, foreignPlan] = await Promise.all([
+      listJournal({ planId, status: 'CONFIRMED' }),
+      listJournal({ planId, status: 'CONFIRMED' }, editor),
+      listJournal({ planId, status: 'CONFIRMED' }, viewer),
+      listJournal({ planId: foreignPlanId, status: 'CONFIRMED' }),
     ]);
+
+    for (const response of [ownerJournal, editorJournal, viewerJournal]) {
+      expect(response.statusCode).toBe(200);
+      expect(
+        response.json<{ items: Array<{ id: string }> }>().items.map((item) => item.id),
+      ).toEqual([smallerExpenseId]);
+    }
     expect(foreignPlan.statusCode).toBe(404);
     expect(foreignPlan.json()).toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
   });
@@ -346,11 +371,11 @@ describe('operations journal API', () => {
     });
   }
 
-  function listJournal(query: Record<string, string>) {
+  function listJournal(query: Record<string, string>, session = owner) {
     return server.inject({
       method: 'GET',
       url: `/api/v1/budgets/${owner.budgetId}/transactions?${new URLSearchParams(query)}`,
-      cookies: { harmofin_session: owner.cookie },
+      cookies: { harmofin_session: session.cookie },
     });
   }
 
