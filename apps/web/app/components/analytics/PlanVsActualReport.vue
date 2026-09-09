@@ -2,7 +2,7 @@
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import type { PlanVsActualRowDto } from '../../composables/useBudgetReferenceData.js';
 
-const props = defineProps<{ rows: ReadonlyArray<PlanVsActualRowDto> }>();
+defineProps<{ rows: ReadonlyArray<PlanVsActualRowDto> }>();
 
 function planTypeLabel(type: PlanVsActualRowDto['planType']) {
   return type === 'INCOME' ? 'Доход' : 'Расход';
@@ -20,7 +20,7 @@ function journalHref(row: PlanVsActualRowDto) {
       <h2 id="plan-vs-actual-title">План и факт</h2>
       <p>Суммы и отклонения рассчитаны по подтверждённым операциям.</p>
     </div>
-    <p v-if="props.rows.length === 0" class="plan-vs-actual__empty">
+    <p v-if="rows.length === 0" class="plan-vs-actual__empty">
       Нет плановых операций за выбранный период.
     </p>
     <div
@@ -42,7 +42,7 @@ function journalHref(row: PlanVsActualRowDto) {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in props.rows" :key="row.planId">
+          <tr v-for="row in rows" :key="row.planId">
             <th scope="row">
               <span>{{ row.planName }}</span>
               <small>{{ planTypeLabel(row.planType) }}</small>

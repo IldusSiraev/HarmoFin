@@ -2,7 +2,7 @@
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import type { GoalProgressRowDto } from '../../composables/useBudgetReferenceData.js';
 
-const props = defineProps<{ rows: ReadonlyArray<GoalProgressRowDto> }>();
+defineProps<{ rows: ReadonlyArray<GoalProgressRowDto> }>();
 
 function deadlineText(row: GoalProgressRowDto) {
   if (!row.targetDate) return 'Срок не указан';
@@ -28,9 +28,7 @@ function journalHref(row: GoalProgressRowDto) {
       <h2 id="goal-progress-title">Цели накоплений</h2>
       <p>Прогресс рассчитан сервером по подтверждённым операциям.</p>
     </div>
-    <p v-if="props.rows.length === 0" class="goal-progress__empty">
-      Нет активных целей накоплений.
-    </p>
+    <p v-if="rows.length === 0" class="goal-progress__empty">Нет активных целей накоплений.</p>
     <div
       v-else
       class="goal-progress__table-wrap"
@@ -49,7 +47,7 @@ function journalHref(row: GoalProgressRowDto) {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in props.rows" :key="row.envelopeId">
+          <tr v-for="row in rows" :key="row.envelopeId">
             <th scope="row">
               <span>{{ row.name }}</span>
               <small>{{ row.isReached ? 'Цель достигнута' : 'В процессе' }}</small>

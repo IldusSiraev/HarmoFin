@@ -912,7 +912,9 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
         ),
       ),
     downloadTransactionsCsv: (budgetId, input = {}) => {
-      const { limit: _limit, cursor: _cursor, ...filters } = input;
+      const filters = { ...input };
+      delete filters.limit;
+      delete filters.cursor;
       return api.requestBlob(
         withQuery(
           `${budgetPath(budgetId)}/exports/transactions.csv`,

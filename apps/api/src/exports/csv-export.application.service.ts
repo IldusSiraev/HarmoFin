@@ -3,12 +3,12 @@ import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { formatMinorUnits } from '../common/money/minor-units.js';
 import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import { listQuery } from '../transactions/transaction.application.service.js';
-import type { TransactionListQuery } from '../transactions/transaction.repository.js';
 import { CsvExportRepository } from './csv-export.repository.js';
 import type { ExportTransactionsInput } from './exports.schemas.js';
 
 const exportLimit = 10_000;
 const filename = 'harmofin-operations.csv';
+const byteOrderMark = String.fromCharCode(0xfeff);
 const headers = [
   'ID',
   'Дата',
@@ -85,7 +85,7 @@ export class CsvExportApplicationService {
 }
 
 export function encodeCsv(headers: string[], rows: CsvCell[][]): string {
-  return `﻿${headers.map((header) => encodeCell(header, false)).join(';')}\r\n${rows
+  return `${byteOrderMark}${headers.map((header) => encodeCell(header, false)).join(';')}\r\n${rows
     .map((row) => row.map(encodeCsvCell).join(';'))
     .join('\r\n')}${rows.length > 0 ? '\r\n' : ''}`;
 }

@@ -9,6 +9,7 @@ node_modules/
 .output/
 dist/
 coverage/
+test-results/
 
 # Logs and temporary files
 *.log

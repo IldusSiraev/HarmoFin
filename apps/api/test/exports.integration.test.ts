@@ -13,6 +13,7 @@ const databaseUrl =
 const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
 const origin = 'http://localhost:3000';
 const password = 'correct-password-10';
+const byteOrderMark = String.fromCharCode(0xfeff);
 
 type Session = {
   userId: string;
@@ -87,7 +88,7 @@ describe('CSV transactions export API', () => {
     expect(response.headers['content-disposition']).toBe(
       'attachment; filename="harmofin-operations.csv"',
     );
-    expect(response.body).toMatch(/^﻿ID;Дата;Тип;Статус;Сумма \(коп\.\);/);
+    expect(response.body.startsWith(`${byteOrderMark}ID;Дата;Тип;Статус;Сумма (коп.);`)).toBe(true);
     expect(response.body).toContain("'=" + 'SUM(A1:A2)');
     expect(response.body).toContain('export-formula');
     expect(response.body).not.toContain('draft-only');
@@ -102,7 +103,7 @@ describe('CSV transactions export API', () => {
     ]);
 
     expect(adversarial.statusCode).toBe(200);
-    expect(adversarial.body.startsWith('﻿')).toBe(true);
+    expect(adversarial.body.startsWith(byteOrderMark)).toBe(true);
     expect(adversarial.body).toContain("'+SUM(A1:A2)");
     expect(adversarial.body).toContain("'-42");
     expect(adversarial.body).toContain("'@cmd");

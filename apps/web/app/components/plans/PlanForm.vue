@@ -74,7 +74,7 @@ function envelopeOptions() {
 }
 
 function normalizeAmount(value: string): string {
-  return value.replace(/[\s ]/g, '').replace(',', '.');
+  return value.replace(/\s/g, '').replace(',', '.');
 }
 
 function submit() {
