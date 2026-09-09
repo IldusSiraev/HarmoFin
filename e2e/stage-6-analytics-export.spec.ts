@@ -31,12 +31,12 @@ test.describe('Stage 6 analytics and CSV export (CI-only)', () => {
 
     await page.goto('/app/analytics?report=plan-vs-actual');
     await expect(page.getByRole('heading', { name: 'План и факт' })).toBeVisible();
-    await expect(page.getByText('Ипотека Stage 6')).toBeVisible();
+    await expect(page.getByRole('rowheader', { name: /Ипотека Stage 6/ })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Открыть журнал' })).toBeVisible();
 
     await page.goto('/app/analytics?report=savings-goals');
     await expect(page.getByRole('heading', { name: 'Цели накоплений' })).toBeVisible();
-    await expect(page.getByText('Ремонт Stage 6')).toBeVisible();
+    await expect(page.getByRole('rowheader', { name: /Ремонт Stage 6/ })).toBeVisible();
     await expect(page.getByRole('progressbar')).toHaveAttribute(
       'aria-valuetext',
       'Прогресс: 500 из 1000',

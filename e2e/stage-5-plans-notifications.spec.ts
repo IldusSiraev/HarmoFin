@@ -32,7 +32,9 @@ test.describe('Stage 5 plans and notifications (CI-only)', () => {
 
     const occurrence = await seedOccurrence(email, 'Ипотека Stage 5');
     await page.goto('/app/plans');
-    await expect(page.getByText('Ипотека Stage 5')).toBeVisible();
+    await expect(
+      page.getByLabel('Возникновения').getByRole('heading', { name: 'Ипотека Stage 5' }),
+    ).toBeVisible();
     await expect(page.getByRole('button', { name: 'Создать черновик' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       375,
@@ -108,7 +110,9 @@ async function createEnvelope(page: Page, name: string, balance: string): Promis
 
 async function createExpensePlan(page: Page): Promise<void> {
   await page.goto('/app/plans');
-  await page.getByRole('button', { name: 'Добавить план' }).click();
+  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
+  await page.locator('[data-action="create-plan"]').click();
+  await expect(page.locator('input[name="name"]')).toBeVisible();
   await page.getByLabel('Название').fill('Ипотека Stage 5');
   await page.getByLabel('Сумма').fill('36 000,00');
   await page.getByLabel('Счёт по умолчанию').selectOption({ label: 'Карта Stage 5' });

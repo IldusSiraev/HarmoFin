@@ -57,4 +57,23 @@ describe('PlanForm', () => {
     await wrapper.get('[name="planType"]').setValue('EXPENSE');
     expect(wrapper.find('[name="envelopeId"]').exists()).toBe(true);
   });
+
+  it('normalizes Russian decimal amount before submission', async () => {
+    const wrapper = mount(PlanForm, {
+      props: {
+        accounts: [{ value: 'account-id', label: 'Счёт' }],
+        categories,
+        envelopes: [{ value: 'envelope-id', label: 'Обязательные' }],
+      },
+    });
+
+    await wrapper.get('[name="name"]').setValue('Ипотека');
+    await wrapper.get('[name="amount"]').setValue('36 000,00');
+    await wrapper.get('[name="accountId"]').setValue('account-id');
+    await wrapper.get('[name="categoryId"]').setValue('expense-category');
+    await wrapper.get('[name="envelopeId"]').setValue('envelope-id');
+    await wrapper.get('form').trigger('submit');
+
+    expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({ amount: '36000.00' });
+  });
 });
