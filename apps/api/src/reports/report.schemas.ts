@@ -10,6 +10,7 @@ export const reportKeys = [
   'account-balances',
   'envelope-balances',
   'savings-goals',
+  'plan-vs-actual',
 ] as const;
 
 export const reportKeySchema = z.enum(reportKeys);

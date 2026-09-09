@@ -86,6 +86,13 @@ describe('plans page', () => {
     expect(navigateTo).toHaveBeenCalledWith('/app/operations?draftId=draft-id');
   });
 
+  it('marks plan controls ready after client hydration', async () => {
+    const wrapper = mount(PlansPage);
+    await flushPromises();
+
+    expect(wrapper.get('main').attributes('data-hydrated')).toBe('true');
+  });
+
   it('places server validation errors beside the plan field', async () => {
     api.createRegularPlan.mockRejectedValue(
       new ApiRequestError(400, {

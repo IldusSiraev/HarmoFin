@@ -32,6 +32,7 @@ const accounts = ref<Array<{ value: string; label: string }>>([]);
 const categories = ref<CategoryDto[]>([]);
 const envelopes = ref<Array<{ value: string; label: string; envelopeType?: EnvelopeType }>>([]);
 const loading = ref(true);
+const hydrated = ref(false);
 const pending = ref(false);
 const error = ref('');
 const statusText = ref('');
@@ -46,6 +47,7 @@ const mutationKeys = new Map<string, string>();
 const budget = computed(() => auth.currentData.value?.workspaces[0]?.budgets[0] ?? null);
 
 onMounted(() => {
+  hydrated.value = true;
   void load();
 });
 
@@ -210,7 +212,7 @@ function isHighlightedOccurrence(occurrenceId: string) {
 </script>
 
 <template>
-  <main class="plans-page">
+  <main v-if="hydrated" class="plans-page" data-hydrated="true">
     <header class="plans-page__header">
       <div>
         <p class="plans-page__eyebrow">Регулярные планы</p>

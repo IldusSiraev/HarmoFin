@@ -3,6 +3,7 @@ node_modules/
 .output/
 dist/
 coverage/
+test-results/
 pnpm-lock.yaml
 .superpowers/
 .claude/

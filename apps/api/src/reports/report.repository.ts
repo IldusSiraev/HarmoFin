@@ -164,9 +164,58 @@ export class ReportRepository {
   }
 
   async savingsGoals(budgetId: string) {
-    return (await this.envelopeBalances(budgetId)).filter(
-      (envelope) => envelope.targetAmountMinor !== null || envelope.targetDate !== null,
-    );
+    return this.prisma.$transaction(async (tx) => {
+      const envelopes = await tx.envelope.findMany({
+        where: { budgetId, archivedAt: null, targetAmountMinor: { not: null } },
+        select: {
+          id: true,
+          name: true,
+          envelopeType: true,
+          targetAmountMinor: true,
+          targetDate: true,
+        },
+        orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+      });
+      return Promise.all(
+        envelopes.map(async (envelope) => ({
+          ...envelope,
+          targetAmountMinor: envelope.targetAmountMinor as bigint,
+          balanceMinor: await this.balances.envelopeBalance(tx, budgetId, envelope.id),
+        })),
+      );
+    });
+  }
+
+  async planOccurrences(budgetId: string, filters: ReportFilters) {
+    return this.prisma.planOccurrence.findMany({
+      where: {
+        budgetId,
+        planType: { in: ['INCOME', 'EXPENSE'] },
+        status: { not: 'CANCELLED' },
+        ...(filters.accountId ? { accountId: filters.accountId } : {}),
+        ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
+        ...(filters.envelopeId ? { envelopeId: filters.envelopeId } : {}),
+        ...(filters.from || filters.to
+          ? {
+              scheduledOn: {
+                ...(filters.from ? { gte: dateValue(filters.from) } : {}),
+                ...(filters.to ? { lte: dateValue(filters.to) } : {}),
+              },
+            }
+          : {}),
+      },
+      select: {
+        planId: true,
+        planName: true,
+        planType: true,
+        amountMinor: true,
+        status: true,
+        accountId: true,
+        categoryId: true,
+        envelopeId: true,
+        transaction: { select: { status: true, amountMinor: true } },
+      },
+    });
   }
 }
 

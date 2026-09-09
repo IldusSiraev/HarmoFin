@@ -73,6 +73,10 @@ function envelopeOptions() {
     .map((envelope) => ({ value: envelope.value, label: envelope.label }));
 }
 
+function normalizeAmount(value: string): string {
+  return value.replace(/\s/g, '').replace(',', '.');
+}
+
 function submit() {
   const input = {
     name: form.name.trim(),
@@ -149,8 +153,9 @@ function minorToDecimal(value: string): string {
       required
     />
     <FinanceMoneyInput
-      v-model="form.amount"
+      :model-value="form.amount"
       name="amount"
+      @update:model-value="form.amount = normalizeAmount($event)"
       label="Сумма"
       :error="errors.amount"
       required

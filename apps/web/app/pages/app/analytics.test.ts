@@ -7,6 +7,7 @@ const api = {
   listCategories: vi.fn(),
   listEnvelopes: vi.fn(),
 };
+const route = { query: {} as Record<string, string> };
 const auth = {
   currentData: {
     value: {
@@ -19,7 +20,7 @@ const auth = {
 vi.mock('#imports', () => ({
   definePageMeta: vi.fn(),
   navigateTo: vi.fn(),
-  useRoute: () => ({ query: {} }),
+  useRoute: () => route,
 }));
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => auth }));
 vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) => ({
@@ -40,8 +41,30 @@ const report = {
   ],
 };
 
+const planVsActualReport = {
+  key: 'plan-vs-actual',
+  rows: [
+    {
+      planId: 'plan-id',
+      planName: 'Ипотека',
+      planType: 'EXPENSE',
+      plannedMinor: '300000',
+      actualMinor: '170000',
+      varianceMinor: '-130000',
+      plannedOccurrenceCount: 2,
+      confirmedOccurrenceCount: 1,
+      journalFilters: { planId: 'plan-id', status: 'CONFIRMED' },
+    },
+  ],
+};
+
+const global = {
+  stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } },
+};
+
 describe('analytics page', () => {
   beforeEach(() => {
+    route.query = {};
     vi.clearAllMocks();
     api.getReport.mockResolvedValue(report);
     api.listAccounts.mockResolvedValue([]);
@@ -50,14 +73,23 @@ describe('analytics page', () => {
   });
 
   it('loads selected report and exposes report-to-journal link', async () => {
-    const wrapper = mount(AnalyticsPage, {
-      global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } },
-    });
+    const wrapper = mount(AnalyticsPage, { global });
     await flushPromises();
 
     expect(api.getReport).toHaveBeenCalledWith('budget-id', 'expenses-by-category', {});
     expect(wrapper.get('[data-journal-link]').attributes('href')).toContain(
       'categoryId=category-id',
     );
+  });
+
+  it('loads selected typed plan/fact report from URL', async () => {
+    route.query = { report: 'plan-vs-actual' };
+    api.getReport.mockResolvedValue(planVsActualReport);
+    const wrapper = mount(AnalyticsPage, { global });
+    await flushPromises();
+
+    expect(api.getReport).toHaveBeenCalledWith('budget-id', 'plan-vs-actual', {});
+    expect(wrapper.text()).toContain('Ипотека');
+    expect(wrapper.get('[data-journal-link]').attributes('href')).toContain('planId=plan-id');
   });
 });

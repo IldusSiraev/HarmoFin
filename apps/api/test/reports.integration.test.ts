@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
@@ -24,10 +24,18 @@ type Session = {
 let app: NestFastifyApplication;
 let server: FastifyInstance;
 let owner: Session;
+let editor: Session;
+let viewer: Session;
 let foreign: Session;
 let accountId: string;
 let categoryId: string;
 let envelopeId: string;
+let goalEnvelopeId: string;
+let noDeadlineGoalEnvelopeId: string;
+let archivedGoalEnvelopeId: string;
+let foreignGoalEnvelopeId: string;
+let reportPlanId: string;
+let foreignPlanId: string;
 
 describe('reports API', () => {
   beforeAll(async () => {
@@ -49,13 +57,32 @@ describe('reports API', () => {
     server = app.getHttpAdapter().getInstance() as FastifyInstance;
     await server.ready();
     owner = await register(`reports-owner-${randomUUID()}@harmofin.test`);
+    editor = await register(`reports-editor-${randomUUID()}@harmofin.test`);
+    viewer = await register(`reports-viewer-${randomUUID()}@harmofin.test`);
     foreign = await register(`reports-foreign-${randomUUID()}@harmofin.test`);
+    await prisma.workspaceMembership.createMany({
+      data: [
+        {
+          id: randomUUID(),
+          workspaceId: owner.workspaceId,
+          userId: editor.userId,
+          role: 'EDITOR',
+        },
+        {
+          id: randomUUID(),
+          workspaceId: owner.workspaceId,
+          userId: viewer.userId,
+          role: 'VIEWER',
+        },
+      ],
+    });
     await seedReportData();
   });
 
   afterAll(async () => {
-    if (owner) await cleanup(owner);
-    if (foreign) await cleanup(foreign);
+    for (const session of [owner, editor, viewer, foreign]) {
+      if (session) await cleanup(session);
+    }
     await app.close();
     await prisma.$disconnect();
   });
@@ -70,6 +97,7 @@ describe('reports API', () => {
     'account-balances',
     'envelope-balances',
     'savings-goals',
+    'plan-vs-actual',
   ])('returns confirmed data for %s', async (key) => {
     const response = await getReport(key, { from: '2026-08-10', to: '2026-09-09' });
 
@@ -104,6 +132,95 @@ describe('reports API', () => {
     ]);
   });
 
+  it('calculates plan/fact by occurrence date and confirmed linked actual only', async () => {
+    const response = await getReport('plan-vs-actual', {
+      from: '2026-08-10',
+      to: '2026-09-09',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      key: 'plan-vs-actual',
+      rows: [
+        {
+          planId: reportPlanId,
+          plannedMinor: '450000',
+          actualMinor: '170000',
+          varianceMinor: '-280000',
+          plannedOccurrenceCount: 3,
+          confirmedOccurrenceCount: 1,
+          journalFilters: { planId: reportPlanId, status: 'CONFIRMED' },
+        },
+      ],
+    });
+  });
+
+  it('projects active goal progress without changing financial state', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-09T12:00:00.000Z'));
+    try {
+      const before = await Promise.all([
+        prisma.transaction.count({ where: { budgetId: owner.budgetId } }),
+        prisma.envelope.count({ where: { budgetId: owner.budgetId } }),
+      ]);
+      const response = await getReport('savings-goals', { envelopeId: goalEnvelopeId });
+      const foreignFilter = await getReport('savings-goals', {
+        envelopeId: foreignGoalEnvelopeId,
+      });
+      const after = await Promise.all([
+        prisma.transaction.count({ where: { budgetId: owner.budgetId } }),
+        prisma.envelope.count({ where: { budgetId: owner.budgetId } }),
+      ]);
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        key: 'savings-goals',
+        rows: expect.arrayContaining([
+          expect.objectContaining({
+            envelopeId: goalEnvelopeId,
+            currentMinor: '500',
+            targetMinor: '50000',
+            remainingMinor: '49500',
+            progressPermille: 10,
+            isReached: false,
+            daysRemaining: 7,
+          }),
+          expect.objectContaining({
+            envelopeId: noDeadlineGoalEnvelopeId,
+            currentMinor: '25000',
+            targetMinor: '100000',
+            remainingMinor: '75000',
+            progressPermille: 250,
+            isReached: false,
+            daysRemaining: null,
+          }),
+        ]),
+      });
+      expect(response.json<{ rows: Array<{ envelopeId: string }> }>().rows).not.toContainEqual(
+        expect.objectContaining({ envelopeId: archivedGoalEnvelopeId }),
+      );
+      expect(foreignFilter.statusCode).toBe(404);
+      expect(after).toEqual(before);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('allows editor and viewer to read scoped reports but not foreign users', async () => {
+    const [editorReport, viewerReport, foreignReport] = await Promise.all([
+      getReportFor(editor, 'plan-vs-actual', { from: '2026-08-10', to: '2026-09-09' }),
+      getReportFor(viewer, 'savings-goals', {}),
+      getReportFor(foreign, 'plan-vs-actual', {}),
+    ]);
+
+    expect(editorReport.statusCode).toBe(200);
+    expect(editorReport.json()).toMatchObject({ key: 'plan-vs-actual' });
+    expect(viewerReport.statusCode).toBe(200);
+    expect(viewerReport.json()).toMatchObject({ key: 'savings-goals' });
+    expect(foreignReport.statusCode).toBe(404);
+    expect(foreignReport.json()).toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
+  });
+
   it('rejects oversized ranges, foreign filter IDs and foreign budgets', async () => {
     const oversized = await getReport('net-cash-flow', { from: '2020-01-01', to: '2026-01-01' });
     const foreignFilter = await getReport('net-cash-flow', { accountId: randomUUID() });
@@ -124,7 +241,9 @@ describe('reports API', () => {
     const incomeCategoryId = randomUUID();
     categoryId = randomUUID();
     envelopeId = randomUUID();
-    const goalEnvelopeId = randomUUID();
+    goalEnvelopeId = randomUUID();
+    noDeadlineGoalEnvelopeId = randomUUID();
+    archivedGoalEnvelopeId = randomUUID();
     const incomeId = randomUUID();
     const occurredOn = new Date('2026-08-10T00:00:00.000Z');
 
@@ -184,10 +303,41 @@ describe('reports API', () => {
           envelopeType: 'SAVINGS_GOAL',
           startingBalanceMinor: 0n,
           targetAmountMinor: 50_000n,
-          targetDate: new Date('2027-01-01T00:00:00.000Z'),
+          targetDate: new Date('2026-09-16T00:00:00.000Z'),
           displayOrder: 1,
         },
+        {
+          id: noDeadlineGoalEnvelopeId,
+          budgetId: owner.budgetId,
+          name: 'Резерв отчёт',
+          envelopeType: 'SAVINGS_GOAL',
+          startingBalanceMinor: 25_000n,
+          targetAmountMinor: 100_000n,
+          displayOrder: 2,
+        },
+        {
+          id: archivedGoalEnvelopeId,
+          budgetId: owner.budgetId,
+          name: 'Архивная цель отчёт',
+          envelopeType: 'SAVINGS_GOAL',
+          startingBalanceMinor: 10_000n,
+          targetAmountMinor: 20_000n,
+          archivedAt: new Date('2026-09-01T00:00:00.000Z'),
+          displayOrder: 3,
+        },
       ],
+    });
+    foreignGoalEnvelopeId = randomUUID();
+    await prisma.envelope.create({
+      data: {
+        id: foreignGoalEnvelopeId,
+        budgetId: foreign.budgetId,
+        name: 'Чужая цель отчёт',
+        envelopeType: 'SAVINGS_GOAL',
+        startingBalanceMinor: 0n,
+        targetAmountMinor: 10_000n,
+        displayOrder: 0,
+      },
     });
     await prisma.transaction.createMany({
       data: [
@@ -271,13 +421,168 @@ describe('reports API', () => {
         amountMinor: 500n,
       },
     });
+
+    const planAccountId = randomUUID();
+    const planCategoryId = randomUUID();
+    const planEnvelopeId = randomUUID();
+    const confirmedActualId = randomUUID();
+    const draftActualId = randomUUID();
+    reportPlanId = randomUUID();
+    await prisma.account.create({
+      data: {
+        id: planAccountId,
+        budgetId: owner.budgetId,
+        name: 'Счёт плана отчёта',
+        accountType: 'CASH',
+        startingBalanceMinor: 0n,
+        accountingStartDate: occurredOn,
+      },
+    });
+    await prisma.category.create({
+      data: {
+        id: planCategoryId,
+        budgetId: owner.budgetId,
+        name: 'Ипотека отчёт',
+        categoryType: 'EXPENSE',
+        displayOrder: 2,
+      },
+    });
+    await prisma.envelope.create({
+      data: {
+        id: planEnvelopeId,
+        budgetId: owner.budgetId,
+        name: 'Конверт плана отчёта',
+        envelopeType: 'MANDATORY_EXPENSES',
+        startingBalanceMinor: 0n,
+        displayOrder: 2,
+      },
+    });
+    await prisma.transaction.createMany({
+      data: [
+        {
+          id: confirmedActualId,
+          budgetId: owner.budgetId,
+          transactionType: 'EXPENSE',
+          status: 'CONFIRMED',
+          amountMinor: 170_000n,
+          occurredOn: new Date('2026-10-10T00:00:00.000Z'),
+          accountId: planAccountId,
+          categoryId: planCategoryId,
+          envelopeId: planEnvelopeId,
+          confirmedAt: new Date(),
+          createdByUserId: owner.userId,
+          updatedByUserId: owner.userId,
+        },
+        {
+          id: draftActualId,
+          budgetId: owner.budgetId,
+          transactionType: 'EXPENSE',
+          status: 'DRAFT',
+          amountMinor: 150_000n,
+          occurredOn: new Date('2026-08-25T00:00:00.000Z'),
+          accountId: planAccountId,
+          categoryId: planCategoryId,
+          envelopeId: planEnvelopeId,
+          createdByUserId: owner.userId,
+          updatedByUserId: owner.userId,
+        },
+      ],
+    });
+    await prisma.regularPlan.create({
+      data: {
+        id: reportPlanId,
+        workspaceId: owner.workspaceId,
+        budgetId: owner.budgetId,
+        name: 'Ипотека',
+        planType: 'EXPENSE',
+        amountMinor: 150_000n,
+        anchorOn: occurredOn,
+        startOn: occurredOn,
+        recurrence: 'MONTHLY',
+        accountId: planAccountId,
+        categoryId: planCategoryId,
+        envelopeId: planEnvelopeId,
+        createdByUserId: owner.userId,
+        updatedByUserId: owner.userId,
+      },
+    });
+    await prisma.planOccurrence.createMany({
+      data: [
+        {
+          id: randomUUID(),
+          workspaceId: owner.workspaceId,
+          budgetId: owner.budgetId,
+          planId: reportPlanId,
+          scheduledOn: new Date('2026-08-10T00:00:00.000Z'),
+          planName: 'Ипотека',
+          planType: 'EXPENSE',
+          amountMinor: 150_000n,
+          accountId: planAccountId,
+          categoryId: planCategoryId,
+          envelopeId: planEnvelopeId,
+          status: 'COMPLETED',
+          transactionId: confirmedActualId,
+          completedAt: new Date(),
+        },
+        {
+          id: randomUUID(),
+          workspaceId: owner.workspaceId,
+          budgetId: owner.budgetId,
+          planId: reportPlanId,
+          scheduledOn: new Date('2026-08-20T00:00:00.000Z'),
+          planName: 'Ипотека',
+          planType: 'EXPENSE',
+          amountMinor: 150_000n,
+          accountId: planAccountId,
+          categoryId: planCategoryId,
+          envelopeId: planEnvelopeId,
+          status: 'SKIPPED',
+          skippedAt: new Date(),
+        },
+        {
+          id: randomUUID(),
+          workspaceId: owner.workspaceId,
+          budgetId: owner.budgetId,
+          planId: reportPlanId,
+          scheduledOn: new Date('2026-08-25T00:00:00.000Z'),
+          planName: 'Ипотека',
+          planType: 'EXPENSE',
+          amountMinor: 150_000n,
+          accountId: planAccountId,
+          categoryId: planCategoryId,
+          envelopeId: planEnvelopeId,
+          status: 'PENDING',
+          transactionId: draftActualId,
+        },
+      ],
+    });
+    foreignPlanId = randomUUID();
+    await prisma.regularPlan.create({
+      data: {
+        id: foreignPlanId,
+        workspaceId: foreign.workspaceId,
+        budgetId: foreign.budgetId,
+        name: 'Чужой план',
+        planType: 'SAVINGS',
+        amountMinor: 1_000n,
+        anchorOn: occurredOn,
+        startOn: occurredOn,
+        recurrence: 'MONTHLY',
+        createdByUserId: foreign.userId,
+        updatedByUserId: foreign.userId,
+      },
+    });
   }
 
   function getReport(key: string, query: Record<string, string>) {
+    return getReportFor(owner, key, query);
+  }
+
+  function getReportFor(session: Session, key: string, query: Record<string, string>) {
     return server.inject({
       method: 'GET',
       url: `/api/v1/budgets/${owner.budgetId}/reports/${key}?${new URLSearchParams(query)}`,
-      cookies: { harmofin_session: owner.cookie },
+      cookies: { harmofin_session: session.cookie },
     });
   }
 

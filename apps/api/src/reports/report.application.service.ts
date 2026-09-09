@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { cycleAndPeriodFor } from '../cycles/cycle-period.domain.js';
+import { cycleAndPeriodFor, todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { formatMinorUnits } from '../common/money/minor-units.js';
 import { resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import { ReportRepository } from './report.repository.js';
@@ -38,7 +38,16 @@ export class ReportApplicationService {
       };
     }
     if (key === 'savings-goals') {
-      return { key, rows: goalRows(await this.repository.savingsGoals(budgetId)) };
+      return {
+        key,
+        rows: goalRows(await this.repository.savingsGoals(budgetId), new Date(), budget.timezone),
+      };
+    }
+    if (key === 'plan-vs-actual') {
+      return {
+        key,
+        rows: planVsActualRows(await this.repository.planOccurrences(budgetId, filters)),
+      };
     }
 
     const [transactions, transferParts] = await Promise.all([
@@ -70,6 +79,83 @@ type TransactionRow = {
 };
 
 type CycleSettings = { cycleStartDay: number; periodBoundaryOffset: number; timezone: string };
+
+type PlanOccurrenceRow = {
+  planId: string;
+  planName: string;
+  planType: 'INCOME' | 'EXPENSE' | 'SAVINGS';
+  amountMinor: bigint;
+  status: 'PENDING' | 'DUE' | 'SKIPPED' | 'COMPLETED' | 'CANCELLED';
+  accountId: string | null;
+  categoryId: string | null;
+  envelopeId: string | null;
+  transaction: {
+    status: 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED';
+    amountMinor: bigint;
+  } | null;
+};
+
+export type PlanVsActualRow = {
+  planId: string;
+  planName: string;
+  planType: 'INCOME' | 'EXPENSE';
+  plannedMinor: string;
+  actualMinor: string;
+  varianceMinor: string;
+  plannedOccurrenceCount: number;
+  confirmedOccurrenceCount: number;
+  journalFilters: { planId: string; status: 'CONFIRMED' };
+};
+
+function planVsActualRows(rows: PlanOccurrenceRow[]): PlanVsActualRow[] {
+  const grouped = new Map<
+    string,
+    {
+      planName: string;
+      planType: 'INCOME' | 'EXPENSE';
+      plannedMinor: bigint;
+      actualMinor: bigint;
+      plannedOccurrenceCount: number;
+      confirmedOccurrenceCount: number;
+    }
+  >();
+
+  for (const row of rows) {
+    if (row.status === 'CANCELLED' || row.planType === 'SAVINGS') continue;
+    const current = grouped.get(row.planId) ?? {
+      planName: row.planName,
+      planType: row.planType,
+      plannedMinor: 0n,
+      actualMinor: 0n,
+      plannedOccurrenceCount: 0,
+      confirmedOccurrenceCount: 0,
+    };
+    current.plannedMinor += row.amountMinor;
+    current.plannedOccurrenceCount += 1;
+    if (row.transaction?.status === 'CONFIRMED') {
+      current.actualMinor += row.transaction.amountMinor;
+      current.confirmedOccurrenceCount += 1;
+    }
+    grouped.set(row.planId, current);
+  }
+
+  return [...grouped.entries()]
+    .sort(([leftId, left], [rightId, right]) => {
+      const comparison = left.planName.localeCompare(right.planName, 'ru');
+      return comparison === 0 ? leftId.localeCompare(rightId) : comparison;
+    })
+    .map(([planId, row]) => ({
+      planId,
+      planName: row.planName,
+      planType: row.planType,
+      plannedMinor: formatMinorUnits(row.plannedMinor),
+      actualMinor: formatMinorUnits(row.actualMinor),
+      varianceMinor: formatMinorUnits(row.actualMinor - row.plannedMinor),
+      plannedOccurrenceCount: row.plannedOccurrenceCount,
+      confirmedOccurrenceCount: row.confirmedOccurrenceCount,
+      journalFilters: { planId, status: 'CONFIRMED' },
+    }));
+}
 
 function expensesByCategory(rows: TransactionRow[]) {
   const grouped = new Map<string, { id: string; name: string; amountMinor: bigint }>();
@@ -231,23 +317,63 @@ function balanceRows(
   }));
 }
 
+export type GoalProgressRow = {
+  envelopeId: string;
+  name: string;
+  envelopeType: string;
+  currentMinor: string;
+  targetMinor: string;
+  targetDate: string | null;
+  remainingMinor: string;
+  progressPermille: number;
+  isReached: boolean;
+  daysRemaining: number | null;
+  journalFilters: { envelopeId: string };
+};
+
 function goalRows(
   rows: Array<{
     id: string;
     name: string;
+    envelopeType: string;
     balanceMinor: bigint;
-    targetAmountMinor: bigint | null;
+    targetAmountMinor: bigint;
     targetDate: Date | null;
   }>,
-) {
-  return rows.map((row) => ({
-    envelopeId: row.id,
-    name: row.name,
-    currentMinor: formatMinorUnits(row.balanceMinor),
-    targetMinor: row.targetAmountMinor === null ? null : formatMinorUnits(row.targetAmountMinor),
-    targetDate: row.targetDate?.toISOString().slice(0, 10) ?? null,
-    journalFilters: { envelopeId: row.id },
-  }));
+  now: Date,
+  timezone: string,
+): GoalProgressRow[] {
+  const today = todayInTimezone(now, timezone);
+  return rows.map((row) => {
+    const remainingMinor =
+      row.targetAmountMinor > row.balanceMinor ? row.targetAmountMinor - row.balanceMinor : 0n;
+    const progressPermille = Number(
+      (row.balanceMinor * 1000n) / row.targetAmountMinor > 1000n
+        ? 1000n
+        : (row.balanceMinor * 1000n) / row.targetAmountMinor,
+    );
+    const targetDate = row.targetDate ? dateText(row.targetDate) : null;
+    return {
+      envelopeId: row.id,
+      name: row.name,
+      envelopeType: row.envelopeType,
+      currentMinor: formatMinorUnits(row.balanceMinor),
+      targetMinor: formatMinorUnits(row.targetAmountMinor),
+      targetDate,
+      remainingMinor: formatMinorUnits(remainingMinor),
+      progressPermille,
+      isReached: row.balanceMinor >= row.targetAmountMinor,
+      daysRemaining: targetDate ? calendarDaysBetween(today, targetDate) : null,
+      journalFilters: { envelopeId: row.id },
+    };
+  });
+}
+
+function calendarDaysBetween(start: string, end: string): number {
+  return (
+    (new Date(`${end}T00:00:00.000Z`).getTime() - new Date(`${start}T00:00:00.000Z`).getTime()) /
+    86_400_000
+  );
 }
 
 function dateText(value: Date): string {

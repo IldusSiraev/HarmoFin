@@ -42,6 +42,7 @@ type Filters = {
   accountId: string;
   categoryId: string;
   envelopeId: string;
+  planId: string;
   sortBy: 'occurredOn' | 'amount';
   sortDirection: 'asc' | 'desc';
 };
@@ -54,6 +55,9 @@ const nextCursor = ref<string | null>(null);
 const loading = ref(true);
 const hydrated = ref(false);
 const pending = ref(false);
+const exportPending = ref(false);
+const exportStatus = ref('');
+const exportError = ref('');
 const error = ref('');
 const formErrors = ref<Partial<Record<string, string>>>({});
 const statusText = ref('');
@@ -74,7 +78,9 @@ const confirmation = ref<null | {
 const filters = ref<Filters>(filtersFromQuery(route.query));
 let requestVersion = 0;
 
-const budget = computed(() => auth.currentData.value?.workspaces[0]?.budgets[0] ?? null);
+const workspace = computed(() => auth.currentData.value?.workspaces[0] ?? null);
+const budget = computed(() => workspace.value?.budgets[0] ?? null);
+const isOwner = computed(() => workspace.value?.role === 'OWNER');
 const accounts = ref<Array<{ value: string; label: string }>>([]);
 const categories = ref<
   Array<{
@@ -355,6 +361,7 @@ function filtersFromQuery(
     accountId: value('accountId'),
     categoryId: value('categoryId'),
     envelopeId: value('envelopeId'),
+    planId: value('planId'),
     sortBy: sortBy === 'amount' ? 'amount' : 'occurredOn',
     sortDirection: sortDirection === 'asc' ? 'asc' : 'desc',
   };
@@ -371,9 +378,35 @@ function transactionFilters() {
     ...(filters.value.accountId ? { accountId: filters.value.accountId } : {}),
     ...(filters.value.categoryId ? { categoryId: filters.value.categoryId } : {}),
     ...(filters.value.envelopeId ? { envelopeId: filters.value.envelopeId } : {}),
+    ...(filters.value.planId ? { planId: filters.value.planId } : {}),
     sortBy: filters.value.sortBy,
     sortDirection: filters.value.sortDirection,
   };
+}
+
+async function downloadCsv() {
+  if (!budget.value || !isOwner.value) return;
+  exportPending.value = true;
+  exportStatus.value = '';
+  exportError.value = '';
+  try {
+    const blob = await api.downloadTransactionsCsv(budget.value.id, transactionFilters());
+    if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'harmofin-operations.csv';
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    }
+    exportStatus.value = 'Экспорт CSV подготовлен.';
+  } catch {
+    exportError.value = 'Не удалось скачать CSV. Сузьте фильтры или повторите попытку.';
+  } finally {
+    exportPending.value = false;
+  }
 }
 
 function resetFilters() {
@@ -388,6 +421,7 @@ function resetFilters() {
     accountId: '',
     categoryId: '',
     envelopeId: '',
+    planId: '',
     sortBy: 'occurredOn',
     sortDirection: 'desc',
   };
@@ -436,8 +470,20 @@ function rejectAllocationProposal(transactionId: string) {
         <p class="operations-page__eyebrow">Журнал</p>
         <h1>Операции</h1>
       </div>
-      <UiButton data-action="create-operation" @click="openCreate">Добавить операцию</UiButton>
+      <div class="operations-page__header-actions">
+        <UiButton
+          v-if="isOwner"
+          data-action="download-csv"
+          variant="secondary"
+          :disabled="exportPending"
+          @click="downloadCsv"
+          >{{ exportPending ? 'Подготовка CSV…' : 'Экспорт CSV' }}</UiButton
+        >
+        <UiButton data-action="create-operation" @click="openCreate">Добавить операцию</UiButton>
+      </div>
     </header>
+    <p v-if="exportStatus" class="operations-page__status" role="status">{{ exportStatus }}</p>
+    <p v-if="exportError" class="operations-page__error" role="alert">{{ exportError }}</p>
     <p v-if="statusText" class="operations-page__status" role="status">{{ statusText }}</p>
     <p v-if="error" class="operations-page__error" role="alert">
       {{ error }} <UiButton variant="tertiary" @click="load()">Повторить</UiButton>
@@ -697,6 +743,7 @@ function rejectAllocationProposal(transactionId: string) {
   gap: var(--hf-space-3);
   margin-bottom: var(--hf-space-4);
 }
+.operations-page__header-actions,
 .operations-page__sort,
 .operations-page__actions {
   display: flex;

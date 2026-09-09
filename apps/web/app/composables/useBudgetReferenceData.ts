@@ -1,4 +1,4 @@
-import { useApiClient } from './useApiClient.js';
+import { type RequestClient, useApiClient } from './useApiClient.js';
 
 export type ReferenceStatus = 'active' | 'archived' | 'all';
 export type AccountType = 'BANK_ACCOUNT' | 'BANK_CARD' | 'CASH';
@@ -288,6 +288,7 @@ export interface TransactionListInput {
   accountId?: string | undefined;
   categoryId?: string | undefined;
   envelopeId?: string | undefined;
+  planId?: string | undefined;
   sortBy?: 'occurredOn' | 'amount' | undefined;
   sortDirection?: 'asc' | 'desc' | undefined;
 }
@@ -296,6 +297,8 @@ export interface TransactionListResult {
   items: TransactionDto[];
   nextCursor: string | null;
 }
+
+export type TransactionExportInput = Omit<TransactionListInput, 'limit' | 'cursor'>;
 
 export type TransferStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED';
 
@@ -439,7 +442,8 @@ export type ReportKey =
   | 'net-cash-flow'
   | 'account-balances'
   | 'envelope-balances'
-  | 'savings-goals';
+  | 'savings-goals'
+  | 'plan-vs-actual';
 
 export type ReportFilters = {
   from?: string | undefined;
@@ -451,10 +455,50 @@ export type ReportFilters = {
   currency?: 'RUB' | undefined;
 };
 
-export type ReportDto = {
-  key: ReportKey;
+export interface PlanVsActualRowDto {
+  planId: string;
+  planName: string;
+  planType: 'INCOME' | 'EXPENSE';
+  plannedMinor: string;
+  actualMinor: string;
+  varianceMinor: string;
+  plannedOccurrenceCount: number;
+  confirmedOccurrenceCount: number;
+  journalFilters: { planId: string; status: 'CONFIRMED' };
+}
+
+export interface PlanVsActualReportDto {
+  key: 'plan-vs-actual';
+  rows: PlanVsActualRowDto[];
+}
+
+export interface GoalProgressRowDto {
+  envelopeId: string;
+  name: string;
+  envelopeType: string;
+  currentMinor: string;
+  targetMinor: string;
+  targetDate: string | null;
+  remainingMinor: string;
+  progressPermille: number;
+  isReached: boolean;
+  daysRemaining: number | null;
+  journalFilters: { envelopeId: string };
+}
+
+export interface GoalProgressReportDto {
+  key: 'savings-goals';
+  rows: GoalProgressRowDto[];
+}
+
+export type GenericReportKey = Exclude<ReportKey, 'plan-vs-actual' | 'savings-goals'>;
+
+export interface GenericReportDto {
+  key: GenericReportKey;
   rows: Array<Record<string, unknown>>;
-};
+}
+
+export type ReportDto = GenericReportDto | PlanVsActualReportDto | GoalProgressReportDto;
 
 export type DashboardWarning = {
   subject: 'ACCOUNT' | 'ENVELOPE';
@@ -593,6 +637,7 @@ export interface BudgetReferenceDataApi {
     idempotencyKey: string,
   ): Promise<TransactionDto>;
   listTransactions(budgetId: string, input?: TransactionListInput): Promise<TransactionListResult>;
+  downloadTransactionsCsv(budgetId: string, input?: TransactionListInput): Promise<Blob>;
   getTransaction(budgetId: string, transactionId: string): Promise<TransactionDto>;
   createTransaction(
     budgetId: string,
@@ -670,10 +715,6 @@ export interface BudgetReferenceDataApi {
     idempotencyKey: string,
   ): Promise<IncomeAllocationDto>;
 }
-
-type RequestClient = {
-  request<T>(path: string, options?: RequestInit): Promise<T>;
-};
 
 export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDataApi {
   function budgetPath(budgetId: string) {
@@ -870,6 +911,22 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
           ),
         ),
       ),
+    downloadTransactionsCsv: (budgetId, input = {}) => {
+      const filters = { ...input };
+      delete filters.limit;
+      delete filters.cursor;
+      return api.requestBlob(
+        withQuery(
+          `${budgetPath(budgetId)}/exports/transactions.csv`,
+          Object.fromEntries(
+            Object.entries(filters).map(([name, value]) => [
+              name,
+              value === undefined ? undefined : String(value),
+            ]),
+          ),
+        ),
+      );
+    },
     getTransaction: (budgetId, transactionId) =>
       api.request<TransactionDto>(transactionPath(budgetId, transactionId)),
     createTransaction: (budgetId, input, idempotencyKey) =>

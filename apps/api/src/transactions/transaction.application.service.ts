@@ -646,7 +646,7 @@ export class TransactionApplicationService {
   }
 }
 
-function listQuery(
+export function listQuery(
   input: ListTransactionsInput,
   budget: {
     cycleStartDay: number;
@@ -669,6 +669,7 @@ function listQuery(
     ...(input.accountId ? { accountId: input.accountId } : {}),
     ...(input.categoryId ? { categoryId: input.categoryId } : {}),
     ...(input.envelopeId ? { envelopeId: input.envelopeId } : {}),
+    ...(input.planId ? { planId: input.planId } : {}),
     sortBy: input.sortBy,
     sortDirection: input.sortDirection,
   };
