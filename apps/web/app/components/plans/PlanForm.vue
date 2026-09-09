@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue';
+import { reactive, watch } from 'vue';
 
 import type {
   CategoryDto,
@@ -59,18 +59,19 @@ watch(
   },
 );
 
-const categoryOptions = computed(() =>
-  props.categories
+function categoryOptions() {
+  return props.categories
     .filter(
       (category) => category.categoryType === (form.planType === 'INCOME' ? 'INCOME' : 'EXPENSE'),
     )
-    .map((category) => ({ value: category.id, label: category.name })),
-);
-const envelopeOptions = computed(() =>
-  props.envelopes
+    .map((category) => ({ value: category.id, label: category.name }));
+}
+
+function envelopeOptions() {
+  return props.envelopes
     .filter((envelope) => form.planType !== 'SAVINGS' || envelope.envelopeType === 'SAVINGS_GOAL')
-    .map((envelope) => ({ value: envelope.value, label: envelope.label })),
-);
+    .map((envelope) => ({ value: envelope.value, label: envelope.label }));
+}
 
 function submit() {
   const input = {
@@ -210,7 +211,7 @@ function minorToDecimal(value: string): string {
       v-model="form.categoryId"
       name="categoryId"
       label="Категория"
-      :options="categoryOptions"
+      :options="categoryOptions()"
       :error="errors.categoryId"
       required
     />
@@ -219,7 +220,7 @@ function minorToDecimal(value: string): string {
       v-model="form.envelopeId"
       name="envelopeId"
       label="Конверт"
-      :options="envelopeOptions"
+      :options="envelopeOptions()"
       :error="errors.envelopeId"
       required
     />

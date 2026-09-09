@@ -187,7 +187,7 @@ describe('Stage 5 budget isolation and role matrix', () => {
         payload: { ...planPayload(ownerReferences), ...foreignReference },
       });
 
-      expect(response.statusCode).toBe(400);
+      expect(response.statusCode).toBe(422);
       expect(response.json()).toMatchObject({ code: 'REFERENCE_INVALID' });
     }
   });

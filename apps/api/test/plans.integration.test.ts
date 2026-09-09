@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
+import { PlanOccurrenceHandler } from '../../worker/src/plan-occurrence.handler.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ?? 'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin';
@@ -108,6 +109,53 @@ describe('regular plans API', () => {
     });
   });
 
+  it('requires a one-time plan anchor to match its start date', async () => {
+    const invalidCreate = await server.inject({
+      method: 'POST',
+      url: planPath(),
+      headers: mutationHeaders('create-invalid-one-time-plan'),
+      cookies: { harmofin_session: owner.cookie },
+      payload: {
+        name: 'Разовый платёж',
+        planType: 'EXPENSE',
+        amount: '1000.00',
+        anchorOn: '2099-01-10',
+        startOn: '2099-01-11',
+        recurrence: 'ONE_TIME',
+        categoryId: expenseCategoryId,
+        envelopeId: mandatoryEnvelopeId,
+      },
+    });
+    const validCreate = await server.inject({
+      method: 'POST',
+      url: planPath(),
+      headers: mutationHeaders('create-valid-one-time-plan'),
+      cookies: { harmofin_session: owner.cookie },
+      payload: {
+        name: 'Разовый платёж для изменения',
+        planType: 'EXPENSE',
+        amount: '1000.00',
+        anchorOn: '2099-01-10',
+        startOn: '2099-01-10',
+        recurrence: 'ONE_TIME',
+        categoryId: expenseCategoryId,
+        envelopeId: mandatoryEnvelopeId,
+      },
+    });
+    const invalidUpdate = await server.inject({
+      method: 'PATCH',
+      url: planPath(validCreate.json<{ id: string }>().id),
+      headers: mutationHeaders('update-invalid-one-time-plan'),
+      cookies: { harmofin_session: owner.cookie },
+      payload: { anchorOn: '2099-01-11' },
+    });
+
+    expect(invalidCreate.statusCode).toBe(400);
+    expect(invalidUpdate.statusCode).toBe(400);
+    expect(invalidCreate.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
+    expect(invalidUpdate.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
+  });
+
   it('updates plan and cancels only future pending occurrences', async () => {
     const create = await server.inject({
       method: 'POST',
@@ -145,6 +193,61 @@ describe('regular plans API', () => {
     await expect(
       prisma.planOccurrence.findUniqueOrThrow({ where: { id: futureOccurrence.id } }),
     ).resolves.toMatchObject({ status: 'CANCELLED', cancellationReason: 'PLAN_CHANGED' });
+  });
+
+  it('materializes a replacement snapshot after a plan change', async () => {
+    const create = await server.inject({
+      method: 'POST',
+      url: planPath(),
+      headers: mutationHeaders('create-plan-for-replacement'),
+      cookies: { harmofin_session: owner.cookie },
+      payload: {
+        name: 'Страховка',
+        planType: 'EXPENSE',
+        amount: '1000.00',
+        anchorOn: '2099-01-15',
+        startOn: '2099-01-15',
+        recurrence: 'ONE_TIME',
+        categoryId: expenseCategoryId,
+        envelopeId: mandatoryEnvelopeId,
+      },
+    });
+    const planId = create.json<{ id: string }>().id;
+    const cancelled = await createOccurrence(planId, '2099-01-15');
+
+    const update = await server.inject({
+      method: 'PATCH',
+      url: planPath(planId),
+      headers: mutationHeaders('change-plan-for-replacement'),
+      cookies: { harmofin_session: owner.cookie },
+      payload: { amount: '2000.00' },
+    });
+    await new PlanOccurrenceHandler(prisma).execute(
+      new Date('2098-11-16T12:00:00.000Z'),
+      owner.budgetId,
+    );
+
+    expect(update.statusCode).toBe(200);
+    await expect(
+      prisma.planOccurrence.findMany({
+        where: { planId, scheduledOn: new Date('2099-01-15T00:00:00.000Z') },
+        select: { id: true, status: true, amountMinor: true, cancellationReason: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ).resolves.toEqual([
+      {
+        id: cancelled.id,
+        status: 'CANCELLED',
+        amountMinor: 100_000n,
+        cancellationReason: 'PLAN_CHANGED',
+      },
+      {
+        id: expect.any(String),
+        status: 'PENDING',
+        amountMinor: 200_000n,
+        cancellationReason: null,
+      },
+    ]);
   });
 
   it('disables and logically deletes plans while cancelling future occurrences', async () => {
@@ -297,9 +400,9 @@ describe('regular plans API', () => {
     });
     await prisma.account.update({ where: { id: accountId }, data: { archivedAt: null } });
 
-    expect(typeMismatch.statusCode).toBe(400);
-    expect(savingsMismatch.statusCode).toBe(400);
-    expect(archivedAccount.statusCode).toBe(400);
+    expect(typeMismatch.statusCode).toBe(422);
+    expect(savingsMismatch.statusCode).toBe(422);
+    expect(archivedAccount.statusCode).toBe(422);
   });
 
   it('allows editor mutations but reserves deletion for owner', async () => {

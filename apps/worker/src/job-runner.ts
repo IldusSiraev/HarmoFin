@@ -85,6 +85,5 @@ function nextRunAt(jobType: WorkerJobType, now: Date): Date {
 }
 
 function errorText(error: unknown): string {
-  if (error instanceof Error) return `${error.name}: ${error.message}`.slice(0, 500);
-  return 'Unknown error';
+  return error instanceof Error ? error.name : 'Unknown error';
 }

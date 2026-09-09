@@ -20,12 +20,12 @@ const auth = {
   },
   loadMe: vi.fn(),
 };
-const { navigateTo } = vi.hoisted(() => ({ navigateTo: vi.fn() }));
+const { navigateTo, route } = vi.hoisted(() => ({ navigateTo: vi.fn(), route: { query: {} } }));
 
 vi.mock('#imports', () => ({
   definePageMeta: vi.fn(),
   navigateTo,
-  useRoute: () => ({ query: {} }),
+  useRoute: () => route,
 }));
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => auth }));
 vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) => ({
@@ -56,6 +56,7 @@ const occurrence = {
 describe('plans page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    route.query = {};
     api.listRegularPlans.mockResolvedValue([]);
     api.listPlanOccurrences.mockResolvedValue([occurrence]);
     api.listAccounts.mockResolvedValue([{ id: 'account-id', name: 'Счёт планов' }]);
@@ -103,6 +104,16 @@ describe('plans page', () => {
 
     expect(wrapper.text()).toContain('Укажите название плана.');
     expect(wrapper.get('[name="name"]').attributes('aria-invalid')).toBe('true');
+  });
+
+  it('highlights occurrence selected by notification route', async () => {
+    route.query = { occurrence: 'occurrence-id' };
+    const wrapper = mount(PlansPage);
+    await flushPromises();
+
+    expect(wrapper.get('.occurrence-card').classes()).toContain(
+      'plans-page__occurrence--highlighted',
+    );
   });
 
   it('does not offer draft creation for savings occurrence', async () => {

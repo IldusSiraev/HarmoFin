@@ -123,10 +123,14 @@ async function seedOccurrence(email: string, planName: string) {
   const plan = await prisma.regularPlan.findFirstOrThrow({
     where: { budgetId: budget.id, name: planName },
   });
-  return prisma.planOccurrence.upsert({
-    where: { planId_scheduledOn: { planId: plan.id, scheduledOn: plan.startOn } },
-    update: { status: 'DUE' },
-    create: {
+  const existing = await prisma.planOccurrence.findFirst({
+    where: { planId: plan.id, scheduledOn: plan.startOn, status: { not: 'CANCELLED' } },
+  });
+  if (existing) {
+    return prisma.planOccurrence.update({ where: { id: existing.id }, data: { status: 'DUE' } });
+  }
+  return prisma.planOccurrence.create({
+    data: {
       id: randomUUID(),
       workspaceId: budget.workspaceId,
       budgetId: budget.id,

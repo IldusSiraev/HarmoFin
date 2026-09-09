@@ -174,6 +174,35 @@ describe('internal notifications', () => {
     ).toBeNull();
   });
 
+  it('lists unread notifications before read notifications', async () => {
+    await prisma.notification.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: owner.workspaceId,
+        budgetId: owner.budgetId,
+        userId: owner.userId,
+        notificationType: 'PLAN_TODAY',
+        occurrenceId: todayOccurrenceId,
+        title: 'Прочитанное уведомление',
+        body: 'Это уведомление не должно быть первым.',
+        actionPath: `/app/plans?occurrence=${todayOccurrenceId}`,
+        notificationKey: `read-order:${randomUUID()}`,
+        readAt: new Date(),
+      },
+    });
+
+    const response = await server.inject({
+      method: 'GET',
+      url: notificationPath(),
+      cookies: { harmofin_session: owner.cookie },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(
+      response.json<{ items: Array<{ readAt: string | null }> }>().items[0]?.readAt,
+    ).toBeNull();
+  });
+
   it('lists recipient notifications and idempotently marks them read', async () => {
     const list = await server.inject({
       method: 'GET',

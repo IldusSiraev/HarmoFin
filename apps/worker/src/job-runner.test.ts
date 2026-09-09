@@ -87,11 +87,6 @@ describe('JobRunner', () => {
     await runner.start();
     await runner.stop();
 
-    expect(repository.retry).toHaveBeenCalledWith(
-      'job-id',
-      2,
-      now,
-      expect.stringMatching(/^Error: database timeout$/),
-    );
+    expect(repository.retry).toHaveBeenCalledWith('job-id', 2, now, 'Error');
   });
 });

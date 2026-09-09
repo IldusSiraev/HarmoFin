@@ -20,6 +20,7 @@ import {
   useBudgetReferenceData,
 } from '../../composables/useBudgetReferenceData.js';
 
+defineOptions({ name: 'PlansPage' });
 definePageMeta({ middleware: 'auth' });
 
 const auth = useAuth();
@@ -203,9 +204,9 @@ function errorMessage(exception: unknown) {
     : 'Не удалось выполнить действие. Повторите попытку.';
 }
 
-const highlightedOccurrenceId = computed(() =>
-  typeof route.query.occurrence === 'string' ? route.query.occurrence : null,
-);
+function isHighlightedOccurrence(occurrenceId: string) {
+  return route.query.occurrence === occurrenceId;
+}
 </script>
 
 <template>
@@ -246,7 +247,7 @@ const highlightedOccurrenceId = computed(() =>
             v-for="occurrence in occurrences"
             :key="occurrence.id"
             :class="{
-              'plans-page__occurrence--highlighted': occurrence.id === highlightedOccurrenceId,
+              'plans-page__occurrence--highlighted': isHighlightedOccurrence(occurrence.id),
             }"
             :occurrence="occurrence"
             :pending="pending"

@@ -1,16 +1,17 @@
 import { createHash } from 'node:crypto';
 
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import type { PlanOccurrenceCancellationReason } from '@prisma/client';
 
 import { todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
-import {
-  forbidden,
-  invalidReference,
-  resourceNotFound,
-} from '../common/reference-data/reference-data.errors.js';
+import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import {
   TransactionRepository,
   type TransactionCreateData,
@@ -383,7 +384,7 @@ export class RegularPlanApplicationService {
     occurrence: PlanOccurrenceRecord,
     userId: string,
   ): Promise<TransactionCreateData> {
-    if (!occurrence.accountId || !occurrence.categoryId) throw invalidReference();
+    if (!occurrence.accountId || !occurrence.categoryId) throw invalidPlanReference();
     const references = await this.transactions.findActiveReferences(
       tx,
       occurrence.budgetId,
@@ -403,7 +404,7 @@ export class RegularPlanApplicationService {
           references.envelope.currency !== 'RUB' ||
           references.envelope.scale !== 2))
     ) {
-      throw invalidReference();
+      throw invalidPlanReference();
     }
     return {
       budgetId: occurrence.budgetId,
@@ -469,11 +470,18 @@ export class RegularPlanApplicationService {
     const recurrence = input.recurrence ?? current.recurrence;
     const intervalMonths =
       input.intervalMonths === undefined ? current.intervalMonths : input.intervalMonths;
+    const anchorOn = input.anchorOn ? parseDate(input.anchorOn) : current.anchorOn;
     const startOn = input.startOn ? parseDate(input.startOn) : current.startOn;
     const endOn =
       input.endOn === undefined ? current.endOn : input.endOn ? parseDate(input.endOn) : null;
     if (endOn && endOn < startOn)
       throw invalidPlan('endOn', 'Дата окончания не может быть раньше даты начала.');
+    if (recurrence === 'ONE_TIME' && anchorOn.getTime() !== startOn.getTime()) {
+      throw invalidPlan(
+        'anchorOn',
+        'Для разового плана опорная дата должна совпадать с датой начала.',
+      );
+    }
     if (
       (recurrence === 'EVERY_N_MONTHS' && !intervalMonths) ||
       (recurrence !== 'EVERY_N_MONTHS' && intervalMonths !== null)
@@ -493,7 +501,7 @@ export class RegularPlanApplicationService {
       name: input.name ?? current.name,
       planType,
       amountMinor: input.amount ? parseAmount(input.amount) : current.amountMinor,
-      anchorOn: input.anchorOn ? parseDate(input.anchorOn) : current.anchorOn,
+      anchorOn,
       startOn,
       endOn,
       recurrence,
@@ -535,7 +543,7 @@ export class RegularPlanApplicationService {
           references.envelope.scale !== 2)) ||
       (planType === 'SAVINGS' && references.envelope?.envelopeType !== 'SAVINGS_GOAL')
     ) {
-      throw invalidReference();
+      throw invalidPlanReference();
     }
   }
 
@@ -670,6 +678,13 @@ function invalidPlan(field: string, message: string): BadRequestException {
     code: 'VALIDATION_FAILED',
     detail: 'Некорректные данные плана.',
     fieldErrors: [{ field, message, code: 'invalid' }],
+  });
+}
+
+function invalidPlanReference(): UnprocessableEntityException {
+  return new UnprocessableEntityException({
+    code: 'REFERENCE_INVALID',
+    detail: 'Недопустимая ссылка на справочник плана.',
   });
 }
 

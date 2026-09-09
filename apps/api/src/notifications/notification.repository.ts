@@ -51,7 +51,7 @@ export class NotificationRepository {
         ...(cursor ? cursorCondition(cursor) : {}),
       },
       select: notificationSelect,
-      orderBy: [{ readAt: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ readAt: { sort: 'asc', nulls: 'first' } }, { createdAt: 'desc' }, { id: 'desc' }],
       take: input.limit + 1,
     });
     const hasNext = rows.length > input.limit;

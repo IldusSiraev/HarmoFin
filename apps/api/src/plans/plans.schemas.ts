@@ -84,6 +84,13 @@ function validatePlanShape(
       message: 'Дата окончания не может быть раньше даты начала.',
     });
   }
+  if (input.recurrence === 'ONE_TIME' && input.anchorOn !== input.startOn) {
+    context.addIssue({
+      code: 'custom',
+      path: ['anchorOn'],
+      message: 'Для разового плана опорная дата должна совпадать с датой начала.',
+    });
+  }
   if (input.recurrence === 'EVERY_N_MONTHS') {
     if (!input.intervalMonths) {
       context.addIssue({
