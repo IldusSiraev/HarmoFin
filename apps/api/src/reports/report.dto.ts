@@ -22,7 +22,7 @@ export class PlanVsActualRow {
   @ApiProperty({ type: String, format: 'uuid' })
   planId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   planName!: string;
 
   @ApiProperty({ enum: ['INCOME', 'EXPENSE'] })
@@ -64,10 +64,10 @@ export class GoalProgressRow {
   @ApiProperty({ type: String, format: 'uuid' })
   envelopeId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   name!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   envelopeType!: string;
 
   @ApiProperty({ type: String, pattern: '^-?\\d+$' })
@@ -85,7 +85,7 @@ export class GoalProgressRow {
   @ApiProperty({ type: Number, minimum: 0, maximum: 1000 })
   progressPermille!: number;
 
-  @ApiProperty()
+  @ApiProperty({ type: Boolean })
   isReached!: boolean;
 
   @ApiProperty({ type: Number, format: 'int32', nullable: true })

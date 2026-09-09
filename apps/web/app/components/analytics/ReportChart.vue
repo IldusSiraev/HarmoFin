@@ -2,10 +2,10 @@
 import * as echarts from 'echarts';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-import type { ReportDto } from '../../composables/useBudgetReferenceData.js';
+import type { GenericReportDto } from '../../composables/useBudgetReferenceData.js';
 import ReportTable from './ReportTable.vue';
 
-const props = defineProps<{ report: ReportDto }>();
+const props = defineProps<{ report: GenericReportDto }>();
 const chartElement = ref<HTMLElement | null>(null);
 let chart: echarts.ECharts | null = null;
 

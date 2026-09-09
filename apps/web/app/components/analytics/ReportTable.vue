@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import type { GenericReportDto } from '../../composables/useBudgetReferenceData.js';
 import { formatMinorUnits } from '../finance/money-format.js';
 
-defineProps<{ rows: ReadonlyArray<Record<string, unknown>> }>();
+defineProps<{ rows: ReadonlyArray<GenericReportDto['rows'][number]> }>();
 
 function title(row: Record<string, unknown>) {
   return (

@@ -102,6 +102,34 @@ const transaction = {
   allocationProposal: null,
 };
 
+describe('reports API client', () => {
+  it('requests typed plan/fact report without changing canonical values', async () => {
+    const response = {
+      key: 'plan-vs-actual' as const,
+      rows: [
+        {
+          planId: 'plan-id',
+          planName: 'Ипотека',
+          planType: 'EXPENSE' as const,
+          plannedMinor: '300000',
+          actualMinor: '170000',
+          varianceMinor: '-130000',
+          plannedOccurrenceCount: 2,
+          confirmedOccurrenceCount: 1,
+          journalFilters: { planId: 'plan-id', status: 'CONFIRMED' as const },
+        },
+      ],
+    };
+    const request = vi.fn().mockResolvedValue(response);
+    const data = createBudgetReferenceData({ request });
+
+    const report = await data.getReport('budget-id', 'plan-vs-actual');
+
+    expect(request).toHaveBeenCalledWith('/api/v1/budgets/budget-id/reports/plan-vs-actual');
+    expect(report).toEqual(response);
+  });
+});
+
 describe('plans API client', () => {
   it('creates an occurrence draft with an idempotency key', async () => {
     const request = vi.fn().mockResolvedValue(transaction);

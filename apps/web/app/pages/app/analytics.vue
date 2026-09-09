@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from 'vue';
 import { definePageMeta, navigateTo, useRoute } from '#imports';
 
+import GoalProgressReport from '../../components/analytics/GoalProgressReport.vue';
+import PlanVsActualReport from '../../components/analytics/PlanVsActualReport.vue';
 import ReportChart from '../../components/analytics/ReportChart.vue';
 import ReportFilters, { type AnalyticsFilters } from '../../components/analytics/ReportFilters.vue';
 import UiButton from '../../components/ui/Button.vue';
@@ -9,6 +11,9 @@ import UiEmptyState from '../../components/ui/EmptyState.vue';
 import UiSelect from '../../components/ui/Select.vue';
 import { useAuth } from '../../composables/useAuth.js';
 import {
+  type GenericReportDto,
+  type GoalProgressReportDto,
+  type PlanVsActualReportDto,
   type ReportDto,
   type ReportKey,
   useBudgetReferenceData,
@@ -105,6 +110,18 @@ function filtersFromQuery(
   };
 }
 
+function isPlanVsActualReport(value: ReportDto | null): value is PlanVsActualReportDto {
+  return value?.key === 'plan-vs-actual';
+}
+
+function isGoalProgressReport(value: ReportDto | null): value is GoalProgressReportDto {
+  return value?.key === 'savings-goals';
+}
+
+function isGenericReport(value: ReportDto | null): value is GenericReportDto {
+  return value !== null && !isPlanVsActualReport(value) && !isGoalProgressReport(value);
+}
+
 function reportKeyFromQuery(value: string | null | Array<string | null> | undefined): ReportKey {
   const keys: ReportKey[] = [
     'expenses-by-category',
@@ -116,6 +133,7 @@ function reportKeyFromQuery(value: string | null | Array<string | null> | undefi
     'account-balances',
     'envelope-balances',
     'savings-goals',
+    'plan-vs-actual',
   ];
   return typeof value === 'string' && keys.includes(value as ReportKey)
     ? (value as ReportKey)
@@ -152,6 +170,7 @@ function reportKeyFromQuery(value: string | null | Array<string | null> | undefi
           { value: 'account-balances', label: 'Остатки счетов' },
           { value: 'envelope-balances', label: 'Остатки конвертов' },
           { value: 'savings-goals', label: 'Цели накоплений' },
+          { value: 'plan-vs-actual', label: 'План и факт' },
         ]"
         @update:model-value="updateReportKey"
       />
@@ -168,7 +187,9 @@ function reportKeyFromQuery(value: string | null | Array<string | null> | undefi
         title="Нет данных"
         description="Измените фильтры или добавьте подтверждённые операции."
       />
-      <ReportChart v-else-if="report" :report="report" />
+      <PlanVsActualReport v-else-if="isPlanVsActualReport(report)" :rows="report.rows" />
+      <GoalProgressReport v-else-if="isGoalProgressReport(report)" :rows="report.rows" />
+      <ReportChart v-else-if="isGenericReport(report)" :report="report" />
     </template>
   </main>
 </template>

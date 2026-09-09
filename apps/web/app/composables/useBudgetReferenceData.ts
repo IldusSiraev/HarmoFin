@@ -439,7 +439,8 @@ export type ReportKey =
   | 'net-cash-flow'
   | 'account-balances'
   | 'envelope-balances'
-  | 'savings-goals';
+  | 'savings-goals'
+  | 'plan-vs-actual';
 
 export type ReportFilters = {
   from?: string | undefined;
@@ -451,10 +452,50 @@ export type ReportFilters = {
   currency?: 'RUB' | undefined;
 };
 
-export type ReportDto = {
-  key: ReportKey;
+export interface PlanVsActualRowDto {
+  planId: string;
+  planName: string;
+  planType: 'INCOME' | 'EXPENSE';
+  plannedMinor: string;
+  actualMinor: string;
+  varianceMinor: string;
+  plannedOccurrenceCount: number;
+  confirmedOccurrenceCount: number;
+  journalFilters: { planId: string; status: 'CONFIRMED' };
+}
+
+export interface PlanVsActualReportDto {
+  key: 'plan-vs-actual';
+  rows: PlanVsActualRowDto[];
+}
+
+export interface GoalProgressRowDto {
+  envelopeId: string;
+  name: string;
+  envelopeType: string;
+  currentMinor: string;
+  targetMinor: string;
+  targetDate: string | null;
+  remainingMinor: string;
+  progressPermille: number;
+  isReached: boolean;
+  daysRemaining: number | null;
+  journalFilters: { envelopeId: string };
+}
+
+export interface GoalProgressReportDto {
+  key: 'savings-goals';
+  rows: GoalProgressRowDto[];
+}
+
+export type GenericReportKey = Exclude<ReportKey, 'plan-vs-actual' | 'savings-goals'>;
+
+export interface GenericReportDto {
+  key: GenericReportKey;
   rows: Array<Record<string, unknown>>;
-};
+}
+
+export type ReportDto = GenericReportDto | PlanVsActualReportDto | GoalProgressReportDto;
 
 export type DashboardWarning = {
   subject: 'ACCOUNT' | 'ENVELOPE';
