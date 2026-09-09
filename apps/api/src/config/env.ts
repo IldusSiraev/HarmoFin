@@ -25,6 +25,7 @@ const apiEnvironmentSchema = z.object({
   DATABASE_URL: postgresUrl,
   WEB_ORIGIN: httpUrl.default('http://localhost:3000'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  TRUST_PROXY: z.enum(['true', 'false']).default('false'),
   AUTH_TOKEN_HASH_SECRET: z.string().min(32),
   SMTP_HOST: z.string().min(1),
   SMTP_PORT: z.coerce.number().int().min(1).max(65_535),
@@ -45,6 +46,7 @@ export interface ApiConfig {
   databaseUrl: string;
   webOrigin: string;
   logLevel: LogLevel;
+  trustProxy: boolean;
   auth: {
     tokenHashSecret: string;
     idleTimeoutSeconds: number;
@@ -85,6 +87,10 @@ export function loadApiConfig(input: NodeJS.ProcessEnv): ApiConfig {
     throw new Error('Invalid API configuration: AUTH_TOKEN_HASH_SECRET');
   }
 
+  if (environment.NODE_ENV === 'production' && environment.TRUST_PROXY !== 'true') {
+    throw new Error('Invalid API configuration: TRUST_PROXY');
+  }
+
   if (
     environment.NODE_ENV === 'production' &&
     Boolean(environment.SMTP_USER) !== Boolean(environment.SMTP_PASSWORD)
@@ -98,6 +104,7 @@ export function loadApiConfig(input: NodeJS.ProcessEnv): ApiConfig {
     databaseUrl: environment.DATABASE_URL,
     webOrigin: environment.WEB_ORIGIN,
     logLevel: environment.LOG_LEVEL,
+    trustProxy: environment.TRUST_PROXY === 'true',
     auth: {
       tokenHashSecret: environment.AUTH_TOKEN_HASH_SECRET,
       idleTimeoutSeconds: 2_592_000,

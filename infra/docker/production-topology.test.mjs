@@ -32,6 +32,19 @@ test('production build deploys workspace dependencies with pnpm legacy mode', as
   assert.match(dockerfile, /pnpm --filter @harmofin\/worker --prod --legacy deploy/);
 });
 
+test('production runtime targets copy the generated Prisma client', async () => {
+  const dockerfile = await readProjectFile('infra/docker/Dockerfile');
+
+  assert.match(
+    dockerfile,
+    /cp -a node_modules\/\.pnpm\/@prisma\+client@\*\/node_modules\/\.prisma \/runtime\/api\/node_modules\/\.pnpm\/@prisma\+client@\*\/node_modules\//,
+  );
+  assert.match(
+    dockerfile,
+    /cp -a node_modules\/\.pnpm\/@prisma\+client@\*\/node_modules\/\.prisma \/runtime\/worker\/node_modules\/\.pnpm\/@prisma\+client@\*\/node_modules\//,
+  );
+});
+
 test('production Compose exposes ports only through Caddy and has no database service', async () => {
   const compose = await readProjectFile('infra/compose/production.yml');
 
@@ -44,7 +57,10 @@ test('Docker build context excludes local secrets and artifacts', async () => {
   const dockerignore = await readProjectFile('.dockerignore');
 
   for (const entry of ['.env', '.env.*', '**/node_modules', '.git']) {
-    assert.match(dockerignore, new RegExp(`^${entry.replaceAll('.', '\\.').replaceAll('*', '\\*')}\\/?$`, 'm'));
+    assert.match(
+      dockerignore,
+      new RegExp(`^${entry.replaceAll('.', '\\.').replaceAll('*', '\\*')}\\/?$`, 'm'),
+    );
   }
 
   assert.doesNotMatch(dockerignore, /^!\.env\.example$/m);

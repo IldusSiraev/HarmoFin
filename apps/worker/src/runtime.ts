@@ -32,6 +32,10 @@ export class WorkerRuntime {
     return this.currentState;
   }
 
+  get isReady(): boolean {
+    return this.currentState === 'running';
+  }
+
   async start(): Promise<void> {
     if (this.currentState === 'stopped') {
       throw new Error('Worker has already stopped');

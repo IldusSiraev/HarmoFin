@@ -22,6 +22,8 @@ const workerEnvironmentSchema = z.object({
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(1),
   WORKER_LEASE_SECONDS: z.coerce.number().int().min(30).max(3_600).default(300),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  WORKER_HEALTH_HOST: z.enum(['0.0.0.0', '127.0.0.1']).default('127.0.0.1'),
+  WORKER_HEALTH_PORT: z.coerce.number().int().min(1).max(65_535).default(3002),
 });
 
 type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
@@ -33,6 +35,8 @@ export interface WorkerConfig {
   concurrency: number;
   leaseSeconds: number;
   logLevel: LogLevel;
+  healthHost: '0.0.0.0' | '127.0.0.1';
+  healthPort: number;
 }
 
 export function loadWorkerConfig(input: NodeJS.ProcessEnv): WorkerConfig {
@@ -52,5 +56,7 @@ export function loadWorkerConfig(input: NodeJS.ProcessEnv): WorkerConfig {
     concurrency: result.data.WORKER_CONCURRENCY,
     leaseSeconds: result.data.WORKER_LEASE_SECONDS,
     logLevel: result.data.LOG_LEVEL,
+    healthHost: result.data.WORKER_HEALTH_HOST,
+    healthPort: result.data.WORKER_HEALTH_PORT,
   };
 }

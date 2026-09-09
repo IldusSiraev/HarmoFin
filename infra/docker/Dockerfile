@@ -24,7 +24,9 @@ COPY . .
 
 RUN pnpm db:generate && pnpm --filter @harmofin/web exec nuxt prepare && pnpm build
 RUN pnpm --filter @harmofin/api --prod --legacy deploy /runtime/api
+RUN cp -a node_modules/.pnpm/@prisma+client@*/node_modules/.prisma /runtime/api/node_modules/.pnpm/@prisma+client@*/node_modules/
 RUN pnpm --filter @harmofin/worker --prod --legacy deploy /runtime/worker
+RUN cp -a node_modules/.pnpm/@prisma+client@*/node_modules/.prisma /runtime/worker/node_modules/.pnpm/@prisma+client@*/node_modules/
 
 FROM node:24.20.0-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS runtime-base
 

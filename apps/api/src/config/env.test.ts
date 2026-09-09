@@ -26,6 +26,7 @@ describe('loadApiConfig', () => {
       databaseUrl: 'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin',
       webOrigin: 'http://localhost:3000',
       logLevel: 'info',
+      trustProxy: false,
       auth: {
         tokenHashSecret: 'test-only-secret-with-at-least-32-bytes',
         idleTimeoutSeconds: 2_592_000,
@@ -74,8 +75,15 @@ describe('loadApiConfig', () => {
   });
 
   it('uses a host-only cookie name in production', () => {
-    expect(loadApiConfig({ ...validEnvironment, NODE_ENV: 'production' }).auth.cookieName).toBe(
-      '__Host-harmofin_session',
+    expect(
+      loadApiConfig({ ...validEnvironment, NODE_ENV: 'production', TRUST_PROXY: 'true' }).auth
+        .cookieName,
+    ).toBe('__Host-harmofin_session');
+  });
+
+  it('requires trusted proxy configuration in production', () => {
+    expect(() => loadApiConfig({ ...validEnvironment, NODE_ENV: 'production' })).toThrow(
+      /TRUST_PROXY/,
     );
   });
 

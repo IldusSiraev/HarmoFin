@@ -1,5 +1,9 @@
-import { createWorkerLogger } from './logger.js';
+import { Prisma } from '@prisma/client';
+
 import { loadWorkerConfig } from './config.js';
+import { WorkerHealthServer } from './health-server.js';
+import { shutdownWorker } from './lifecycle.js';
+import { createWorkerLogger } from './logger.js';
 import { createWorkerDatabase } from './database.js';
 import { JobRunner } from './job-runner.js';
 import { WorkerJobRepository } from './job.repository.js';
@@ -22,14 +26,31 @@ const runner = new JobRunner(
   },
 );
 const runtime = new WorkerRuntime(createWorkerLogger(config), runner);
+const healthServer = new WorkerHealthServer({
+  runtime,
+  databaseHealth: {
+    async check(): Promise<void> {
+      await database.$queryRaw(Prisma.sql`SELECT 1`);
+    },
+  },
+  host: config.healthHost,
+  port: config.healthPort,
+});
 
 await runtime.start();
+await healthServer.start();
 
+let shutdown: Promise<void> | undefined;
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {
-    void runtime.stop(signal).then(async () => {
-      await database.$disconnect();
-      process.exitCode = 0;
-    });
+    shutdown ??= shutdownWorker(signal, { healthServer, runtime, database });
+    void shutdown.then(
+      () => {
+        process.exitCode = 0;
+      },
+      () => {
+        process.exitCode = 1;
+      },
+    );
   });
 }

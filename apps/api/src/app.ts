@@ -15,7 +15,7 @@ export async function createApiApp(config: ApiConfig): Promise<NestFastifyApplic
   const logger = createApiLogger(config);
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule.register(config),
-    new FastifyAdapter({ bodyLimit: 1_048_576 }),
+    new FastifyAdapter({ bodyLimit: 1_048_576, trustProxy: config.trustProxy }),
     { logger: config.logLevel === 'silent' ? false : logger },
   );
 
