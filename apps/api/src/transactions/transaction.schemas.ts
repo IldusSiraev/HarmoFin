@@ -81,7 +81,7 @@ export const resolveIncomeDeletionSchema = z
   .object({ allocationResolution: z.enum(['CANCEL', 'DELETE']) })
   .strict();
 
-export const listTransactionsSchema = z
+export const journalFilterSchema = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).default(25),
     cursor: z.string().min(1).max(512).optional(),
@@ -99,16 +99,22 @@ export const listTransactionsSchema = z
     sortBy: z.enum(['occurredOn', 'amount']).default('occurredOn'),
     sortDirection: z.enum(['asc', 'desc']).default('desc'),
   })
-  .strict()
-  .superRefine((input, context) => {
-    if (input.from && input.to && input.from > input.to) {
-      context.addIssue({
-        code: 'custom',
-        path: ['to'],
-        message: 'Дата окончания не может быть раньше даты начала.',
-      });
-    }
-  });
+  .strict();
+
+export const listTransactionsSchema = journalFilterSchema.superRefine(validateJournalDateRange);
+
+export function validateJournalDateRange(
+  input: { from?: string | undefined; to?: string | undefined },
+  context: z.RefinementCtx,
+): void {
+  if (input.from && input.to && input.from > input.to) {
+    context.addIssue({
+      code: 'custom',
+      path: ['to'],
+      message: 'Дата окончания не может быть раньше даты начала.',
+    });
+  }
+}
 
 export type CreateTransactionInput = z.output<typeof createTransactionSchema>;
 export type UpdateTransactionInput = z.output<typeof updateTransactionSchema>;

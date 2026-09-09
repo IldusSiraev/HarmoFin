@@ -162,40 +162,8 @@ export class TransactionRepository {
       const cursor = query.cursor
         ? decodeJournalCursor(query.cursor, query.sortBy, query.sortDirection)
         : null;
-      const dateConditions = [
-        ...(query.from || query.to
-          ? [
-              {
-                occurredOn: {
-                  ...(query.from ? { gte: query.from } : {}),
-                  ...(query.to ? { lte: query.to } : {}),
-                },
-              },
-            ]
-          : []),
-        ...(query.cycle ? [{ occurredOn: { gte: query.cycle.start, lte: query.cycle.end } }] : []),
-        ...(query.period
-          ? [{ occurredOn: { gte: query.period.start, lte: query.period.end } }]
-          : []),
-      ];
       const rows = await tx.transaction.findMany({
-        where: {
-          budgetId,
-          budget: activeBudgetWhere(userId, budgetId),
-          ...(query.transactionType ? { transactionType: query.transactionType } : {}),
-          ...(query.accountId ? { accountId: query.accountId } : {}),
-          ...(query.categoryId ? { categoryId: query.categoryId } : {}),
-          ...(query.envelopeId ? { envelopeId: query.envelopeId } : {}),
-          ...(query.planId
-            ? { planOccurrence: { planId: query.planId, budgetId } }
-            : {}),
-          AND: [
-            statusCondition(query.status),
-            ...(query.search ? [searchCondition(query.search)] : []),
-            ...dateConditions,
-            ...(cursor ? [journalCursorCondition(cursor)] : []),
-          ],
-        },
+        where: journalWhere(userId, budgetId, query, cursor),
         select: transactionSelect,
         orderBy: journalOrderBy(query.sortBy, query.sortDirection),
         take: query.limit + 1,
@@ -208,6 +176,15 @@ export class TransactionRepository {
         items,
         nextCursor: hasNext && last ? encodeJournalCursor(cursorFor(last, query)) : null,
       };
+    });
+  }
+
+  async listForExport(userId: string, budgetId: string, query: TransactionListQuery, take: number) {
+    return this.prisma.transaction.findMany({
+      where: journalWhere(userId, budgetId, query, null),
+      select: transactionExportSelect,
+      orderBy: journalOrderBy(query.sortBy, query.sortDirection),
+      take,
     });
   }
 
@@ -564,6 +541,43 @@ export function decodeJournalCursor(
   }
 }
 
+function journalWhere(
+  userId: string,
+  budgetId: string,
+  query: TransactionListQuery,
+  cursor: JournalCursor | null,
+): Prisma.TransactionWhereInput {
+  const dateConditions = [
+    ...(query.from || query.to
+      ? [
+          {
+            occurredOn: {
+              ...(query.from ? { gte: query.from } : {}),
+              ...(query.to ? { lte: query.to } : {}),
+            },
+          },
+        ]
+      : []),
+    ...(query.cycle ? [{ occurredOn: { gte: query.cycle.start, lte: query.cycle.end } }] : []),
+    ...(query.period ? [{ occurredOn: { gte: query.period.start, lte: query.period.end } }] : []),
+  ];
+  return {
+    budgetId,
+    budget: activeBudgetWhere(userId, budgetId),
+    ...(query.transactionType ? { transactionType: query.transactionType } : {}),
+    ...(query.accountId ? { accountId: query.accountId } : {}),
+    ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+    ...(query.envelopeId ? { envelopeId: query.envelopeId } : {}),
+    ...(query.planId ? { planOccurrence: { planId: query.planId, budgetId } } : {}),
+    AND: [
+      statusCondition(query.status),
+      ...(query.search ? [searchCondition(query.search)] : []),
+      ...dateConditions,
+      ...(cursor ? [journalCursorCondition(cursor)] : []),
+    ],
+  };
+}
+
 function statusCondition(status: TransactionListQuery['status']): Prisma.TransactionWhereInput {
   if (status === 'all') return {};
   if (status) return { status };
@@ -627,6 +641,26 @@ function isValidCursorValue(value: string, sortBy: JournalSortBy): boolean {
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
+
+const transactionExportSelect = {
+  id: true,
+  transactionType: true,
+  status: true,
+  amountMinor: true,
+  currency: true,
+  occurredOn: true,
+  sourceDescription: true,
+  merchantName: true,
+  isPlanned: true,
+  comment: true,
+  createdAt: true,
+  confirmedAt: true,
+  cancelledAt: true,
+  deletedAt: true,
+  account: { select: { name: true } },
+  category: { select: { name: true } },
+  envelope: { select: { name: true } },
+} as const;
 
 const transactionSelect = {
   id: true,

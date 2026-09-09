@@ -12,6 +12,7 @@ import { CycleModule } from './cycles/cycle.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { EnvelopeModule } from './envelopes/envelope.module.js';
+import { ExportsModule } from './exports/exports.module.js';
 import { HealthModule } from './health/health.module.js';
 import { TransactionModule } from './transactions/transaction.module.js';
 import { ReportModule } from './reports/report.module.js';
@@ -43,6 +44,7 @@ export class AppModule {
         PlansModule.register(),
         NotificationsModule.register(),
         ReportModule.register(),
+        ExportsModule.register(),
       ],
       providers: [{ provide: API_CONFIG, useValue: config }],
       exports: [API_CONFIG],

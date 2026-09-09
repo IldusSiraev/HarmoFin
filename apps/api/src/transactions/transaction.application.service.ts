@@ -646,7 +646,7 @@ export class TransactionApplicationService {
   }
 }
 
-function listQuery(
+export function listQuery(
   input: ListTransactionsInput,
   budget: {
     cycleStartDay: number;
