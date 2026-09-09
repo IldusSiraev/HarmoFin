@@ -15,7 +15,11 @@ import { ProblemDetailsResponse } from '../common/errors/problem-details.dto.js'
 import type { RequestContext } from '../common/request-context/request-context.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import { ReportApplicationService } from './report.application.service.js';
-import { PlanVsActualReportResponse, ReportResponse } from './report.dto.js';
+import {
+  GoalProgressReportResponse,
+  PlanVsActualReportResponse,
+  ReportResponse,
+} from './report.dto.js';
 import {
   reportFiltersSchema,
   reportKeySchema,
@@ -33,7 +37,7 @@ export class ReportController {
   ) {}
 
   @Get('budgets/:budgetId/reports/:reportKey')
-  @ApiExtraModels(ReportResponse, PlanVsActualReportResponse)
+  @ApiExtraModels(ReportResponse, PlanVsActualReportResponse, GoalProgressReportResponse)
   @ApiQuery({ name: 'from', required: false, schema: { type: 'string', format: 'date' } })
   @ApiQuery({ name: 'to', required: false, schema: { type: 'string', format: 'date' } })
   @ApiQuery({ name: 'accountId', required: false, schema: { type: 'string', format: 'uuid' } })
@@ -46,6 +50,7 @@ export class ReportController {
       oneOf: [
         { $ref: getSchemaPath(ReportResponse) },
         { $ref: getSchemaPath(PlanVsActualReportResponse) },
+        { $ref: getSchemaPath(GoalProgressReportResponse) },
       ],
     },
   })

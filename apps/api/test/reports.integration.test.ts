@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
@@ -28,6 +28,10 @@ let foreign: Session;
 let accountId: string;
 let categoryId: string;
 let envelopeId: string;
+let goalEnvelopeId: string;
+let noDeadlineGoalEnvelopeId: string;
+let archivedGoalEnvelopeId: string;
+let foreignGoalEnvelopeId: string;
 let reportPlanId: string;
 let foreignPlanId: string;
 
@@ -129,6 +133,57 @@ describe('reports API', () => {
     });
   });
 
+  it('projects active goal progress without changing financial state', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-09T12:00:00.000Z'));
+    try {
+      const before = await Promise.all([
+        prisma.transaction.count({ where: { budgetId: owner.budgetId } }),
+        prisma.envelope.count({ where: { budgetId: owner.budgetId } }),
+      ]);
+      const response = await getReport('savings-goals', { envelopeId: goalEnvelopeId });
+      const foreignFilter = await getReport('savings-goals', {
+        envelopeId: foreignGoalEnvelopeId,
+      });
+      const after = await Promise.all([
+        prisma.transaction.count({ where: { budgetId: owner.budgetId } }),
+        prisma.envelope.count({ where: { budgetId: owner.budgetId } }),
+      ]);
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        key: 'savings-goals',
+        rows: expect.arrayContaining([
+          expect.objectContaining({
+            envelopeId: goalEnvelopeId,
+            currentMinor: '500',
+            targetMinor: '50000',
+            remainingMinor: '49500',
+            progressPermille: 10,
+            isReached: false,
+            daysRemaining: 7,
+          }),
+          expect.objectContaining({
+            envelopeId: noDeadlineGoalEnvelopeId,
+            currentMinor: '25000',
+            targetMinor: '100000',
+            remainingMinor: '75000',
+            progressPermille: 250,
+            isReached: false,
+            daysRemaining: null,
+          }),
+        ]),
+      });
+      expect(response.json<{ rows: Array<{ envelopeId: string }> }>().rows).not.toContainEqual(
+        expect.objectContaining({ envelopeId: archivedGoalEnvelopeId }),
+      );
+      expect(foreignFilter.statusCode).toBe(404);
+      expect(after).toEqual(before);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('rejects oversized ranges, foreign filter IDs and foreign budgets', async () => {
     const oversized = await getReport('net-cash-flow', { from: '2020-01-01', to: '2026-01-01' });
     const foreignFilter = await getReport('net-cash-flow', { accountId: randomUUID() });
@@ -149,7 +204,9 @@ describe('reports API', () => {
     const incomeCategoryId = randomUUID();
     categoryId = randomUUID();
     envelopeId = randomUUID();
-    const goalEnvelopeId = randomUUID();
+    goalEnvelopeId = randomUUID();
+    noDeadlineGoalEnvelopeId = randomUUID();
+    archivedGoalEnvelopeId = randomUUID();
     const incomeId = randomUUID();
     const occurredOn = new Date('2026-08-10T00:00:00.000Z');
 
@@ -209,10 +266,41 @@ describe('reports API', () => {
           envelopeType: 'SAVINGS_GOAL',
           startingBalanceMinor: 0n,
           targetAmountMinor: 50_000n,
-          targetDate: new Date('2027-01-01T00:00:00.000Z'),
+          targetDate: new Date('2026-09-16T00:00:00.000Z'),
           displayOrder: 1,
         },
+        {
+          id: noDeadlineGoalEnvelopeId,
+          budgetId: owner.budgetId,
+          name: 'Резерв отчёт',
+          envelopeType: 'SAVINGS_GOAL',
+          startingBalanceMinor: 25_000n,
+          targetAmountMinor: 100_000n,
+          displayOrder: 2,
+        },
+        {
+          id: archivedGoalEnvelopeId,
+          budgetId: owner.budgetId,
+          name: 'Архивная цель отчёт',
+          envelopeType: 'SAVINGS_GOAL',
+          startingBalanceMinor: 10_000n,
+          targetAmountMinor: 20_000n,
+          archivedAt: new Date('2026-09-01T00:00:00.000Z'),
+          displayOrder: 3,
+        },
       ],
+    });
+    foreignGoalEnvelopeId = randomUUID();
+    await prisma.envelope.create({
+      data: {
+        id: foreignGoalEnvelopeId,
+        budgetId: foreign.budgetId,
+        name: 'Чужая цель отчёт',
+        envelopeType: 'SAVINGS_GOAL',
+        startingBalanceMinor: 0n,
+        targetAmountMinor: 10_000n,
+        displayOrder: 0,
+      },
     });
     await prisma.transaction.createMany({
       data: [

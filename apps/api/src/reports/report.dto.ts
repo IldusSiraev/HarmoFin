@@ -55,6 +55,54 @@ export class PlanVsActualReportResponse {
   rows!: PlanVsActualRow[];
 }
 
+export class GoalProgressJournalFilters {
+  @ApiProperty({ type: String, format: 'uuid' })
+  envelopeId!: string;
+}
+
+export class GoalProgressRow {
+  @ApiProperty({ type: String, format: 'uuid' })
+  envelopeId!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  envelopeType!: string;
+
+  @ApiProperty({ type: String, pattern: '^-?\\d+$' })
+  currentMinor!: string;
+
+  @ApiProperty({ type: String, pattern: '^-?\\d+$' })
+  targetMinor!: string;
+
+  @ApiProperty({ type: String, format: 'date', nullable: true })
+  targetDate!: string | null;
+
+  @ApiProperty({ type: String, pattern: '^-?\\d+$' })
+  remainingMinor!: string;
+
+  @ApiProperty({ type: Number, minimum: 0, maximum: 1000 })
+  progressPermille!: number;
+
+  @ApiProperty()
+  isReached!: boolean;
+
+  @ApiProperty({ type: Number, format: 'int32', nullable: true })
+  daysRemaining!: number | null;
+
+  @ApiProperty({ type: GoalProgressJournalFilters })
+  journalFilters!: GoalProgressJournalFilters;
+}
+
+export class GoalProgressReportResponse {
+  @ApiProperty({ enum: ['savings-goals'] })
+  key!: 'savings-goals';
+
+  @ApiProperty({ type: [GoalProgressRow] })
+  rows!: GoalProgressRow[];
+}
+
 export class ReportQuery {
   @ApiPropertyOptional({ type: String, format: 'date' })
   from?: string;
