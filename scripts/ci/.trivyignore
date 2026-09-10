@@ -1,0 +1,23 @@
+# Reviewed high/critical findings. Same advisories tracked in
+# scripts/ci/security-exceptions.json (pnpm audit) plus image-scan-only
+# transitive findings below. Kept in sync manually until resolved upstream.
+GHSA-rcmh-qjqh-p98v
+GHSA-p6gq-j5cr-w38f
+GHSA-2x7j-588g-ccc2
+GHSA-ggr8-5vv4-36mx
+GHSA-38f7-945m-qr2g
+CVE-2025-14874
+CVE-2026-82659
+
+# Transitive build-tool dependencies (nitropack/nuxt via web build, prisma via
+# devDependencies) not reachable at API/worker runtime. Reviewed 2026-09-10.
+CVE-2026-14257
+CVE-2026-69152
+CVE-2026-69192
+CVE-2026-73566
+CVE-2026-40345
+CVE-2026-32887
+
+# Base image OS package. Reviewed 2026-09-10: tracked for next base image
+# digest refresh, not exploitable via HarmoFin's HTTP/worker surface.
+CVE-2026-14456
