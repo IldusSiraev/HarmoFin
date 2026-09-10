@@ -26,6 +26,9 @@ const apiEnvironmentSchema = z.object({
   WEB_ORIGIN: httpUrl.default('http://localhost:3000'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   TRUST_PROXY: z.enum(['true', 'false']).default('false'),
+  RELEASE_SHA: z.string().min(1).default('dev'),
+  ERROR_REPORTING_ENDPOINT: httpUrl.optional(),
+  OTEL_EXPORTER_OTLP_ENDPOINT: httpUrl.optional(),
   AUTH_TOKEN_HASH_SECRET: z.string().min(32),
   SMTP_HOST: z.string().min(1),
   SMTP_PORT: z.coerce.number().int().min(1).max(65_535),
@@ -47,6 +50,9 @@ export interface ApiConfig {
   webOrigin: string;
   logLevel: LogLevel;
   trustProxy: boolean;
+  releaseSha: string;
+  errorReportingEndpoint?: string;
+  otelExporterOtlpEndpoint?: string;
   auth: {
     tokenHashSecret: string;
     idleTimeoutSeconds: number;
@@ -105,6 +111,13 @@ export function loadApiConfig(input: NodeJS.ProcessEnv): ApiConfig {
     webOrigin: environment.WEB_ORIGIN,
     logLevel: environment.LOG_LEVEL,
     trustProxy: environment.TRUST_PROXY === 'true',
+    releaseSha: environment.RELEASE_SHA,
+    ...(environment.ERROR_REPORTING_ENDPOINT
+      ? { errorReportingEndpoint: environment.ERROR_REPORTING_ENDPOINT }
+      : {}),
+    ...(environment.OTEL_EXPORTER_OTLP_ENDPOINT
+      ? { otelExporterOtlpEndpoint: environment.OTEL_EXPORTER_OTLP_ENDPOINT }
+      : {}),
     auth: {
       tokenHashSecret: environment.AUTH_TOKEN_HASH_SECRET,
       idleTimeoutSeconds: 2_592_000,

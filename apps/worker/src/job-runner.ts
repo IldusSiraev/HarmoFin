@@ -6,16 +6,22 @@ export interface WorkerJobHandler {
   execute(now: Date): Promise<void>;
 }
 
+export interface JobRunnerMetrics {
+  recordPoll(outcome: 'success' | 'failure'): void;
+  recordJob(jobType: string, outcome: 'completed' | 'failed' | 'retried'): void;
+}
+
 export interface JobRunnerOptions {
   pollIntervalMs: number;
   concurrency: number;
   leaseSeconds: number;
   now?: () => Date;
+  metrics?: JobRunnerMetrics;
 }
 
 export class JobRunner {
   private timer: NodeJS.Timeout | undefined;
-  private readonly activeRuns = new Set<Promise<void>>();
+  private readonly activeRuns = new Set<Promise<boolean>>();
   private running = false;
   private readonly now: () => Date;
 
@@ -47,34 +53,45 @@ export class JobRunner {
   async runOnce(): Promise<void> {
     if (!this.running) return;
     const jobTypes = Object.entries(this.handlers).map(([jobType]) => jobType as WorkerJobType);
-    const jobs = await this.repository.claimDue(
-      this.options.concurrency,
-      this.now(),
-      jobTypes,
-      this.options.leaseSeconds,
-    );
-    await Promise.all(jobs.map((job) => this.runJob(job)));
+    try {
+      const jobs = await this.repository.claimDue(
+        this.options.concurrency,
+        this.now(),
+        jobTypes,
+        this.options.leaseSeconds,
+      );
+      const outcomes = await Promise.all(jobs.map((job) => this.runJob(job)));
+      this.options.metrics?.recordPoll(outcomes.includes(false) ? 'failure' : 'success');
+    } catch (error) {
+      this.options.metrics?.recordPoll('failure');
+      throw error;
+    }
   }
 
-  private async runJob(job: ClaimedJob): Promise<void> {
+  private async runJob(job: ClaimedJob): Promise<boolean> {
     const run = this.executeJob(job);
     this.activeRuns.add(run);
     try {
-      await run;
+      return await run;
     } finally {
       this.activeRuns.delete(run);
     }
   }
 
-  private async executeJob(job: ClaimedJob): Promise<void> {
+  private async executeJob(job: ClaimedJob): Promise<boolean> {
     const now = this.now();
     const handler = this.handlers[job.jobType];
-    if (!handler) return;
+    if (!handler) return true;
     try {
       await handler.execute(now);
       await this.repository.completeRecurring(job.id, nextRunAt(job.jobType, now));
+      this.options.metrics?.recordJob(job.jobType, 'completed');
+      return true;
     } catch (error) {
+      const isFinalFailure = job.attempts >= 5;
       await this.repository.retry(job.id, job.attempts, now, errorText(error));
+      this.options.metrics?.recordJob(job.jobType, isFinalFailure ? 'failed' : 'retried');
+      return false;
     }
   }
 }

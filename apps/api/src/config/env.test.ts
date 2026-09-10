@@ -27,6 +27,7 @@ describe('loadApiConfig', () => {
       webOrigin: 'http://localhost:3000',
       logLevel: 'info',
       trustProxy: false,
+      releaseSha: 'dev',
       auth: {
         tokenHashSecret: 'test-only-secret-with-at-least-32-bytes',
         idleTimeoutSeconds: 2_592_000,
@@ -79,6 +80,21 @@ describe('loadApiConfig', () => {
       loadApiConfig({ ...validEnvironment, NODE_ENV: 'production', TRUST_PROXY: 'true' }).auth
         .cookieName,
     ).toBe('__Host-harmofin_session');
+  });
+
+  it('maps configured telemetry endpoints', () => {
+    expect(
+      loadApiConfig({
+        ...validEnvironment,
+        RELEASE_SHA: 'release-123',
+        ERROR_REPORTING_ENDPOINT: 'https://errors.invalid/ingest',
+        OTEL_EXPORTER_OTLP_ENDPOINT: 'https://traces.invalid/v1/traces',
+      }),
+    ).toMatchObject({
+      releaseSha: 'release-123',
+      errorReportingEndpoint: 'https://errors.invalid/ingest',
+      otelExporterOtlpEndpoint: 'https://traces.invalid/v1/traces',
+    });
   });
 
   it('requires trusted proxy configuration in production', () => {

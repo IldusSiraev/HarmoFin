@@ -5,6 +5,58 @@ import { JobRunner } from './job-runner.js';
 const now = new Date('2026-09-08T12:00:00.000Z');
 
 describe('JobRunner', () => {
+  it('reports poll and job outcomes to metrics', async () => {
+    const repository = {
+      ensureRecurringJobs: vi.fn().mockResolvedValue(undefined),
+      claimDue: vi
+        .fn()
+        .mockResolvedValue([
+          { id: 'job-id', jobType: 'MATERIALIZE_PLAN_OCCURRENCES' as const, attempts: 1 },
+        ]),
+      completeRecurring: vi.fn().mockResolvedValue(undefined),
+      retry: vi.fn().mockResolvedValue(undefined),
+    };
+    const metrics = { recordPoll: vi.fn(), recordJob: vi.fn() };
+    const runner = new JobRunner(
+      repository as never,
+      { MATERIALIZE_PLAN_OCCURRENCES: { execute: vi.fn().mockResolvedValue(undefined) } },
+      { pollIntervalMs: 30_000, concurrency: 1, leaseSeconds: 300, now: () => now, metrics },
+    );
+
+    await runner.start();
+    await runner.stop();
+
+    expect(metrics.recordPoll).toHaveBeenCalledWith('success');
+    expect(metrics.recordJob).toHaveBeenCalledWith('MATERIALIZE_PLAN_OCCURRENCES', 'completed');
+  });
+
+  it('reports a failed poll and retried job outcome on handler error', async () => {
+    const repository = {
+      ensureRecurringJobs: vi.fn().mockResolvedValue(undefined),
+      claimDue: vi
+        .fn()
+        .mockResolvedValue([
+          { id: 'job-id', jobType: 'MATERIALIZE_PLAN_OCCURRENCES' as const, attempts: 1 },
+        ]),
+      completeRecurring: vi.fn().mockResolvedValue(undefined),
+      retry: vi.fn().mockResolvedValue(undefined),
+    };
+    const metrics = { recordPoll: vi.fn(), recordJob: vi.fn() };
+    const runner = new JobRunner(
+      repository as never,
+      {
+        MATERIALIZE_PLAN_OCCURRENCES: { execute: vi.fn().mockRejectedValue(new Error('boom')) },
+      },
+      { pollIntervalMs: 30_000, concurrency: 1, leaseSeconds: 300, now: () => now, metrics },
+    );
+
+    await runner.start();
+    await runner.stop();
+
+    expect(metrics.recordPoll).toHaveBeenCalledWith('failure');
+    expect(metrics.recordJob).toHaveBeenCalledWith('MATERIALIZE_PLAN_OCCURRENCES', 'retried');
+  });
+
   it('claims a materialization job and schedules next execution', async () => {
     const repository = {
       ensureRecurringJobs: vi.fn().mockResolvedValue(undefined),

@@ -9,11 +9,16 @@ export interface WorkerDatabaseHealth {
   check(): Promise<void>;
 }
 
+export interface WorkerMetricsSource {
+  render(): string;
+}
+
 export interface WorkerHealthServerOptions {
   runtime: WorkerRuntimeReadiness;
   databaseHealth: WorkerDatabaseHealth;
   host: string;
   port: number;
+  metrics?: WorkerMetricsSource;
 }
 
 export class WorkerHealthServer {
@@ -69,6 +74,15 @@ export class WorkerHealthServer {
 
     if (url === '/live') {
       this.respond(response, 200, { status: 'ok' });
+      return;
+    }
+
+    if (url === '/internal/metrics' && this.options.metrics) {
+      response.writeHead(200, {
+        'cache-control': 'no-store',
+        'content-type': 'text/plain; version=0.0.4; charset=utf-8',
+      });
+      response.end(this.options.metrics.render());
       return;
     }
 

@@ -7,12 +7,20 @@ import { createWorkerLogger } from './logger.js';
 import { createWorkerDatabase } from './database.js';
 import { JobRunner } from './job-runner.js';
 import { WorkerJobRepository } from './job.repository.js';
+import { createWorkerErrorReporter, MetricsRegistry } from './observability/observability.js';
 import { PlanOccurrenceHandler } from './plan-occurrence.handler.js';
 import { NotificationRuleHandler } from './notification.handler.js';
 import { WorkerRuntime } from './runtime.js';
 
 const config = loadWorkerConfig(process.env);
 const database = createWorkerDatabase(config);
+const metrics = new MetricsRegistry({
+  service: 'worker',
+  environment: config.nodeEnv,
+  releaseSha: config.releaseSha,
+});
+const errorReporter = createWorkerErrorReporter(config.errorReportingEndpoint);
+const logger = createWorkerLogger(config);
 const runner = new JobRunner(
   new WorkerJobRepository(database),
   {
@@ -23,9 +31,20 @@ const runner = new JobRunner(
     pollIntervalMs: config.pollIntervalMs,
     concurrency: config.concurrency,
     leaseSeconds: config.leaseSeconds,
+    metrics: {
+      recordPoll: (outcome) => metrics.recordPoll(outcome),
+      recordJob: (jobType, outcome) => {
+        metrics.recordJob(jobType, outcome);
+        logger.jobOutcome({ jobType, outcome });
+        if (outcome === 'failed') {
+          void errorReporter.report(new Error('Worker job failed'), { jobType, outcome });
+        }
+      },
+    },
   },
 );
-const runtime = new WorkerRuntime(createWorkerLogger(config), runner);
+const runtime = new WorkerRuntime(logger, runner);
+metrics.setProcessHealth(1);
 const healthServer = new WorkerHealthServer({
   runtime,
   databaseHealth: {
@@ -35,6 +54,7 @@ const healthServer = new WorkerHealthServer({
   },
   host: config.healthHost,
   port: config.healthPort,
+  metrics,
 });
 
 await runtime.start();

@@ -8,6 +8,7 @@ import type { Prisma } from '@prisma/client';
 
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
 import type { ApiConfig } from '../config/env.js';
+import { MetricsRegistry } from '../observability/observability.js';
 import type {
   ChangePasswordInput,
   LoginInput,
@@ -48,6 +49,7 @@ export class AuthApplicationService {
     private readonly sessionService: SessionService,
     private readonly emailSender: EmailSender,
     private readonly config: ApiConfig,
+    private readonly metrics: MetricsRegistry,
   ) {}
 
   async register(input: RegisterInput, requestMeta: RequestMeta): Promise<AuthSessionResponse> {
@@ -117,6 +119,7 @@ export class AuthApplicationService {
       input.password,
     );
     if (!user || user.status !== 'ACTIVE' || !passwordMatches) {
+      this.metrics.increment('login_failures_total');
       throw new UnauthorizedException({
         code: 'INVALID_CREDENTIALS',
         detail: 'Неверный email или пароль.',

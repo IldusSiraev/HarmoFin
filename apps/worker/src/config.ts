@@ -15,6 +15,10 @@ const postgresUrl = z
     { message: 'must be a PostgreSQL URL' },
   );
 
+const httpUrl = z.url().refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), {
+  message: 'must be an HTTP(S) URL',
+});
+
 const workerEnvironmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: postgresUrl,
@@ -24,6 +28,9 @@ const workerEnvironmentSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   WORKER_HEALTH_HOST: z.enum(['0.0.0.0', '127.0.0.1']).default('127.0.0.1'),
   WORKER_HEALTH_PORT: z.coerce.number().int().min(1).max(65_535).default(3002),
+  RELEASE_SHA: z.string().min(1).default('dev'),
+  ERROR_REPORTING_ENDPOINT: httpUrl.optional(),
+  OTEL_EXPORTER_OTLP_ENDPOINT: httpUrl.optional(),
 });
 
 type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
@@ -37,6 +44,9 @@ export interface WorkerConfig {
   logLevel: LogLevel;
   healthHost: '0.0.0.0' | '127.0.0.1';
   healthPort: number;
+  releaseSha: string;
+  errorReportingEndpoint: string | undefined;
+  otelExporterOtlpEndpoint: string | undefined;
 }
 
 export function loadWorkerConfig(input: NodeJS.ProcessEnv): WorkerConfig {
@@ -58,5 +68,8 @@ export function loadWorkerConfig(input: NodeJS.ProcessEnv): WorkerConfig {
     logLevel: result.data.LOG_LEVEL,
     healthHost: result.data.WORKER_HEALTH_HOST,
     healthPort: result.data.WORKER_HEALTH_PORT,
+    releaseSha: result.data.RELEASE_SHA,
+    errorReportingEndpoint: result.data.ERROR_REPORTING_ENDPOINT,
+    otelExporterOtlpEndpoint: result.data.OTEL_EXPORTER_OTLP_ENDPOINT,
   };
 }

@@ -1,6 +1,7 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 
 import { PrismaService } from '../database/prisma.service.js';
+import { MetricsRegistry } from '../observability/observability.js';
 import { TransactionRepository } from '../transactions/transaction.repository.js';
 import { CsvExportApplicationService } from './csv-export.application.service.js';
 import { ExportsController } from './exports.controller.js';
@@ -21,9 +22,9 @@ export class ExportsModule {
         },
         {
           provide: CsvExportApplicationService,
-          useFactory: (repository: CsvExportRepository) =>
-            new CsvExportApplicationService(repository),
-          inject: [CsvExportRepository],
+          useFactory: (repository: CsvExportRepository, metrics: MetricsRegistry) =>
+            new CsvExportApplicationService(repository, metrics),
+          inject: [CsvExportRepository, MetricsRegistry],
         },
       ],
     };

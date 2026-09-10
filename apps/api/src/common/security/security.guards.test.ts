@@ -13,6 +13,7 @@ const config = {
   webOrigin: 'http://localhost:3000',
   logLevel: 'silent' as const,
   trustProxy: false,
+  releaseSha: 'test',
   auth: {
     tokenHashSecret: 'test-only-secret-with-at-least-32-bytes',
     idleTimeoutSeconds: 2_592_000,

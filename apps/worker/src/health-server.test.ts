@@ -22,6 +22,29 @@ async function startHealthServer(
   return { server, databaseCheck };
 }
 
+describe('WorkerHealthServer metrics', () => {
+  it('serves internal Prometheus metrics without checking dependencies', async () => {
+    const server = new WorkerHealthServer({
+      runtime: { isReady: true },
+      databaseHealth: { check: vi.fn() },
+      host: '127.0.0.1',
+      port: 0,
+      metrics: { render: () => 'harmofin_process_health{service="worker"} 1\n' },
+    });
+
+    await server.start();
+    try {
+      const response = await fetch(`http://127.0.0.1:${server.port}/internal/metrics`);
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toContain('text/plain');
+      await expect(response.text()).resolves.toContain('harmofin_process_health');
+    } finally {
+      await server.stop();
+    }
+  });
+});
+
 describe('WorkerHealthServer', () => {
   it('reports liveness without checking dependencies', async () => {
     const { server, databaseCheck } = await startHealthServer({ ready: false });
