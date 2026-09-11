@@ -2,8 +2,11 @@
 import { computed, onMounted, ref } from 'vue';
 import { definePageMeta } from '#imports';
 
+import AddOperationModal from '../../components/dashboard/AddOperationModal.vue';
+import AddTransferModal from '../../components/dashboard/AddTransferModal.vue';
 import BalanceList from '../../components/dashboard/BalanceList.vue';
 import PeriodLimitCard from '../../components/dashboard/PeriodLimitCard.vue';
+import QuickActionBar from '../../components/dashboard/QuickActionBar.vue';
 import UpcomingObligations from '../../components/dashboard/UpcomingObligations.vue';
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import UiButton from '../../components/ui/Button.vue';
@@ -21,9 +24,27 @@ const api = useBudgetReferenceData();
 const loading = ref(true);
 const error = ref('');
 const summary = ref<DashboardSummaryDto | null>(null);
+const operationModalOpen = ref(false);
+const transferModalOpen = ref(false);
 const activeBudget = computed(() => currentData.value?.workspaces[0]?.budgets[0] ?? null);
 function workspaceName() {
   return currentData.value?.workspaces[0]?.name ?? 'Бюджет';
+}
+
+function openOperationModal() {
+  operationModalOpen.value = true;
+}
+
+function closeOperationModal() {
+  operationModalOpen.value = false;
+}
+
+function openTransferModal() {
+  transferModalOpen.value = true;
+}
+
+function closeTransferModal() {
+  transferModalOpen.value = false;
 }
 
 onMounted(() => {
@@ -69,6 +90,12 @@ async function loadDashboard() {
         </div>
       </div>
 
+      <QuickActionBar
+        @add-operation="openOperationModal"
+        @add-transfer="openTransferModal"
+        @refresh="loadDashboard"
+      />
+
       <section class="dashboard-grid" aria-label="Сводка бюджета">
           <section class="total-money" aria-labelledby="total-money-title">
             <p id="total-money-title">Всего на счетах</p>
@@ -98,6 +125,9 @@ async function loadDashboard() {
           />
         </section>
       </template>
+
+    <AddOperationModal :open="operationModalOpen" @close="closeOperationModal" />
+    <AddTransferModal :open="transferModalOpen" @close="closeTransferModal" />
   </div>
 </template>
 
