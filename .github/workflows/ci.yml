@@ -107,3 +107,86 @@ jobs:
 
       - name: Validate local Compose configuration
         run: docker compose -f infra/compose/local.yml config --quiet
+
+      - name: Validate production Compose configuration
+        run: docker compose --env-file infra/env/staging.example -f infra/compose/production.yml config --quiet
+
+      - name: Run production topology checks
+        run: node --test infra/docker/production-topology.test.mjs
+
+      - name: Run OpenAPI script unit tests
+        run: node --test scripts/openapi/*.test.mjs scripts/ci/*.test.mjs
+
+      - name: Generate OpenAPI document
+        run: node scripts/openapi/generate.mjs openapi.head.json
+
+      - name: Fetch main OpenAPI baseline
+        run: git show origin/main:openapi.json > openapi.base.json || cp openapi.head.json openapi.base.json
+
+      - name: Check OpenAPI contract
+        run: node scripts/openapi/check.mjs openapi.head.json openapi.base.json
+
+      - name: Run dependency security audit
+        run: node scripts/ci/run-dependency-audit.mjs
+
+      - name: Upload OpenAPI contract artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-contract-${{ github.sha }}
+          path: openapi.head.json
+          retention-days: 30
+
+  image-scan:
+    needs: quality
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        target: [web, api, worker, migrate]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.target }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile
+          target: ${{ matrix.target }}
+          tags: harmofin-${{ matrix.target }}:${{ github.sha }}
+          load: true
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}
+
+      # SBOM/vulnerability scanners are run as pinned-digest containers, not
+      # marketplace Actions, after aquasecurity/trivy-action tags 0.0.1-0.34.2
+      # were compromised to exfiltrate CI secrets (only 0.35.0+/SHA pins were safe).
+      - name: Generate SBOM
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:/out" \
+            anchore/syft@sha256:b8c170b8e51bfc4779ec3ef4399942c57290f5ce76a9c3af564c9d00d4946a6b \
+            harmofin-${{ matrix.target }}:${{ github.sha }} \
+            -o spdx-json=/out/sbom-${{ matrix.target }}.spdx.json
+
+      - name: Scan image for vulnerabilities
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD/scripts/ci/.trivyignore:/.trivyignore:ro" \
+            aquasec/trivy@sha256:26245f364b6f5d223003dc344ec1eb5eb8439052bfecb31d79aeba0c74344b3a \
+            image --severity HIGH,CRITICAL --ignorefile /.trivyignore --exit-code 1 \
+            harmofin-${{ matrix.target }}:${{ github.sha }}
+
+      - name: Upload SBOM artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.target }}-${{ github.sha }}
+          path: sbom-${{ matrix.target }}.spdx.json
+          retention-days: 30

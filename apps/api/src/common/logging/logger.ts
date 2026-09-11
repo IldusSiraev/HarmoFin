@@ -5,13 +5,39 @@ import type { ApiConfig } from '../../config/env.js';
 
 export interface ApiEventLogger {
   started(port: number): void;
+  requestOutcome(fields: {
+    requestId: string;
+    method: string;
+    route: string;
+    status: number;
+    durationMs: number;
+    errorCode?: string;
+  }): void;
 }
 
 export function createApiLogger(config: ApiConfig): LoggerService & ApiEventLogger {
   const logger = pino({
     level: config.logLevel,
-    base: { service: 'api', environment: config.nodeEnv },
-    redact: ['password', 'cookie', 'authorization', 'databaseUrl'],
+    base: { service: 'api', environment: config.nodeEnv, release: config.releaseSha },
+    redact: [
+      'password',
+      'cookie',
+      'cookies',
+      'authorization',
+      'databaseUrl',
+      'databaseURL',
+      'session',
+      'sessionToken',
+      'token',
+      'comment',
+      'amount',
+      'amountMinor',
+      'financialPayload',
+      'req.headers.cookie',
+      'req.headers.authorization',
+      'request.headers.cookie',
+      'request.headers.authorization',
+    ],
   });
 
   return new SafeApiLogger(logger);
@@ -46,5 +72,16 @@ class SafeApiLogger implements LoggerService, ApiEventLogger {
 
   started(port: number): void {
     this.logger.info({ event: 'api_started', port }, 'API started');
+  }
+
+  requestOutcome(fields: {
+    requestId: string;
+    method: string;
+    route: string;
+    status: number;
+    durationMs: number;
+    errorCode?: string;
+  }): void {
+    this.logger.info({ event: 'request_outcome', ...fields }, 'Request completed');
   }
 }

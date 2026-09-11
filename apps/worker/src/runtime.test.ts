@@ -22,9 +22,11 @@ describe('WorkerRuntime', () => {
 
     await runtime.start();
     expect(runtime.state).toBe('running');
+    expect(runtime.isReady).toBe(true);
     await runtime.stop('SIGTERM');
 
     expect(runtime.state).toBe('stopped');
+    expect(runtime.isReady).toBe(false);
     expect(logger.events).toEqual([
       { event: 'worker_started', service: 'worker' },
       { event: 'worker_stopped', service: 'worker', signal: 'SIGTERM' },

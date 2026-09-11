@@ -8,6 +8,7 @@ import { AuthApplicationService } from './auth.application.service.js';
 import { AuthController } from './auth.controller.js';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard.js';
 import { AuthRepository } from './auth.repository.js';
+import { MetricsRegistry } from '../observability/observability.js';
 import { EMAIL_SENDER } from './email-sender.js';
 import { PasswordService } from './password.service.js';
 import { PrismaSessionStore } from './prisma-session.store.js';
@@ -52,9 +53,25 @@ export class AuthModule {
             tokens: TokenService,
             sessions: SessionService,
             emailSender: SmtpEmailSender,
+            metrics: MetricsRegistry,
           ) =>
-            new AuthApplicationService(repository, password, tokens, sessions, emailSender, config),
-          inject: [AuthRepository, PasswordService, TokenService, SessionService, EMAIL_SENDER],
+            new AuthApplicationService(
+              repository,
+              password,
+              tokens,
+              sessions,
+              emailSender,
+              config,
+              metrics,
+            ),
+          inject: [
+            AuthRepository,
+            PasswordService,
+            TokenService,
+            SessionService,
+            EMAIL_SENDER,
+            MetricsRegistry,
+          ],
         },
         AuthRateLimitGuard,
         SessionAuthGuard,

@@ -18,6 +18,7 @@ import { TransactionModule } from './transactions/transaction.module.js';
 import { ReportModule } from './reports/report.module.js';
 import { PlansModule } from './plans/plans.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
+import { ObservabilityModule } from './observability/observability.module.js';
 import { TransferModule } from './transfers/transfer.module.js';
 import { WorkspaceModule } from './workspaces/workspace.module.js';
 
@@ -45,6 +46,7 @@ export class AppModule {
         NotificationsModule.register(),
         ReportModule.register(),
         ExportsModule.register(),
+        ObservabilityModule.register(config),
       ],
       providers: [{ provide: API_CONFIG, useValue: config }],
       exports: [API_CONFIG],

@@ -13,6 +13,8 @@ const baseConfig: ApiConfig = {
     'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin',
   webOrigin: 'http://localhost:3000',
   logLevel: 'silent',
+  trustProxy: false,
+  releaseSha: 'test',
   auth: {
     tokenHashSecret: 'test-only-secret-with-at-least-32-bytes',
     idleTimeoutSeconds: 2_592_000,

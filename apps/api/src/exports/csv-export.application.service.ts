@@ -2,6 +2,7 @@ import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 
 import { formatMinorUnits } from '../common/money/minor-units.js';
 import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
+import { MetricsRegistry } from '../observability/observability.js';
 import { listQuery } from '../transactions/transaction.application.service.js';
 import { CsvExportRepository } from './csv-export.repository.js';
 import type { ExportTransactionsInput } from './exports.schemas.js';
@@ -38,7 +39,10 @@ type CsvCell = string | { value: string; escapeFormula: boolean };
 
 @Injectable()
 export class CsvExportApplicationService {
-  constructor(private readonly repository: CsvExportRepository) {}
+  constructor(
+    private readonly repository: CsvExportRepository,
+    private readonly metrics: MetricsRegistry,
+  ) {}
 
   async exportTransactions(
     userId: string,
@@ -54,7 +58,10 @@ export class CsvExportApplicationService {
       throw resourceNotFound();
 
     const rows = await this.repository.listTransactions(userId, budgetId, query, exportLimit + 1);
-    if (rows.length > exportLimit) throw exportLimitExceeded();
+    if (rows.length > exportLimit) {
+      this.metrics.increment('export_failures_total');
+      throw exportLimitExceeded();
+    }
 
     return {
       filename,

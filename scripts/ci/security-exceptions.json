@@ -1,0 +1,32 @@
+[
+  {
+    "ghsa": "GHSA-rcmh-qjqh-p98v",
+    "module": "nodemailer",
+    "reason": "Recursive addressparser DoS. Reviewed 2026-09-10: HarmoFin sends mail only to a single validated recipient address per call (password recovery), never parses untrusted multi-address input.",
+    "trackedIn": "docs/superpowers/plans/2026-09-09-stage-7-production-readiness.md"
+  },
+  {
+    "ghsa": "GHSA-p6gq-j5cr-w38f",
+    "module": "nodemailer",
+    "reason": "Raw message option bypasses file/URL access guards. Reviewed 2026-09-10: HarmoFin never sets the raw message option; only structured to/from/subject/text fields are used.",
+    "trackedIn": "docs/superpowers/plans/2026-09-09-stage-7-production-readiness.md"
+  },
+  {
+    "ghsa": "GHSA-2x7j-588g-ccc2",
+    "module": "nodemailer",
+    "reason": "Quadratic addressparser DoS on crafted address lists. Reviewed 2026-09-10: recipient is always exactly one server-validated email; no user-controlled address list is parsed.",
+    "trackedIn": "docs/superpowers/plans/2026-09-09-stage-7-production-readiness.md"
+  },
+  {
+    "ghsa": "GHSA-ggr8-5vv4-36mx",
+    "module": "deepmerge-ts",
+    "reason": "Stack exhaustion merging recursive object graphs. Reviewed 2026-09-10: transitive dependency of Prisma CLI config loading (devDependency/build-time only), never receives runtime request input.",
+    "trackedIn": "docs/superpowers/plans/2026-09-09-stage-7-production-readiness.md"
+  },
+  {
+    "ghsa": "GHSA-38f7-945m-qr2g",
+    "module": "effect",
+    "reason": "AsyncLocalStorage context loss under concurrent RPC load. Reviewed 2026-09-10: transitive dependency of Prisma CLI config (devDependency/build-time only), not used at API/worker runtime.",
+    "trackedIn": "docs/superpowers/plans/2026-09-09-stage-7-production-readiness.md"
+  }
+]

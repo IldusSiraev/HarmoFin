@@ -15,9 +15,24 @@ const postgresUrl = z
     { message: 'must be a PostgreSQL URL' },
   );
 
-const httpUrl = z.url().refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), {
-  message: 'must be an HTTP(S) URL',
-});
+const httpUrl = z.url().refine(
+  (value) => {
+    try {
+      return ['http:', 'https:'].includes(new URL(value).protocol);
+    } catch {
+      return false;
+    }
+  },
+  { message: 'must be an HTTP(S) URL' },
+);
+const optionalHttpUrl = z
+  .literal('')
+  .transform(() => undefined)
+  .or(httpUrl.optional());
+const optionalNonEmptyString = z
+  .literal('')
+  .transform(() => undefined)
+  .or(z.string().min(1).optional());
 
 const apiEnvironmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -25,11 +40,15 @@ const apiEnvironmentSchema = z.object({
   DATABASE_URL: postgresUrl,
   WEB_ORIGIN: httpUrl.default('http://localhost:3000'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  TRUST_PROXY: z.enum(['true', 'false']).default('false'),
+  RELEASE_SHA: z.string().min(1).default('dev'),
+  ERROR_REPORTING_ENDPOINT: optionalHttpUrl,
+  OTEL_EXPORTER_OTLP_ENDPOINT: optionalHttpUrl,
   AUTH_TOKEN_HASH_SECRET: z.string().min(32),
   SMTP_HOST: z.string().min(1),
   SMTP_PORT: z.coerce.number().int().min(1).max(65_535),
-  SMTP_USER: z.string().min(1).optional(),
-  SMTP_PASSWORD: z.string().min(1).optional(),
+  SMTP_USER: optionalNonEmptyString,
+  SMTP_PASSWORD: optionalNonEmptyString,
   MAIL_FROM: z.string().min(1),
   WEB_BASE_URL: httpUrl,
   RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(900),
@@ -45,6 +64,10 @@ export interface ApiConfig {
   databaseUrl: string;
   webOrigin: string;
   logLevel: LogLevel;
+  trustProxy: boolean;
+  releaseSha: string;
+  errorReportingEndpoint?: string;
+  otelExporterOtlpEndpoint?: string;
   auth: {
     tokenHashSecret: string;
     idleTimeoutSeconds: number;
@@ -85,6 +108,10 @@ export function loadApiConfig(input: NodeJS.ProcessEnv): ApiConfig {
     throw new Error('Invalid API configuration: AUTH_TOKEN_HASH_SECRET');
   }
 
+  if (environment.NODE_ENV === 'production' && environment.TRUST_PROXY !== 'true') {
+    throw new Error('Invalid API configuration: TRUST_PROXY');
+  }
+
   if (
     environment.NODE_ENV === 'production' &&
     Boolean(environment.SMTP_USER) !== Boolean(environment.SMTP_PASSWORD)
@@ -98,6 +125,14 @@ export function loadApiConfig(input: NodeJS.ProcessEnv): ApiConfig {
     databaseUrl: environment.DATABASE_URL,
     webOrigin: environment.WEB_ORIGIN,
     logLevel: environment.LOG_LEVEL,
+    trustProxy: environment.TRUST_PROXY === 'true',
+    releaseSha: environment.RELEASE_SHA,
+    ...(environment.ERROR_REPORTING_ENDPOINT
+      ? { errorReportingEndpoint: environment.ERROR_REPORTING_ENDPOINT }
+      : {}),
+    ...(environment.OTEL_EXPORTER_OTLP_ENDPOINT
+      ? { otelExporterOtlpEndpoint: environment.OTEL_EXPORTER_OTLP_ENDPOINT }
+      : {}),
     auth: {
       tokenHashSecret: environment.AUTH_TOKEN_HASH_SECRET,
       idleTimeoutSeconds: 2_592_000,

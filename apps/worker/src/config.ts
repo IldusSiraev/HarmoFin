@@ -15,6 +15,21 @@ const postgresUrl = z
     { message: 'must be a PostgreSQL URL' },
   );
 
+const httpUrl = z.url().refine(
+  (value) => {
+    try {
+      return ['http:', 'https:'].includes(new URL(value).protocol);
+    } catch {
+      return false;
+    }
+  },
+  { message: 'must be an HTTP(S) URL' },
+);
+const optionalHttpUrl = z
+  .literal('')
+  .transform(() => undefined)
+  .or(httpUrl.optional());
+
 const workerEnvironmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: postgresUrl,
@@ -22,6 +37,11 @@ const workerEnvironmentSchema = z.object({
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(1),
   WORKER_LEASE_SECONDS: z.coerce.number().int().min(30).max(3_600).default(300),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  WORKER_HEALTH_HOST: z.enum(['0.0.0.0', '127.0.0.1']).default('127.0.0.1'),
+  WORKER_HEALTH_PORT: z.coerce.number().int().min(1).max(65_535).default(3002),
+  RELEASE_SHA: z.string().min(1).default('dev'),
+  ERROR_REPORTING_ENDPOINT: optionalHttpUrl,
+  OTEL_EXPORTER_OTLP_ENDPOINT: optionalHttpUrl,
 });
 
 type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
@@ -33,6 +53,11 @@ export interface WorkerConfig {
   concurrency: number;
   leaseSeconds: number;
   logLevel: LogLevel;
+  healthHost: '0.0.0.0' | '127.0.0.1';
+  healthPort: number;
+  releaseSha: string;
+  errorReportingEndpoint: string | undefined;
+  otelExporterOtlpEndpoint: string | undefined;
 }
 
 export function loadWorkerConfig(input: NodeJS.ProcessEnv): WorkerConfig {
@@ -52,5 +77,10 @@ export function loadWorkerConfig(input: NodeJS.ProcessEnv): WorkerConfig {
     concurrency: result.data.WORKER_CONCURRENCY,
     leaseSeconds: result.data.WORKER_LEASE_SECONDS,
     logLevel: result.data.LOG_LEVEL,
+    healthHost: result.data.WORKER_HEALTH_HOST,
+    healthPort: result.data.WORKER_HEALTH_PORT,
+    releaseSha: result.data.RELEASE_SHA,
+    errorReportingEndpoint: result.data.ERROR_REPORTING_ENDPOINT,
+    otelExporterOtlpEndpoint: result.data.OTEL_EXPORTER_OTLP_ENDPOINT,
   };
 }
