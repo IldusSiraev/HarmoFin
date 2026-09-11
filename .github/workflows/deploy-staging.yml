@@ -1,0 +1,85 @@
+name: Deploy staging
+
+on:
+  workflow_run:
+    workflows: [Publish images]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+    env:
+      RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+      STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+      STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+      STAGING_SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
+      STAGING_APP_DIR: ${{ secrets.STAGING_APP_DIR }}
+      STAGING_BASE_URL: ${{ secrets.STAGING_BASE_URL }}
+      STAGING_ENV_FILE: ${{ secrets.STAGING_ENV_FILE }}
+      STAGING_KNOWN_HOSTS: ${{ secrets.STAGING_KNOWN_HOSTS }}
+    steps:
+      - name: Check out tested revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Validate staging inputs
+        run: |
+          test -n "$STAGING_SSH_HOST"
+          test -n "$STAGING_SSH_USER"
+          test -n "$STAGING_APP_DIR"
+          test -n "$STAGING_BASE_URL"
+          test -n "$STAGING_ENV_FILE"
+          test -n "$STAGING_KNOWN_HOSTS"
+          printf '%s' "$RELEASE_SHA" | grep -Eq '^[0-9a-f]{7,40}$'
+
+      - name: Configure SSH
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$STAGING_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          printf '%s' '${{ secrets.STAGING_SSH_PRIVATE_KEY }}' > "$HOME/.ssh/staging_key"
+          chmod 600 "$HOME/.ssh/staging_key"
+
+      - name: Upload deployment files
+        run: |
+          tar -czf - infra/compose/production.yml infra/caddy/Caddyfile infra/scripts \
+            | ssh -i "$HOME/.ssh/staging_key" -p "${STAGING_SSH_PORT:-22}" \
+              "$STAGING_SSH_USER@$STAGING_SSH_HOST" \
+              "mkdir -p '$STAGING_APP_DIR' && tar -xzf - -C '$STAGING_APP_DIR'"
+
+      - name: Upload staging environment file
+        run: |
+          printf '%s' "$STAGING_ENV_FILE" \
+            | ssh -i "$HOME/.ssh/staging_key" -p "${STAGING_SSH_PORT:-22}" \
+              "$STAGING_SSH_USER@$STAGING_SSH_HOST" \
+              "umask 077 && cat > '$STAGING_APP_DIR/.env.staging'"
+
+      - name: Deploy exact published SHA
+        run: |
+          ssh -i "$HOME/.ssh/staging_key" -p "${STAGING_SSH_PORT:-22}" \
+            "$STAGING_SSH_USER@$STAGING_SSH_HOST" \
+            "cd '$STAGING_APP_DIR' && set -a && . '$STAGING_APP_DIR/.env.staging' && set +a && export COMPOSE_ENV_FILE='$STAGING_APP_DIR/.env.staging' SMOKE_BASE_URL='$STAGING_BASE_URL' IMAGE_TAG='$RELEASE_SHA' && ./infra/scripts/deploy.sh"
+
+      - name: Publish redacted staging metadata
+        run: |
+          printf 'environment=staging\nrevision=%s\nresult=success\n' "$RELEASE_SHA" > staging-release-${RELEASE_SHA}.txt
+
+      - name: Upload staging metadata
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: staging-release-${{ env.RELEASE_SHA }}
+          path: staging-release-${{ env.RELEASE_SHA }}.txt
+          retention-days: 30

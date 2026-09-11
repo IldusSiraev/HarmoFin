@@ -48,6 +48,18 @@ describe('loadWorkerConfig', () => {
     });
   });
 
+  it('treats an empty optional telemetry endpoint as unset instead of crashing', () => {
+    const config = loadWorkerConfig({
+      NODE_ENV: 'test',
+      DATABASE_URL: 'postgresql://worker:worker@localhost:5432/harmofin',
+      ERROR_REPORTING_ENDPOINT: '',
+      OTEL_EXPORTER_OTLP_ENDPOINT: '',
+    });
+
+    expect(config.errorReportingEndpoint).toBeUndefined();
+    expect(config.otelExporterOtlpEndpoint).toBeUndefined();
+  });
+
   it('rejects health ports outside TCP range', () => {
     expect(() =>
       loadWorkerConfig({

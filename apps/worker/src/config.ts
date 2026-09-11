@@ -15,9 +15,20 @@ const postgresUrl = z
     { message: 'must be a PostgreSQL URL' },
   );
 
-const httpUrl = z.url().refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), {
-  message: 'must be an HTTP(S) URL',
-});
+const httpUrl = z.url().refine(
+  (value) => {
+    try {
+      return ['http:', 'https:'].includes(new URL(value).protocol);
+    } catch {
+      return false;
+    }
+  },
+  { message: 'must be an HTTP(S) URL' },
+);
+const optionalHttpUrl = z
+  .literal('')
+  .transform(() => undefined)
+  .or(httpUrl.optional());
 
 const workerEnvironmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -29,8 +40,8 @@ const workerEnvironmentSchema = z.object({
   WORKER_HEALTH_HOST: z.enum(['0.0.0.0', '127.0.0.1']).default('127.0.0.1'),
   WORKER_HEALTH_PORT: z.coerce.number().int().min(1).max(65_535).default(3002),
   RELEASE_SHA: z.string().min(1).default('dev'),
-  ERROR_REPORTING_ENDPOINT: httpUrl.optional(),
-  OTEL_EXPORTER_OTLP_ENDPOINT: httpUrl.optional(),
+  ERROR_REPORTING_ENDPOINT: optionalHttpUrl,
+  OTEL_EXPORTER_OTLP_ENDPOINT: optionalHttpUrl,
 });
 
 type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';

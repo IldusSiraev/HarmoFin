@@ -82,6 +82,30 @@ describe('loadApiConfig', () => {
     ).toBe('__Host-harmofin_session');
   });
 
+  it('treats an empty optional telemetry endpoint as unset instead of crashing', () => {
+    const config = loadApiConfig({
+      ...validEnvironment,
+      ERROR_REPORTING_ENDPOINT: '',
+      OTEL_EXPORTER_OTLP_ENDPOINT: '',
+    });
+
+    expect(config.errorReportingEndpoint).toBeUndefined();
+    expect(config.otelExporterOtlpEndpoint).toBeUndefined();
+  });
+
+  it('treats empty SMTP_USER and SMTP_PASSWORD as unset instead of rejecting', () => {
+    const config = loadApiConfig({
+      ...validEnvironment,
+      NODE_ENV: 'production',
+      TRUST_PROXY: 'true',
+      SMTP_USER: '',
+      SMTP_PASSWORD: '',
+    });
+
+    expect(config.mail.smtpUser).toBeUndefined();
+    expect(config.mail.smtpPassword).toBeUndefined();
+  });
+
   it('maps configured telemetry endpoints', () => {
     expect(
       loadApiConfig({

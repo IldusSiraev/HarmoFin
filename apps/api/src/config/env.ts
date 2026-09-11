@@ -15,9 +15,24 @@ const postgresUrl = z
     { message: 'must be a PostgreSQL URL' },
   );
 
-const httpUrl = z.url().refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), {
-  message: 'must be an HTTP(S) URL',
-});
+const httpUrl = z.url().refine(
+  (value) => {
+    try {
+      return ['http:', 'https:'].includes(new URL(value).protocol);
+    } catch {
+      return false;
+    }
+  },
+  { message: 'must be an HTTP(S) URL' },
+);
+const optionalHttpUrl = z
+  .literal('')
+  .transform(() => undefined)
+  .or(httpUrl.optional());
+const optionalNonEmptyString = z
+  .literal('')
+  .transform(() => undefined)
+  .or(z.string().min(1).optional());
 
 const apiEnvironmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -27,13 +42,13 @@ const apiEnvironmentSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   TRUST_PROXY: z.enum(['true', 'false']).default('false'),
   RELEASE_SHA: z.string().min(1).default('dev'),
-  ERROR_REPORTING_ENDPOINT: httpUrl.optional(),
-  OTEL_EXPORTER_OTLP_ENDPOINT: httpUrl.optional(),
+  ERROR_REPORTING_ENDPOINT: optionalHttpUrl,
+  OTEL_EXPORTER_OTLP_ENDPOINT: optionalHttpUrl,
   AUTH_TOKEN_HASH_SECRET: z.string().min(32),
   SMTP_HOST: z.string().min(1),
   SMTP_PORT: z.coerce.number().int().min(1).max(65_535),
-  SMTP_USER: z.string().min(1).optional(),
-  SMTP_PASSWORD: z.string().min(1).optional(),
+  SMTP_USER: optionalNonEmptyString,
+  SMTP_PASSWORD: optionalNonEmptyString,
   MAIL_FROM: z.string().min(1),
   WEB_BASE_URL: httpUrl,
   RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(900),
