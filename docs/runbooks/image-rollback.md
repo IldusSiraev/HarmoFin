@@ -3,6 +3,7 @@
 **Trigger**: Production deployment failure or critical issue requiring immediate return to previous known-good state
 
 **Prerequisites**:
+
 - Migration compatibility verified as `backward-compatible` or `rollback-safe`
 - Previous SHA identified and verified in staging
 - Incident owner assigned
@@ -87,6 +88,7 @@ docker manifest inspect ghcr.io/[org]/[repo]/worker:$ROLLBACK_SHA
 Navigate to: `.github/workflows/deploy-production.yml`
 
 **Workflow dispatch inputs**:
+
 - `image_tag`: `[rollback SHA]`
 - `staging_evidence`: `[original staging evidence for rollback SHA]`
 - `migration_compatibility`: `backward-compatible` or `rollback-safe`
@@ -107,6 +109,7 @@ Navigate to: `.github/workflows/deploy-production.yml`
 **Rollback workflow run**: `[GitHub Actions URL]`
 
 **Expected behavior**:
+
 1. Validate inputs ✓
 2. Pull rollback SHA images ✓
 3. Migration step (idempotent, already applied) ✓
@@ -179,11 +182,13 @@ curl -f https://production-domain/api/v1/health/ready
 ### 11. Investigate root cause
 
 **Do not re-deploy without**:
+
 1. Root cause identified
 2. Fix verified in staging
 3. Post-incident review completed
 
 **Investigation tasks**:
+
 - [ ] Root cause identified
 - [ ] Fix developed and tested
 - [ ] Staging verification with fix
@@ -204,6 +209,7 @@ curl -f https://production-domain/api/v1/health/ready
 ### Escalate to database restore
 
 If image rollback does not resolve the issue:
+
 1. Assess whether database corruption or data issue is root cause
 2. Follow `docs/runbooks/database-restore.md`
 3. Escalate to incident commander and DBA
@@ -219,6 +225,7 @@ If image rollback does not resolve the issue:
 ## Prevention
 
 **Post-incident actions to prevent recurrence**:
+
 - [ ] Add monitoring/alerting for this failure mode
 - [ ] Add CI gate to catch this class of issue
 - [ ] Update deployment checklist with additional verification

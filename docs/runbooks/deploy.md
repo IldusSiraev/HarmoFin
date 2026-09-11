@@ -3,6 +3,7 @@
 **Trigger**: Approved production release with all evidence gates passed
 
 **Prerequisites**:
+
 - Release checklist completed (`docs/operations/release-record.md`)
 - Staging deployment successful with same SHA
 - Migration compatibility verified
@@ -64,6 +65,7 @@
 Navigate to: `.github/workflows/deploy-production.yml`
 
 **Workflow inputs**:
+
 - `image_tag`: `[exact commit SHA]`
 - `staging_evidence`: `[staging workflow run URL]`
 - `migration_compatibility`: `[forward-only | backward-compatible | rollback-safe]`
@@ -88,6 +90,7 @@ Navigate to: `.github/workflows/deploy-production.yml`
 **Workflow run**: `[GitHub Actions URL]`
 
 **Expected phases**:
+
 1. Validate inputs ✓
 2. Configure SSH ✓
 3. Upload deployment files ✓
@@ -172,6 +175,7 @@ curl -f https://production-domain/api/v1/health/ready
 ```
 
 **Metrics to watch**:
+
 - HTTP error rate: `[baseline]` → `[current]`
 - API P95 latency: `[baseline]` → `[current]`
 - Worker backlog: `[baseline]` → `[current]`
@@ -190,11 +194,13 @@ curl -f https://production-domain/api/v1/health/ready
 ### Rollback decision gate
 
 **Do not rollback without**:
+
 1. Confirming migration compatibility permits rollback
 2. Recording rollback reason and evidence
 3. Approval from on-call engineer and release owner
 
 **Migration compatibility check**:
+
 - `forward-only`: Rollback NOT SAFE (database schema incompatible with previous code)
 - `backward-compatible`: Rollback SAFE (previous code can run with new schema)
 - `rollback-safe`: Rollback SAFE with explicit verification
@@ -215,6 +221,7 @@ See: `docs/runbooks/image-rollback.md`
 **Rollback SHA**: `[from release checklist step 1]`
 
 **Post-rollback**:
+
 - [ ] Services healthy with rollback SHA
 - [ ] Error rate returned to baseline
 - [ ] Critical journey verified
@@ -227,6 +234,7 @@ See: `docs/runbooks/image-rollback.md`
 ### 11. Record release evidence
 
 Update `docs/operations/release-record.md` with:
+
 - Production workflow run URL
 - Post-deployment verification results
 - Observation window completion timestamp

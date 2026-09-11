@@ -13,6 +13,7 @@
 **Definition**: Complete service outage or critical security breach
 
 **Examples**:
+
 - Production completely unavailable (all users affected)
 - Database destroyed or corrupted beyond immediate recovery
 - Confirmed data breach or unauthorized access to production data
@@ -20,6 +21,7 @@
 - Security vulnerability actively exploited
 
 **Response**:
+
 - Immediate incident commander assignment
 - All hands on deck
 - Executive notification within 15 minutes
@@ -33,6 +35,7 @@
 **Definition**: Significant service degradation or data integrity risk
 
 **Examples**:
+
 - Core functionality unavailable (authentication, budget access, operations)
 - Database connectivity failure affecting all services
 - Elevated error rate (>5%) affecting majority of users
@@ -40,6 +43,7 @@
 - Security incident requiring immediate containment
 
 **Response**:
+
 - Incident commander assignment
 - On-call engineer plus specialists as needed
 - Stakeholder notification within 30 minutes
@@ -53,6 +57,7 @@
 **Definition**: Limited service degradation or isolated failures
 
 **Examples**:
+
 - Single feature unavailable (notifications, exports)
 - Elevated error rate affecting specific endpoint
 - Worker backlog growing but not critical
@@ -60,6 +65,7 @@
 - Non-critical external service failure
 
 **Response**:
+
 - On-call engineer handles
 - Incident commander optional
 - Stakeholder notification within 2 hours if user-facing
@@ -73,12 +79,14 @@
 **Definition**: Anomaly detected but no confirmed user impact
 
 **Examples**:
+
 - Alert triggered but services healthy
 - Anomalous traffic pattern under investigation
 - Potential security concern requiring investigation
 - Monitoring gap identified
 
 **Response**:
+
 - On-call engineer investigates
 - No immediate escalation unless confirmed issue
 - Document findings
@@ -152,11 +160,13 @@ Executive Leadership
 **Primary channel**: `[Slack/Teams channel or incident chat room]`
 
 **Communication frequency**:
+
 - SEV-1: Every 30 minutes or on significant status change
 - SEV-2: Every 1-2 hours or on significant status change
 - SEV-3: On resolution or daily if multi-day
 
 **Status update template**:
+
 ```
 Incident: [ID and brief description]
 Severity: SEV-[1/2/3]
@@ -171,18 +181,21 @@ Next update: [timestamp]
 **Decision gate**: Incident commander approves user communication
 
 **When to communicate**:
+
 - SEV-1: Immediately (within 15 minutes of confirmation)
 - SEV-2: Within 30 minutes if user-facing impact
 - SEV-3: On resolution if degradation noticed by users
 - SEV-4: No user communication unless evolves to higher severity
 
 **Communication channels**:
+
 - Status page update (if available)
 - In-app notification (if available)
 - Email to affected users (if targeted)
 - Social media (if widespread and public-facing)
 
 **User communication template**:
+
 ```
 Subject: [Service incident | Service restored]
 
@@ -202,12 +215,14 @@ We apologize for the inconvenience.
 ### Executive notification
 
 **Trigger**:
+
 - Any SEV-1 incident
 - SEV-2 incident with potential legal/regulatory/PR impact
 - Security breach or data integrity issue
 - Incident approaching SLA breach
 
 **Notification includes**:
+
 - Incident severity and user impact
 - Root cause (if known)
 - Current status and ETA
@@ -265,12 +280,14 @@ Follow database-restore.md with incident commander + DBA
 ### 1. Detection
 
 **Sources**:
+
 - Monitoring alert
 - User report
 - On-call engineer observation
 - External notification (provider, security)
 
 **Actions**:
+
 - Acknowledge alert
 - Create incident record
 - Begin investigation
@@ -278,6 +295,7 @@ Follow database-restore.md with incident commander + DBA
 ### 2. Triage
 
 **Actions**:
+
 - Assess severity (SEV-1/2/3/4)
 - Identify affected systems and users
 - Review recent changes (deployments, config)
@@ -286,6 +304,7 @@ Follow database-restore.md with incident commander + DBA
 ### 3. Investigation
 
 **Actions**:
+
 - Review logs and metrics
 - Test hypothesis
 - Identify root cause or containment approach
@@ -294,6 +313,7 @@ Follow database-restore.md with incident commander + DBA
 ### 4. Mitigation
 
 **Actions**:
+
 - Execute mitigation plan (rollback, restart, config change)
 - Verify mitigation effectiveness
 - Monitor for recurrence
@@ -302,6 +322,7 @@ Follow database-restore.md with incident commander + DBA
 ### 5. Recovery
 
 **Actions**:
+
 - Verify all systems healthy
 - Confirm user impact resolved
 - Monitor for stability
@@ -310,6 +331,7 @@ Follow database-restore.md with incident commander + DBA
 ### 6. Post-incident
 
 **Actions**:
+
 - Schedule post-incident review
 - Document timeline and root cause
 - Identify prevention measures
@@ -399,16 +421,16 @@ Post-incident review: [date scheduled]
 
 ## Emergency contacts
 
-| Role | Primary | Secondary | Escalation path |
-|------|---------|-----------|-----------------|
-| On-call engineer | `[contact]` | `[contact]` | Incident commander |
-| Incident commander | `[contact]` | `[contact]` | Technical lead |
-| Technical lead | `[contact]` | `[contact]` | Executive |
-| Database administrator | `[contact]` | `[contact]` | Provider support |
-| Security team | `[contact]` | `[contact]` | Legal/compliance |
-| Provider support | `[contact/URL]` | - | TAM (if available) |
-| Legal/compliance | `[contact]` | - | Executive |
-| Executive on-call | `[contact]` | - | - |
+| Role                   | Primary         | Secondary   | Escalation path    |
+| ---------------------- | --------------- | ----------- | ------------------ |
+| On-call engineer       | `[contact]`     | `[contact]` | Incident commander |
+| Incident commander     | `[contact]`     | `[contact]` | Technical lead     |
+| Technical lead         | `[contact]`     | `[contact]` | Executive          |
+| Database administrator | `[contact]`     | `[contact]` | Provider support   |
+| Security team          | `[contact]`     | `[contact]` | Legal/compliance   |
+| Provider support       | `[contact/URL]` | -           | TAM (if available) |
+| Legal/compliance       | `[contact]`     | -           | Executive          |
+| Executive on-call      | `[contact]`     | -           | -                  |
 
 **Contact information storage**: `[protected operations record system - not Git]`
 

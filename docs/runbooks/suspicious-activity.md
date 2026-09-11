@@ -3,6 +3,7 @@
 **Trigger**: Unauthorized access detected, anomalous traffic patterns, security alert, potential account compromise
 
 **Prerequisites**:
+
 - Access logs and security monitoring available
 - Incident response team contact information
 - Ability to disable accounts and revoke sessions
@@ -74,6 +75,7 @@ Common indicators of suspicious activity:
 ```
 
 **Investigation findings**:
+
 - Suspicious IP(s): `[IP addresses]`
 - Affected user account(s): `[user IDs or emails - redact in Git]`
 - Time range: `[start - end timestamp]`
@@ -94,6 +96,7 @@ Common indicators of suspicious activity:
 ```
 
 **Access summary**:
+
 - Budgets accessed: `[count]`
 - Operations queried: `[count]`
 - Sensitive actions: `[list any concerning actions]`
@@ -102,6 +105,7 @@ Common indicators of suspicious activity:
 ### 3. Assess attack vector
 
 **Possible vectors**:
+
 - [ ] Credential stuffing (leaked password from another site)
 - [ ] Phishing (user tricked into giving credentials)
 - [ ] Session hijacking (stolen session cookie)
@@ -127,20 +131,21 @@ DELETE FROM \"Session\" WHERE user_id = '[affected-user-id]';
 
 # 2. Force password reset on next login (if user table supports)
 psql "$DATABASE_URL" -c "
-UPDATE \"User\" 
-SET password_reset_required = true 
+UPDATE \"User\"
+SET password_reset_required = true
 WHERE id = '[affected-user-id]';
 "
 
 # 3. Lock account if necessary (if active attack ongoing)
 psql "$DATABASE_URL" -c "
-UPDATE \"User\" 
+UPDATE \"User\"
 SET is_locked = true, locked_at = NOW(), locked_reason = 'Security investigation'
 WHERE id = '[affected-user-id]';
 "
 ```
 
 **Containment actions**:
+
 - [ ] Sessions revoked for affected user(s)
 - [ ] Password reset required
 - [ ] Account locked (if necessary)
@@ -158,6 +163,7 @@ WHERE id = '[affected-user-id]';
 ```
 
 **IP containment**:
+
 - [ ] Suspicious IP(s) identified
 - [ ] Rate limiting applied
 - [ ] IP blocked (if confirmed attack)
@@ -172,6 +178,7 @@ WHERE id = '[affected-user-id]';
 ```
 
 **Credential containment**:
+
 - [ ] Compromised credentials identified
 - [ ] Secrets rotated (see docs/runbooks/secret-rotation.md)
 - [ ] Access logs reviewed for unauthorized usage
@@ -192,6 +199,7 @@ WHERE id = '[affected-user-id]';
 ```
 
 **Evidence preserved**:
+
 - [ ] Authentication logs exported
 - [ ] Access logs exported
 - [ ] Database audit logs exported (if available)
@@ -200,6 +208,7 @@ WHERE id = '[affected-user-id]';
 ### 2. Document timeline
 
 **Timeline of events**:
+
 ```
 [YYYY-MM-DD HH:MM] First suspicious activity detected
 [YYYY-MM-DD HH:MM] Alert triggered or investigation started
@@ -211,6 +220,7 @@ WHERE id = '[affected-user-id]';
 ### 3. Assess data exposure
 
 **Data exposure assessment**:
+
 - [ ] User personal information accessed
 - [ ] Financial operations/balances accessed
 - [ ] Budget data accessed
@@ -227,6 +237,7 @@ WHERE id = '[affected-user-id]';
 ### For compromised user account
 
 **Notification template**:
+
 ```
 Subject: Security notice - action required
 
@@ -248,6 +259,7 @@ We recommend:
 ```
 
 **Communication checklist**:
+
 - [ ] User notified of security incident
 - [ ] Actions taken communicated
 - [ ] Next steps provided
@@ -256,6 +268,7 @@ We recommend:
 ### For security incident disclosure
 
 **If data breach or widespread impact**:
+
 - [ ] Security incident response team notified
 - [ ] Legal/compliance team notified
 - [ ] Disclosure timeline determined
@@ -306,6 +319,7 @@ We recommend:
 ### 3. Prevention measures
 
 **Technical controls**:
+
 - [ ] Rate limiting enhanced
 - [ ] Authentication security hardened (captcha, MFA, etc.)
 - [ ] Monitoring/alerting added for this pattern
@@ -313,6 +327,7 @@ We recommend:
 - [ ] Infrastructure firewall rules updated
 
 **Process improvements**:
+
 - [ ] Incident response process updated
 - [ ] User communication templates updated
 - [ ] Logging/monitoring coverage expanded
@@ -330,6 +345,7 @@ We recommend:
 ## Prevention and detection
 
 **Recommended security controls**:
+
 - Rate limiting on authentication endpoints
 - Account lockout after N failed attempts
 - Monitoring for unusual login locations/devices
@@ -339,6 +355,7 @@ We recommend:
 - CAPTCHA on authentication (if bot activity detected)
 
 **Recommended alerts**:
+
 - Multiple failed authentication attempts from single IP (>10 in 5 min)
 - Successful authentication from new country/ASN
 - Elevated API error rate (potential injection attempts)

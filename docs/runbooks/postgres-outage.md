@@ -3,6 +3,7 @@
 **Trigger**: Database connectivity failure, high error rate from database queries, health checks failing with database errors
 
 **Prerequisites**:
+
 - Database monitoring and alerts configured
 - Provider support contact information available
 - Recent backup evidence current
@@ -39,6 +40,7 @@ docker compose -f infra/compose/production.yml exec worker curl -f http://localh
 ```
 
 **Health check results**:
+
 - API ready: `[pass/fail]`
 - Worker ready: `[pass/fail]`
 - Error message: `[database error details]`
@@ -53,6 +55,7 @@ psql "$DATABASE_URL" -c "SELECT 1;"
 ```
 
 **Connectivity test results**:
+
 - [ ] Connection succeeds
 - [ ] Connection times out
 - [ ] Connection refused
@@ -67,6 +70,7 @@ psql "$DATABASE_URL" -c "SELECT 1;"
 ```
 
 **Provider status**:
+
 - Instance state: `[available/stopped/maintenance/failing-over/unknown]`
 - CPU usage: `[percentage]`
 - Memory usage: `[percentage]`
@@ -97,6 +101,7 @@ psql "$DATABASE_URL" -c "SELECT 1;"
 **Symptoms**: "connection pool exhausted", "too many clients", API/worker can't acquire connection
 
 **Diagnosis**:
+
 ```bash
 # Check active connection count vs pool size
 # Review DATABASE_URL connection pool settings
@@ -104,11 +109,12 @@ psql "$DATABASE_URL" -c "SELECT 1;"
 ```
 
 **Resolution**:
+
 ```bash
 # Short-term: Restart API/worker to reset connection pools
 docker compose -f infra/compose/production.yml restart api worker
 
-# Long-term: 
+# Long-term:
 # - Increase connection pool size if database can handle it
 # - Investigate connection leaks in application code
 # - Add connection pool monitoring/alerts
@@ -124,6 +130,7 @@ docker compose -f infra/compose/production.yml restart api worker
 **Symptoms**: Connection refused, provider console shows instance stopped/maintenance/failing-over
 
 **Diagnosis**:
+
 ```bash
 # Check provider console for:
 # - Scheduled maintenance window
@@ -133,6 +140,7 @@ docker compose -f infra/compose/production.yml restart api worker
 ```
 
 **Resolution**:
+
 ```bash
 # If scheduled maintenance: Wait for maintenance completion (typically 15-30 min)
 # If automatic failover: Wait for failover completion (typically 1-5 min)
@@ -153,6 +161,7 @@ docker compose -f infra/compose/production.yml restart api worker
 **Symptoms**: Connection timeout, network unreachable, DNS resolution failure
 
 **Diagnosis**:
+
 ```bash
 # Test network connectivity from application host
 ssh production-user@production-host
@@ -162,6 +171,7 @@ telnet database-hostname 5432
 ```
 
 **Resolution**:
+
 ```bash
 # Check firewall/security group rules
 # Check private network configuration
@@ -183,6 +193,7 @@ telnet database-hostname 5432
 **Symptoms**: "authentication failed", "password authentication failed", "role does not exist"
 
 **Diagnosis**:
+
 ```bash
 # Verify DATABASE_URL credentials correct
 # Check if database password was rotated without updating application
@@ -190,6 +201,7 @@ telnet database-hostname 5432
 ```
 
 **Resolution**:
+
 ```bash
 # If credentials incorrect: Update .env.production with correct DATABASE_URL
 docker compose -f infra/compose/production.yml restart api worker
@@ -207,6 +219,7 @@ docker compose -f infra/compose/production.yml restart api worker
 **Symptoms**: Slow queries, high IOPS, disk full errors, extremely high latency
 
 **Diagnosis**:
+
 ```bash
 # Check provider console for:
 # - Disk usage percentage
@@ -216,8 +229,9 @@ docker compose -f infra/compose/production.yml restart api worker
 ```
 
 **Resolution**:
+
 ```bash
-# If disk full: 
+# If disk full:
 # - Increase database storage via provider console
 # - Clean up old data (logs, temp tables) if applicable
 # - Review data growth rate and capacity planning
@@ -258,6 +272,7 @@ docker compose -f infra/compose/production.yml restart api worker
 **Account ID**: `[do not commit if sensitive]`
 
 **Information to provide**:
+
 - Instance identifier
 - Timestamp of issue onset
 - Symptoms and error messages
@@ -271,6 +286,7 @@ docker compose -f infra/compose/production.yml restart api worker
 **Trigger**: Database instance destroyed, data corruption, RTO exceeded, provider cannot restore
 
 **Escalation path**:
+
 1. Declare major incident
 2. Notify incident commander and stakeholders
 3. Assess database restore from backup (see `docs/runbooks/database-restore.md`)

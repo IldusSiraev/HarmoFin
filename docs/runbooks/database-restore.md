@@ -3,6 +3,7 @@
 **Trigger**: Database corruption, data loss, catastrophic failure, or unrecoverable application state requiring database recovery
 
 **Prerequisites**:
+
 - Current backup evidence and restore drill completed
 - Isolated restore target available
 - Incident commander assigned
@@ -153,6 +154,7 @@ psql "$DATABASE_URL" -c "\dt"
 ```
 
 **Schema verification**:
+
 - [ ] Migration history table exists
 - [ ] Expected migration version present: `[migration name]`
 - [ ] All expected tables present
@@ -172,6 +174,7 @@ psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM \"Operation\";"
 ```
 
 **Data integrity**:
+
 - [ ] Row counts within expected ranges
 - [ ] Foreign key constraints valid
 - [ ] No obvious data corruption
@@ -245,12 +248,13 @@ curl -f https://production-domain/api/v1/health/ready
 ### 14. Notify stakeholders of restoration
 
 **User communication**:
+
 ```
 [Template user communication about data loss window and service restoration]
 
 Example:
-"Service has been restored. Operations created between [backup timestamp] and 
-[incident timestamp] were not recoverable and have been lost. We apologize for 
+"Service has been restored. Operations created between [backup timestamp] and
+[incident timestamp] were not recoverable and have been lost. We apologize for
 the inconvenience. All other data has been verified intact."
 ```
 
@@ -261,6 +265,7 @@ the inconvenience. All other data has been verified intact."
 ### 15. Record restore evidence
 
 Update `docs/operations/backup-restore-record.md` with:
+
 - Incident ID and trigger
 - Backup source and restore target
 - Actual RTO and RPO

@@ -3,6 +3,7 @@
 **Trigger**: Worker stopped processing jobs, high job failure rate, worker backlog growing, worker health checks failing
 
 **Prerequisites**:
+
 - Worker monitoring and alerts configured
 - Database connectivity verified
 - Recent deployment information available
@@ -38,6 +39,7 @@ docker compose -f infra/compose/production.yml ps worker
 ```
 
 **Worker status**:
+
 - Health check: `[pass/fail/unreachable]`
 - Container state: `[running/stopped/restarting]`
 - Error message: `[description]`
@@ -70,6 +72,7 @@ docker compose -f infra/compose/production.yml logs --tail=100 worker
 ```
 
 **Metrics snapshot**:
+
 - Backlog depth: `[count]`
 - Recent failures: `[count/rate]`
 - Last successful job: `[timestamp]`
@@ -94,6 +97,7 @@ docker compose -f infra/compose/production.yml exec worker sh -c 'apk add postgr
 **Symptoms**: Container not running, exit code non-zero, restart loop
 
 **Diagnosis**:
+
 ```bash
 # Check container status and restart count
 docker compose -f infra/compose/production.yml ps worker
@@ -104,6 +108,7 @@ docker inspect production-worker-1 | grep -A 5 ExitCode
 ```
 
 **Resolution**:
+
 ```bash
 # Restart worker container
 docker compose -f infra/compose/production.yml restart worker
@@ -123,6 +128,7 @@ docker compose -f infra/compose/production.yml restart worker
 **Symptoms**: Worker logs show database connection errors, health check fails with database error
 
 **Diagnosis**:
+
 ```bash
 # Worker health includes database connectivity check
 # Review worker logs for connection errors
@@ -130,6 +136,7 @@ docker compose -f infra/compose/production.yml logs worker | grep -i "database\|
 ```
 
 **Resolution**:
+
 ```bash
 # Follow postgres-outage.md runbook
 # After database restored, restart worker
@@ -145,6 +152,7 @@ docker compose -f infra/compose/production.yml restart worker
 **Symptoms**: Jobs failing consistently, specific job type failing, error logs show unhandled exception
 
 **Diagnosis**:
+
 ```bash
 # Review worker logs for job processing errors
 docker compose -f infra/compose/production.yml logs worker | grep -i "job.*fail\|unhandled\|error"
@@ -154,6 +162,7 @@ docker compose -f infra/compose/production.yml logs worker | grep -i "job.*fail\
 ```
 
 **Resolution**:
+
 ```bash
 # Short-term: If specific job type failing, may need to skip/cancel failing jobs
 # Check if recent deployment introduced regression
@@ -174,11 +183,12 @@ docker compose -f infra/compose/production.yml logs worker | grep -i "job.*fail\
 **Symptoms**: Jobs stuck in "processing" beyond lease timeout, worker not picking up new jobs
 
 **Diagnosis**:
+
 ```bash
 # Check database for jobs stuck in processing state
 ssh production-user@production-host
 psql "$DATABASE_URL" -c "
-SELECT id, type, status, created_at, started_at, 
+SELECT id, type, status, created_at, started_at,
        EXTRACT(EPOCH FROM (NOW() - started_at)) as processing_seconds
 FROM \"Job\"
 WHERE status = 'processing'
@@ -187,6 +197,7 @@ AND started_at < NOW() - INTERVAL '10 minutes';
 ```
 
 **Resolution**:
+
 ```bash
 # If lease expired but job still marked processing:
 # - Job may have crashed without releasing lease
@@ -214,6 +225,7 @@ docker compose -f infra/compose/production.yml restart worker
 **Symptoms**: Backlog growing but worker healthy, all worker threads busy
 
 **Diagnosis**:
+
 ```bash
 # Check worker configuration for concurrency setting
 # Review metrics for concurrent job count
@@ -221,6 +233,7 @@ docker compose -f infra/compose/production.yml restart worker
 ```
 
 **Resolution**:
+
 ```bash
 # Short-term: Increase worker concurrency in .env.production
 # Update WORKER_CONCURRENCY value
@@ -241,6 +254,7 @@ docker compose -f infra/compose/production.yml restart worker
 **Symptoms**: Large backlog but worker processing normally, recent traffic spike
 
 **Diagnosis**:
+
 ```bash
 # Check job creation rate vs processing rate
 # Review recent user activity or bulk operations
@@ -248,6 +262,7 @@ docker compose -f infra/compose/production.yml restart worker
 ```
 
 **Resolution**:
+
 ```bash
 # If temporary spike: Worker will catch up naturally
 # Monitor backlog depth and processing rate
@@ -361,6 +376,7 @@ DELETE FROM \"Job\" WHERE status = 'failed';
 ## Monitoring and alerts
 
 **Recommended alerts**:
+
 - Worker health check failing
 - Job backlog depth > threshold (e.g., 100)
 - Job failure rate > threshold (e.g., 10% over 5 minutes)

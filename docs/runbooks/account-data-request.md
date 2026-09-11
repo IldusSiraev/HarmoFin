@@ -3,6 +3,7 @@
 **Trigger**: User requests data export, account deletion, or data correction under privacy regulations (GDPR, etc.)
 
 **Prerequisites**:
+
 - User identity verification completed
 - Legal/compliance guidance on data retention and deletion
 - Backup and audit requirements understood
@@ -18,6 +19,7 @@
 User requests copy of all their personal data in machine-readable format.
 
 **Requirements**:
+
 - Export all user data associated with their account
 - Include data from all budgets they own or have access to
 - Provide in structured, machine-readable format (JSON recommended)
@@ -29,6 +31,7 @@ User requests copy of all their personal data in machine-readable format.
 User requests permanent deletion of their account and associated data.
 
 **Requirements**:
+
 - Verify user identity and authorization
 - Preserve audit trail and legally required data
 - Handle shared budgets (user is member but not owner)
@@ -41,6 +44,7 @@ User requests permanent deletion of their account and associated data.
 User requests correction of inaccurate personal data.
 
 **Requirements**:
+
 - Verify user identity
 - Validate correction request
 - Update data through normal application flow if possible
@@ -64,6 +68,7 @@ User requests correction of inaccurate personal data.
 ```
 
 **Verification checklist**:
+
 - [ ] User authenticated in application
 - [ ] Email address confirmed
 - [ ] Recent authentication verified (for deletion)
@@ -77,6 +82,7 @@ User requests correction of inaccurate personal data.
 ### 1. Identify data scope
 
 **Data to export**:
+
 - User profile (name, email, preferences)
 - Workspaces where user is member
 - Budgets where user has access
@@ -87,6 +93,7 @@ User requests correction of inaccurate personal data.
 - Audit trail entries related to user actions
 
 **Data NOT to export**:
+
 - Other users' private data
 - Budget data where user is not owner or member
 - System secrets or credentials
@@ -129,6 +136,7 @@ ssh production-user@production-host rm /tmp/user-export-[user-id]-[timestamp].js
 ### 4. Deliver export securely
 
 **Delivery methods** (in order of preference):
+
 1. Secure download link in application (preferred if implemented)
 2. Encrypted file via secure file sharing service (password-protected)
 3. Email with password-protected ZIP (password sent separately)
@@ -136,6 +144,7 @@ ssh production-user@production-host rm /tmp/user-export-[user-id]-[timestamp].js
 **DO NOT**: Send unencrypted user data via email
 
 **Delivery checklist**:
+
 - [ ] Export delivered securely
 - [ ] User notified of delivery
 - [ ] Delivery method recorded
@@ -148,6 +157,7 @@ ssh production-user@production-host rm /tmp/user-export-[user-id]-[timestamp].js
 ### 1. Assess deletion impact
 
 **Shared budget impact**:
+
 ```bash
 # Check if user owns any budgets with other members
 ssh production-user@production-host
@@ -162,11 +172,13 @@ HAVING COUNT(bm.user_id) > 1;
 ```
 
 **Deletion scenarios**:
+
 - **User owns budgets with no other members**: Delete budgets and all data
 - **User owns budgets with other members**: Cannot auto-delete; require user to transfer ownership or remove members first
 - **User is member of budgets owned by others**: Remove membership, preserve budget data
 
 **Impact assessment**:
+
 - [ ] User owns `[count]` budgets
 - [ ] User is member of `[count]` budgets owned by others
 - [ ] Budgets with other members: `[count]` (requires ownership transfer)
@@ -193,6 +205,7 @@ Affected budgets:
 ### 3. Preserve audit trail
 
 **Data to preserve** (for legal/audit requirements):
+
 - User ID (as tombstone record)
 - Account creation date
 - Account deletion date
@@ -245,7 +258,7 @@ UPDATE "User" SET
 WHERE id = '[user-id]';
 
 -- Verify deletion
-SELECT 
+SELECT
   (SELECT COUNT(*) FROM "Session" WHERE user_id = '[user-id]') as remaining_sessions,
   (SELECT COUNT(*) FROM "Budget" WHERE owner_user_id = '[user-id]') as remaining_budgets,
   (SELECT is_deleted FROM "User" WHERE id = '[user-id]') as user_deleted;
@@ -255,6 +268,7 @@ EOSQL
 ```
 
 **Deletion verification**:
+
 - [ ] User sessions deleted
 - [ ] Budget memberships removed
 - [ ] Owned budgets deleted (or ownership transferred)
@@ -270,6 +284,7 @@ curl -f https://production-domain/api/v1/auth/sign-in -d '{"email":"[user-email]
 ```
 
 **User notification**:
+
 ```
 Subject: Account deletion completed
 
@@ -297,6 +312,7 @@ If you did not request this deletion, please reply immediately.
 ### 1. Identify data to correct
 
 **Correction request**:
+
 - Field to correct: `[user name, email, preferences, etc.]`
 - Current value: `[current value - redact if sensitive]`
 - Requested value: `[requested value - redact if sensitive]`
@@ -314,13 +330,14 @@ If you did not request this deletion, please reply immediately.
 **Preferred method**: User updates through application UI
 
 **If manual update required**:
+
 ```bash
 # SSH to production host
 ssh production-user@production-host
 
 # Apply correction
 psql "$DATABASE_URL" -c "
-UPDATE \"User\" 
+UPDATE \"User\"
 SET [field] = '[new-value]', updated_at = NOW()
 WHERE id = '[user-id]';
 "
@@ -332,6 +349,7 @@ SELECT id, [field], updated_at FROM \"User\" WHERE id = '[user-id]';
 ```
 
 **Correction record**:
+
 - [ ] Correction applied
 - [ ] User notified of completion
 - [ ] Correction logged for audit
@@ -352,6 +370,7 @@ SELECT id, [field], updated_at FROM \"User\" WHERE id = '[user-id]';
 ### Data retention
 
 **Retention policy**:
+
 - Active user data: Retained while account active
 - Deleted user data: Anonymized, audit trail retained for 7 years
 - Backup retention: `[retention period]`

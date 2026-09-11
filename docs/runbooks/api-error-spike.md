@@ -3,6 +3,7 @@
 **Trigger**: Elevated HTTP 5xx error rate, high error rate alert, dashboard showing error spike
 
 **Prerequisites**:
+
 - Baseline error rate known
 - Recent deployment information available
 - Monitoring and log access configured
@@ -39,6 +40,7 @@ curl -f https://production-domain/api/v1/health/ready
 ```
 
 **Error rate snapshot**:
+
 - Baseline error rate: `[percentage or count/min]`
 - Current error rate: `[percentage or count/min]`
 - Duration: `[minutes since spike started]`
@@ -57,6 +59,7 @@ curl -f https://production-domain/api/v1/health/ready
 ```
 
 **Recent deployment**:
+
 - Last deployment: `[timestamp]`
 - Deployment SHA: `[commit SHA]`
 - Error spike timing: `[before/after/unrelated to deployment]`
@@ -79,6 +82,7 @@ curl -f https://production-domain/api/v1/health/ready
 ```
 
 **Log evidence**:
+
 - Most common error: `[error message or exception]`
 - Affected endpoint(s): `[route paths]`
 - Error frequency: `[count]`
@@ -93,6 +97,7 @@ docker compose -f infra/compose/production.yml logs --tail=50 api
 ```
 
 **Service status**:
+
 - Container state: `[running/restarting/stopped]`
 - Recent container restarts: `[count]`
 - Resource usage: `[CPU/memory if visible]`
@@ -106,6 +111,7 @@ docker compose -f infra/compose/production.yml logs --tail=50 api
 **Symptoms**: Error spike immediately after deployment, specific error pattern in logs
 
 **Diagnosis**:
+
 ```bash
 # Review deployment timing vs error spike
 # Identify new code introduced in deployment
@@ -114,6 +120,7 @@ git log --oneline $PREVIOUS_SHA..$CURRENT_SHA
 ```
 
 **Resolution**:
+
 ```bash
 # Rollback to previous known-good SHA
 # Follow image-rollback.md runbook
@@ -134,6 +141,7 @@ git log --oneline $PREVIOUS_SHA..$CURRENT_SHA
 **Symptoms**: 500 errors with database connection errors in logs, health ready endpoint failing
 
 **Diagnosis**:
+
 ```bash
 # Check API health ready endpoint (includes database check)
 curl -f https://production-domain/api/v1/health/ready
@@ -143,6 +151,7 @@ docker compose -f infra/compose/production.yml logs api | grep -i "database\|con
 ```
 
 **Resolution**:
+
 ```bash
 # Follow postgres-outage.md runbook
 # After database restored, verify API recovers
@@ -159,6 +168,7 @@ curl -f https://production-domain/api/v1/health/ready
 **Symptoms**: Specific endpoint failing (password reset, notifications), external service timeout errors
 
 **Diagnosis**:
+
 ```bash
 # Review logs for external service errors
 # - SMTP connection errors
@@ -171,6 +181,7 @@ curl -f https://production-domain/api/v1/health/ready
 ```
 
 **Resolution**:
+
 ```bash
 # If external service degraded:
 # - Wait for external service recovery
@@ -193,6 +204,7 @@ curl -f https://production-domain/api/v1/health/ready
 **Symptoms**: Gradual error rate increase, timeouts, memory/CPU exhaustion, no code changes
 
 **Diagnosis**:
+
 ```bash
 # Check API request rate vs baseline
 # Check container resource usage
@@ -205,6 +217,7 @@ docker stats production-api-1
 ```
 
 **Resolution**:
+
 ```bash
 # Short-term:
 # - Rate limit aggressive clients if identifiable
@@ -232,6 +245,7 @@ docker compose -f infra/compose/production.yml restart api
 **Symptoms**: Single endpoint or feature failing, other endpoints healthy
 
 **Diagnosis**:
+
 ```bash
 # Identify failing endpoint from logs/metrics
 # Check if specific query parameter or input triggers error
@@ -239,6 +253,7 @@ docker compose -f infra/compose/production.yml restart api
 ```
 
 **Resolution**:
+
 ```bash
 # If non-critical endpoint:
 # - Document known issue
@@ -262,6 +277,7 @@ docker compose -f infra/compose/production.yml restart api
 **Symptoms**: New exception type in logs, specific user action triggers error
 
 **Diagnosis**:
+
 ```bash
 # Review error logs for stack trace
 # Identify code path causing exception
@@ -269,6 +285,7 @@ docker compose -f infra/compose/production.yml restart api
 ```
 
 **Resolution**:
+
 ```bash
 # Follow deployment regression resolution (rollback or hotfix)
 # Add test coverage for failing scenario
@@ -341,12 +358,14 @@ docker compose -f infra/compose/production.yml restart api
 ### User communication
 
 **If user-facing impact**:
+
 - [ ] Status page updated (if exists)
 - [ ] User-facing communication drafted
 - [ ] Support team notified
 - [ ] Timeline for resolution communicated
 
 **Communication template**:
+
 ```
 We are investigating elevated error rates affecting [feature/all functionality].
 [Specific actions users should avoid or expect delays]
@@ -394,6 +413,7 @@ We will provide updates every [timeframe].
 ## Monitoring and alerts
 
 **Recommended alerts**:
+
 - HTTP 5xx error rate > baseline threshold (e.g., 1% over 5 minutes)
 - API health ready endpoint failing
 - Specific endpoint error rate > threshold
@@ -401,6 +421,7 @@ We will provide updates every [timeframe].
 - Container restart loop
 
 **Recommended dashboard panels**:
+
 - HTTP status code distribution over time
 - Error rate by endpoint
 - Response time percentiles (P50, P95, P99)

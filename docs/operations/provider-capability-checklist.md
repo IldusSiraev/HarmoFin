@@ -22,6 +22,7 @@ This checklist verifies that a provider meets HarmoFin production requirements. 
 - [ ] Persistent storage for application files and named volumes
 
 **Notes:**
+
 ```
 [Provider-specific compute details, instance types, regions]
 ```
@@ -41,6 +42,7 @@ This checklist verifies that a provider meets HarmoFin production requirements. 
 - [ ] Sufficient capacity for MVP dataset and growth (minimum 20GB)
 
 **Notes:**
+
 ```
 [Backup schedule, retention policy, restore procedure reference]
 ```
@@ -55,6 +57,7 @@ This checklist verifies that a provider meets HarmoFin production requirements. 
 - [ ] Firewall rules to restrict database access to application host only
 
 **Notes:**
+
 ```
 [Domain management, DNS provider, certificate approach]
 ```
@@ -70,6 +73,7 @@ This checklist verifies that a provider meets HarmoFin production requirements. 
 **Alternative:** Environment file injection via secure deployment automation (acceptable for MVP with documented access controls)
 
 **Notes:**
+
 ```
 [Secret management approach, rotation procedures]
 ```
@@ -83,6 +87,7 @@ This checklist verifies that a provider meets HarmoFin production requirements. 
 - [ ] Bandwidth/transfer sufficient for image pulls
 
 **Notes:**
+
 ```
 [Registry choice, authentication method, retention policy]
 ```
@@ -96,6 +101,7 @@ This checklist verifies that a provider meets HarmoFin production requirements. 
 - [ ] Delivery monitoring and bounce handling
 
 **Notes:**
+
 ```
 [SMTP provider, sending limits, monitoring approach]
 ```
@@ -110,6 +116,7 @@ This checklist verifies that a provider meets HarmoFin production requirements. 
 - [ ] Dashboard capability for health, latency, errors, backlog metrics
 
 **Notes:**
+
 ```
 [Monitoring stack, alert routing, dashboard access]
 ```
@@ -125,6 +132,7 @@ This checklist verifies that a provider meets HarmoFin production requirements. 
 - [ ] Incident response and security contact documented
 
 **Notes:**
+
 ```
 [Security controls, compliance requirements, incident contacts]
 ```
@@ -137,6 +145,7 @@ This checklist verifies that a provider meets HarmoFin production requirements. 
 - [ ] Deployment automation can access registry, SSH to host, inject secrets
 
 **Notes:**
+
 ```
 [CI/CD authentication method, GitHub Environment setup]
 ```
@@ -150,6 +159,7 @@ This checklist verifies that a provider meets HarmoFin production requirements. 
 - [ ] Migration/exit strategy documented if provider changes
 
 **Notes:**
+
 ```
 [Cost estimates, support plan, migration considerations]
 ```
@@ -164,6 +174,7 @@ This checklist verifies that a provider meets HarmoFin production requirements. 
 - [ ] Managed Redis or equivalent for caching (when product requires)
 
 **Notes:**
+
 ```
 [Future enhancements, scaling considerations]
 ```
@@ -175,17 +186,18 @@ This checklist verifies that a provider meets HarmoFin production requirements. 
 - [ ] **Not approved**: Provider does not meet requirements
 
 **Decision rationale:**
+
 ```
 [Explain provider selection or rejection, key strengths/weaknesses, risk mitigations]
 ```
 
 **Approvers:**
 
-| Role | Name | Approval | Date |
-|------|------|----------|------|
-| Technical lead | | ☐ | |
-| Operations owner | | ☐ | |
-| Security reviewer | | ☐ | |
+| Role              | Name | Approval | Date |
+| ----------------- | ---- | -------- | ---- |
+| Technical lead    |      | ☐        |      |
+| Operations owner  |      | ☐        |      |
+| Security reviewer |      | ☐        |      |
 
 ---
 

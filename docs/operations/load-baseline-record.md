@@ -31,6 +31,7 @@ Based on development specification section 19 (non-functional requirements):
 ## Measurement methodology
 
 ### Tools and approach
+
 ```
 [Document load testing tool, configuration, request patterns]
 
@@ -70,6 +71,7 @@ Example:
 **Request count**: `[total requests]`  
 **Success rate**: `[percentage]`  
 **Latency**:
+
 - P50: `[ms]`
 - P95: `[ms]` (target: < 800ms)
 - P99: `[ms]` (target: < 1500ms)
@@ -78,6 +80,7 @@ Example:
 **Error rate**: `[percentage, breakdown by status code if applicable]`
 
 **Notes:**
+
 ```
 [Observations, CDN behavior, static asset performance]
 ```
@@ -87,6 +90,7 @@ Example:
 **Request count**: `[total requests]`  
 **Success rate**: `[percentage]`  
 **Latency**:
+
 - P50: `[ms]`
 - P95: `[ms]` (target: < 400ms)
 - P99: `[ms]` (target: < 800ms)
@@ -95,6 +99,7 @@ Example:
 **Error rate**: `[percentage]`
 
 **Notes:**
+
 ```
 [Session creation performance, database query time, rate limit behavior]
 ```
@@ -104,12 +109,14 @@ Example:
 **Request count**: `[total requests]`  
 **Success rate**: `[percentage]`  
 **Latency**:
+
 - P50: `[ms]`
 - P95: `[ms]` (target: < 600ms for ≤100 operations)
 - P99: `[ms]`
 - Max: `[ms]`
 
 **Query characteristics**:
+
 - Operations returned: `[count]`
 - Date range: `[days]`
 - Filters applied: `[description]`
@@ -117,6 +124,7 @@ Example:
 **Error rate**: `[percentage]`
 
 **Notes:**
+
 ```
 [Database query performance, pagination behavior, data volume impact]
 ```
@@ -131,6 +139,7 @@ Example:
 **Job failure rate**: `[percentage]`
 
 **Notes:**
+
 ```
 [Worker concurrency, database poll latency, job processing latency]
 ```
@@ -160,12 +169,14 @@ Example:
 ## Observability verification
 
 ### Logs
+
 - [ ] Request logs appearing in log backend
 - [ ] Request IDs present and correlatable
 - [ ] No sensitive data in logs (passwords, cookies, financial payloads)
 - [ ] Error logs actionable
 
 ### Metrics
+
 - [ ] Prometheus metrics endpoint accessible internally
 - [ ] HTTP request count/latency/error metrics present
 - [ ] Database readiness/latency metrics present
@@ -173,11 +184,13 @@ Example:
 - [ ] Release SHA visible in metrics
 
 ### Traces
+
 - [ ] Traces appearing in trace backend (if configured)
 - [ ] Request correlation working
 - [ ] Sensitive data redacted
 
 ### Error reporting
+
 - [ ] Errors appearing in error reporting backend (if configured)
 - [ ] Stack traces actionable
 - [ ] Sensitive data redacted
@@ -189,6 +202,7 @@ Example:
 - [ ] **Does not meet targets**: Performance regressions require investigation
 
 **Assessment summary:**
+
 ```
 [Overall performance evaluation, comparison to targets, identified bottlenecks]
 
@@ -203,26 +217,29 @@ Example:
 ## Issues and recommendations
 
 **Performance bottlenecks identified:**
+
 ```
 [Document any slow queries, resource constraints, or optimization opportunities]
 ```
 
 **Capacity recommendations:**
+
 ```
 [Recommendations for scaling, resource adjustments, or architectural changes]
 ```
 
 **Next baseline measurement:**
+
 ```
 [Recommended timing for next baseline - typically after significant releases]
 ```
 
 ## Approvals
 
-| Role | Name | Reviewed | Date |
-|------|------|----------|------|
-| Performance owner | | ☐ | |
-| Operations owner | | ☐ | |
+| Role              | Name | Reviewed | Date |
+| ----------------- | ---- | -------- | ---- |
+| Performance owner |      | ☐        |      |
+| Operations owner  |      | ☐        |      |
 
 ---
 

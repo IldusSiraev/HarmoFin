@@ -20,6 +20,7 @@ This document templates evidence from backup verification and restore drills. Co
 - **Source schema version**: `[Prisma migration version or database schema hash]`
 
 **Data classification:**
+
 - [ ] Production data (requires anonymization before non-production use)
 - [ ] Staging data (safe for restore drill)
 - [ ] Anonymized production-derived data
@@ -27,7 +28,7 @@ This document templates evidence from backup verification and restore drills. Co
 ## Restore target information
 
 - **Target instance**: `[hostname or instance identifier - do not commit if sensitive]`
-- **Target isolation**: 
+- **Target isolation**:
   - [ ] No production network access
   - [ ] No external network access
   - [ ] Isolated credentials (not shared with production)
@@ -38,9 +39,11 @@ This document templates evidence from backup verification and restore drills. Co
 ## Restore procedure
 
 ### Start time
+
 - **Restore initiated**: `[YYYY-MM-DD HH:MM UTC]`
 
 ### Steps executed
+
 ```
 [Document exact restore commands/procedure followed, excluding credentials]
 
@@ -54,10 +57,12 @@ Example:
 ```
 
 ### Completion time
+
 - **Restore completed**: `[YYYY-MM-DD HH:MM UTC]`
 - **Elapsed time (RTO)**: `[minutes or hours]`
 
 ### RPO verification
+
 - **Intended restore point**: `[YYYY-MM-DD HH:MM UTC]`
 - **Actual restore point**: `[YYYY-MM-DD HH:MM UTC]`
 - **Data loss window (RPO)**: `[minutes]`
@@ -65,12 +70,14 @@ Example:
 ## Verification results
 
 ### Schema verification
+
 - [ ] Database accessible with correct credentials
 - [ ] All expected tables present
 - [ ] Prisma migration history table present
 - [ ] Current migration version matches source: `[migration name/hash]`
 
 **Schema verification queries:**
+
 ```sql
 -- Example verification queries (customize for your schema)
 SELECT COUNT(*) FROM _prisma_migrations;
@@ -81,17 +88,20 @@ SELECT COUNT(*) FROM "Budget";
 ```
 
 **Results:**
+
 ```
 [Query results confirming schema integrity]
 ```
 
 ### Data integrity verification
+
 - [ ] Row counts match expected ranges
 - [ ] Foreign key constraints intact
 - [ ] No obvious data corruption
 - [ ] Sample queries return expected results
 
 **Integrity checks:**
+
 ```
 [Document sample queries and results verifying data integrity]
 
@@ -103,16 +113,19 @@ Example:
 ```
 
 ### Anonymization verification (if applicable)
+
 - [ ] PII removed or anonymized (emails, names, phone numbers)
 - [ ] Financial data preserved for schema validation
 - [ ] Authentication secrets invalidated
 
 ### Application connectivity test
+
 - [ ] Can connect with application DATABASE_URL format
 - [ ] Read query succeeds
 - [ ] Transaction commit/rollback works
 
 **Connection test:**
+
 ```
 [Document connection test procedure and results]
 ```
@@ -120,6 +133,7 @@ Example:
 ## Issues and remediation
 
 **Issues encountered:**
+
 ```
 [Document any failures, unexpected behavior, or performance issues during restore]
 
@@ -131,6 +145,7 @@ OR
 ```
 
 **Remediation actions:**
+
 ```
 [Document fixes applied and recommendations for next drill]
 ```
@@ -153,6 +168,7 @@ OR
 - [ ] Temporary storage destroyed
 
 **Cleanup verification:**
+
 ```
 [Confirm no restore artifacts remain accessible]
 ```
@@ -160,26 +176,29 @@ OR
 ## Recommendations
 
 **Backup strategy:**
+
 ```
 [Recommendations for backup frequency, retention, or procedure improvements]
 ```
 
 **Restore procedure:**
+
 ```
 [Recommendations for restore process improvements based on drill findings]
 ```
 
 **Next drill date:**
+
 ```
 [Recommended date for next restore drill - typically quarterly or before major migrations]
 ```
 
 ## Approvals
 
-| Role | Name | Reviewed | Date |
-|------|------|----------|------|
-| Operations owner | | ☐ | |
-| Database administrator | | ☐ | |
+| Role                   | Name | Reviewed | Date |
+| ---------------------- | ---- | -------- | ---- |
+| Operations owner       |      | ☐        |      |
+| Database administrator |      | ☐        |      |
 
 ---
 

@@ -26,6 +26,7 @@ This document serves as the gate before production deployment. Complete all sect
 - [ ] Rollback decision documented with reasoning
 
 **Migration notes:**
+
 ```
 [Describe migration changes, compatibility constraints, and rollback approach]
 ```
@@ -95,11 +96,11 @@ This document serves as the gate before production deployment. Complete all sect
 
 ## Approval
 
-| Role | Name | Approval | Timestamp |
-|------|------|----------|-----------|
-| Release owner | | ☐ Approved | |
-| On-call engineer | | ☐ Approved | |
-| Technical lead | | ☐ Approved | |
+| Role             | Name | Approval   | Timestamp |
+| ---------------- | ---- | ---------- | --------- |
+| Release owner    |      | ☐ Approved |           |
+| On-call engineer |      | ☐ Approved |           |
+| Technical lead   |      | ☐ Approved |           |
 
 ## Rollback decision
 
@@ -110,6 +111,7 @@ If rollback is required during observation window:
 - [ ] Rollback runbook: `docs/runbooks/image-rollback.md`
 
 **Do not rollback without:**
+
 1. Confirming migration compatibility
 2. Recording rollback reason and evidence
 3. Preserving logs and metrics for post-incident analysis

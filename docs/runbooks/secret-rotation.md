@@ -3,6 +3,7 @@
 **Trigger**: Scheduled rotation, suspected credential compromise, or security policy requirement
 
 **Prerequisites**:
+
 - New secrets generated securely
 - Secret storage prepared (secret manager or secure environment file)
 - Maintenance window scheduled (if zero-downtime not achievable)
@@ -15,15 +16,15 @@
 
 HarmoFin production secrets requiring rotation capability:
 
-| Secret | Used by | Rotation impact | Zero-downtime possible |
-|--------|---------|-----------------|------------------------|
-| `DATABASE_URL` | API, worker, migrate | High - all services restart | No - requires service restart |
-| `SESSION_HASH_SECRET` | API | High - invalidates sessions | No - users re-authenticate |
-| `SMTP credentials` | API | Medium - email delivery only | Yes - new connection uses new credentials |
-| `ERROR_REPORTING_ENDPOINT` DSN | API, worker | Low - observability only | Yes - new errors use new DSN |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` credentials | API, worker | Low - observability only | Yes - new traces use new credentials |
-| `GitHub registry token` | Deployment | Low - image pull only | Yes - deployment workflow only |
-| `SSH private key` | Deployment | Low - deployment only | Yes - deployment workflow only |
+| Secret                                    | Used by              | Rotation impact              | Zero-downtime possible                    |
+| ----------------------------------------- | -------------------- | ---------------------------- | ----------------------------------------- |
+| `DATABASE_URL`                            | API, worker, migrate | High - all services restart  | No - requires service restart             |
+| `SESSION_HASH_SECRET`                     | API                  | High - invalidates sessions  | No - users re-authenticate                |
+| `SMTP credentials`                        | API                  | Medium - email delivery only | Yes - new connection uses new credentials |
+| `ERROR_REPORTING_ENDPOINT` DSN            | API, worker          | Low - observability only     | Yes - new errors use new DSN              |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` credentials | API, worker          | Low - observability only     | Yes - new traces use new credentials      |
+| `GitHub registry token`                   | Deployment           | Low - image pull only        | Yes - deployment workflow only            |
+| `SSH private key`                         | Deployment           | Low - deployment only        | Yes - deployment workflow only            |
 
 ---
 
@@ -196,6 +197,7 @@ docker compose -f infra/compose/production.yml restart api worker
 **Impact**: Low - deployment only, no production runtime impact
 
 **SSH private key**:
+
 ```bash
 # 1. Generate new SSH key pair
 ssh-keygen -t ed25519 -f production_deploy_new
@@ -206,6 +208,7 @@ ssh-keygen -t ed25519 -f production_deploy_new
 ```
 
 **Registry token**:
+
 ```bash
 # 1. Generate new GitHub PAT or use GITHUB_TOKEN (preferred)
 # 2. Update GitHub Environment secret (if not using GITHUB_TOKEN)
