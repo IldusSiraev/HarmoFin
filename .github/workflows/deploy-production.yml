@@ -1,0 +1,126 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Exact commit SHA already published and verified in staging'
+        required: true
+        type: string
+      staging_evidence:
+        description: 'Staging deployment workflow run URL or artifact reference'
+        required: true
+        type: string
+      migration_compatibility:
+        description: 'Migration forward/backward compatibility confirmation (forward-only, backward-compatible, or rollback-safe)'
+        required: true
+        type: choice
+        options:
+          - forward-only
+          - backward-compatible
+          - rollback-safe
+      backup_evidence:
+        description: 'Recent backup verification reference or restore drill record'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate image tag format
+        run: |
+          printf '%s' "${{ inputs.image_tag }}" | grep -Eq '^[0-9a-f]{7,40}$' || {
+            printf 'image_tag must be a valid commit SHA (7-40 hex chars)\n' >&2
+            exit 1
+          }
+
+      - name: Validate staging evidence
+        run: |
+          test -n "${{ inputs.staging_evidence }}"
+
+      - name: Validate backup evidence
+        run: |
+          test -n "${{ inputs.backup_evidence }}"
+
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    env:
+      RELEASE_SHA: ${{ inputs.image_tag }}
+      STAGING_EVIDENCE: ${{ inputs.staging_evidence }}
+      MIGRATION_COMPATIBILITY: ${{ inputs.migration_compatibility }}
+      BACKUP_EVIDENCE: ${{ inputs.backup_evidence }}
+      PRODUCTION_SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+      PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+      PRODUCTION_SSH_PORT: ${{ secrets.PRODUCTION_SSH_PORT }}
+      PRODUCTION_APP_DIR: ${{ secrets.PRODUCTION_APP_DIR }}
+      PRODUCTION_BASE_URL: ${{ secrets.PRODUCTION_BASE_URL }}
+      PRODUCTION_ENV_FILE: ${{ secrets.PRODUCTION_ENV_FILE }}
+      PRODUCTION_KNOWN_HOSTS: ${{ secrets.PRODUCTION_KNOWN_HOSTS }}
+    steps:
+      - name: Check out tested revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.image_tag }}
+
+      - name: Validate production inputs
+        run: |
+          test -n "$PRODUCTION_SSH_HOST"
+          test -n "$PRODUCTION_SSH_USER"
+          test -n "$PRODUCTION_APP_DIR"
+          test -n "$PRODUCTION_BASE_URL"
+          test -n "$PRODUCTION_ENV_FILE"
+          test -n "$PRODUCTION_KNOWN_HOSTS"
+          printf '%s' "$RELEASE_SHA" | grep -Eq '^[0-9a-f]{7,40}$'
+
+      - name: Configure SSH
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$PRODUCTION_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          printf '%s' '${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}' > "$HOME/.ssh/production_key"
+          chmod 600 "$HOME/.ssh/production_key"
+
+      - name: Upload deployment files
+        run: |
+          tar -czf - infra/compose/production.yml infra/caddy/Caddyfile infra/scripts \
+            | ssh -i "$HOME/.ssh/production_key" -p "${PRODUCTION_SSH_PORT:-22}" \
+              "$PRODUCTION_SSH_USER@$PRODUCTION_SSH_HOST" \
+              "mkdir -p '$PRODUCTION_APP_DIR' && tar -xzf - -C '$PRODUCTION_APP_DIR'"
+
+      - name: Upload production environment file
+        run: |
+          printf '%s' "$PRODUCTION_ENV_FILE" \
+            | ssh -i "$HOME/.ssh/production_key" -p "${PRODUCTION_SSH_PORT:-22}" \
+              "$PRODUCTION_SSH_USER@$PRODUCTION_SSH_HOST" \
+              "umask 077 && cat > '$PRODUCTION_APP_DIR/.env.production'"
+
+      - name: Deploy exact published SHA
+        run: |
+          ssh -i "$HOME/.ssh/production_key" -p "${PRODUCTION_SSH_PORT:-22}" \
+            "$PRODUCTION_SSH_USER@$PRODUCTION_SSH_HOST" \
+            "cd '$PRODUCTION_APP_DIR' && set -a && . '$PRODUCTION_APP_DIR/.env.production' && set +a && export COMPOSE_ENV_FILE='$PRODUCTION_APP_DIR/.env.production' SMOKE_BASE_URL='$PRODUCTION_BASE_URL' IMAGE_TAG='$RELEASE_SHA' && ./infra/scripts/deploy.sh"
+
+      - name: Publish production release metadata
+        run: |
+          printf 'environment=production\nrevision=%s\nstaging_evidence=%s\nmigration_compatibility=%s\nbackup_evidence=%s\nresult=success\n' \
+            "$RELEASE_SHA" "$STAGING_EVIDENCE" "$MIGRATION_COMPATIBILITY" "$BACKUP_EVIDENCE" \
+            > production-release-${RELEASE_SHA}.txt
+
+      - name: Upload production release metadata
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-release-${{ env.RELEASE_SHA }}
+          path: production-release-${{ env.RELEASE_SHA }}.txt
+          retention-days: 90
