@@ -50,12 +50,7 @@ function handleSubmit() {
 
       <div class="transfer-form__field">
         <label for="transfer-from" class="transfer-form__label">Откуда</label>
-        <select
-          id="transfer-from"
-          v-model="fromAccount"
-          class="transfer-form__select"
-          required
-        >
+        <select id="transfer-from" v-model="fromAccount" class="transfer-form__select" required>
           <option value="" disabled>Выберите счет</option>
           <option value="cash">Наличные</option>
           <option value="card">Карта</option>
@@ -64,12 +59,7 @@ function handleSubmit() {
 
       <div class="transfer-form__field">
         <label for="transfer-to" class="transfer-form__label">Куда</label>
-        <select
-          id="transfer-to"
-          v-model="toAccount"
-          class="transfer-form__select"
-          required
-        >
+        <select id="transfer-to" v-model="toAccount" class="transfer-form__select" required>
           <option value="" disabled>Выберите счет</option>
           <option value="cash">Наличные</option>
           <option value="card">Карта</option>

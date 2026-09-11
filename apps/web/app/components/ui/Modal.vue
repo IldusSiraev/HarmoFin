@@ -41,12 +41,7 @@ watch(
         <div class="modal" role="dialog" :aria-label="title" aria-modal="true">
           <div class="modal__header">
             <h2 class="modal__title">{{ title }}</h2>
-            <button
-              type="button"
-              class="modal__close"
-              aria-label="Закрыть"
-              @click="handleClose"
-            >
+            <button type="button" class="modal__close" aria-label="Закрыть" @click="handleClose">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path
                   d="M18 6L6 18M6 6l12 12"
@@ -85,7 +80,9 @@ watch(
   max-height: 90vh;
   border-radius: var(--hf-card-radius);
   background: var(--hf-color-surface);
-  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 20%), 0 10px 10px -5px rgb(0 0 0 / 10%);
+  box-shadow:
+    0 20px 25px -5px rgb(0 0 0 / 20%),
+    0 10px 10px -5px rgb(0 0 0 / 10%);
   overflow: hidden;
 }
 
@@ -160,7 +157,9 @@ watch(
 
 .modal-enter-active .modal,
 .modal-leave-active .modal {
-  transition: transform var(--hf-transition-base), opacity var(--hf-transition-base);
+  transition:
+    transform var(--hf-transition-base),
+    opacity var(--hf-transition-base);
 }
 
 .modal-enter-from,

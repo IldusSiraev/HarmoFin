@@ -9,13 +9,25 @@ defineEmits<{
 
 <template>
   <div class="quick-actions">
-    <button type="button" class="quick-actions__button quick-actions__button--primary" @click="$emit('addOperation')">
+    <button
+      type="button"
+      class="quick-actions__button quick-actions__button--primary"
+      @click="$emit('addOperation')"
+    >
       + Операция
     </button>
-    <button type="button" class="quick-actions__button quick-actions__button--secondary" @click="$emit('addTransfer')">
+    <button
+      type="button"
+      class="quick-actions__button quick-actions__button--secondary"
+      @click="$emit('addTransfer')"
+    >
       + Перевод
     </button>
-    <button type="button" class="quick-actions__button quick-actions__button--tertiary" @click="$emit('refresh')">
+    <button
+      type="button"
+      class="quick-actions__button quick-actions__button--tertiary"
+      @click="$emit('refresh')"
+    >
       Обновить
     </button>
   </div>

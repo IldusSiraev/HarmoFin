@@ -162,7 +162,8 @@ defineOptions({ name: 'LandingHeroSection' });
 }
 
 @keyframes envelope-open {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateX(-50%) rotate(-2deg);
   }
   50% {
@@ -197,7 +198,9 @@ defineOptions({ name: 'LandingHeroSection' });
   background: currentcolor;
   opacity: 0;
   transform: translate(-50%, -50%);
-  transition: opacity var(--hf-transition-base), transform var(--hf-transition-base);
+  transition:
+    opacity var(--hf-transition-base),
+    transform var(--hf-transition-base);
 }
 
 .envelope__money--visible {

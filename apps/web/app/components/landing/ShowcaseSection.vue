@@ -38,7 +38,9 @@ defineOptions({ name: 'LandingShowcaseSection' });
   position: relative;
   border-radius: var(--hf-card-radius);
   background: var(--hf-color-slate-50);
-  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 20%), 0 10px 10px -5px rgb(0 0 0 / 10%);
+  box-shadow:
+    0 20px 25px -5px rgb(0 0 0 / 20%),
+    0 10px 10px -5px rgb(0 0 0 / 10%);
 }
 
 .showcase__placeholder {

@@ -97,34 +97,30 @@ async function loadDashboard() {
       />
 
       <section class="dashboard-grid" aria-label="Сводка бюджета">
-          <section class="total-money" aria-labelledby="total-money-title">
-            <p id="total-money-title">Всего на счетах</p>
-            <FinanceMoney :minor-units="summary.totalAccountMoneyMinor" currency="RUB" :scale="2" />
-            <p>
-              Нераспределено:
-              <FinanceMoney
-                :minor-units="summary.unallocatedIncomeMinor"
-                currency="RUB"
-                :scale="2"
-              />
-            </p>
-          </section>
-          <PeriodLimitCard :period-limit="summary.periodLimit" />
-          <UpcomingObligations :items="summary.upcomingObligations" />
-          <BalanceList
-            title="Счета"
-            :items="summary.accounts"
-            :warnings="summary.warnings"
-            subject="ACCOUNT"
-          />
-          <BalanceList
-            title="Конверты"
-            :items="summary.envelopes"
-            :warnings="summary.warnings"
-            subject="ENVELOPE"
-          />
+        <section class="total-money" aria-labelledby="total-money-title">
+          <p id="total-money-title">Всего на счетах</p>
+          <FinanceMoney :minor-units="summary.totalAccountMoneyMinor" currency="RUB" :scale="2" />
+          <p>
+            Нераспределено:
+            <FinanceMoney :minor-units="summary.unallocatedIncomeMinor" currency="RUB" :scale="2" />
+          </p>
         </section>
-      </template>
+        <PeriodLimitCard :period-limit="summary.periodLimit" />
+        <UpcomingObligations :items="summary.upcomingObligations" />
+        <BalanceList
+          title="Счета"
+          :items="summary.accounts"
+          :warnings="summary.warnings"
+          subject="ACCOUNT"
+        />
+        <BalanceList
+          title="Конверты"
+          :items="summary.envelopes"
+          :warnings="summary.warnings"
+          subject="ENVELOPE"
+        />
+      </section>
+    </template>
 
     <AddOperationModal :open="operationModalOpen" @close="closeOperationModal" />
     <AddTransferModal :open="transferModalOpen" @close="closeTransferModal" />

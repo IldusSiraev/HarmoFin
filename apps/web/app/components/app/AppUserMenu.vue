@@ -134,7 +134,9 @@ async function handleLogout() {
   border: 1px solid var(--hf-color-border);
   border-radius: var(--hf-control-radius);
   background: var(--hf-color-surface);
-  box-shadow: 0 4px 6px rgb(13 27 42 / 10%), 0 2px 4px rgb(13 27 42 / 6%);
+  box-shadow:
+    0 4px 6px rgb(13 27 42 / 10%),
+    0 2px 4px rgb(13 27 42 / 6%);
 }
 
 @media (min-width: 768px) {
@@ -176,7 +178,9 @@ async function handleLogout() {
 
 .user-menu-dropdown-enter-active .user-menu__panel,
 .user-menu-dropdown-leave-active .user-menu__panel {
-  transition: transform var(--hf-transition-fast), opacity var(--hf-transition-fast);
+  transition:
+    transform var(--hf-transition-fast),
+    opacity var(--hf-transition-fast);
 }
 
 .user-menu-dropdown-enter-from,

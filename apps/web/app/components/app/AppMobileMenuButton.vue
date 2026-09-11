@@ -6,7 +6,12 @@ defineEmits<{
 </script>
 
 <template>
-  <button type="button" class="mobile-menu-button" aria-label="Открыть меню" @click="$emit('toggle')">
+  <button
+    type="button"
+    class="mobile-menu-button"
+    aria-label="Открыть меню"
+    @click="$emit('toggle')"
+  >
     <svg
       class="mobile-menu-button__icon"
       width="24"

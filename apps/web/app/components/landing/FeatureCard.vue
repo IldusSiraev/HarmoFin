@@ -28,12 +28,16 @@ defineProps<{
   border-radius: var(--hf-card-radius);
   background: var(--hf-color-surface);
   box-shadow: var(--hf-shadow-card);
-  transition: transform var(--hf-transition-fast), box-shadow var(--hf-transition-fast);
+  transition:
+    transform var(--hf-transition-fast),
+    box-shadow var(--hf-transition-fast);
 }
 
 .feature-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 6px rgb(13 27 42 / 10%), 0 2px 4px rgb(13 27 42 / 6%);
+  box-shadow:
+    0 4px 6px rgb(13 27 42 / 10%),
+    0 2px 4px rgb(13 27 42 / 6%);
 }
 
 .feature-card__icon {
