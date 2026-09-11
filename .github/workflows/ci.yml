@@ -130,7 +130,7 @@ jobs:
         run: node scripts/ci/run-dependency-audit.mjs
 
       - name: Upload OpenAPI contract artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openapi-contract-${{ github.sha }}
           path: openapi.head.json
@@ -185,7 +185,7 @@ jobs:
 
       - name: Upload SBOM artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom-${{ matrix.target }}-${{ github.sha }}
           path: sbom-${{ matrix.target }}.spdx.json
