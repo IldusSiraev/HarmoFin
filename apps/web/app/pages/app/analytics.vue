@@ -20,7 +20,7 @@ import {
 } from '../../composables/useBudgetReferenceData.js';
 
 defineOptions({ name: 'BudgetAnalyticsPage' });
-definePageMeta({ middleware: 'auth' });
+definePageMeta({ middleware: 'auth', layout: 'app' });
 
 const auth = useAuth();
 const route = useRoute();

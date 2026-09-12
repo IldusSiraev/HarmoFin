@@ -19,7 +19,7 @@ import {
 import { createTransferForm, type TransferFormModel } from '../../composables/useTransferForm.js';
 
 defineOptions({ name: 'TransfersPage' });
-definePageMeta({ middleware: 'auth' });
+definePageMeta({ middleware: 'auth', layout: 'app' });
 
 const auth = useAuth();
 const api = useBudgetReferenceData();

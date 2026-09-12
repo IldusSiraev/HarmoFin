@@ -27,7 +27,7 @@ import { useAuth } from '../../composables/useAuth.js';
 import { ApiRequestError } from '../../composables/useApiClient.js';
 
 defineOptions({ name: 'OperationsJournalPage' });
-definePageMeta({ middleware: 'auth' });
+definePageMeta({ middleware: 'auth', layout: 'app' });
 
 type ConfirmationAction =
   'confirm' | 'cancel' | 'delete' | 'restore' | 'create' | 'update' | 'resolveDelete';

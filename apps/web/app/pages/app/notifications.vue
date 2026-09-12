@@ -13,7 +13,7 @@ import {
 } from '../../composables/useBudgetReferenceData.js';
 
 defineOptions({ name: 'NotificationsPage' });
-definePageMeta({ middleware: 'auth' });
+definePageMeta({ middleware: 'auth', layout: 'app' });
 
 const auth = useAuth();
 const api = useBudgetReferenceData();

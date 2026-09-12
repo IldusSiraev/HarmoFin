@@ -24,7 +24,7 @@ import {
 import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js';
 
 defineOptions({ name: 'AppEnvelopesPage' });
-definePageMeta({ middleware: 'auth' });
+definePageMeta({ middleware: 'auth', layout: 'app' });
 
 const envelopeFields = [
   'name',
@@ -263,14 +263,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="reference-page">
-    <header class="reference-page__header">
-      <NuxtLink class="reference-page__wordmark" to="/app">HarmoFin</NuxtLink>
-      <nav aria-label="Разделы бюджета">
-        <NuxtLink to="/app/settings">Настройки</NuxtLink>
-        <NuxtLink to="/app">Главная</NuxtLink>
-      </nav>
-    </header>
+  <div class="reference-page">
 
     <section class="reference-page__content" aria-labelledby="envelopes-title">
       <template v-if="loading">
@@ -445,7 +438,7 @@ onMounted(() => {
       @confirm="confirmArchive"
       @cancel="cancelArchive"
     />
-  </main>
+  </div>
 </template>
 
 <style scoped>
@@ -453,33 +446,6 @@ onMounted(() => {
   min-height: 100vh;
   color: var(--hf-color-text);
   background: var(--hf-color-page-background);
-}
-.reference-page__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--hf-space-4);
-  max-width: 70rem;
-  margin: 0 auto;
-  padding: var(--hf-space-5) var(--hf-space-8);
-}
-.reference-page__wordmark,
-.reference-page__header nav a {
-  color: var(--hf-color-text);
-  text-decoration: none;
-}
-.reference-page__wordmark {
-  font-size: 1.125rem;
-  font-weight: var(--hf-font-weight-bold);
-  letter-spacing: -0.04em;
-}
-.reference-page__header nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--hf-space-4);
-}
-.reference-page__header nav a {
-  font-weight: var(--hf-font-weight-medium);
 }
 .reference-page__content {
   max-width: 70rem;
@@ -577,7 +543,6 @@ onMounted(() => {
   text-decoration: underline;
 }
 @media (max-width: 47.9375rem) {
-  .reference-page__header,
   .reference-page__content {
     padding-right: var(--hf-space-5);
     padding-left: var(--hf-space-5);
