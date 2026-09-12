@@ -2,10 +2,12 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { definePageMeta } from '#imports';
 
+import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
 import UiInput from '../../components/ui/Input.vue';
+import UiModal from '../../components/ui/Modal.vue';
 import UiSelect from '../../components/ui/Select.vue';
 import UiStatus from '../../components/ui/Status.vue';
 import { useAuth } from '../../composables/useAuth.js';
@@ -214,106 +216,37 @@ onMounted(() => {
 
 <template>
   <div class="reference-page">
-
-    <section class="reference-page__content" aria-labelledby="categories-title">
-      <template v-if="loading">
-        <UiStatus label="Загрузка категорий…" tone="info" aria-live="polite" />
+    <template v-if="loading">
+      <UiStatus label="Загрузка категорий…" tone="info" aria-live="polite" />
+    </template>
+    <template v-else-if="loadError">
+      <UiEmptyState title="Категории недоступны" :description="loadError">
+        <template #action><UiButton @click="loadPage">Повторить</UiButton></template>
+      </UiEmptyState>
+    </template>
+    <UiEmptyState
+      v-else-if="!budgetId"
+      title="Бюджет не выбран"
+      description="Выберите бюджет, чтобы управлять категориями."
+    />
+    <ReferencePageLayout v-else>
+      <template #kicker>Справочники</template>
+      <template #title>Категории</template>
+      <template #description>Разделяйте доходы и расходы для будущего учёта.</template>
+      <template #actions>
+        <UiButton data-action="create-category" @click="startCreate">Создать категорию</UiButton>
       </template>
-      <template v-else-if="loadError">
-        <UiEmptyState title="Категории недоступны" :description="loadError">
-          <template #action><UiButton @click="loadPage">Повторить</UiButton></template>
-        </UiEmptyState>
-      </template>
-      <UiEmptyState
-        v-else-if="!budgetId"
-        title="Бюджет не выбран"
-        description="Выберите бюджет, чтобы управлять категориями."
-      />
-      <template v-else>
-        <div class="reference-page__title-row">
-          <div>
-            <p class="reference-page__kicker">Справочники</p>
-            <h1 id="categories-title">Категории</h1>
-            <p class="reference-page__description">
-              Разделяйте доходы и расходы для будущего учёта.
-            </p>
-          </div>
-          <UiButton data-action="create-category" @click="startCreate">Создать категорию</UiButton>
-        </div>
-
-        <UiStatus
-          v-if="summary"
-          class="reference-page__summary"
-          :label="summary"
-          tone="info"
-          aria-live="polite"
+      <template #filters>
+        <UiSelect
+          :model-value="status"
+          name="status"
+          label="Показать категории"
+          :options="getStatusOptions()"
+          @update:model-value="changeStatus"
         />
-        <div class="reference-page__filter">
-          <UiSelect
-            :model-value="status"
-            name="status"
-            label="Показать категории"
-            :options="getStatusOptions()"
-            @update:model-value="changeStatus"
-          />
-        </div>
-
-        <form
-          v-if="formVisible"
-          class="reference-form"
-          data-category-form
-          @submit.prevent="saveCategory"
-        >
-          <h2>{{ editingId ? 'Изменить категорию' : 'Новая категория' }}</h2>
-          <UiInput
-            v-model="form.name"
-            name="name"
-            label="Название категории"
-            :error="getFieldError('name')"
-            required
-          />
-          <UiSelect
-            v-if="!editingId"
-            v-model="form.categoryType"
-            name="categoryType"
-            label="Тип категории"
-            :options="getCategoryTypeOptions()"
-            :error="getFieldError('categoryType')"
-            required
-          />
-          <UiSelect
-            v-model="form.parentId"
-            name="parentId"
-            label="Родительская категория"
-            placeholder="Без родительской категории"
-            :options="parentOptions()"
-            :error="getFieldError('parentId')"
-          />
-          <UiInput
-            v-model="form.displayOrder"
-            name="displayOrder"
-            label="Порядок отображения"
-            inputmode="numeric"
-            :error="getFieldError('displayOrder')"
-            required
-          />
-          <label class="reference-form__field">
-            <span>Комментарий</span>
-            <textarea
-              v-model="form.comment"
-              name="comment"
-              :aria-invalid="getFieldError('comment') ? 'true' : undefined"
-            />
-            <small v-if="getFieldError('comment')">{{ getFieldError('comment') }}</small>
-          </label>
-          <div class="reference-form__actions">
-            <UiButton type="submit" :loading="saving">Сохранить категорию</UiButton>
-            <UiButton type="button" variant="tertiary" :disabled="saving" @click="cancelForm"
-              >Отмена</UiButton
-            >
-          </div>
-        </form>
-
+      </template>
+      <template #content>
+        <UiStatus v-if="summary" :label="summary" tone="info" aria-live="polite" />
         <div class="category-sections">
           <section
             v-for="type in ['INCOME', 'EXPENSE'] as const"
@@ -366,7 +299,63 @@ onMounted(() => {
           </section>
         </div>
       </template>
-    </section>
+    </ReferencePageLayout>
+
+    <UiModal
+      :open="formVisible"
+      :title="editingId ? 'Изменить категорию' : 'Новая категория'"
+      @close="cancelForm"
+    >
+      <form data-category-form @submit.prevent="saveCategory">
+        <UiInput
+          v-model="form.name"
+          name="name"
+          label="Название категории"
+          :error="getFieldError('name')"
+          required
+        />
+        <UiSelect
+          v-if="!editingId"
+          v-model="form.categoryType"
+          name="categoryType"
+          label="Тип категории"
+          :options="getCategoryTypeOptions()"
+          :error="getFieldError('categoryType')"
+          required
+        />
+        <UiSelect
+          v-model="form.parentId"
+          name="parentId"
+          label="Родительская категория"
+          placeholder="Без родительской категории"
+          :options="parentOptions()"
+          :error="getFieldError('parentId')"
+        />
+        <UiInput
+          v-model="form.displayOrder"
+          name="displayOrder"
+          label="Порядок отображения"
+          inputmode="numeric"
+          :error="getFieldError('displayOrder')"
+          required
+        />
+        <label class="reference-form__field">
+          <span>Комментарий</span>
+          <textarea
+            v-model="form.comment"
+            name="comment"
+            :aria-invalid="getFieldError('comment') ? 'true' : undefined"
+          />
+          <small v-if="getFieldError('comment')">{{ getFieldError('comment') }}</small>
+        </label>
+        <div class="reference-form__actions">
+          <UiButton type="submit" :loading="saving">Сохранить категорию</UiButton>
+          <UiButton type="button" variant="tertiary" :disabled="saving" @click="cancelForm"
+            >Отмена</UiButton
+          >
+        </div>
+      </form>
+    </UiModal>
 
     <UiConfirmDialog
       :open="archiveTarget !== null"
@@ -383,59 +372,9 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.reference-page {
-  min-height: 100vh;
-  color: var(--hf-color-text);
-  background: var(--hf-color-page-background);
-}
-.reference-page__content {
-  max-width: 70rem;
-  margin: var(--hf-space-8) auto 0;
-  padding: var(--hf-space-8);
-}
-.reference-page__title-row {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: var(--hf-space-6);
-}
-.reference-page__kicker {
-  margin: 0 0 var(--hf-space-2);
-  color: var(--hf-color-action-primary-hover);
-  font-size: 0.875rem;
-  font-weight: var(--hf-font-weight-semibold);
-  text-transform: uppercase;
-}
-.reference-page h1,
-.reference-page h2,
-.reference-page h3,
-.reference-page__description {
-  margin: 0;
-}
-.reference-page h1 {
-  font-size: clamp(2rem, 5vw, 3.25rem);
-  letter-spacing: -0.04em;
-}
-.reference-page__description {
-  margin-top: var(--hf-space-3);
-  color: var(--hf-color-text-muted);
-}
-.reference-page__summary {
-  margin-top: var(--hf-space-5);
-}
-.reference-page__filter {
-  max-width: 18rem;
-  margin-top: var(--hf-space-6);
-}
-.reference-form {
+form[data-category-form] {
   display: grid;
   gap: var(--hf-space-5);
-  max-width: 38rem;
-  margin: var(--hf-space-6) 0;
-  padding: var(--hf-space-6);
-  border: 1px solid var(--hf-color-border);
-  border-radius: var(--hf-card-radius);
-  background: var(--hf-color-surface);
 }
 .reference-form__field {
   display: grid;
@@ -466,7 +405,6 @@ onMounted(() => {
 .category-sections {
   display: grid;
   gap: var(--hf-space-8);
-  margin-top: var(--hf-space-8);
 }
 .category-section {
   display: grid;
@@ -506,18 +444,5 @@ onMounted(() => {
 .category-card__header p {
   margin-top: var(--hf-space-1);
   font-size: 0.875rem;
-}
-@media (max-width: 47.9375rem) {
-  .reference-page__content {
-    padding-right: var(--hf-space-5);
-    padding-left: var(--hf-space-5);
-  }
-  .reference-page__title-row {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .reference-page__title-row > :last-child {
-    align-self: start;
-  }
 }
 </style>
