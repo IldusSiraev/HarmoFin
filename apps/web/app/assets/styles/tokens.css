@@ -79,6 +79,9 @@
   --hf-color-text-danger: var(--hf-color-danger-foreground);
   --hf-color-border-danger: var(--hf-color-danger-foreground);
   --hf-color-overlay: rgb(13 27 42 / 48%);
+  --hf-z-index-tooltip: 150;
+  --hf-tooltip-background: var(--hf-color-brand-navy);
+  --hf-tooltip-color: var(--hf-color-white);
 
   --hf-button-font-weight: var(--hf-font-weight-semibold);
   --hf-button-radius: var(--hf-radius-md);
