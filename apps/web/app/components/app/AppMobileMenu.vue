@@ -16,18 +16,6 @@ const emit = defineEmits<{
 
 const { currentData, logout } = useAuth();
 
-const navLinks = [
-  { to: '/app', label: 'Главная' },
-  { to: '/app/operations', label: 'Операции' },
-  { to: '/app/accounts', label: 'Счета' },
-  { to: '/app/envelopes', label: 'Конверты' },
-  { to: '/app/plans', label: 'Планы' },
-  { to: '/app/categories', label: 'Категории' },
-  { to: '/app/analytics', label: 'Аналитика' },
-  { to: '/app/notifications', label: 'Уведомления' },
-  { to: '/app/settings', label: 'Настройки' },
-];
-
 function userEmail() {
   return currentData.value?.user?.email ?? '';
 }
@@ -58,7 +46,7 @@ watch(
   <Teleport to="body">
     <Transition name="mobile-menu">
       <div v-if="open" class="mobile-menu">
-        <div class="mobile-menu__overlay" @click="handleClose"></div>
+        <div class="mobile-menu__overlay" @click="handleClose" />
         <nav class="mobile-menu__panel" aria-label="Мобильное меню">
           <div class="mobile-menu__header">
             <button
@@ -84,14 +72,76 @@ watch(
 
           <div class="mobile-menu__nav">
             <NuxtLink
-              v-for="link in navLinks"
-              :key="link.to"
-              :to="link.to"
+              to="/app"
               class="mobile-menu__link"
               active-class="mobile-menu__link--active"
               @click="handleClose"
             >
-              {{ link.label }}
+              Главная
+            </NuxtLink>
+            <NuxtLink
+              to="/app/operations"
+              class="mobile-menu__link"
+              active-class="mobile-menu__link--active"
+              @click="handleClose"
+            >
+              Операции
+            </NuxtLink>
+            <NuxtLink
+              to="/app/accounts"
+              class="mobile-menu__link"
+              active-class="mobile-menu__link--active"
+              @click="handleClose"
+            >
+              Счета
+            </NuxtLink>
+            <NuxtLink
+              to="/app/envelopes"
+              class="mobile-menu__link"
+              active-class="mobile-menu__link--active"
+              @click="handleClose"
+            >
+              Конверты
+            </NuxtLink>
+            <NuxtLink
+              to="/app/plans"
+              class="mobile-menu__link"
+              active-class="mobile-menu__link--active"
+              @click="handleClose"
+            >
+              Планы
+            </NuxtLink>
+            <NuxtLink
+              to="/app/categories"
+              class="mobile-menu__link"
+              active-class="mobile-menu__link--active"
+              @click="handleClose"
+            >
+              Категории
+            </NuxtLink>
+            <NuxtLink
+              to="/app/analytics"
+              class="mobile-menu__link"
+              active-class="mobile-menu__link--active"
+              @click="handleClose"
+            >
+              Аналитика
+            </NuxtLink>
+            <NuxtLink
+              to="/app/notifications"
+              class="mobile-menu__link"
+              active-class="mobile-menu__link--active"
+              @click="handleClose"
+            >
+              Уведомления
+            </NuxtLink>
+            <NuxtLink
+              to="/app/settings"
+              class="mobile-menu__link"
+              active-class="mobile-menu__link--active"
+              @click="handleClose"
+            >
+              Настройки
             </NuxtLink>
           </div>
 

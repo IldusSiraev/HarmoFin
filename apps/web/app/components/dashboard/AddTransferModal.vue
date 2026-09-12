@@ -6,7 +6,7 @@ import UiModal from '../ui/Modal.vue';
 
 defineOptions({ name: 'AddTransferModal' });
 
-const props = defineProps<{
+defineProps<{
   open: boolean;
 }>();
 
@@ -20,12 +20,20 @@ const fromAccount = ref('');
 const toAccount = ref('');
 const description = ref('');
 
+// TODO: подключить к API после реализации endpoints трансферов
+
 function handleClose() {
   emit('close');
 }
 
 function handleSubmit() {
   // TODO: реализовать добавление перевода через API
+  console.log('Transfer:', {
+    amount: amount.value,
+    from: fromAccount.value,
+    to: toAccount.value,
+    description: description.value,
+  });
   emit('submit');
   emit('close');
 }

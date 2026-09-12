@@ -6,7 +6,7 @@ import UiModal from '../ui/Modal.vue';
 
 defineOptions({ name: 'AddOperationModal' });
 
-const props = defineProps<{
+defineProps<{
   open: boolean;
 }>();
 
@@ -19,12 +19,19 @@ const type = ref<'INCOME' | 'EXPENSE'>('EXPENSE');
 const amount = ref('');
 const description = ref('');
 
+// TODO: подключить к API после реализации endpoints операций
+
 function handleClose() {
   emit('close');
 }
 
 function handleSubmit() {
   // TODO: реализовать добавление операции через API
+  console.log('Operation:', {
+    type: type.value,
+    amount: amount.value,
+    description: description.value,
+  });
   emit('submit');
   emit('close');
 }

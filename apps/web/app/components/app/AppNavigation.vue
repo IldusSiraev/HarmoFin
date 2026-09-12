@@ -1,27 +1,29 @@
 <script setup lang="ts">
 defineOptions({ name: 'AppNavigation' });
-
-const navLinks = [
-  { to: '/app/operations', label: 'Операции' },
-  { to: '/app/accounts', label: 'Счета' },
-  { to: '/app/envelopes', label: 'Конверты' },
-  { to: '/app/plans', label: 'Планы' },
-  { to: '/app/categories', label: 'Категории' },
-  { to: '/app/analytics', label: 'Аналитика' },
-  { to: '/app/notifications', label: 'Уведомления' },
-];
 </script>
 
 <template>
   <nav class="app-nav" aria-label="Основная навигация">
-    <NuxtLink
-      v-for="link in navLinks"
-      :key="link.to"
-      :to="link.to"
-      class="app-nav__link"
-      active-class="app-nav__link--active"
-    >
-      {{ link.label }}
+    <NuxtLink to="/app/operations" class="app-nav__link" active-class="app-nav__link--active">
+      Операции
+    </NuxtLink>
+    <NuxtLink to="/app/accounts" class="app-nav__link" active-class="app-nav__link--active">
+      Счета
+    </NuxtLink>
+    <NuxtLink to="/app/envelopes" class="app-nav__link" active-class="app-nav__link--active">
+      Конверты
+    </NuxtLink>
+    <NuxtLink to="/app/plans" class="app-nav__link" active-class="app-nav__link--active">
+      Планы
+    </NuxtLink>
+    <NuxtLink to="/app/categories" class="app-nav__link" active-class="app-nav__link--active">
+      Категории
+    </NuxtLink>
+    <NuxtLink to="/app/analytics" class="app-nav__link" active-class="app-nav__link--active">
+      Аналитика
+    </NuxtLink>
+    <NuxtLink to="/app/notifications" class="app-nav__link" active-class="app-nav__link--active">
+      Уведомления
     </NuxtLink>
   </nav>
 </template>

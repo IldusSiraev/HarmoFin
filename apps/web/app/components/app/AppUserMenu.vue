@@ -59,7 +59,7 @@ async function handleLogout() {
 
     <Transition name="user-menu-dropdown">
       <div v-if="menuOpen" class="user-menu__dropdown">
-        <div class="user-menu__backdrop" @click="closeMenu"></div>
+        <div class="user-menu__backdrop" @click="closeMenu" />
         <div class="user-menu__panel" role="menu">
           <NuxtLink to="/app/settings" class="user-menu__item" role="menuitem" @click="closeMenu">
             Настройки
