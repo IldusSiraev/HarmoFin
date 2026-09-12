@@ -54,7 +54,7 @@ import { ApiRequestError } from '../../composables/useApiClient.js';
 import OperationsPage from './operations.vue';
 
 describe('operations page', () => {
-  let wrapper: any;
+  let wrapper: ReturnType<typeof mount> | null = null;
 
   const mountPage = (props = {}) => {
     wrapper = mount(OperationsPage, {
@@ -94,7 +94,7 @@ describe('operations page', () => {
       sortBy: 'occurredOn',
       sortDirection: 'desc',
     });
-    await wrapper.get('[data-action="create-operation"]').trigger('click');
+    await wrapper!.get('[data-action="create-operation"]').trigger('click');
     await flushPromises();
     expect(document.body.textContent).toContain('Создать черновик');
     expect(document.body.textContent).toContain('Подтвердить операцию');
@@ -107,7 +107,7 @@ describe('operations page', () => {
     mountPage();
     await flushPromises();
 
-    await wrapper.get('[data-action="download-csv"]').trigger('click');
+    await wrapper!.get('[data-action="download-csv"]').trigger('click');
     await flushPromises();
 
     expect(api.downloadTransactionsCsv).toHaveBeenCalledWith('budget-id', {
@@ -127,10 +127,10 @@ describe('operations page', () => {
     mountPage();
     await flushPromises();
 
-    await wrapper.get('[data-action="download-csv"]').trigger('click');
+    await wrapper!.get('[data-action="download-csv"]').trigger('click');
     await flushPromises();
 
-    expect(wrapper.get('[role="alert"]').text()).toContain('Не удалось скачать CSV');
+    expect(wrapper!.get('[role="alert"]').text()).toContain('Не удалось скачать CSV');
   });
 
   it('hides CSV download from editor', async () => {
@@ -143,7 +143,7 @@ describe('operations page', () => {
     mountPage();
     await flushPromises();
 
-    expect(wrapper.find('[data-action="download-csv"]').exists()).toBe(false);
+    expect(wrapper!.find('[data-action="download-csv"]').exists()).toBe(false);
   });
 
   it('preloads draft from draftId query into operation editor', async () => {
@@ -195,7 +195,7 @@ describe('operations page', () => {
     mountPage();
     await flushPromises();
 
-    await wrapper.get('[data-action="create-operation"]').trigger('click');
+    await wrapper!.get('[data-action="create-operation"]').trigger('click');
     await flushPromises();
 
     const amountInput = document.querySelector('input[name="amount"]') as HTMLInputElement;
@@ -250,10 +250,10 @@ describe('operations page', () => {
     mountPage();
     await flushPromises();
 
-    await wrapper.get('.allocation-form button:last-child').trigger('click');
+    await wrapper!.get('.allocation-form button:last-child').trigger('click');
     await flushPromises();
 
-    expect(wrapper.text()).not.toContain('Применить предложение');
+    expect(wrapper!.text()).not.toContain('Применить предложение');
     expect(api.createIncomeAllocation).not.toHaveBeenCalled();
   });
 
@@ -290,7 +290,7 @@ describe('operations page', () => {
     mountPage();
     await flushPromises();
 
-    await wrapper.get('[data-action="edit-operation"]').trigger('click');
+    await wrapper!.get('[data-action="edit-operation"]').trigger('click');
     await flushPromises();
 
     const amountInput = document.querySelector('input[name="amount"]') as HTMLInputElement;
@@ -303,7 +303,7 @@ describe('operations page', () => {
     mountPage();
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Бюджет не выбран');
+    expect(wrapper!.text()).toContain('Бюджет не выбран');
     expect(api.listTransactions).not.toHaveBeenCalled();
   });
 });
