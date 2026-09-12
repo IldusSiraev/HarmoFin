@@ -128,6 +128,7 @@ test.describe('Stage 3b mobile routes', () => {
     await initializeTemplate(page);
 
     await page.goto('/app');
+    await expect(page.getByText('Всего на счетах')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       375,
     );
