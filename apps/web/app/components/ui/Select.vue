@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import UiTooltip from './Tooltip.vue';
+
 defineOptions({ name: 'UiSelect' });
 
 type SelectOption = Readonly<{
@@ -17,6 +19,7 @@ const props = withDefaults(
     placeholder?: string | undefined;
     hint?: string | undefined;
     error?: string | undefined;
+    tooltip?: string | undefined;
     required?: boolean;
     disabled?: boolean;
   }>(),
@@ -25,6 +28,7 @@ const props = withDefaults(
     placeholder: undefined,
     hint: undefined,
     error: undefined,
+    tooltip: undefined,
     required: false,
     disabled: false,
   },
@@ -62,9 +66,25 @@ function handleChange(event: Event) {
 
 <template>
   <div class="ui-select">
-    <label class="ui-select__label" :for="getSelectId()">
-      {{ label }}<span v-if="required" aria-hidden="true"> *</span>
-    </label>
+    <div class="ui-select__label-row">
+      <label class="ui-select__label" :for="getSelectId()">
+        {{ label }}<span v-if="required" aria-hidden="true"> *</span>
+      </label>
+      <UiTooltip v-if="tooltip" :text="tooltip" v-slot="{ describedby }">
+        <button
+          type="button"
+          class="ui-select__tooltip-trigger"
+          aria-label="Подсказка"
+          :aria-describedby="describedby"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5" />
+            <path d="M8 7v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            <circle cx="8" cy="5.2" r="0.9" fill="currentColor" />
+          </svg>
+        </button>
+      </UiTooltip>
+    </div>
     <select
       :id="getSelectId()"
       class="ui-select__control"
@@ -100,9 +120,39 @@ function handleChange(event: Event) {
   gap: var(--hf-space-2);
 }
 
+.ui-select__label-row {
+  display: flex;
+  align-items: center;
+  gap: var(--hf-space-2);
+}
+
 .ui-select__label {
   font-weight: var(--hf-font-weight-medium);
   color: var(--hf-color-text);
+}
+
+.ui-select__tooltip-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
+  color: var(--hf-color-text-subtle);
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.ui-select__tooltip-trigger:hover,
+.ui-select__tooltip-trigger:focus-visible {
+  color: var(--hf-color-action-primary);
+}
+
+.ui-select__tooltip-trigger:focus-visible {
+  outline: 2px solid var(--hf-color-action-primary);
+  outline-offset: 2px;
+  border-radius: var(--hf-radius-sm);
 }
 
 .ui-select__control {
