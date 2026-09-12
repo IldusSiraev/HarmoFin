@@ -5,9 +5,11 @@ import { definePageMeta, navigateTo, useRoute } from '#imports';
 import PlanCard from '../../components/plans/PlanCard.vue';
 import PlanForm from '../../components/plans/PlanForm.vue';
 import PlanOccurrenceCard from '../../components/plans/PlanOccurrenceCard.vue';
+import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
+import UiModal from '../../components/ui/Modal.vue';
 import { useAuth } from '../../composables/useAuth.js';
 import { ApiRequestError } from '../../composables/useApiClient.js';
 import {
@@ -212,81 +214,90 @@ function isHighlightedOccurrence(occurrenceId: string) {
 </script>
 
 <template>
-  <main v-if="hydrated" class="plans-page" data-hydrated="true">
-    <header class="plans-page__header">
-      <div>
-        <p class="plans-page__eyebrow">Регулярные планы</p>
-        <h1>Планы и обязательства</h1>
-      </div>
-      <UiButton data-action="create-plan" @click="openCreate">Добавить план</UiButton>
-    </header>
-    <p v-if="statusText" class="plans-page__status" role="status">{{ statusText }}</p>
-    <p v-if="error" class="plans-page__error" role="alert">{{ error }}</p>
-    <PlanForm
-      v-if="formOpen"
-      :plan="selectedPlan"
-      :accounts="accounts"
-      :categories="categories"
-      :envelopes="envelopes"
-      :errors="formErrors"
-      :pending="pending"
-      @submit="savePlan"
-    />
-    <p v-if="loading">Загрузка планов…</p>
-    <template v-else-if="budget">
-      <section class="plans-page__section" aria-labelledby="occurrences-title">
-        <div class="plans-page__section-heading">
-          <h2 id="occurrences-title">Возникновения</h2>
-          <p>План не меняет баланс, пока операция не подтверждена.</p>
-        </div>
+  <div v-if="hydrated" class="plans-page" data-hydrated="true">
+    <ReferencePageLayout>
+      <template #kicker>Регулярные планы</template>
+      <template #title>Планы и обязательства</template>
+      <template #actions>
+        <UiButton data-action="create-plan" @click="openCreate">Добавить план</UiButton>
+      </template>
+      <template #content>
+        <p v-if="statusText" class="plans-page__status" role="status">{{ statusText }}</p>
+        <p v-if="error" class="plans-page__error" role="alert">{{ error }}</p>
+        <p v-if="loading">Загрузка планов…</p>
+        <template v-else-if="budget">
+          <section class="plans-page__section" aria-labelledby="occurrences-title">
+            <div class="plans-page__section-heading">
+              <h2 id="occurrences-title">Возникновения</h2>
+              <p>План не меняет баланс, пока операция не подтверждена.</p>
+            </div>
+            <UiEmptyState
+              v-if="occurrences.length === 0"
+              title="Возникновений пока нет"
+              description="Worker добавит ближайшие даты активных планов."
+            />
+            <div v-else class="plans-page__list">
+              <PlanOccurrenceCard
+                v-for="occurrence in occurrences"
+                :key="occurrence.id"
+                :class="{
+                  'plans-page__occurrence--highlighted': isHighlightedOccurrence(occurrence.id),
+                }"
+                :occurrence="occurrence"
+                :pending="pending"
+                @draft="createDraft(occurrence)"
+                @skip="confirmation = { action: 'skip', id: occurrence.id }"
+                @complete="confirmation = { action: 'complete', id: occurrence.id }"
+              />
+            </div>
+          </section>
+          <section class="plans-page__section" aria-labelledby="plans-title">
+            <div class="plans-page__section-heading">
+              <h2 id="plans-title">Шаблоны планов</h2>
+              <p>Изменения влияют только на будущие возникновения.</p>
+            </div>
+            <UiEmptyState
+              v-if="plans.length === 0"
+              title="Планов пока нет"
+              description="Добавьте ожидаемый доход, расход или накопление."
+            />
+            <div v-else class="plans-page__list">
+              <PlanCard
+                v-for="plan in plans"
+                :key="plan.id"
+                :plan="plan"
+                :pending="pending"
+                @edit="openEdit(plan)"
+                @disable="confirmation = { action: 'disable', id: plan.id }"
+                @remove="confirmation = { action: 'remove', id: plan.id }"
+              />
+            </div>
+          </section>
+        </template>
         <UiEmptyState
-          v-if="occurrences.length === 0"
-          title="Возникновений пока нет"
-          description="Worker добавит ближайшие даты активных планов."
+          v-else-if="!loading"
+          title="Бюджет не выбран"
+          description="Создайте или выберите активный бюджет, чтобы управлять планами."
         />
-        <div v-else class="plans-page__list">
-          <PlanOccurrenceCard
-            v-for="occurrence in occurrences"
-            :key="occurrence.id"
-            :class="{
-              'plans-page__occurrence--highlighted': isHighlightedOccurrence(occurrence.id),
-            }"
-            :occurrence="occurrence"
-            :pending="pending"
-            @draft="createDraft(occurrence)"
-            @skip="confirmation = { action: 'skip', id: occurrence.id }"
-            @complete="confirmation = { action: 'complete', id: occurrence.id }"
-          />
-        </div>
-      </section>
-      <section class="plans-page__section" aria-labelledby="plans-title">
-        <div class="plans-page__section-heading">
-          <h2 id="plans-title">Шаблоны планов</h2>
-          <p>Изменения влияют только на будущие возникновения.</p>
-        </div>
-        <UiEmptyState
-          v-if="plans.length === 0"
-          title="Планов пока нет"
-          description="Добавьте ожидаемый доход, расход или накопление."
-        />
-        <div v-else class="plans-page__list">
-          <PlanCard
-            v-for="plan in plans"
-            :key="plan.id"
-            :plan="plan"
-            :pending="pending"
-            @edit="openEdit(plan)"
-            @disable="confirmation = { action: 'disable', id: plan.id }"
-            @remove="confirmation = { action: 'remove', id: plan.id }"
-          />
-        </div>
-      </section>
-    </template>
-    <UiEmptyState
-      v-else-if="!loading"
-      title="Бюджет не выбран"
-      description="Создайте или выберите активный бюджет, чтобы управлять планами."
-    />
+      </template>
+    </ReferencePageLayout>
+
+    <UiModal
+      :open="formOpen"
+      :title="selectedPlan ? 'Изменить план' : 'Новый план'"
+      @close="formOpen = false"
+    >
+      <PlanForm
+        :plan="selectedPlan"
+        :accounts="accounts"
+        :categories="categories"
+        :envelopes="envelopes"
+        :errors="formErrors"
+        :pending="pending"
+        @submit="savePlan"
+      />
+    </UiModal>
+
     <UiConfirmDialog
       :open="confirmation !== null"
       :title="confirmation?.action === 'remove' ? 'Удалить план?' : 'Подтвердить действие?'"
@@ -302,40 +313,15 @@ function isHighlightedOccurrence(occurrenceId: string) {
       @confirm="runConfirmation"
       @cancel="confirmation = null"
     />
-  </main>
+  </div>
 </template>
 
 <style scoped>
-.plans-page {
-  max-width: 70rem;
-  margin: 0 auto;
-  padding: var(--hf-space-8);
-}
-.plans-page__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: end;
-  gap: var(--hf-space-5);
-  margin-bottom: var(--hf-space-6);
-}
-.plans-page__header h1,
-.plans-page__eyebrow,
 .plans-page__status,
 .plans-page__error,
 .plans-page__section-heading h2,
 .plans-page__section-heading p {
   margin: 0;
-}
-.plans-page__header h1 {
-  font-size: clamp(2rem, 4vw, 3.5rem);
-  letter-spacing: -0.04em;
-}
-.plans-page__eyebrow {
-  color: var(--hf-color-action-primary-hover);
-  font-size: 0.75rem;
-  font-weight: var(--hf-font-weight-bold);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 .plans-page__status {
   margin-bottom: var(--hf-space-4);
@@ -364,14 +350,5 @@ function isHighlightedOccurrence(occurrenceId: string) {
 .plans-page__occurrence--highlighted {
   outline: 3px solid var(--hf-color-action-primary);
   outline-offset: 3px;
-}
-@media (max-width: 47.9375rem) {
-  .plans-page {
-    padding: var(--hf-space-5);
-  }
-  .plans-page__header {
-    align-items: stretch;
-    flex-direction: column;
-  }
 }
 </style>
