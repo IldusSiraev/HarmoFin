@@ -22,10 +22,10 @@ function close() {
   <div class="filter-panel">
     <div class="filter-panel__bar">
       <div class="filter-panel__quick"><slot name="quick" /></div>
-      <div class="filter-panel__trigger">
+      <div class="filter-panel__trigger" @keydown.esc="close">
         <UiButton type="button" variant="secondary" :aria-expanded="open" aria-haspopup="true" @click="toggle">
           Фильтры
-          <span v-if="activeCount > 0" class="filter-panel__badge" aria-hidden="true">{{
+          <span v-if="activeCount > 0" class="filter-panel__badge">{{
             activeCount
           }}</span>
         </UiButton>
@@ -36,7 +36,6 @@ function close() {
               class="filter-panel__panel"
               role="region"
               aria-label="Дополнительные фильтры"
-              @keydown.esc="close"
             >
               <slot />
               <div class="filter-panel__panel-actions">
@@ -85,14 +84,12 @@ function close() {
 }
 
 .filter-panel__dropdown {
-  position: fixed;
-  inset: 0;
-  z-index: var(--hf-z-index-modal-backdrop, 200);
 }
 
 .filter-panel__backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
+  z-index: var(--hf-z-index-modal-backdrop, 200);
 }
 
 .filter-panel__panel {
@@ -111,6 +108,7 @@ function close() {
   box-shadow:
     0 4px 6px rgb(13 27 42 / 10%),
     0 2px 4px rgb(13 27 42 / 6%);
+  z-index: var(--hf-z-index-modal-backdrop, 200);
 }
 
 .filter-panel__panel-actions {

@@ -38,7 +38,7 @@ describe('FilterPanel', () => {
     expect(wrapper.find('[data-advanced]').exists()).toBe(false);
 
     await wrapper.get('button').trigger('click');
-    await wrapper.get('.filter-panel__panel').trigger('keydown', { key: 'Escape' });
+    await wrapper.get('.filter-panel__trigger').trigger('keydown', { key: 'Escape' });
     expect(wrapper.find('[data-advanced]').exists()).toBe(false);
   });
 });
