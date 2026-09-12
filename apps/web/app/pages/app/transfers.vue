@@ -2,11 +2,13 @@
 import { computed, onMounted, ref } from 'vue';
 import { definePageMeta, useRoute } from '#imports';
 
+import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import TransferCard from '../../components/transfers/TransferCard.vue';
 import TransferForm from '../../components/transfers/TransferForm.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
+import UiModal from '../../components/ui/Modal.vue';
 import UiSelect from '../../components/ui/Select.vue';
 import { useAuth } from '../../composables/useAuth.js';
 import { ApiRequestError } from '../../composables/useApiClient.js';
@@ -188,46 +190,84 @@ function dialogDescription() {
 </script>
 
 <template>
-  <main v-if="hydrated" class="transfers-page" data-hydrated="true">
-    <header class="transfers-page__header">
-      <div>
-        <p class="transfers-page__eyebrow">Движение денег</p>
-        <h1>Переводы</h1>
-        <p>Перемещайте деньги между счетами, сохраняя назначение по конвертам.</p>
-      </div>
-      <UiButton data-action="create-transfer" :disabled="loading" @click="openCreate"
-        >Новый перевод</UiButton
+  <div v-if="hydrated" class="transfers-page" data-hydrated="true">
+    <ReferencePageLayout>
+      <template #kicker>Движение денег</template>
+      <template #title>Переводы</template>
+      <template #description
+        >Перемещайте деньги между счетами, сохраняя назначение по конвертам.</template
       >
-    </header>
+      <template #actions>
+        <UiButton data-action="create-transfer" :disabled="loading" @click="openCreate"
+          >Новый перевод</UiButton
+        >
+      </template>
+      <template v-if="!loading && budgetId" #filters>
+        <UiSelect
+          :model-value="statusFilter"
+          name="status"
+          label="Статус перевода"
+          :options="[
+            { value: '', label: 'Все статусы' },
+            { value: 'DRAFT', label: 'Черновики' },
+            { value: 'CONFIRMED', label: 'Подтверждённые' },
+            { value: 'CANCELLED', label: 'Отменённые' },
+            { value: 'DELETED', label: 'Удалённые' },
+          ]"
+          @update:model-value="changeStatus"
+        />
+      </template>
+      <template #content>
+        <p v-if="statusText" class="transfers-page__status" role="status">{{ statusText }}</p>
+        <p v-if="error" class="transfers-page__error" role="alert">
+          {{ error }} <UiButton variant="tertiary" @click="load()">Повторить</UiButton>
+        </p>
+        <UiEmptyState
+          v-if="!loading && !budgetId"
+          title="Бюджет не выбран"
+          description="Выберите бюджет, чтобы управлять переводами."
+        />
+        <template v-else>
+          <p v-if="loading">Загрузка переводов…</p>
+          <UiEmptyState
+            v-else-if="transfers.length === 0"
+            title="Переводов пока нет"
+            description="Создайте перевод, чтобы переместить деньги между счетами."
+          />
+          <section v-else class="transfers-page__list" aria-label="Список переводов">
+            <article v-for="transfer in transfers" :key="transfer.id" class="transfers-page__item">
+              <TransferCard :transfer="transfer" />
+              <div class="transfers-page__actions">
+                <UiButton
+                  v-if="transfer.status === 'DRAFT'"
+                  variant="secondary"
+                  @click="requestAction('confirm', transfer)"
+                  >Подтвердить</UiButton
+                >
+                <UiButton
+                  v-if="transfer.status === 'DRAFT'"
+                  variant="tertiary"
+                  @click="requestAction('cancel', transfer)"
+                  >Отменить</UiButton
+                >
+                <UiButton
+                  v-if="transfer.status !== 'DELETED'"
+                  variant="tertiary"
+                  @click="requestAction('delete', transfer)"
+                  >Удалить</UiButton
+                >
+              </div>
+            </article>
+          </section>
+          <UiButton v-if="nextCursor" variant="secondary" :disabled="loading" @click="load(true)"
+            >Загрузить ещё</UiButton
+          >
+        </template>
+      </template>
+    </ReferencePageLayout>
 
-    <p v-if="statusText" class="transfers-page__status" role="status">{{ statusText }}</p>
-    <p v-if="error" class="transfers-page__error" role="alert">
-      {{ error }} <UiButton variant="tertiary" @click="load()">Повторить</UiButton>
-    </p>
-
-    <UiEmptyState
-      v-if="!loading && !budgetId"
-      title="Бюджет не выбран"
-      description="Выберите бюджет, чтобы управлять переводами."
-    />
-    <template v-else>
-      <UiSelect
-        class="transfers-page__filter"
-        :model-value="statusFilter"
-        name="status"
-        label="Статус перевода"
-        :options="[
-          { value: '', label: 'Все статусы' },
-          { value: 'DRAFT', label: 'Черновики' },
-          { value: 'CONFIRMED', label: 'Подтверждённые' },
-          { value: 'CANCELLED', label: 'Отменённые' },
-          { value: 'DELETED', label: 'Удалённые' },
-        ]"
-        @update:model-value="changeStatus"
-      />
-
+    <UiModal :open="formOpen" title="Новый перевод" @close="formOpen = false">
       <TransferForm
-        v-if="formOpen"
         :model="form"
         :accounts="accounts"
         :envelopes="envelopes"
@@ -235,42 +275,7 @@ function dialogDescription() {
         :pending="pending"
         @submit="receiveForm"
       />
-
-      <p v-if="loading">Загрузка переводов…</p>
-      <UiEmptyState
-        v-else-if="transfers.length === 0"
-        title="Переводов пока нет"
-        description="Создайте перевод, чтобы переместить деньги между счетами."
-      />
-      <section v-else class="transfers-page__list" aria-label="Список переводов">
-        <article v-for="transfer in transfers" :key="transfer.id" class="transfers-page__item">
-          <TransferCard :transfer="transfer" />
-          <div class="transfers-page__actions">
-            <UiButton
-              v-if="transfer.status === 'DRAFT'"
-              variant="secondary"
-              @click="requestAction('confirm', transfer)"
-              >Подтвердить</UiButton
-            >
-            <UiButton
-              v-if="transfer.status === 'DRAFT'"
-              variant="tertiary"
-              @click="requestAction('cancel', transfer)"
-              >Отменить</UiButton
-            >
-            <UiButton
-              v-if="transfer.status !== 'DELETED'"
-              variant="tertiary"
-              @click="requestAction('delete', transfer)"
-              >Удалить</UiButton
-            >
-          </div>
-        </article>
-      </section>
-      <UiButton v-if="nextCursor" variant="secondary" :disabled="loading" @click="load(true)"
-        >Загрузить ещё</UiButton
-      >
-    </template>
+    </UiModal>
 
     <UiConfirmDialog
       :open="confirmation !== null"
@@ -283,56 +288,20 @@ function dialogDescription() {
       @confirm="confirmAction"
       @cancel="confirmation = null"
     />
-  </main>
+  </div>
 </template>
 
 <style scoped>
-.transfers-page {
-  max-width: 70rem;
-  margin: 0 auto;
-  padding: var(--hf-space-8);
+.transfers-page__status {
+  margin-bottom: var(--hf-space-4);
+  color: var(--hf-color-status-success);
 }
-.transfers-page__header {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: var(--hf-space-5);
-  margin-bottom: var(--hf-space-6);
-}
-.transfers-page__header h1,
-.transfers-page__header p,
-.transfers-page__eyebrow,
-.transfers-page__status,
 .transfers-page__error {
-  margin: 0;
-}
-.transfers-page__header h1 {
-  font-size: clamp(2rem, 4vw, 3.5rem);
-  letter-spacing: -0.04em;
-}
-.transfers-page__header > div > p:last-child,
-.transfers-page__eyebrow {
-  color: var(--hf-color-text-muted);
-}
-.transfers-page__eyebrow {
-  margin-bottom: var(--hf-space-2);
-  color: var(--hf-color-action-primary-hover);
-  font-size: 0.75rem;
-  font-weight: var(--hf-font-weight-bold);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.transfers-page__filter {
-  max-width: 18rem;
-  margin-bottom: var(--hf-space-6);
-}
-.transfers-page :deep(.transfer-form) {
-  max-width: 52rem;
-  margin-bottom: var(--hf-space-6);
-  padding: var(--hf-space-5);
-  border: 1px solid var(--hf-color-border);
-  border-radius: var(--hf-card-radius);
-  background: var(--hf-color-surface);
+  display: flex;
+  align-items: center;
+  gap: var(--hf-space-2);
+  margin-bottom: var(--hf-space-4);
+  color: var(--hf-color-text-danger);
 }
 .transfers-page__list {
   display: grid;
@@ -346,25 +315,5 @@ function dialogDescription() {
   display: flex;
   flex-wrap: wrap;
   gap: var(--hf-space-2);
-}
-.transfers-page__status {
-  margin-bottom: var(--hf-space-4);
-  color: var(--hf-color-status-success);
-}
-.transfers-page__error {
-  display: flex;
-  align-items: center;
-  gap: var(--hf-space-2);
-  margin-bottom: var(--hf-space-4);
-  color: var(--hf-color-text-danger);
-}
-@media (max-width: 47.9375rem) {
-  .transfers-page {
-    padding: var(--hf-space-5);
-  }
-  .transfers-page__header {
-    align-items: start;
-    flex-direction: column;
-  }
 }
 </style>

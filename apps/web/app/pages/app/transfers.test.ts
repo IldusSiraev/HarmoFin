@@ -50,13 +50,13 @@ describe('transfers page', () => {
 
   it('loads server references before applying source-account prefill', async () => {
     const wrapper = mount(TransfersPage, {
+      attachTo: document.body,
       global: { stubs: { NuxtLink: { template: '<a><slot /></a>' }, UiConfirmDialog: true } },
     });
     await flushPromises();
 
     await wrapper.get('[data-action="create-transfer"]').trigger('click');
-    expect((wrapper.get('select[name="sourceAccountId"]').element as HTMLSelectElement).value).toBe(
-      'source-account',
-    );
+    const selectElement = document.querySelector('select[name="sourceAccountId"]') as HTMLSelectElement;
+    expect(selectElement.value).toBe('source-account');
   });
 });
