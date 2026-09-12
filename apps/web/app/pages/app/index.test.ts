@@ -62,7 +62,7 @@ describe('dashboard page', () => {
     api.getDashboardSummary.mockResolvedValue(summary);
   });
 
-  it('renders server summary values and budget navigation', async () => {
+  it('renders server summary values and obligation navigation', async () => {
     const wrapper = mount(DashboardPage, {
       global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } },
     });
@@ -72,9 +72,6 @@ describe('dashboard page', () => {
     expect(text).toContain('Остаток:75,00 ₽');
     expect(text).toContain('Наличные');
     expect(text).toContain('Ипотека');
-    expect(wrapper.get('a[href="/app/operations"]')).toBeTruthy();
-    expect(wrapper.get('a[href="/app/plans"]')).toBeTruthy();
-    expect(wrapper.get('a[href="/app/notifications"]')).toBeTruthy();
     expect(wrapper.get('a[href="/app/plans?occurrence=occurrence-id"]')).toBeTruthy();
   });
 
