@@ -95,10 +95,12 @@ apps/web/app/components/app/
 | `envelopes.vue` | создание/редактирование конверта | `EnvelopeFormModal.vue` |
 | `categories.vue` | создание/редактирование категории | `CategoryFormModal.vue` |
 | `plans.vue` | создание/редактирование плана | `PlanFormModal.vue` |
-| `transfers.vue` | создание перевода | `TransferFormModal.vue` (переиспользует markup `AddTransferModal`) |
-| `operations.vue` | создание/редактирование операции, распределение дохода | `OperationFormModal.vue` (переиспользует markup `AddOperationModal`) |
+| `transfers.vue` | создание перевода | оборачиваем существующий `TransferForm.vue` в `UiModal` |
+| `operations.vue` | создание/редактирование операции | оборачиваем существующий `OperationForm.vue` в `UiModal` |
 
-Каждый `*FormModal.vue` — тонкая обёртка: `UiModal` + существующий набор полей формы, без изменения бизнес-логики/composables (`useReferenceDataForm`, `useOperationForm` и т.д. остаются как есть). Меняется только способ показа — вместо `v-if="formOpen"` внутри страницы, модалка монтируется через `UiModal :open="formOpen"`.
+Каждая форма оборачивается в `UiModal` на месте, без изменения бизнес-логики/composables (`useReferenceDataForm`, `useOperationForm`, `useTransferForm` и т.д. остаются как есть). Меняется только способ показа — вместо `v-if="formOpen"` рендера формы прямо в потоке страницы, форма рендерится внутри `<UiModal :open="formOpen" title="...">`.
+
+**Отдельная находка, вне скоупа этого документа**: `AddOperationModal.vue`/`AddTransferModal.vue` (модалки `QuickActionBar` на дашборде) не подключены к API — заполняют локальный `ref` и делают `console.log`, помечены `// TODO: подключить к API`. Это существующий баг дашборда, не связанный с навигацией/формами; чинить его в рамках данного плана не будем, но стоит завести отдельно.
 
 Кнопки, открывающие форму («Создать счёт», «Новый перевод» и т.д.), остаются на месте (шапка страницы/панель действий).
 
