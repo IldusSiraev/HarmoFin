@@ -7,6 +7,10 @@ const props = defineProps<{
   text?: string | undefined;
 }>();
 
+defineSlots<{
+  default(props: { describedby?: string | undefined }): any;
+}>();
+
 const id = useId();
 const open = ref(false);
 
@@ -49,6 +53,10 @@ function getBubbleId() {
 .ui-tooltip {
   position: relative;
   display: inline-flex;
+}
+
+.ui-tooltip--full-width {
+  width: 100%;
 }
 
 .ui-tooltip__bubble {

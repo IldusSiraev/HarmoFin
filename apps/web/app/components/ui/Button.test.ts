@@ -34,10 +34,37 @@ describe('UiButton', () => {
       slots: { default: 'Архивировать' },
     });
 
-    await wrapper.get('button').trigger('focus');
+    await wrapper.get('.ui-tooltip').trigger('focusin');
     expect(wrapper.get('[role="tooltip"]').text()).toBe('Переместить счёт в архив');
     expect(wrapper.get('button').attributes('aria-describedby')).toBe(
       wrapper.get('[role="tooltip"]').attributes('id'),
     );
+  });
+
+  it('renders button as the true DOM root when tooltip prop is not set', () => {
+    const wrapper = mount(UiButton, {
+      slots: { default: 'Кнопка' },
+    });
+
+    expect(wrapper.find('.ui-tooltip').exists()).toBe(false);
+    expect(wrapper.find('button').exists()).toBe(true);
+  });
+
+  it('applies ui-tooltip--full-width class when fullWidth and tooltip are both set', () => {
+    const wrapper = mount(UiButton, {
+      props: { fullWidth: true, tooltip: 'Подсказка' },
+      slots: { default: 'Кнопка' },
+    });
+
+    expect(wrapper.find('.ui-tooltip--full-width').exists()).toBe(true);
+  });
+
+  it('does not apply ui-tooltip--full-width class when tooltip is set but fullWidth is false', () => {
+    const wrapper = mount(UiButton, {
+      props: { tooltip: 'Подсказка' },
+      slots: { default: 'Кнопка' },
+    });
+
+    expect(wrapper.find('.ui-tooltip--full-width').exists()).toBe(false);
   });
 });

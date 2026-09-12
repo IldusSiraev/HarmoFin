@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref } from 'vue';
 import UiTooltip from './Tooltip.vue';
 
 defineOptions({ name: 'UiButton' });
@@ -31,24 +30,15 @@ const emit = defineEmits<{
   click: [event: MouseEvent];
 }>();
 
-const tooltipComponent = ref<typeof UiTooltip>();
-
 function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
   if (!loading && !disabled) {
     emit('click', event);
   }
 }
-
-function handleButtonFocus() {
-  // Manually dispatch focusin on the tooltip wrapper to ensure event propagation works in tests
-  if (tooltipComponent.value?.$el) {
-    tooltipComponent.value.$el.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-  }
-}
 </script>
 
 <template>
-  <UiTooltip ref="tooltipComponent" :text="tooltip" v-slot="{ describedby }">
+  <UiTooltip :text="tooltip" v-slot="{ describedby }" :class="tooltip ? { 'ui-tooltip--full-width': fullWidth } : {}">
     <button
       class="ui-button"
       :class="[`ui-button--${variant}`, `ui-button--${size}`, { 'ui-button--full-width': fullWidth }]"
@@ -58,7 +48,6 @@ function handleButtonFocus() {
       :aria-label="ariaLabel"
       :aria-describedby="describedby"
       @click="handleClick($event, loading, disabled)"
-      @focus="handleButtonFocus"
     >
       <span v-if="loading" class="ui-button__loader" aria-hidden="true" />
       <span class="ui-button__content"><slot /></span>
