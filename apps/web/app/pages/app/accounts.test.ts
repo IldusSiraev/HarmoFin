@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   auth: {
@@ -39,12 +39,25 @@ const account = {
 
 function mountPage() {
   return mount(AccountsPage, {
+    attachTo: document.body,
     global: {
       stubs: {
         NuxtLink: { template: '<a><slot /></a>' },
         AccountCard: {
           template: '<article><strong>{{ account.name }}</strong><slot name="actions" /></article>',
           props: ['account'],
+        },
+        UiButton: {
+          template: '<button v-bind="$attrs" @click="$emit(\'click\', $event)"><slot /></button>',
+          props: ['variant', 'size', 'type', 'loading', 'disabled', 'fullWidth', 'ariaLabel', 'tooltip'],
+          emits: ['click'],
+          inheritAttrs: true,
+        },
+        UiModal: {
+          template:
+            '<div v-if="open" data-modal><div class="modal-header"><h2>{{ title }}</h2><button @click="$emit(\'close\')">×</button></div><div class="modal-content"><slot /></div></div>',
+          props: ['open', 'title'],
+          emits: ['close'],
         },
         UiConfirmDialog: {
           props: ['open'],
@@ -57,6 +70,8 @@ function mountPage() {
 }
 
 describe('accounts page', () => {
+  let wrapper: ReturnType<typeof mountPage> | null = null;
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.auth.currentData.value = {
@@ -73,10 +88,17 @@ describe('accounts page', () => {
     mocks.api.listAccounts.mockResolvedValue([]);
   });
 
+  afterEach(() => {
+    if (wrapper) {
+      wrapper.unmount();
+      wrapper = null;
+    }
+  });
+
   it('creates account from decimal text and refreshes server-confirmed card', async () => {
     mocks.api.createAccount.mockResolvedValue(account);
     mocks.api.listAccounts.mockResolvedValueOnce([]).mockResolvedValueOnce([account]);
-    const wrapper = mountPage();
+    wrapper = mountPage();
 
     await flushPromises();
     await wrapper.get('[data-action="create-account"]').trigger('click');
@@ -99,7 +121,7 @@ describe('accounts page', () => {
       ...account,
       archivedAt: '2026-09-04T00:00:00.000Z',
     });
-    const wrapper = mountPage();
+    wrapper = mountPage();
 
     await flushPromises();
     await wrapper.get('[data-action="archive-account"]').trigger('click');
@@ -111,7 +133,7 @@ describe('accounts page', () => {
 
   it('offers transfer with selected active account', async () => {
     mocks.api.listAccounts.mockResolvedValue([account]);
-    const wrapper = mountPage();
+    wrapper = mountPage();
 
     await flushPromises();
     const link = wrapper.get('[data-action="transfer-from-account"]');

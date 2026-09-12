@@ -3,10 +3,12 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { definePageMeta } from '#imports';
 
 import AccountCard from '../../components/accounts/AccountCard.vue';
+import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
 import UiInput from '../../components/ui/Input.vue';
+import UiModal from '../../components/ui/Modal.vue';
 import UiSelect from '../../components/ui/Select.vue';
 import UiStatus from '../../components/ui/Status.vue';
 import { useAuth } from '../../composables/useAuth.js';
@@ -239,116 +241,37 @@ onMounted(() => {
 
 <template>
   <div class="reference-page">
-    <section class="reference-page__content" aria-labelledby="accounts-title">
-      <template v-if="loading">
-        <UiStatus label="Загрузка счетов…" tone="info" aria-live="polite" />
+    <template v-if="loading">
+      <UiStatus label="Загрузка счетов…" tone="info" aria-live="polite" />
+    </template>
+    <template v-else-if="loadError">
+      <UiEmptyState title="Счета недоступны" :description="loadError">
+        <template #action><UiButton @click="loadPage">Повторить</UiButton></template>
+      </UiEmptyState>
+    </template>
+    <UiEmptyState
+      v-else-if="!budgetId"
+      title="Бюджет не выбран"
+      description="Выберите бюджет, чтобы управлять счетами."
+    />
+    <ReferencePageLayout v-else>
+      <template #kicker>Справочники</template>
+      <template #title>Счета</template>
+      <template #description>Храните счета и их подтверждённые остатки.</template>
+      <template #actions>
+        <UiButton data-action="create-account" @click="startCreate">Создать счёт</UiButton>
       </template>
-      <template v-else-if="loadError">
-        <UiEmptyState title="Счета недоступны" :description="loadError">
-          <template #action><UiButton @click="loadPage">Повторить</UiButton></template>
-        </UiEmptyState>
-      </template>
-      <UiEmptyState
-        v-else-if="!budgetId"
-        title="Бюджет не выбран"
-        description="Выберите бюджет, чтобы управлять счетами."
-      />
-      <template v-else>
-        <div class="reference-page__title-row">
-          <div>
-            <p class="reference-page__kicker">Справочники</p>
-            <h1 id="accounts-title">Счета</h1>
-            <p class="reference-page__description">Храните счета и их подтверждённые остатки.</p>
-          </div>
-          <UiButton data-action="create-account" @click="startCreate">Создать счёт</UiButton>
-        </div>
-
-        <UiStatus
-          v-if="summary"
-          class="reference-page__summary"
-          :label="summary"
-          tone="info"
-          aria-live="polite"
+      <template #filters>
+        <UiSelect
+          :model-value="status"
+          name="status"
+          label="Показать счета"
+          :options="getStatusOptions()"
+          @update:model-value="changeStatus"
         />
-
-        <div class="reference-page__filter">
-          <UiSelect
-            :model-value="status"
-            name="status"
-            label="Показать счета"
-            :options="getStatusOptions()"
-            @update:model-value="changeStatus"
-          />
-        </div>
-
-        <form
-          v-if="formVisible"
-          class="reference-form"
-          data-account-form
-          @submit.prevent="saveAccount"
-        >
-          <h2>{{ editingId ? 'Изменить счёт' : 'Новый счёт' }}</h2>
-          <UiInput
-            v-model="form.name"
-            name="name"
-            label="Название счёта"
-            :error="getFieldError('name')"
-            required
-          />
-          <UiSelect
-            v-model="form.accountType"
-            name="accountType"
-            label="Тип счёта"
-            :options="getAccountTypeOptions()"
-            :error="getFieldError('accountType')"
-            required
-          />
-          <UiInput
-            v-model="form.bankName"
-            name="bankName"
-            label="Банк"
-            :error="getFieldError('bankName')"
-          />
-          <UiInput
-            v-model="form.lastFourDigits"
-            name="lastFourDigits"
-            label="Последние четыре цифры карты"
-            inputmode="numeric"
-            :error="getFieldError('lastFourDigits')"
-          />
-          <UiInput
-            v-model="form.startingBalance"
-            name="startingBalance"
-            label="Начальный баланс"
-            hint="Оставьте пустым при редактировании, чтобы сохранить текущий баланс."
-            :error="getFieldError('startingBalance')"
-            :required="!editingId"
-          />
-          <UiInput
-            v-model="form.accountingStartDate"
-            name="accountingStartDate"
-            label="Дата начала учёта"
-            type="date"
-            :error="getFieldError('accountingStartDate')"
-            required
-          />
-          <label class="reference-form__field">
-            <span>Комментарий</span>
-            <textarea
-              v-model="form.comment"
-              name="comment"
-              :aria-invalid="getFieldError('comment') ? 'true' : undefined"
-            />
-            <small v-if="getFieldError('comment')">{{ getFieldError('comment') }}</small>
-          </label>
-          <div class="reference-form__actions">
-            <UiButton type="submit" :loading="saving">Сохранить счёт</UiButton>
-            <UiButton type="button" variant="tertiary" :disabled="saving" @click="cancelForm"
-              >Отмена</UiButton
-            >
-          </div>
-        </form>
-
+      </template>
+      <template #content>
+        <UiStatus v-if="summary" :label="summary" tone="info" aria-live="polite" />
         <UiEmptyState
           v-if="accounts.length === 0"
           title="Счетов пока нет"
@@ -385,7 +308,72 @@ onMounted(() => {
           </AccountCard>
         </div>
       </template>
-    </section>
+    </ReferencePageLayout>
+
+    <UiModal :open="formVisible" :title="editingId ? 'Изменить счёт' : 'Новый счёт'" @close="cancelForm">
+      <form data-account-form @submit.prevent="saveAccount">
+        <UiInput
+          v-model="form.name"
+          name="name"
+          label="Название счёта"
+          :error="getFieldError('name')"
+          required
+        />
+        <UiSelect
+          v-model="form.accountType"
+          name="accountType"
+          label="Тип счёта"
+          :options="getAccountTypeOptions()"
+          :error="getFieldError('accountType')"
+          required
+        />
+        <UiInput
+          v-model="form.bankName"
+          name="bankName"
+          label="Банк"
+          :error="getFieldError('bankName')"
+        />
+        <UiInput
+          v-model="form.lastFourDigits"
+          name="lastFourDigits"
+          label="Последние четыре цифры карты"
+          inputmode="numeric"
+          :error="getFieldError('lastFourDigits')"
+        />
+        <UiInput
+          v-model="form.startingBalance"
+          name="startingBalance"
+          label="Начальный баланс"
+          tooltip="Сумма на счёте на дату начала учёта — используется только один раз, при создании счёта."
+          hint="Оставьте пустым при редактировании, чтобы сохранить текущий баланс."
+          :error="getFieldError('startingBalance')"
+          :required="!editingId"
+        />
+        <UiInput
+          v-model="form.accountingStartDate"
+          name="accountingStartDate"
+          label="Дата начала учёта"
+          type="date"
+          :error="getFieldError('accountingStartDate')"
+          required
+        />
+        <label class="reference-form__field">
+          <span>Комментарий</span>
+          <textarea
+            v-model="form.comment"
+            name="comment"
+            :aria-invalid="getFieldError('comment') ? 'true' : undefined"
+          />
+          <small v-if="getFieldError('comment')">{{ getFieldError('comment') }}</small>
+        </label>
+        <div class="reference-form__actions">
+          <UiButton type="submit" :loading="saving">Сохранить счёт</UiButton>
+          <UiButton type="button" variant="tertiary" :disabled="saving" @click="cancelForm"
+            >Отмена</UiButton
+          >
+        </div>
+      </form>
+    </UiModal>
 
     <UiConfirmDialog
       :open="archiveTarget !== null"
@@ -402,58 +390,9 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.reference-page {
-  min-height: 100vh;
-  color: var(--hf-color-text);
-  background: var(--hf-color-page-background);
-}
-.reference-page__content {
-  max-width: 70rem;
-  margin: var(--hf-space-8) auto 0;
-  padding: var(--hf-space-8);
-}
-.reference-page__title-row {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: var(--hf-space-6);
-}
-.reference-page__kicker {
-  margin: 0 0 var(--hf-space-2);
-  color: var(--hf-color-action-primary-hover);
-  font-size: 0.875rem;
-  font-weight: var(--hf-font-weight-semibold);
-  text-transform: uppercase;
-}
-.reference-page h1,
-.reference-page h2,
-.reference-page__description {
-  margin: 0;
-}
-.reference-page h1 {
-  font-size: clamp(2rem, 5vw, 3.25rem);
-  letter-spacing: -0.04em;
-}
-.reference-page__description {
-  margin-top: var(--hf-space-3);
-  color: var(--hf-color-text-muted);
-}
-.reference-page__summary {
-  margin-top: var(--hf-space-5);
-}
-.reference-page__filter {
-  max-width: 18rem;
-  margin-top: var(--hf-space-6);
-}
-.reference-form {
+form[data-account-form] {
   display: grid;
   gap: var(--hf-space-5);
-  max-width: 38rem;
-  margin: var(--hf-space-6) 0;
-  padding: var(--hf-space-6);
-  border: 1px solid var(--hf-color-border);
-  border-radius: var(--hf-card-radius);
-  background: var(--hf-color-surface);
 }
 .reference-form__field {
   display: grid;
@@ -484,7 +423,6 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
   gap: var(--hf-space-5);
-  margin-top: var(--hf-space-6);
 }
 .account-transfer-link {
   display: inline-flex;
@@ -496,18 +434,5 @@ onMounted(() => {
 }
 .account-transfer-link:hover {
   text-decoration: underline;
-}
-@media (max-width: 47.9375rem) {
-  .reference-page__content {
-    padding-right: var(--hf-space-5);
-    padding-left: var(--hf-space-5);
-  }
-  .reference-page__title-row {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .reference-page__title-row > :last-child {
-    align-self: start;
-  }
 }
 </style>
