@@ -48,6 +48,7 @@
   --hf-control-height-sm: 2.75rem;
   --hf-control-height-md: 3rem;
   --hf-control-height-lg: 3.25rem;
+  --hf-sidebar-width: 16rem;
 
   --hf-color-page-background: var(--hf-color-slate-50);
   --hf-color-surface: var(--hf-color-white);
