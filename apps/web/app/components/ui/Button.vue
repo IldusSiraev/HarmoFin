@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import UiTooltip from './Tooltip.vue';
 
-defineOptions({ name: 'UiButton' });
+defineOptions({ name: 'UiButton', inheritAttrs: false });
 
 withDefaults(
   defineProps<{
@@ -38,8 +38,9 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
 </script>
 
 <template>
-  <UiTooltip :text="tooltip" v-slot="{ describedby }" :class="tooltip ? { 'ui-tooltip--full-width': fullWidth } : {}">
+  <UiTooltip v-slot="{ describedby }" :text="tooltip" :class="tooltip ? { 'ui-tooltip--full-width': fullWidth } : {}">
     <button
+      v-bind="$attrs"
       class="ui-button"
       :class="[`ui-button--${variant}`, `ui-button--${size}`, { 'ui-button--full-width': fullWidth }]"
       :type="type"

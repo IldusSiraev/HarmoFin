@@ -47,18 +47,6 @@ function mountPage() {
           template: '<article><strong>{{ account.name }}</strong><slot name="actions" /></article>',
           props: ['account'],
         },
-        UiButton: {
-          template: '<button v-bind="$attrs" @click="$emit(\'click\', $event)"><slot /></button>',
-          props: ['variant', 'size', 'type', 'loading', 'disabled', 'fullWidth', 'ariaLabel', 'tooltip'],
-          emits: ['click'],
-          inheritAttrs: true,
-        },
-        UiModal: {
-          template:
-            '<div v-if="open" data-modal><div class="modal-header"><h2>{{ title }}</h2><button @click="$emit(\'close\')">×</button></div><div class="modal-content"><slot /></div></div>',
-          props: ['open', 'title'],
-          emits: ['close'],
-        },
         UiConfirmDialog: {
           props: ['open'],
           template:
@@ -102,10 +90,27 @@ describe('accounts page', () => {
 
     await flushPromises();
     await wrapper.get('[data-action="create-account"]').trigger('click');
-    await wrapper.get('input[name="name"]').setValue('Основной счёт');
-    await wrapper.get('input[name="startingBalance"]').setValue('123,45');
-    await wrapper.get('input[name="accountingStartDate"]').setValue('2026-09-03');
-    await wrapper.get('form[data-account-form]').trigger('submit');
+    await flushPromises();
+
+    // Form is Teleported to body, access via document
+    const nameInput = document.querySelector('input[name="name"]') as HTMLInputElement;
+    const startingBalanceInput = document.querySelector('input[name="startingBalance"]') as HTMLInputElement;
+    const accountingStartDateInput = document.querySelector('input[name="accountingStartDate"]') as HTMLInputElement;
+    const form = document.querySelector('form[data-account-form]') as HTMLFormElement;
+
+    nameInput.value = 'Основной счёт';
+    nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+
+    startingBalanceInput.value = '123,45';
+    startingBalanceInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+
+    accountingStartDateInput.value = '2026-09-03';
+    accountingStartDateInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+
+    form.dispatchEvent(new Event('submit', { bubbles: true }));
     await flushPromises();
 
     expect(mocks.api.createAccount).toHaveBeenCalledWith(
