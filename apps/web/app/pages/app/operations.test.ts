@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const api = {
   listTransactions: vi.fn(),
@@ -54,6 +54,16 @@ import { ApiRequestError } from '../../composables/useApiClient.js';
 import OperationsPage from './operations.vue';
 
 describe('operations page', () => {
+  let wrapper: any;
+
+  const mountPage = (props = {}) => {
+    wrapper = mount(OperationsPage, {
+      attachTo: document.body,
+      ...props,
+    });
+    return wrapper;
+  };
+
   beforeEach(() => {
     auth.currentData.value = {
       user: { email: 'owner@harmofin.test' },
@@ -70,8 +80,14 @@ describe('operations page', () => {
     api.listEnvelopes.mockResolvedValue([]);
   });
 
+  afterEach(() => {
+    if (wrapper) {
+      wrapper.unmount();
+    }
+  });
+
   it('loads server journal and opens explicit operation form', async () => {
-    const wrapper = mount(OperationsPage);
+    mountPage();
     await flushPromises();
 
     expect(api.listTransactions).toHaveBeenCalledWith('budget-id', {
@@ -79,15 +95,16 @@ describe('operations page', () => {
       sortDirection: 'desc',
     });
     await wrapper.get('[data-action="create-operation"]').trigger('click');
-    expect(wrapper.text()).toContain('Создать черновик');
-    expect(wrapper.text()).toContain('Подтвердить операцию');
+    await flushPromises();
+    expect(document.body.textContent).toContain('Создать черновик');
+    expect(document.body.textContent).toContain('Подтвердить операцию');
   });
 
   it('lets owner download CSV with current journal filters', async () => {
     routeQuery.status = 'CONFIRMED';
     routeQuery.sortBy = 'amount';
     api.downloadTransactionsCsv.mockResolvedValue(new Blob(['csv']));
-    const wrapper = mount(OperationsPage);
+    mountPage();
     await flushPromises();
 
     await wrapper.get('[data-action="download-csv"]').trigger('click');
@@ -107,7 +124,7 @@ describe('operations page', () => {
         detail: 'Сузьте фильтры журнала.',
       }),
     );
-    const wrapper = mount(OperationsPage);
+    mountPage();
     await flushPromises();
 
     await wrapper.get('[data-action="download-csv"]').trigger('click');
@@ -123,7 +140,7 @@ describe('operations page', () => {
         { role: 'EDITOR', budgets: [{ id: 'budget-id', name: 'Бюджет', primaryCurrency: 'RUB' }] },
       ],
     };
-    const wrapper = mount(OperationsPage);
+    mountPage();
     await flushPromises();
 
     expect(wrapper.find('[data-action="download-csv"]').exists()).toBe(false);
@@ -155,15 +172,16 @@ describe('operations page', () => {
       unallocatedMinor: '10000',
       allocationProposal: null,
     });
-    const wrapper = mount(OperationsPage);
+    mountPage();
     await flushPromises();
 
     expect(api.getTransaction).toHaveBeenCalledWith(
       'budget-id',
       '00000000-0000-4000-8000-000000000001',
     );
-    expect(wrapper.text()).toContain('Сохранить изменения');
-    expect((wrapper.get('input[name="amount"]').element as HTMLInputElement).value).toBe('100.00');
+    expect(document.body.textContent).toContain('Сохранить изменения');
+    const amountInput = document.querySelector('input[name="amount"]') as HTMLInputElement;
+    expect(amountInput?.value).toBe('100.00');
   });
 
   it('shows API money validation beside operation amount', async () => {
@@ -174,16 +192,24 @@ describe('operations page', () => {
         fieldErrors: [],
       }),
     );
-    const wrapper = mount(OperationsPage);
+    mountPage();
     await flushPromises();
 
     await wrapper.get('[data-action="create-operation"]').trigger('click');
-    await wrapper.get('input[name="amount"]').setValue('1.234');
-    await wrapper.get('form').trigger('submit');
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Укажите данные формы.');
-    expect(wrapper.get('input[name="amount"]').attributes('aria-invalid')).toBe('true');
+    const amountInput = document.querySelector('input[name="amount"]') as HTMLInputElement;
+    amountInput.value = '1.234';
+    amountInput.dispatchEvent(new Event('input', { bubbles: true }));
+    amountInput.dispatchEvent(new Event('change', { bubbles: true }));
+    await flushPromises();
+
+    const form = document.querySelector('.operation-form') as HTMLFormElement;
+    form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flushPromises();
+
+    expect(document.body.textContent).toContain('Укажите данные формы.');
+    expect(amountInput?.getAttribute('aria-invalid')).toBe('true');
   });
 
   it('hides a rejected generic allocation proposal without creating allocation', async () => {
@@ -221,7 +247,7 @@ describe('operations page', () => {
       ],
       nextCursor: null,
     });
-    const wrapper = mount(OperationsPage);
+    mountPage();
     await flushPromises();
 
     await wrapper.get('.allocation-form button:last-child').trigger('click');
@@ -261,18 +287,20 @@ describe('operations page', () => {
       ],
       nextCursor: null,
     });
-    const wrapper = mount(OperationsPage);
+    mountPage();
     await flushPromises();
 
     await wrapper.get('[data-action="edit-operation"]').trigger('click');
+    await flushPromises();
 
-    expect((wrapper.get('input[name="amount"]').element as HTMLInputElement).value).toBe('1250.00');
-    expect(wrapper.text()).toContain('Сохранить изменения');
+    const amountInput = document.querySelector('input[name="amount"]') as HTMLInputElement;
+    expect(amountInput?.value).toBe('1250.00');
+    expect(document.body.textContent).toContain('Сохранить изменения');
   });
 
   it('renders no-budget empty state without inventing budget id', async () => {
     auth.currentData.value = null;
-    const wrapper = mount(OperationsPage);
+    mountPage();
     await flushPromises();
 
     expect(wrapper.text()).toContain('Бюджет не выбран');

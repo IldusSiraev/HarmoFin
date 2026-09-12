@@ -9,7 +9,10 @@ import OperationForm from '../../components/operations/OperationForm.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
+import UiFilterPanel from '../../components/ui/FilterPanel.vue';
 import UiInput from '../../components/ui/Input.vue';
+import UiModal from '../../components/ui/Modal.vue';
+import UiReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiSelect from '../../components/ui/Select.vue';
 import {
   createOperationForm,
@@ -153,6 +156,20 @@ async function preloadDraft() {
   } catch {
     error.value = 'Не удалось открыть черновик операции.';
   }
+}
+
+function activeFilterCount() {
+  const advanced: Array<string> = [
+    filters.value.status,
+    filters.value.from,
+    filters.value.to,
+    filters.value.cycleStart,
+    filters.value.periodStart,
+    filters.value.accountId,
+    filters.value.categoryId,
+    filters.value.envelopeId,
+  ];
+  return advanced.filter((value) => value !== '').length;
 }
 
 function isUuid(value: string): boolean {
@@ -464,13 +481,12 @@ function rejectAllocationProposal(transactionId: string) {
 </script>
 
 <template>
-  <main v-if="hydrated" class="operations-page">
-    <header class="operations-page__header">
-      <div>
-        <p class="operations-page__eyebrow">Журнал</p>
-        <h1>Операции</h1>
-      </div>
-      <div class="operations-page__header-actions">
+  <div v-if="hydrated" class="operations-page">
+    <UiReferencePageLayout>
+      <template #kicker>Журнал</template>
+      <template #title>Операции</template>
+
+      <template #actions>
         <UiButton
           v-if="isOwner"
           data-action="download-csv"
@@ -480,204 +496,207 @@ function rejectAllocationProposal(transactionId: string) {
           >{{ exportPending ? 'Подготовка CSV…' : 'Экспорт CSV' }}</UiButton
         >
         <UiButton data-action="create-operation" @click="openCreate">Добавить операцию</UiButton>
-      </div>
-    </header>
-    <p v-if="exportStatus" class="operations-page__status" role="status">{{ exportStatus }}</p>
-    <p v-if="exportError" class="operations-page__error" role="alert">{{ exportError }}</p>
-    <p v-if="statusText" class="operations-page__status" role="status">{{ statusText }}</p>
-    <p v-if="error" class="operations-page__error" role="alert">
-      {{ error }} <UiButton variant="tertiary" @click="load()">Повторить</UiButton>
-    </p>
-    <UiEmptyState
-      v-if="!loading && !budget"
-      title="Бюджет не выбран"
-      description="Создайте или выберите активный бюджет, чтобы вести операции."
-    />
-    <template v-else>
-      <section class="operations-page__filters" aria-label="Фильтры операций">
-        <UiInput
-          v-model="filters.search"
-          name="search"
-          label="Поиск"
-          @update:model-value="applyFilters"
+      </template>
+
+      <template #filters>
+        <UiFilterPanel :active-count="activeFilterCount()">
+          <template #quick>
+            <UiInput
+              v-model="filters.search"
+              name="search"
+              label="Поиск"
+              @update:model-value="applyFilters"
+            />
+            <UiSelect
+              v-model="filters.type"
+              name="type"
+              label="Тип"
+              :options="[
+                { value: '', label: 'Все типы' },
+                { value: 'INCOME', label: 'Доходы' },
+                { value: 'EXPENSE', label: 'Расходы' },
+              ]"
+              @update:model-value="applyFilters"
+            />
+          </template>
+          <UiSelect
+            v-model="filters.status"
+            name="status"
+            label="Статус"
+            :options="[
+              { value: '', label: 'Все активные' },
+              { value: 'DRAFT', label: 'Черновики' },
+              { value: 'CONFIRMED', label: 'Подтверждённые' },
+              { value: 'CANCELLED', label: 'Отменённые' },
+              { value: 'DELETED', label: 'Удалённые' },
+              { value: 'all', label: 'Все статусы' },
+            ]"
+            @update:model-value="applyFilters"
+          />
+          <UiInput v-model="filters.from" name="from" label="С даты" type="date" @update:model-value="applyFilters" />
+          <UiInput v-model="filters.to" name="to" label="По дату" type="date" @update:model-value="applyFilters" />
+          <UiInput
+            v-model="filters.cycleStart"
+            name="cycleStart"
+            label="Дата цикла"
+            type="date"
+            @update:model-value="applyFilters"
+          />
+          <UiInput
+            v-model="filters.periodStart"
+            name="periodStart"
+            label="Дата периода"
+            type="date"
+            @update:model-value="applyFilters"
+          />
+          <UiSelect
+            v-model="filters.accountId"
+            name="journal-account-id"
+            label="Счёт в журнале"
+            :options="[{ value: '', label: 'Все счета' }, ...accounts]"
+            @update:model-value="applyFilters"
+          />
+          <UiSelect
+            v-model="filters.categoryId"
+            name="journal-category-id"
+            label="Категория в журнале"
+            :options="[
+              { value: '', label: 'Все категории' },
+              ...categories.map((item) => ({ value: item.id, label: item.name })),
+            ]"
+            @update:model-value="applyFilters"
+          />
+          <UiSelect
+            v-model="filters.envelopeId"
+            name="journal-envelope-id"
+            label="Конверт в журнале"
+            :options="[{ value: '', label: 'Все конверты' }, ...envelopes]"
+            @update:model-value="applyFilters"
+          />
+          <UiButton variant="tertiary" @click="resetFilters">Сбросить фильтры</UiButton>
+        </UiFilterPanel>
+      </template>
+
+      <template #content>
+        <p v-if="exportStatus" class="operations-page__status" role="status">{{ exportStatus }}</p>
+        <p v-if="exportError" class="operations-page__error" role="alert">{{ exportError }}</p>
+        <p v-if="statusText" class="operations-page__status" role="status">{{ statusText }}</p>
+        <p v-if="error" class="operations-page__error" role="alert">
+          {{ error }} <UiButton variant="tertiary" @click="load()">Повторить</UiButton>
+        </p>
+        <UiEmptyState
+          v-if="!loading && !budget"
+          title="Бюджет не выбран"
+          description="Создайте или выберите активный бюджет, чтобы вести операции."
         />
-        <UiSelect
-          v-model="filters.type"
-          name="type"
-          label="Тип"
-          :options="[
-            { value: '', label: 'Все типы' },
-            { value: 'INCOME', label: 'Доходы' },
-            { value: 'EXPENSE', label: 'Расходы' },
-          ]"
-          @update:model-value="applyFilters"
-        />
-        <UiSelect
-          v-model="filters.status"
-          name="status"
-          label="Статус"
-          :options="[
-            { value: '', label: 'Все активные' },
-            { value: 'DRAFT', label: 'Черновики' },
-            { value: 'CONFIRMED', label: 'Подтверждённые' },
-            { value: 'CANCELLED', label: 'Отменённые' },
-            { value: 'DELETED', label: 'Удалённые' },
-            { value: 'all', label: 'Все статусы' },
-          ]"
-          @update:model-value="applyFilters"
-        />
-        <UiInput
-          v-model="filters.from"
-          name="from"
-          label="С даты"
-          type="date"
-          @update:model-value="applyFilters"
-        />
-        <UiInput
-          v-model="filters.to"
-          name="to"
-          label="По дату"
-          type="date"
-          @update:model-value="applyFilters"
-        />
-        <UiInput
-          v-model="filters.cycleStart"
-          name="cycleStart"
-          label="Дата цикла"
-          type="date"
-          @update:model-value="applyFilters"
-        />
-        <UiInput
-          v-model="filters.periodStart"
-          name="periodStart"
-          label="Дата периода"
-          type="date"
-          @update:model-value="applyFilters"
-        />
-        <UiSelect
-          v-model="filters.accountId"
-          name="journal-account-id"
-          label="Счёт в журнале"
-          :options="[{ value: '', label: 'Все счета' }, ...accounts]"
-          @update:model-value="applyFilters"
-        />
-        <UiSelect
-          v-model="filters.categoryId"
-          name="journal-category-id"
-          label="Категория в журнале"
-          :options="[
-            { value: '', label: 'Все категории' },
-            ...categories.map((item) => ({ value: item.id, label: item.name })),
-          ]"
-          @update:model-value="applyFilters"
-        />
-        <UiSelect
-          v-model="filters.envelopeId"
-          name="journal-envelope-id"
-          label="Конверт в журнале"
-          :options="[{ value: '', label: 'Все конверты' }, ...envelopes]"
-          @update:model-value="applyFilters"
-        />
-        <UiButton variant="tertiary" @click="resetFilters">Сбросить фильтры</UiButton>
-      </section>
-      <div class="operations-page__sort" aria-label="Сортировка операций">
-        <UiButton
-          :aria-sort="filters.sortBy === 'occurredOn' ? filters.sortDirection : 'none'"
-          variant="tertiary"
-          @click="toggleSort('occurredOn')"
-          >Сортировать по дате</UiButton
-        >
-        <UiButton
-          :aria-sort="filters.sortBy === 'amount' ? filters.sortDirection : 'none'"
-          variant="tertiary"
-          @click="toggleSort('amount')"
-          >Сортировать по сумме</UiButton
-        >
-      </div>
+        <template v-else>
+          <div class="operations-page__sort" aria-label="Сортировка операций">
+            <UiButton
+              :aria-sort="filters.sortBy === 'occurredOn' ? filters.sortDirection : 'none'"
+              variant="tertiary"
+              @click="toggleSort('occurredOn')"
+              >Сортировать по дате</UiButton
+            >
+            <UiButton
+              :aria-sort="filters.sortBy === 'amount' ? filters.sortDirection : 'none'"
+              variant="tertiary"
+              @click="toggleSort('amount')"
+              >Сортировать по сумме</UiButton
+            >
+          </div>
+          <p v-if="loading">Загрузка операций…</p>
+          <UiEmptyState
+            v-else-if="transactions.length === 0"
+            title="Операций пока нет"
+            description="Добавьте доход или расход, чтобы начать журнал."
+          />
+          <section v-else class="operations-page__list" aria-label="Список операций">
+            <article
+              v-for="transaction in transactions"
+              :key="transaction.id"
+              class="operations-page__item"
+            >
+              <OperationCard :transaction="transaction" />
+              <div class="operations-page__actions">
+                <UiButton
+                  data-action="show-operation-details"
+                  variant="tertiary"
+                  @click="openDetails(transaction)"
+                  >Детали</UiButton
+                >
+                <UiButton
+                  v-if="transaction.status !== 'DELETED'"
+                  data-action="edit-operation"
+                  variant="secondary"
+                  @click="openEdit(transaction)"
+                  >Изменить</UiButton
+                >
+                <UiButton
+                  v-if="transaction.status === 'DRAFT'"
+                  variant="secondary"
+                  @click="ask('confirm', transaction)"
+                  >Подтвердить операцию</UiButton
+                >
+                <UiButton
+                  v-if="transaction.status === 'DRAFT'"
+                  variant="tertiary"
+                  @click="ask('cancel', transaction)"
+                  >Отменить</UiButton
+                >
+                <UiButton
+                  v-if="transaction.status !== 'DELETED'"
+                  variant="tertiary"
+                  @click="ask('delete', transaction)"
+                  >Удалить</UiButton
+                >
+                <UiButton
+                  v-if="transaction.status === 'DELETED'"
+                  variant="secondary"
+                  @click="ask('restore', transaction)"
+                  >Восстановить</UiButton
+                >
+              </div>
+              <IncomeAllocationForm
+                v-if="
+                  transaction.status === 'CONFIRMED' &&
+                  transaction.transactionType === 'INCOME' &&
+                  !rejectedProposalIds.has(transaction.id)
+                "
+                :proposal="transaction.allocationProposal"
+                :remaining-minor="transaction.unallocatedMinor"
+                :accounts="accounts"
+                :envelopes="envelopes"
+                :pending="pending"
+                @submit="saveAllocation(transaction, $event)"
+                @reject="rejectAllocationProposal(transaction.id)"
+              />
+            </article>
+          </section>
+          <UiButton v-if="nextCursor" variant="secondary" :disabled="loading" @click="load(true)"
+            >Загрузить ещё</UiButton
+          >
+        </template>
+      </template>
+    </UiReferencePageLayout>
+
+    <UiModal
+      :open="formOpen"
+      :title="selectedTransaction ? 'Изменить операцию' : 'Добавить операцию'"
+      @close="formOpen = false"
+    >
       <OperationForm
-        v-if="formOpen"
         :mode="selectedTransaction ? 'edit' : 'create'"
         :model="form"
-        :current="selectedTransaction"
         :accounts="accounts"
         :categories="categories"
         :envelopes="envelopes"
         :errors="formErrors"
         :pending="pending"
+        :current="selectedTransaction"
         @submit="receiveForm"
       />
-      <p v-if="loading">Загрузка операций…</p>
-      <UiEmptyState
-        v-else-if="transactions.length === 0"
-        title="Операций пока нет"
-        description="Добавьте доход или расход, чтобы начать журнал."
-      />
-      <section v-else class="operations-page__list" aria-label="Список операций">
-        <article
-          v-for="transaction in transactions"
-          :key="transaction.id"
-          class="operations-page__item"
-        >
-          <OperationCard :transaction="transaction" />
-          <div class="operations-page__actions">
-            <UiButton
-              data-action="show-operation-details"
-              variant="tertiary"
-              @click="openDetails(transaction)"
-              >Детали</UiButton
-            >
-            <UiButton
-              v-if="transaction.status !== 'DELETED'"
-              data-action="edit-operation"
-              variant="secondary"
-              @click="openEdit(transaction)"
-              >Изменить</UiButton
-            >
-            <UiButton
-              v-if="transaction.status === 'DRAFT'"
-              variant="secondary"
-              @click="ask('confirm', transaction)"
-              >Подтвердить операцию</UiButton
-            >
-            <UiButton
-              v-if="transaction.status === 'DRAFT'"
-              variant="tertiary"
-              @click="ask('cancel', transaction)"
-              >Отменить</UiButton
-            >
-            <UiButton
-              v-if="transaction.status !== 'DELETED'"
-              variant="tertiary"
-              @click="ask('delete', transaction)"
-              >Удалить</UiButton
-            >
-            <UiButton
-              v-if="transaction.status === 'DELETED'"
-              variant="secondary"
-              @click="ask('restore', transaction)"
-              >Восстановить</UiButton
-            >
-          </div>
-          <IncomeAllocationForm
-            v-if="
-              transaction.status === 'CONFIRMED' &&
-              transaction.transactionType === 'INCOME' &&
-              !rejectedProposalIds.has(transaction.id)
-            "
-            :proposal="transaction.allocationProposal"
-            :remaining-minor="transaction.unallocatedMinor"
-            :accounts="accounts"
-            :envelopes="envelopes"
-            :pending="pending"
-            @submit="saveAllocation(transaction, $event)"
-            @reject="rejectAllocationProposal(transaction.id)"
-          />
-        </article>
-      </section>
-      <UiButton v-if="nextCursor" variant="secondary" :disabled="loading" @click="load(true)"
-        >Загрузить ещё</UiButton
-      >
-    </template>
+    </UiModal>
+
     <OperationDetails
       v-if="detailsTransaction"
       :allocations="allocations"
@@ -704,46 +723,10 @@ function rejectAllocationProposal(transactionId: string) {
       @confirm="runConfirmation"
       @cancel="confirmation = null"
     />
-  </main>
+  </div>
 </template>
 
 <style scoped>
-.operations-page {
-  max-width: 70rem;
-  margin: 0 auto;
-  padding: var(--hf-space-8);
-}
-.operations-page__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: end;
-  gap: var(--hf-space-5);
-  margin-bottom: var(--hf-space-6);
-}
-.operations-page__header h1,
-.operations-page__eyebrow,
-.operations-page__status,
-.operations-page__error {
-  margin: 0;
-}
-.operations-page__header h1 {
-  font-size: clamp(2rem, 4vw, 3.5rem);
-  letter-spacing: -0.04em;
-}
-.operations-page__eyebrow {
-  color: var(--hf-color-action-primary-hover);
-  font-size: 0.75rem;
-  font-weight: var(--hf-font-weight-bold);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.operations-page__filters {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--hf-space-3);
-  margin-bottom: var(--hf-space-4);
-}
-.operations-page__header-actions,
 .operations-page__sort,
 .operations-page__actions {
   display: flex;
@@ -771,17 +754,5 @@ function rejectAllocationProposal(transactionId: string) {
   gap: var(--hf-space-2);
   margin-bottom: var(--hf-space-4);
   color: var(--hf-color-text-danger);
-}
-@media (max-width: 47.9375rem) {
-  .operations-page {
-    padding: var(--hf-space-5);
-  }
-  .operations-page__header {
-    align-items: start;
-    flex-direction: column;
-  }
-  .operations-page__filters {
-    grid-template-columns: 1fr;
-  }
 }
 </style>
