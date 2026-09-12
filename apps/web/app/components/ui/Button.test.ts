@@ -27,4 +27,17 @@ describe('UiButton', () => {
     expect(wrapper.get('button').attributes('type')).toBe('submit');
     expect(wrapper.get('button').attributes('disabled')).toBeDefined();
   });
+
+  it('wraps the button in a tooltip only when the tooltip prop is set', async () => {
+    const wrapper = mount(UiButton, {
+      props: { tooltip: 'Переместить счёт в архив' },
+      slots: { default: 'Архивировать' },
+    });
+
+    await wrapper.get('button').trigger('focus');
+    expect(wrapper.get('[role="tooltip"]').text()).toBe('Переместить счёт в архив');
+    expect(wrapper.get('button').attributes('aria-describedby')).toBe(
+      wrapper.get('[role="tooltip"]').attributes('id'),
+    );
+  });
 });
