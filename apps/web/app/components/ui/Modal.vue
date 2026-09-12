@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, watch } from 'vue';
+import { onBeforeUnmount, onMounted, watch } from 'vue';
 
 defineOptions({ name: 'UiModal' });
 
@@ -26,19 +26,21 @@ function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') handleClose();
 }
 
-watch(
-  () => props.open,
-  (isOpen) => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      document.addEventListener('keydown', handleKeydown);
-    } else {
-      document.body.style.overflow = '';
-      document.removeEventListener('keydown', handleKeydown);
-    }
-  },
-  { immediate: true },
-);
+function syncModalState(isOpen: boolean) {
+  if (isOpen) {
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeydown);
+  } else {
+    document.body.style.overflow = '';
+    document.removeEventListener('keydown', handleKeydown);
+  }
+}
+
+onMounted(() => {
+  syncModalState(props.open);
+});
+
+watch(() => props.open, syncModalState);
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', handleKeydown);
