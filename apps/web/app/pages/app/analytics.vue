@@ -157,56 +157,56 @@ function activeFilterCount() {
 
 <template>
   <div class="analytics-page">
-    <ReferencePageLayout>
+    <UiEmptyState
+      v-if="!loading && !budget"
+      title="Бюджет не выбран"
+      description="Выберите активный бюджет для просмотра отчётов."
+    />
+    <ReferencePageLayout v-else>
       <template #kicker>Аналитика</template>
       <template #title>Отчёты бюджета</template>
+      <template #filters>
+        <UiSelect
+          v-model="reportKey"
+          name="reportKey"
+          label="Отчёт"
+          :options="[
+            { value: 'expenses-by-category', label: 'Расходы по категориям' },
+            { value: 'expenses-by-period', label: 'Расходы по периодам' },
+            { value: 'expenses-by-cycle', label: 'Расходы по циклам' },
+            { value: 'incomes-by-cycle', label: 'Доходы по циклам' },
+            { value: 'savings-reallocation-by-cycle', label: 'Перераспределения накоплений' },
+            { value: 'net-cash-flow', label: 'Чистый денежный поток' },
+            { value: 'account-balances', label: 'Остатки счетов' },
+            { value: 'envelope-balances', label: 'Остатки конвертов' },
+            { value: 'savings-goals', label: 'Цели накоплений' },
+            { value: 'plan-vs-actual', label: 'План и факт' },
+          ]"
+          @update:model-value="updateReportKey"
+        />
+        <FilterPanel :active-count="activeFilterCount()">
+          <ReportFilters
+            v-model="filters"
+            :accounts="accounts"
+            :categories="categories"
+            :envelopes="envelopes"
+            @update:model-value="updateFilters"
+          />
+        </FilterPanel>
+      </template>
       <template #content>
         <p v-if="error" role="alert" class="analytics-page__error">
           {{ error }} <UiButton variant="tertiary" @click="load">Повторить</UiButton>
         </p>
+        <p v-if="loading">Загрузка отчёта…</p>
         <UiEmptyState
-          v-if="!loading && !budget"
-          title="Бюджет не выбран"
-          description="Выберите активный бюджет для просмотра отчётов."
+          v-else-if="report && report.rows.length === 0"
+          title="Нет данных"
+          description="Измените фильтры или добавьте подтверждённые операции."
         />
-        <template v-else>
-          <UiSelect
-            v-model="reportKey"
-            name="reportKey"
-            label="Отчёт"
-            :options="[
-              { value: 'expenses-by-category', label: 'Расходы по категориям' },
-              { value: 'expenses-by-period', label: 'Расходы по периодам' },
-              { value: 'expenses-by-cycle', label: 'Расходы по циклам' },
-              { value: 'incomes-by-cycle', label: 'Доходы по циклам' },
-              { value: 'savings-reallocation-by-cycle', label: 'Перераспределения накоплений' },
-              { value: 'net-cash-flow', label: 'Чистый денежный поток' },
-              { value: 'account-balances', label: 'Остатки счетов' },
-              { value: 'envelope-balances', label: 'Остатки конвертов' },
-              { value: 'savings-goals', label: 'Цели накоплений' },
-              { value: 'plan-vs-actual', label: 'План и факт' },
-            ]"
-            @update:model-value="updateReportKey"
-          />
-          <FilterPanel :active-count="activeFilterCount()">
-            <ReportFilters
-              v-model="filters"
-              :accounts="accounts"
-              :categories="categories"
-              :envelopes="envelopes"
-              @update:model-value="updateFilters"
-            />
-          </FilterPanel>
-          <p v-if="loading">Загрузка отчёта…</p>
-          <UiEmptyState
-            v-else-if="report && report.rows.length === 0"
-            title="Нет данных"
-            description="Измените фильтры или добавьте подтверждённые операции."
-          />
-          <PlanVsActualReport v-else-if="isPlanVsActualReport(report)" :rows="report.rows" />
-          <GoalProgressReport v-else-if="isGoalProgressReport(report)" :rows="report.rows" />
-          <ReportChart v-else-if="isGenericReport(report)" :report="report" />
-        </template>
+        <PlanVsActualReport v-else-if="isPlanVsActualReport(report)" :rows="report.rows" />
+        <GoalProgressReport v-else-if="isGoalProgressReport(report)" :rows="report.rows" />
+        <ReportChart v-else-if="isGenericReport(report)" :report="report" />
       </template>
     </ReferencePageLayout>
   </div>
