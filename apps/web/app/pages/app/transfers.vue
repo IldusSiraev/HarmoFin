@@ -204,6 +204,7 @@ function dialogDescription() {
       </template>
       <template v-if="!loading && budgetId" #filters>
         <UiSelect
+          class="reference-status-filter"
           :model-value="statusFilter"
           name="status"
           label="Статус перевода"
@@ -292,6 +293,9 @@ function dialogDescription() {
 </template>
 
 <style scoped>
+.reference-status-filter {
+  max-width: 18rem;
+}
 .transfers-page__status {
   margin-bottom: var(--hf-space-4);
   color: var(--hf-color-status-success);

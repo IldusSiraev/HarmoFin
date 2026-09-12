@@ -126,7 +126,9 @@ describe('plans page', () => {
     // Form is Teleported to body, access via document
     // Note: Multiple forms exist (UiConfirmDialog also has one), so select .plan-form specifically
     const planForm = document.querySelector('form.plan-form') as HTMLFormElement;
-    const nameInput = document.querySelector('form.plan-form input[name="name"]') as HTMLInputElement;
+    const nameInput = document.querySelector(
+      'form.plan-form input[name="name"]',
+    ) as HTMLInputElement;
 
     nameInput.value = '';
     nameInput.dispatchEvent(new Event('input', { bubbles: true }));

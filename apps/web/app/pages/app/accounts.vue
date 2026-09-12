@@ -263,6 +263,7 @@ onMounted(() => {
       </template>
       <template #filters>
         <UiSelect
+          class="reference-status-filter"
           :model-value="status"
           name="status"
           label="Показать счета"
@@ -310,7 +311,11 @@ onMounted(() => {
       </template>
     </ReferencePageLayout>
 
-    <UiModal :open="formVisible" :title="editingId ? 'Изменить счёт' : 'Новый счёт'" @close="cancelForm">
+    <UiModal
+      :open="formVisible"
+      :title="editingId ? 'Изменить счёт' : 'Новый счёт'"
+      @close="cancelForm"
+    >
       <form data-account-form @submit.prevent="saveAccount">
         <UiInput
           v-model="form.name"
@@ -418,6 +423,9 @@ form[data-account-form] {
   display: flex;
   flex-wrap: wrap;
   gap: var(--hf-space-3);
+}
+.reference-status-filter {
+  max-width: 18rem;
 }
 .reference-grid {
   display: grid;

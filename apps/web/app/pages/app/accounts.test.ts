@@ -94,8 +94,12 @@ describe('accounts page', () => {
 
     // Form is Teleported to body, access via document
     const nameInput = document.querySelector('input[name="name"]') as HTMLInputElement;
-    const startingBalanceInput = document.querySelector('input[name="startingBalance"]') as HTMLInputElement;
-    const accountingStartDateInput = document.querySelector('input[name="accountingStartDate"]') as HTMLInputElement;
+    const startingBalanceInput = document.querySelector(
+      'input[name="startingBalance"]',
+    ) as HTMLInputElement;
+    const accountingStartDateInput = document.querySelector(
+      'input[name="accountingStartDate"]',
+    ) as HTMLInputElement;
     const form = document.querySelector('form[data-account-form]') as HTMLFormElement;
 
     nameInput.value = 'Основной счёт';

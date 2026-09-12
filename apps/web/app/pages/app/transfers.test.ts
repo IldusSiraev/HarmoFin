@@ -56,7 +56,9 @@ describe('transfers page', () => {
     await flushPromises();
 
     await wrapper.get('[data-action="create-transfer"]').trigger('click');
-    const selectElement = document.querySelector('select[name="sourceAccountId"]') as HTMLSelectElement;
+    const selectElement = document.querySelector(
+      'select[name="sourceAccountId"]',
+    ) as HTMLSelectElement;
     expect(selectElement.value).toBe('source-account');
   });
 });

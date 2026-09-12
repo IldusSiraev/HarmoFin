@@ -67,4 +67,13 @@ describe('UiButton', () => {
 
     expect(wrapper.find('.ui-tooltip--full-width').exists()).toBe(false);
   });
+
+  it('forwards non-prop attributes like data-action to the rendered button', () => {
+    const wrapper = mount(UiButton, {
+      attrs: { 'data-action': 'create-account' },
+      slots: { default: 'Создать счёт' },
+    });
+
+    expect(wrapper.get('button').attributes('data-action')).toBe('create-account');
+  });
 });

@@ -288,6 +288,7 @@ onMounted(() => {
       </template>
       <template #filters>
         <UiSelect
+          class="reference-status-filter"
           :model-value="status"
           name="status"
           label="Показать конверты"
@@ -469,11 +470,13 @@ form[data-envelope-form] {
   flex-wrap: wrap;
   gap: var(--hf-space-3);
 }
+.reference-status-filter {
+  max-width: 18rem;
+}
 .reference-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
   gap: var(--hf-space-5);
-  margin-top: var(--hf-space-6);
 }
 .envelope-journal-link {
   display: inline-flex;

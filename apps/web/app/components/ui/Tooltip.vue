@@ -8,7 +8,7 @@ const props = defineProps<{
 }>();
 
 defineSlots<{
-  default(props: { describedby?: string | undefined }): any;
+  default(props: { describedby?: string | undefined }): void;
 }>();
 
 const id = useId();

@@ -110,8 +110,12 @@ describe('envelopes page', () => {
 
     // Form is Teleported to body, access via document
     const nameInput = document.querySelector('input[name="name"]') as HTMLInputElement;
-    const startingBalanceInput = document.querySelector('input[name="startingBalance"]') as HTMLInputElement;
-    const displayOrderInput = document.querySelector('input[name="displayOrder"]') as HTMLInputElement;
+    const startingBalanceInput = document.querySelector(
+      'input[name="startingBalance"]',
+    ) as HTMLInputElement;
+    const displayOrderInput = document.querySelector(
+      'input[name="displayOrder"]',
+    ) as HTMLInputElement;
     const form = document.querySelector('form[data-envelope-form]') as HTMLFormElement;
 
     nameInput.value = 'Ремонт';
@@ -160,12 +164,16 @@ describe('envelopes page', () => {
     await wrapper.get('[data-action="create-envelope"]').trigger('click');
     await flushPromises();
 
-    const envelopeTypeSelect = document.querySelector('select[name="envelopeType"]') as HTMLSelectElement;
+    const envelopeTypeSelect = document.querySelector(
+      'select[name="envelopeType"]',
+    ) as HTMLSelectElement;
     envelopeTypeSelect.value = 'CURRENT_EXPENSES';
     envelopeTypeSelect.dispatchEvent(new Event('change', { bubbles: true }));
     await flushPromises();
 
-    const periodSlotSelect = document.querySelector('select[name="periodSlot"]') as HTMLSelectElement;
+    const periodSlotSelect = document.querySelector(
+      'select[name="periodSlot"]',
+    ) as HTMLSelectElement;
     expect(periodSlotSelect.textContent).toContain('Первый период');
   });
 });

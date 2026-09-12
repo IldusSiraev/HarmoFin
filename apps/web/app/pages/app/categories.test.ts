@@ -93,7 +93,9 @@ describe('categories page', () => {
 
     // Form is Teleported to body, access via document
     const nameInput = document.querySelector('input[name="name"]') as HTMLInputElement;
-    const displayOrderInput = document.querySelector('input[name="displayOrder"]') as HTMLInputElement;
+    const displayOrderInput = document.querySelector(
+      'input[name="displayOrder"]',
+    ) as HTMLInputElement;
     const form = document.querySelector('form[data-category-form]') as HTMLFormElement;
 
     nameInput.value = 'Подработка';

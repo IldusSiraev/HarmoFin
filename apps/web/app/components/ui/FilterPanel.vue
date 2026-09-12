@@ -23,20 +23,20 @@ function close() {
     <div class="filter-panel__bar">
       <div class="filter-panel__quick"><slot name="quick" /></div>
       <div class="filter-panel__trigger" @keydown.esc="close">
-        <UiButton type="button" variant="secondary" :aria-expanded="open" aria-haspopup="true" @click="toggle">
+        <UiButton
+          type="button"
+          variant="secondary"
+          :aria-expanded="open"
+          aria-haspopup="true"
+          @click="toggle"
+        >
           Фильтры
-          <span v-if="activeCount > 0" class="filter-panel__badge">{{
-            activeCount
-          }}</span>
+          <span v-if="activeCount > 0" class="filter-panel__badge">{{ activeCount }}</span>
         </UiButton>
         <Transition name="filter-panel-dropdown">
           <div v-if="open" class="filter-panel__dropdown">
             <div class="filter-panel__backdrop" @click="close" />
-            <div
-              class="filter-panel__panel"
-              role="region"
-              aria-label="Дополнительные фильтры"
-            >
+            <div class="filter-panel__panel" role="region" aria-label="Дополнительные фильтры">
               <slot />
               <div class="filter-panel__panel-actions">
                 <UiButton type="button" variant="tertiary" @click="close">Готово</UiButton>

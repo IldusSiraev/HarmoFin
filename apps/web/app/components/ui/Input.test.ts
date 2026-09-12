@@ -51,8 +51,6 @@ describe('UiInput', () => {
     });
     const trigger = withTooltip.get('.ui-field__tooltip-trigger');
     await trigger.trigger('focusin');
-    expect(withTooltip.get('[role="tooltip"]').text()).toBe(
-      'Сумма на счёте на дату начала учёта.',
-    );
+    expect(withTooltip.get('[role="tooltip"]').text()).toBe('Сумма на счёте на дату начала учёта.');
   });
 });

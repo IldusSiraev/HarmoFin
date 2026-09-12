@@ -238,6 +238,7 @@ onMounted(() => {
       </template>
       <template #filters>
         <UiSelect
+          class="reference-status-filter"
           :model-value="status"
           name="status"
           label="Показать категории"
@@ -401,6 +402,9 @@ form[data-category-form] {
   display: flex;
   flex-wrap: wrap;
   gap: var(--hf-space-3);
+}
+.reference-status-filter {
+  max-width: 18rem;
 }
 .category-sections {
   display: grid;

@@ -38,11 +38,19 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
 </script>
 
 <template>
-  <UiTooltip v-slot="{ describedby }" :text="tooltip" :class="tooltip ? { 'ui-tooltip--full-width': fullWidth } : {}">
+  <UiTooltip
+    v-slot="{ describedby }"
+    :text="tooltip"
+    :class="tooltip ? { 'ui-tooltip--full-width': fullWidth } : {}"
+  >
     <button
       v-bind="$attrs"
       class="ui-button"
-      :class="[`ui-button--${variant}`, `ui-button--${size}`, { 'ui-button--full-width': fullWidth }]"
+      :class="[
+        `ui-button--${variant}`,
+        `ui-button--${size}`,
+        { 'ui-button--full-width': fullWidth },
+      ]"
       :type="type"
       :disabled="disabled || loading"
       :aria-busy="loading || undefined"

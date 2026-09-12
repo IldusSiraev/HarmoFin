@@ -59,11 +59,14 @@ defineOptions({ name: 'ReferencePageLayout' });
 }
 
 .reference-page-layout__filters {
-  max-width: 18rem;
+  display: grid;
+  gap: var(--hf-space-4);
   margin-top: var(--hf-space-6);
 }
 
 .reference-page-layout__content {
+  display: grid;
+  gap: var(--hf-space-4);
   margin-top: var(--hf-space-5);
 }
 
