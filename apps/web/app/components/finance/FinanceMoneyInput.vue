@@ -11,6 +11,7 @@ withDefaults(
     label: string;
     autocomplete?: string | undefined;
     placeholder?: string | undefined;
+    tooltip?: string | undefined;
     hint?: string | undefined;
     error?: string | undefined;
     required?: boolean;
@@ -21,6 +22,7 @@ withDefaults(
     id: undefined,
     autocomplete: undefined,
     placeholder: undefined,
+    tooltip: undefined,
     hint: undefined,
     error: undefined,
     required: false,
@@ -53,6 +55,7 @@ function handleBlur(event: FocusEvent) {
     inputmode="decimal"
     :autocomplete="autocomplete"
     :placeholder="placeholder"
+    :tooltip="tooltip"
     :hint="hint"
     :error="error"
     :required="required"

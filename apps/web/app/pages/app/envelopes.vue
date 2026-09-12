@@ -4,10 +4,12 @@ import { definePageMeta } from '#imports';
 
 import EnvelopeCard from '../../components/envelopes/EnvelopeCard.vue';
 import FinanceMoneyInput from '../../components/finance/FinanceMoneyInput.vue';
+import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
 import UiInput from '../../components/ui/Input.vue';
+import UiModal from '../../components/ui/Modal.vue';
 import UiSelect from '../../components/ui/Select.vue';
 import UiStatus from '../../components/ui/Status.vue';
 import { useAuth } from '../../composables/useAuth.js';
@@ -264,138 +266,37 @@ onMounted(() => {
 
 <template>
   <div class="reference-page">
-
-    <section class="reference-page__content" aria-labelledby="envelopes-title">
-      <template v-if="loading">
-        <UiStatus label="Загрузка конвертов…" tone="info" aria-live="polite" />
+    <template v-if="loading">
+      <UiStatus label="Загрузка конвертов…" tone="info" aria-live="polite" />
+    </template>
+    <template v-else-if="loadError">
+      <UiEmptyState title="Конверты недоступны" :description="loadError">
+        <template #action><UiButton @click="loadPage">Повторить</UiButton></template>
+      </UiEmptyState>
+    </template>
+    <UiEmptyState
+      v-else-if="!budgetId"
+      title="Бюджет не выбран"
+      description="Выберите бюджет, чтобы управлять конвертами."
+    />
+    <ReferencePageLayout v-else>
+      <template #kicker>Справочники</template>
+      <template #title>Конверты</template>
+      <template #description>Планируйте деньги по целям и направлениям.</template>
+      <template #actions>
+        <UiButton data-action="create-envelope" @click="startCreate">Создать конверт</UiButton>
       </template>
-      <template v-else-if="loadError">
-        <UiEmptyState title="Конверты недоступны" :description="loadError">
-          <template #action><UiButton @click="loadPage">Повторить</UiButton></template>
-        </UiEmptyState>
-      </template>
-      <UiEmptyState
-        v-else-if="!budgetId"
-        title="Бюджет не выбран"
-        description="Выберите бюджет, чтобы управлять конвертами."
-      />
-      <template v-else>
-        <div class="reference-page__title-row">
-          <div>
-            <p class="reference-page__kicker">Справочники</p>
-            <h1 id="envelopes-title">Конверты</h1>
-            <p class="reference-page__description">Планируйте деньги по целям и направлениям.</p>
-          </div>
-          <UiButton data-action="create-envelope" @click="startCreate">Создать конверт</UiButton>
-        </div>
-
-        <UiStatus
-          v-if="summary"
-          class="reference-page__summary"
-          :label="summary"
-          tone="info"
-          aria-live="polite"
+      <template #filters>
+        <UiSelect
+          :model-value="status"
+          name="status"
+          label="Показать конверты"
+          :options="getStatusOptions()"
+          @update:model-value="changeStatus"
         />
-        <div class="reference-page__filter">
-          <UiSelect
-            :model-value="status"
-            name="status"
-            label="Показать конверты"
-            :options="getStatusOptions()"
-            @update:model-value="changeStatus"
-          />
-        </div>
-
-        <form
-          v-if="formVisible"
-          class="reference-form"
-          data-envelope-form
-          @submit.prevent="saveEnvelope"
-        >
-          <h2>{{ editingId ? 'Изменить конверт' : 'Новый конверт' }}</h2>
-          <UiInput
-            v-model="form.name"
-            name="name"
-            label="Название конверта"
-            :error="getFieldError('name')"
-            required
-          />
-          <UiSelect
-            v-model="form.envelopeType"
-            name="envelopeType"
-            label="Тип конверта"
-            :options="getEnvelopeTypeOptions()"
-            :error="getFieldError('envelopeType')"
-            required
-            @update:model-value="changeEnvelopeType"
-          />
-          <UiSelect
-            v-if="form.envelopeType === 'CURRENT_EXPENSES'"
-            v-model="form.periodSlot"
-            name="periodSlot"
-            label="Период текущих расходов"
-            :options="[
-              { value: '', label: 'Не относится к периоду' },
-              { value: 'FIRST', label: 'Первый период' },
-              { value: 'SECOND', label: 'Второй период' },
-            ]"
-            :error="getFieldError('periodSlot')"
-          />
-          <FinanceMoneyInput
-            v-model="form.startingBalance"
-            name="startingBalance"
-            label="Начальный баланс"
-            hint="Оставьте пустым при редактировании, чтобы сохранить текущий баланс."
-            :error="getFieldError('startingBalance')"
-            :required="!editingId"
-          />
-          <p v-if="negativeBalanceAllowed()" class="reference-form__note">
-            Отрицательный баланс разрешён настройками бюджета.
-          </p>
-          <FinanceMoneyInput
-            v-model="form.monthlyPlannedAmount"
-            name="monthlyPlannedAmount"
-            label="План на месяц"
-            :error="getFieldError('monthlyPlannedAmount')"
-          />
-          <FinanceMoneyInput
-            v-model="form.targetAmount"
-            name="targetAmount"
-            label="Целевая сумма"
-            :error="getFieldError('targetAmount')"
-          />
-          <UiInput
-            v-model="form.targetDate"
-            name="targetDate"
-            label="Дата цели"
-            type="date"
-            :error="getFieldError('targetDate')"
-          />
-          <UiInput
-            v-model="form.displayOrder"
-            name="displayOrder"
-            label="Порядок отображения"
-            inputmode="numeric"
-            :error="getFieldError('displayOrder')"
-            required
-          />
-          <label class="reference-form__field">
-            <span>Комментарий</span>
-            <textarea
-              v-model="form.comment"
-              name="comment"
-              :aria-invalid="getFieldError('comment') ? 'true' : undefined"
-            />
-            <small v-if="getFieldError('comment')">{{ getFieldError('comment') }}</small>
-          </label>
-          <div class="reference-form__actions">
-            <UiButton type="submit" :loading="saving">Сохранить конверт</UiButton>
-            <UiButton type="button" variant="tertiary" :disabled="saving" @click="cancelForm"
-              >Отмена</UiButton
-            >
-          </div>
-        </form>
-
+      </template>
+      <template #content>
+        <UiStatus v-if="summary" :label="summary" tone="info" aria-live="polite" />
         <UiEmptyState
           v-if="envelopes.length === 0"
           title="Конвертов пока нет"
@@ -425,7 +326,99 @@ onMounted(() => {
           </EnvelopeCard>
         </div>
       </template>
-    </section>
+    </ReferencePageLayout>
+
+    <UiModal
+      :open="formVisible"
+      :title="editingId ? 'Изменить конверт' : 'Новый конверт'"
+      @close="cancelForm"
+    >
+      <form data-envelope-form @submit.prevent="saveEnvelope">
+        <UiInput
+          v-model="form.name"
+          name="name"
+          label="Название конверта"
+          :error="getFieldError('name')"
+          required
+        />
+        <UiSelect
+          v-model="form.envelopeType"
+          name="envelopeType"
+          label="Тип конверта"
+          tooltip="Определяет, попадает ли конверт в лимит текущего периода или живёт вне периодов (резерв, цель, свободные деньги)."
+          :options="getEnvelopeTypeOptions()"
+          :error="getFieldError('envelopeType')"
+          required
+          @update:model-value="changeEnvelopeType"
+        />
+        <UiSelect
+          v-if="form.envelopeType === 'CURRENT_EXPENSES'"
+          v-model="form.periodSlot"
+          name="periodSlot"
+          label="Период текущих расходов"
+          :options="[
+            { value: '', label: 'Не относится к периоду' },
+            { value: 'FIRST', label: 'Первый период' },
+            { value: 'SECOND', label: 'Второй период' },
+          ]"
+          :error="getFieldError('periodSlot')"
+        />
+        <FinanceMoneyInput
+          v-model="form.startingBalance"
+          name="startingBalance"
+          label="Начальный баланс"
+          tooltip="Сумма в конверте на дату начала учёта — используется только один раз, при создании конверта."
+          hint="Оставьте пустым при редактировании, чтобы сохранить текущий баланс."
+          :error="getFieldError('startingBalance')"
+          :required="!editingId"
+        />
+        <p v-if="negativeBalanceAllowed()" class="reference-form__note">
+          Отрицательный баланс разрешён настройками бюджета.
+        </p>
+        <FinanceMoneyInput
+          v-model="form.monthlyPlannedAmount"
+          name="monthlyPlannedAmount"
+          label="План на месяц"
+          :error="getFieldError('monthlyPlannedAmount')"
+        />
+        <FinanceMoneyInput
+          v-model="form.targetAmount"
+          name="targetAmount"
+          label="Целевая сумма"
+          :error="getFieldError('targetAmount')"
+        />
+        <UiInput
+          v-model="form.targetDate"
+          name="targetDate"
+          label="Дата цели"
+          type="date"
+          :error="getFieldError('targetDate')"
+        />
+        <UiInput
+          v-model="form.displayOrder"
+          name="displayOrder"
+          label="Порядок отображения"
+          inputmode="numeric"
+          :error="getFieldError('displayOrder')"
+          required
+        />
+        <label class="reference-form__field">
+          <span>Комментарий</span>
+          <textarea
+            v-model="form.comment"
+            name="comment"
+            :aria-invalid="getFieldError('comment') ? 'true' : undefined"
+          />
+          <small v-if="getFieldError('comment')">{{ getFieldError('comment') }}</small>
+        </label>
+        <div class="reference-form__actions">
+          <UiButton type="submit" :loading="saving">Сохранить конверт</UiButton>
+          <UiButton type="button" variant="tertiary" :disabled="saving" @click="cancelForm"
+            >Отмена</UiButton
+          >
+        </div>
+      </form>
+    </UiModal>
 
     <UiConfirmDialog
       :open="archiveTarget !== null"
@@ -442,58 +435,9 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.reference-page {
-  min-height: 100vh;
-  color: var(--hf-color-text);
-  background: var(--hf-color-page-background);
-}
-.reference-page__content {
-  max-width: 70rem;
-  margin: var(--hf-space-8) auto 0;
-  padding: var(--hf-space-8);
-}
-.reference-page__title-row {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: var(--hf-space-6);
-}
-.reference-page__kicker {
-  margin: 0 0 var(--hf-space-2);
-  color: var(--hf-color-action-primary-hover);
-  font-size: 0.875rem;
-  font-weight: var(--hf-font-weight-semibold);
-  text-transform: uppercase;
-}
-.reference-page h1,
-.reference-page h2,
-.reference-page__description {
-  margin: 0;
-}
-.reference-page h1 {
-  font-size: clamp(2rem, 5vw, 3.25rem);
-  letter-spacing: -0.04em;
-}
-.reference-page__description {
-  margin-top: var(--hf-space-3);
-  color: var(--hf-color-text-muted);
-}
-.reference-page__summary {
-  margin-top: var(--hf-space-5);
-}
-.reference-page__filter {
-  max-width: 18rem;
-  margin-top: var(--hf-space-6);
-}
-.reference-form {
+form[data-envelope-form] {
   display: grid;
   gap: var(--hf-space-5);
-  max-width: 38rem;
-  margin: var(--hf-space-6) 0;
-  padding: var(--hf-space-6);
-  border: 1px solid var(--hf-color-border);
-  border-radius: var(--hf-card-radius);
-  background: var(--hf-color-surface);
 }
 .reference-form__field {
   display: grid;
@@ -541,18 +485,5 @@ onMounted(() => {
 }
 .envelope-journal-link:hover {
   text-decoration: underline;
-}
-@media (max-width: 47.9375rem) {
-  .reference-page__content {
-    padding-right: var(--hf-space-5);
-    padding-left: var(--hf-space-5);
-  }
-  .reference-page__title-row {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .reference-page__title-row > :last-child {
-    align-self: start;
-  }
 }
 </style>
