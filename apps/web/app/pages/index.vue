@@ -12,6 +12,7 @@ import HeroSection from '../components/landing/sections/HeroSection.vue';
 import IncomeAllocationSection from '../components/landing/sections/IncomeAllocationSection.vue';
 import PlansSection from '../components/landing/sections/PlansSection.vue';
 import ProblemSection from '../components/landing/sections/ProblemSection.vue';
+import VariableIncomeSection from '../components/landing/sections/VariableIncomeSection.vue';
 import { landingSeo } from '../data/landing-seo.js';
 import { useAuth } from '../composables/useAuth.js';
 
@@ -37,6 +38,7 @@ if (isAuthenticated.value) {
       <IncomeAllocationSection />
       <GoalsSection />
       <PlansSection />
+      <VariableIncomeSection />
     </main>
     <LandingFooter />
   </div>
