@@ -77,7 +77,7 @@ defineProps<{
 }
 
 .icon-cycle {
-  border: 2px solid var(--hf-color-brand-green);
+  border: 2px solid var(--hf-color-brand);
   border-radius: 50%;
   border-right-color: transparent;
   animation: spin 2s linear infinite;
@@ -96,7 +96,7 @@ defineProps<{
   width: 100%;
   height: 0.25rem;
   border-radius: 2px;
-  background: var(--hf-color-brand-blue);
+  background: var(--hf-color-action-primary);
   content: '';
 }
 
@@ -107,13 +107,13 @@ defineProps<{
   width: 100%;
   height: 0.25rem;
   border-radius: 2px;
-  background: var(--hf-color-brand-blue);
+  background: var(--hf-color-action-primary);
   content: '';
 }
 
 .icon-control {
-  border-left: 0.25rem solid var(--hf-color-brand-blue);
-  border-right: 0.25rem solid var(--hf-color-brand-blue);
+  border-left: 0.25rem solid var(--hf-color-action-primary);
+  border-right: 0.25rem solid var(--hf-color-action-primary);
 }
 
 .feature-card__title {

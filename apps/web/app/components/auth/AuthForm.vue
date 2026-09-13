@@ -70,8 +70,8 @@ function submit(): void | Promise<void> {
   padding: clamp(2rem, 6vw, 6.5rem);
   color: var(--hf-color-white);
   background:
-    radial-gradient(circle at 95% 0%, var(--hf-color-brand-teal) 0, transparent 32%),
-    linear-gradient(145deg, var(--hf-color-brand-navy), var(--hf-color-brand-blue));
+    radial-gradient(circle at 95% 0%, var(--hf-color-action-primary) 0, transparent 32%),
+    linear-gradient(145deg, var(--hf-color-text), var(--hf-color-action-primary));
 }
 
 .auth-intro::after {
@@ -110,20 +110,20 @@ function submit(): void | Promise<void> {
   display: block;
   width: 5rem;
   height: 5rem;
-  border: 2px solid var(--hf-color-brand-mint);
+  border: 2px solid var(--hf-color-brand-bright);
   border-radius: 50%;
 }
 
 .cycle-mark i:last-child {
   right: 0;
   bottom: 0;
-  border-color: var(--hf-color-warning-background);
+  border-color: var(--hf-color-status-warning-background);
 }
 
 .eyebrow,
 .form-kicker {
   margin: clamp(7rem, 22vh, 15rem) 0 1rem;
-  color: var(--hf-color-brand-mint);
+  color: var(--hf-color-brand-bright);
   font-size: 0.74rem;
   font-weight: var(--hf-font-weight-bold);
   letter-spacing: 0.14em;

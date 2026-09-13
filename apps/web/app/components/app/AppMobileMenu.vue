@@ -285,7 +285,7 @@ watch(
 }
 
 .mobile-menu__logout:hover {
-  background: var(--hf-color-danger-background);
+  background: var(--hf-color-status-danger-background);
 }
 
 .mobile-menu__logout:focus-visible {
