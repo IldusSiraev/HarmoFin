@@ -7,6 +7,7 @@ import LandingHeader from '../components/landing/LandingHeader.vue';
 import AnalyticsSection from '../components/landing/sections/AnalyticsSection.vue';
 import AvailableToSpendSection from '../components/landing/sections/AvailableToSpendSection.vue';
 import ConceptSection from '../components/landing/sections/ConceptSection.vue';
+import HowItWorksSection from '../components/landing/sections/HowItWorksSection.vue';
 import FinancialCycleSection from '../components/landing/sections/FinancialCycleSection.vue';
 import GoalsSection from '../components/landing/sections/GoalsSection.vue';
 import HeroSection from '../components/landing/sections/HeroSection.vue';
@@ -41,6 +42,7 @@ if (isAuthenticated.value) {
       <PlansSection />
       <VariableIncomeSection />
       <AnalyticsSection />
+      <HowItWorksSection />
     </main>
     <LandingFooter />
   </div>
