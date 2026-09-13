@@ -15,9 +15,6 @@ const props = withDefaults(
   { tone: 'brand' },
 );
 
-// This value is read from the template only; no-useless-assignment's control-flow analysis
-// does not see reads inside <template> expression containers, so it misreports this as dead.
-// eslint-disable-next-line no-useless-assignment
 const percent = computed(() => {
   const value = Number(BigInt(props.valueMinor));
   const target = Number(BigInt(props.targetMinor));
@@ -27,7 +24,6 @@ const percent = computed(() => {
 
 const formattedValue = computed(() => formatLandingMoney(props.valueMinor));
 const formattedTarget = computed(() => formatLandingMoney(props.targetMinor));
-// eslint-disable-next-line no-useless-assignment -- read from the template only; see above.
 const summary = computed(
   () => `${props.label}: ${formattedValue.value} из ${formattedTarget.value}`,
 );
