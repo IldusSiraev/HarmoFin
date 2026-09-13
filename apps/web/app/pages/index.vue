@@ -4,6 +4,7 @@ import { navigateTo, useSeoMeta } from '#imports';
 
 import LandingFooter from '../components/landing/LandingFooter.vue';
 import LandingHeader from '../components/landing/LandingHeader.vue';
+import AvailableToSpendSection from '../components/landing/sections/AvailableToSpendSection.vue';
 import ConceptSection from '../components/landing/sections/ConceptSection.vue';
 import HeroSection from '../components/landing/sections/HeroSection.vue';
 import ProblemSection from '../components/landing/sections/ProblemSection.vue';
@@ -27,6 +28,7 @@ if (isAuthenticated.value) {
       <HeroSection />
       <ProblemSection />
       <ConceptSection />
+      <AvailableToSpendSection />
     </main>
     <LandingFooter />
   </div>
