@@ -5,7 +5,7 @@ defineOptions({ name: 'UiButton', inheritAttrs: false });
 
 withDefaults(
   defineProps<{
-    variant?: 'primary' | 'secondary' | 'tertiary' | 'danger';
+    variant?: 'primary' | 'secondary' | 'tertiary' | 'danger' | 'brand';
     size?: 'sm' | 'md' | 'lg';
     type?: 'button' | 'submit' | 'reset';
     loading?: boolean;
@@ -13,6 +13,7 @@ withDefaults(
     fullWidth?: boolean;
     ariaLabel?: string | undefined;
     tooltip?: string | undefined;
+    to?: string | undefined;
   }>(),
   {
     variant: 'primary',
@@ -23,6 +24,7 @@ withDefaults(
     fullWidth: false,
     ariaLabel: undefined,
     tooltip: undefined,
+    to: undefined,
   },
 );
 
@@ -38,30 +40,29 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
 </script>
 
 <template>
-  <UiTooltip
-    v-slot="{ describedby }"
-    :text="tooltip"
-    :class="tooltip ? { 'ui-tooltip--full-width': fullWidth } : {}"
+  <component
+    :is="to ? 'NuxtLink' : 'button'"
+    v-bind="$attrs"
+    class="ui-button"
+    :class="[`ui-button--${variant}`, `ui-button--${size}`, { 'ui-button--full-width': fullWidth }]"
+    :to="to"
+    :type="to ? undefined : type"
+    :disabled="to ? undefined : disabled || loading"
+    :aria-busy="loading || undefined"
+    :aria-label="ariaLabel"
+    @click="handleClick($event, loading, disabled)"
   >
-    <button
-      v-bind="$attrs"
-      class="ui-button"
-      :class="[
-        `ui-button--${variant}`,
-        `ui-button--${size}`,
-        { 'ui-button--full-width': fullWidth },
-      ]"
-      :type="type"
-      :disabled="disabled || loading"
-      :aria-busy="loading || undefined"
-      :aria-label="ariaLabel"
-      :aria-describedby="describedby"
-      @click="handleClick($event, loading, disabled)"
+    <UiTooltip
+      v-slot="{ describedby }"
+      :text="tooltip"
+      :class="tooltip ? { 'ui-tooltip--full-width': fullWidth } : {}"
     >
-      <span v-if="loading" class="ui-button__loader" aria-hidden="true" />
-      <span class="ui-button__content"><slot /></span>
-    </button>
-  </UiTooltip>
+      <div class="ui-button-inner" :aria-describedby="describedby">
+        <span v-if="loading" class="ui-button__loader" aria-hidden="true" />
+        <span class="ui-button__content"><slot /></span>
+      </div>
+    </UiTooltip>
+  </component>
 </template>
 
 <style scoped>
@@ -77,6 +78,7 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
   border-radius: var(--hf-button-radius);
   font-weight: var(--hf-button-font-weight);
   line-height: 1.25;
+  text-decoration: none;
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
@@ -135,8 +137,31 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
   background: var(--hf-color-action-danger-hover);
 }
 
+.ui-button--brand {
+  color: var(--hf-color-white);
+  border: 1px solid var(--hf-color-action-brand);
+  background: var(--hf-color-action-brand);
+}
+
+.ui-button--brand:hover:not(:disabled) {
+  border-color: var(--hf-color-action-brand-hover);
+  background: var(--hf-color-action-brand-hover);
+}
+
+.ui-button--brand:active:not(:disabled) {
+  border-color: var(--hf-color-action-brand-active);
+  background: var(--hf-color-action-brand-active);
+}
+
 .ui-button:disabled {
   opacity: 0.6;
+}
+
+.ui-button-inner {
+  display: inherit;
+  align-items: inherit;
+  justify-content: inherit;
+  gap: inherit;
 }
 
 .ui-button__loader {
