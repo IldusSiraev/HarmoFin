@@ -1,3 +1,5 @@
+import { mount } from '@vue/test-utils';
+import { defineComponent, h } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { useCountUp } from './useCountUp.js';
@@ -17,13 +19,15 @@ function mockReducedMotion(reduce: boolean): void {
   })) as unknown as typeof window.matchMedia;
 }
 
-function mockFrames(): Frame[] {
+function mockFrames(): { frames: Frame[]; cancel: ReturnType<typeof vi.fn> } {
   const frames: Frame[] = [];
+  const cancel = vi.fn();
   window.requestAnimationFrame = ((callback: Frame) => {
     frames.push(callback);
     return frames.length;
   }) as unknown as typeof window.requestAnimationFrame;
-  return frames;
+  window.cancelAnimationFrame = cancel as unknown as typeof window.cancelAnimationFrame;
+  return { frames, cancel };
 }
 
 afterEach(() => {
@@ -33,7 +37,7 @@ afterEach(() => {
 describe('useCountUp', () => {
   it('animates from zero to the target value', () => {
     mockReducedMotion(false);
-    const frames = mockFrames();
+    const { frames } = mockFrames();
     const { value, start } = useCountUp(1000, { durationMs: 600 });
 
     expect(value.value).toBe(0);
@@ -50,7 +54,7 @@ describe('useCountUp', () => {
 
   it('jumps straight to the target when reduced motion is requested', () => {
     mockReducedMotion(true);
-    const frames = mockFrames();
+    const { frames } = mockFrames();
     const { value, start } = useCountUp(1000);
 
     start();
@@ -60,12 +64,42 @@ describe('useCountUp', () => {
   });
 
   it('ignores repeated start calls once finished', () => {
-    mockReducedMotion(true);
-    const { value, start } = useCountUp(500);
+    mockReducedMotion(false);
+    const { frames } = mockFrames();
+    const { value, start } = useCountUp(500, { durationMs: 600 });
 
     start();
     start();
+
+    expect(frames).toHaveLength(1);
+
+    frames[0]?.(0);
+    frames[1]?.(600);
 
     expect(value.value).toBe(500);
+  });
+
+  it('cancels the pending animation frame when the host component unmounts', () => {
+    mockReducedMotion(false);
+    const { frames, cancel } = mockFrames();
+
+    const Host = defineComponent({
+      name: 'CountUpHost',
+      setup() {
+        const { value, start } = useCountUp(1000, { durationMs: 600 });
+        start();
+        return () => h('div', String(value.value));
+      },
+    });
+
+    const wrapper = mount(Host);
+
+    frames[0]?.(0);
+    const queuedFrameCount = frames.length;
+
+    wrapper.unmount();
+
+    expect(cancel).toHaveBeenCalledWith(queuedFrameCount);
+    expect(frames).toHaveLength(queuedFrameCount);
   });
 });

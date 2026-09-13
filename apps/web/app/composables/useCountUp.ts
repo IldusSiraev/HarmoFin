@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue';
+import { getCurrentInstance, onBeforeUnmount, ref, type Ref } from 'vue';
 
 const DEFAULT_DURATION_MS = 600;
 
@@ -15,6 +15,18 @@ export function useCountUp(
   const durationMs = options.durationMs ?? DEFAULT_DURATION_MS;
   const value = ref(0);
   let started = false;
+  let frameId: number | null = null;
+
+  function cancel(): void {
+    if (
+      frameId !== null &&
+      typeof window !== 'undefined' &&
+      typeof window.cancelAnimationFrame === 'function'
+    ) {
+      window.cancelAnimationFrame(frameId);
+    }
+    frameId = null;
+  }
 
   function start(): void {
     if (started) return;
@@ -34,10 +46,18 @@ export function useCountUp(
       const eased = 1 - (1 - progress) ** 3;
       value.value = progress === 1 ? targetValue : Math.round(targetValue * eased);
 
-      if (progress < 1) window.requestAnimationFrame(step);
+      if (progress < 1) {
+        frameId = window.requestAnimationFrame(step);
+      } else {
+        frameId = null;
+      }
     };
 
-    window.requestAnimationFrame(step);
+    frameId = window.requestAnimationFrame(step);
+  }
+
+  if (getCurrentInstance()) {
+    onBeforeUnmount(cancel);
   }
 
   return { value, start };
