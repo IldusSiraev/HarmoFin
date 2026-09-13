@@ -48,6 +48,7 @@
   --hf-control-height-sm: 2.75rem;
   --hf-control-height-md: 3rem;
   --hf-control-height-lg: 3.25rem;
+  --hf-sidebar-width: 16rem;
 
   --hf-color-page-background: var(--hf-color-slate-50);
   --hf-color-surface: var(--hf-color-white);
@@ -79,6 +80,9 @@
   --hf-color-text-danger: var(--hf-color-danger-foreground);
   --hf-color-border-danger: var(--hf-color-danger-foreground);
   --hf-color-overlay: rgb(13 27 42 / 48%);
+  --hf-z-index-tooltip: 150;
+  --hf-tooltip-background: var(--hf-color-brand-navy);
+  --hf-tooltip-color: var(--hf-color-white);
 
   --hf-button-font-weight: var(--hf-font-weight-semibold);
   --hf-button-radius: var(--hf-radius-md);
@@ -90,4 +94,12 @@
 
   --hf-transition-fast: 150ms ease;
   --hf-transition-base: 250ms ease;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --hf-control-height-sm: 2.25rem;
+    --hf-control-height-md: 2.5rem;
+    --hf-control-height-lg: 2.75rem;
+  }
 }

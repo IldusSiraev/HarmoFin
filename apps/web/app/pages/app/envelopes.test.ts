@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   auth: { currentData: { value: null as unknown }, loadMe: vi.fn() },
@@ -40,6 +40,7 @@ const envelope = {
 
 function mountPage() {
   return mount(EnvelopesPage, {
+    attachTo: document.body,
     global: {
       stubs: {
         NuxtLink: { template: '<a><slot /></a>' },
@@ -51,7 +52,7 @@ function mountPage() {
         UiConfirmDialog: {
           props: ['open'],
           template:
-            '<div v-if="open"><button data-confirm="archive-envelope" @click="$emit(\'confirm\')">Подтвердить</button></div>',
+            '<div v-if="open" data-confirm-dialog><button data-confirm="archive-envelope" @click="$emit(\'confirm\')">Подтвердить</button><button @click="$emit(\'cancel\')">Отмена</button></div>',
         },
       },
     },
@@ -59,6 +60,8 @@ function mountPage() {
 }
 
 describe('envelopes page', () => {
+  let wrapper: ReturnType<typeof mountPage> | null = null;
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.auth.currentData.value = {
@@ -89,23 +92,53 @@ describe('envelopes page', () => {
     mocks.api.listEnvelopes.mockResolvedValue([]);
   });
 
+  afterEach(() => {
+    if (wrapper) {
+      wrapper.unmount();
+      wrapper = null;
+    }
+  });
+
   it('creates envelope while preserving decimal text as normalized string', async () => {
     mocks.api.createEnvelope.mockResolvedValue(envelope);
     mocks.api.listEnvelopes.mockResolvedValueOnce([]).mockResolvedValueOnce([envelope]);
-    const wrapper = mountPage();
+    wrapper = mountPage();
 
     await flushPromises();
     await wrapper.get('[data-action="create-envelope"]').trigger('click');
-    await wrapper.get('input[name="name"]').setValue('Ремонт');
-    await wrapper.get('input[name="startingBalance"]').setValue('123,45');
-    await wrapper.get('input[name="displayOrder"]').setValue('1');
-    await wrapper.get('form[data-envelope-form]').trigger('submit');
+    await flushPromises();
+
+    // Form is Teleported to body, access via document
+    const nameInput = document.querySelector('input[name="name"]') as HTMLInputElement;
+    const startingBalanceInput = document.querySelector(
+      'input[name="startingBalance"]',
+    ) as HTMLInputElement;
+    const displayOrderInput = document.querySelector(
+      'input[name="displayOrder"]',
+    ) as HTMLInputElement;
+    const form = document.querySelector('form[data-envelope-form]') as HTMLFormElement;
+
+    nameInput.value = 'Ремонт';
+    nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+
+    startingBalanceInput.value = '123,45';
+    startingBalanceInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+
+    displayOrderInput.value = '1';
+    displayOrderInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+
+    form.dispatchEvent(new Event('submit', { bubbles: true }));
     await flushPromises();
 
     expect(mocks.api.createEnvelope).toHaveBeenCalledWith(
       'budget-id',
       expect.objectContaining({ startingBalance: '123.45' }),
     );
+    expect(mocks.api.listEnvelopes).toHaveBeenCalledTimes(2);
+    expect(wrapper.text()).toContain('Ремонт');
   });
 
   it('requires explicit archive confirmation', async () => {
@@ -114,7 +147,7 @@ describe('envelopes page', () => {
       ...envelope,
       archivedAt: '2026-09-04T00:00:00.000Z',
     });
-    const wrapper = mountPage();
+    wrapper = mountPage();
 
     await flushPromises();
     await wrapper.get('[data-action="archive-envelope"]').trigger('click');
@@ -125,12 +158,22 @@ describe('envelopes page', () => {
   });
 
   it('shows period slot selection only for current-expense envelope', async () => {
-    const wrapper = mountPage();
+    wrapper = mountPage();
 
     await flushPromises();
     await wrapper.get('[data-action="create-envelope"]').trigger('click');
-    await wrapper.get('select[name="envelopeType"]').setValue('CURRENT_EXPENSES');
+    await flushPromises();
 
-    expect(wrapper.get('select[name="periodSlot"]').text()).toContain('Первый период');
+    const envelopeTypeSelect = document.querySelector(
+      'select[name="envelopeType"]',
+    ) as HTMLSelectElement;
+    envelopeTypeSelect.value = 'CURRENT_EXPENSES';
+    envelopeTypeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await flushPromises();
+
+    const periodSlotSelect = document.querySelector(
+      'select[name="periodSlot"]',
+    ) as HTMLSelectElement;
+    expect(periodSlotSelect.textContent).toContain('Первый период');
   });
 });

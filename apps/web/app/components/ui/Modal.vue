@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch } from 'vue';
+import { onBeforeUnmount, onMounted, watch } from 'vue';
 
 defineOptions({ name: 'UiModal' });
 
@@ -22,16 +22,30 @@ function handleBackdropClick(event: MouseEvent) {
   }
 }
 
-watch(
-  () => props.open,
-  (isOpen) => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-  },
-);
+function handleKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') handleClose();
+}
+
+function syncModalState(isOpen: boolean) {
+  if (isOpen) {
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeydown);
+  } else {
+    document.body.style.overflow = '';
+    document.removeEventListener('keydown', handleKeydown);
+  }
+}
+
+onMounted(() => {
+  syncModalState(props.open);
+});
+
+watch(() => props.open, syncModalState);
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleKeydown);
+  document.body.style.overflow = '';
+});
 </script>
 
 <template>

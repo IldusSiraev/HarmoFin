@@ -34,4 +34,23 @@ describe('UiInput', () => {
     expect(wrapper.emitted('update:modelValue')).toEqual([['user@example.test']]);
     expect(wrapper.emitted('blur')).toHaveLength(1);
   });
+
+  it('only renders a tooltip trigger when the tooltip prop is set', async () => {
+    const withoutTooltip = mount(UiInput, {
+      props: { modelValue: '', name: 'name', label: 'Название' },
+    });
+    expect(withoutTooltip.find('.ui-field__tooltip-trigger').exists()).toBe(false);
+
+    const withTooltip = mount(UiInput, {
+      props: {
+        modelValue: '',
+        name: 'startingBalance',
+        label: 'Начальный баланс',
+        tooltip: 'Сумма на счёте на дату начала учёта.',
+      },
+    });
+    const trigger = withTooltip.get('.ui-field__tooltip-trigger');
+    await trigger.trigger('focusin');
+    expect(withTooltip.get('[role="tooltip"]').text()).toBe('Сумма на счёте на дату начала учёта.');
+  });
 });

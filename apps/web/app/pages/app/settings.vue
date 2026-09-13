@@ -18,7 +18,7 @@ import {
 import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js';
 
 defineOptions({ name: 'AppSettingsPage' });
-definePageMeta({ middleware: 'auth' });
+definePageMeta({ middleware: 'auth', layout: 'app' });
 
 const settingsFields = [
   'name',
@@ -177,14 +177,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="settings-page">
-    <header class="settings-page__header">
-      <NuxtLink class="settings-page__wordmark" to="/app">HarmoFin</NuxtLink>
-      <nav aria-label="Настройки бюджета">
-        <NuxtLink to="/app">Главная</NuxtLink>
-      </nav>
-    </header>
-
+  <div class="settings-page">
     <section class="settings-page__content">
       <template v-if="loading">
         <UiStatus label="Загрузка настроек…" tone="info" aria-live="polite" />
@@ -300,7 +293,7 @@ onMounted(() => {
         </section>
       </template>
     </section>
-  </main>
+  </div>
 </template>
 
 <style scoped>
@@ -308,32 +301,6 @@ onMounted(() => {
   min-height: 100vh;
   color: var(--hf-color-text);
   background: var(--hf-color-page-background);
-}
-
-.settings-page__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--hf-space-4);
-  max-width: 70rem;
-  margin: 0 auto;
-  padding: var(--hf-space-5) var(--hf-space-8);
-}
-
-.settings-page__header nav a,
-.settings-page__wordmark {
-  color: var(--hf-color-text);
-  text-decoration: none;
-}
-
-.settings-page__header nav a {
-  font-weight: var(--hf-font-weight-medium);
-}
-
-.settings-page__wordmark {
-  font-size: 1.125rem;
-  font-weight: var(--hf-font-weight-bold);
-  letter-spacing: -0.04em;
 }
 
 .settings-page__content {
@@ -419,7 +386,6 @@ onMounted(() => {
 }
 
 @media (max-width: 47.9375rem) {
-  .settings-page__header,
   .settings-page__content {
     padding-right: var(--hf-space-5);
     padding-left: var(--hf-space-5);

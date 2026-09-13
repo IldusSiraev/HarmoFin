@@ -6,6 +6,8 @@ import GoalProgressReport from '../../components/analytics/GoalProgressReport.vu
 import PlanVsActualReport from '../../components/analytics/PlanVsActualReport.vue';
 import ReportChart from '../../components/analytics/ReportChart.vue';
 import ReportFilters, { type AnalyticsFilters } from '../../components/analytics/ReportFilters.vue';
+import FilterPanel from '../../components/ui/FilterPanel.vue';
+import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
 import UiSelect from '../../components/ui/Select.vue';
@@ -20,7 +22,7 @@ import {
 } from '../../composables/useBudgetReferenceData.js';
 
 defineOptions({ name: 'BudgetAnalyticsPage' });
-definePageMeta({ middleware: 'auth' });
+definePageMeta({ middleware: 'auth', layout: 'app' });
 
 const auth = useAuth();
 const route = useRoute();
@@ -139,92 +141,80 @@ function reportKeyFromQuery(value: string | null | Array<string | null> | undefi
     ? (value as ReportKey)
     : 'expenses-by-category';
 }
+
+function activeFilterCount() {
+  const advanced: Array<string> = [
+    filters.value.from,
+    filters.value.to,
+    filters.value.type,
+    filters.value.accountId,
+    filters.value.categoryId,
+    filters.value.envelopeId,
+  ];
+  return advanced.filter((value) => value !== '').length;
+}
 </script>
 
 <template>
-  <main class="analytics-page">
-    <header>
-      <p>Аналитика</p>
-      <h1>Отчёты бюджета</h1>
-    </header>
-    <p v-if="error" role="alert" class="analytics-page__error">
-      {{ error }} <UiButton variant="tertiary" @click="load">Повторить</UiButton>
-    </p>
+  <div class="analytics-page">
     <UiEmptyState
       v-if="!loading && !budget"
       title="Бюджет не выбран"
       description="Выберите активный бюджет для просмотра отчётов."
     />
-    <template v-else>
-      <UiSelect
-        v-model="reportKey"
-        name="reportKey"
-        label="Отчёт"
-        :options="[
-          { value: 'expenses-by-category', label: 'Расходы по категориям' },
-          { value: 'expenses-by-period', label: 'Расходы по периодам' },
-          { value: 'expenses-by-cycle', label: 'Расходы по циклам' },
-          { value: 'incomes-by-cycle', label: 'Доходы по циклам' },
-          { value: 'savings-reallocation-by-cycle', label: 'Перераспределения накоплений' },
-          { value: 'net-cash-flow', label: 'Чистый денежный поток' },
-          { value: 'account-balances', label: 'Остатки счетов' },
-          { value: 'envelope-balances', label: 'Остатки конвертов' },
-          { value: 'savings-goals', label: 'Цели накоплений' },
-          { value: 'plan-vs-actual', label: 'План и факт' },
-        ]"
-        @update:model-value="updateReportKey"
-      />
-      <ReportFilters
-        v-model="filters"
-        :accounts="accounts"
-        :categories="categories"
-        :envelopes="envelopes"
-        @update:model-value="updateFilters"
-      />
-      <p v-if="loading">Загрузка отчёта…</p>
-      <UiEmptyState
-        v-else-if="report && report.rows.length === 0"
-        title="Нет данных"
-        description="Измените фильтры или добавьте подтверждённые операции."
-      />
-      <PlanVsActualReport v-else-if="isPlanVsActualReport(report)" :rows="report.rows" />
-      <GoalProgressReport v-else-if="isGoalProgressReport(report)" :rows="report.rows" />
-      <ReportChart v-else-if="isGenericReport(report)" :report="report" />
-    </template>
-  </main>
+    <ReferencePageLayout v-else>
+      <template #kicker>Аналитика</template>
+      <template #title>Отчёты бюджета</template>
+      <template #filters>
+        <UiSelect
+          v-model="reportKey"
+          name="reportKey"
+          label="Отчёт"
+          :options="[
+            { value: 'expenses-by-category', label: 'Расходы по категориям' },
+            { value: 'expenses-by-period', label: 'Расходы по периодам' },
+            { value: 'expenses-by-cycle', label: 'Расходы по циклам' },
+            { value: 'incomes-by-cycle', label: 'Доходы по циклам' },
+            { value: 'savings-reallocation-by-cycle', label: 'Перераспределения накоплений' },
+            { value: 'net-cash-flow', label: 'Чистый денежный поток' },
+            { value: 'account-balances', label: 'Остатки счетов' },
+            { value: 'envelope-balances', label: 'Остатки конвертов' },
+            { value: 'savings-goals', label: 'Цели накоплений' },
+            { value: 'plan-vs-actual', label: 'План и факт' },
+          ]"
+          @update:model-value="updateReportKey"
+        />
+        <FilterPanel :active-count="activeFilterCount()">
+          <ReportFilters
+            v-model="filters"
+            :accounts="accounts"
+            :categories="categories"
+            :envelopes="envelopes"
+            @update:model-value="updateFilters"
+          />
+        </FilterPanel>
+      </template>
+      <template #content>
+        <p v-if="error" role="alert" class="analytics-page__error">
+          {{ error }} <UiButton variant="tertiary" @click="load">Повторить</UiButton>
+        </p>
+        <p v-if="loading">Загрузка отчёта…</p>
+        <UiEmptyState
+          v-else-if="report && report.rows.length === 0"
+          title="Нет данных"
+          description="Измените фильтры или добавьте подтверждённые операции."
+        />
+        <PlanVsActualReport v-else-if="isPlanVsActualReport(report)" :rows="report.rows" />
+        <GoalProgressReport v-else-if="isGoalProgressReport(report)" :rows="report.rows" />
+        <ReportChart v-else-if="isGenericReport(report)" :report="report" />
+      </template>
+    </ReferencePageLayout>
+  </div>
 </template>
 
 <style scoped>
-.analytics-page {
-  display: grid;
-  gap: var(--hf-space-5);
-  max-width: 70rem;
-  margin: 0 auto;
-  padding: var(--hf-space-8);
-}
-.analytics-page header p,
-.analytics-page header h1,
 .analytics-page__error {
   margin: 0;
-}
-.analytics-page header p {
-  color: var(--hf-color-action-primary-hover);
-  font-size: 0.8rem;
-  font-weight: var(--hf-font-weight-bold);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.analytics-page header h1 {
-  margin-top: var(--hf-space-2);
-  font-size: clamp(2rem, 4vw, 3.5rem);
-  letter-spacing: -0.04em;
-}
-.analytics-page__error {
   color: var(--hf-color-text-danger);
-}
-@media (max-width: 47.9375rem) {
-  .analytics-page {
-    padding: var(--hf-space-5);
-  }
 }
 </style>

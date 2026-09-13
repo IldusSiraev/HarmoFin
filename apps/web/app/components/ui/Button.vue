@@ -1,5 +1,7 @@
 <script setup lang="ts">
-defineOptions({ name: 'UiButton' });
+import UiTooltip from './Tooltip.vue';
+
+defineOptions({ name: 'UiButton', inheritAttrs: false });
 
 withDefaults(
   defineProps<{
@@ -10,6 +12,7 @@ withDefaults(
     disabled?: boolean;
     fullWidth?: boolean;
     ariaLabel?: string | undefined;
+    tooltip?: string | undefined;
   }>(),
   {
     variant: 'primary',
@@ -19,6 +22,7 @@ withDefaults(
     disabled: false,
     fullWidth: false,
     ariaLabel: undefined,
+    tooltip: undefined,
   },
 );
 
@@ -34,18 +38,30 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
 </script>
 
 <template>
-  <button
-    class="ui-button"
-    :class="[`ui-button--${variant}`, `ui-button--${size}`, { 'ui-button--full-width': fullWidth }]"
-    :type="type"
-    :disabled="disabled || loading"
-    :aria-busy="loading || undefined"
-    :aria-label="ariaLabel"
-    @click="handleClick($event, loading, disabled)"
+  <UiTooltip
+    v-slot="{ describedby }"
+    :text="tooltip"
+    :class="tooltip ? { 'ui-tooltip--full-width': fullWidth } : {}"
   >
-    <span v-if="loading" class="ui-button__loader" aria-hidden="true" />
-    <span class="ui-button__content"><slot /></span>
-  </button>
+    <button
+      v-bind="$attrs"
+      class="ui-button"
+      :class="[
+        `ui-button--${variant}`,
+        `ui-button--${size}`,
+        { 'ui-button--full-width': fullWidth },
+      ]"
+      :type="type"
+      :disabled="disabled || loading"
+      :aria-busy="loading || undefined"
+      :aria-label="ariaLabel"
+      :aria-describedby="describedby"
+      @click="handleClick($event, loading, disabled)"
+    >
+      <span v-if="loading" class="ui-button__loader" aria-hidden="true" />
+      <span class="ui-button__content"><slot /></span>
+    </button>
+  </UiTooltip>
 </template>
 
 <style scoped>

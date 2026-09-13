@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   auth: {
@@ -39,6 +39,7 @@ const account = {
 
 function mountPage() {
   return mount(AccountsPage, {
+    attachTo: document.body,
     global: {
       stubs: {
         NuxtLink: { template: '<a><slot /></a>' },
@@ -57,6 +58,8 @@ function mountPage() {
 }
 
 describe('accounts page', () => {
+  let wrapper: ReturnType<typeof mountPage> | null = null;
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.auth.currentData.value = {
@@ -73,17 +76,45 @@ describe('accounts page', () => {
     mocks.api.listAccounts.mockResolvedValue([]);
   });
 
+  afterEach(() => {
+    if (wrapper) {
+      wrapper.unmount();
+      wrapper = null;
+    }
+  });
+
   it('creates account from decimal text and refreshes server-confirmed card', async () => {
     mocks.api.createAccount.mockResolvedValue(account);
     mocks.api.listAccounts.mockResolvedValueOnce([]).mockResolvedValueOnce([account]);
-    const wrapper = mountPage();
+    wrapper = mountPage();
 
     await flushPromises();
     await wrapper.get('[data-action="create-account"]').trigger('click');
-    await wrapper.get('input[name="name"]').setValue('Основной счёт');
-    await wrapper.get('input[name="startingBalance"]').setValue('123,45');
-    await wrapper.get('input[name="accountingStartDate"]').setValue('2026-09-03');
-    await wrapper.get('form[data-account-form]').trigger('submit');
+    await flushPromises();
+
+    // Form is Teleported to body, access via document
+    const nameInput = document.querySelector('input[name="name"]') as HTMLInputElement;
+    const startingBalanceInput = document.querySelector(
+      'input[name="startingBalance"]',
+    ) as HTMLInputElement;
+    const accountingStartDateInput = document.querySelector(
+      'input[name="accountingStartDate"]',
+    ) as HTMLInputElement;
+    const form = document.querySelector('form[data-account-form]') as HTMLFormElement;
+
+    nameInput.value = 'Основной счёт';
+    nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+
+    startingBalanceInput.value = '123,45';
+    startingBalanceInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+
+    accountingStartDateInput.value = '2026-09-03';
+    accountingStartDateInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+
+    form.dispatchEvent(new Event('submit', { bubbles: true }));
     await flushPromises();
 
     expect(mocks.api.createAccount).toHaveBeenCalledWith(
@@ -99,7 +130,7 @@ describe('accounts page', () => {
       ...account,
       archivedAt: '2026-09-04T00:00:00.000Z',
     });
-    const wrapper = mountPage();
+    wrapper = mountPage();
 
     await flushPromises();
     await wrapper.get('[data-action="archive-account"]').trigger('click');
@@ -111,7 +142,7 @@ describe('accounts page', () => {
 
   it('offers transfer with selected active account', async () => {
     mocks.api.listAccounts.mockResolvedValue([account]);
-    const wrapper = mountPage();
+    wrapper = mountPage();
 
     await flushPromises();
     const link = wrapper.get('[data-action="transfer-from-account"]');

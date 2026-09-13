@@ -239,9 +239,6 @@ function minorToDecimal(value: string): string {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--hf-space-4);
-  padding: var(--hf-card-padding);
-  background: var(--hf-color-surface);
-  box-shadow: var(--hf-shadow-card);
 }
 .plan-form > :last-child {
   grid-column: 1 / -1;

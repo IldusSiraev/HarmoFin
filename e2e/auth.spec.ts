@@ -16,8 +16,7 @@ test('registers, protects app, logs out, and logs back in', async ({ page }) => 
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Семейный бюджет');
   await expect(page.evaluate(() => Object.keys(localStorage))).resolves.not.toContain('auth');
 
-  await page.getByRole('button', { name: email }).click();
-  await page.getByRole('menuitem', { name: 'Выйти' }).click();
+  await page.getByRole('button', { name: 'Выйти' }).click();
   await expect(page).toHaveURL(/\/login$/);
   await waitForHydration(page);
 

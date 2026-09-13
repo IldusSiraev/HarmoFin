@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   auth: { currentData: { value: null as unknown }, loadMe: vi.fn() },
@@ -33,6 +33,7 @@ const expense = { ...income, id: 'expense-id', name: 'Продукты', categor
 
 function mountPage() {
   return mount(CategoriesPage, {
+    attachTo: document.body,
     global: {
       stubs: {
         NuxtLink: { template: '<a><slot /></a>' },
@@ -52,6 +53,8 @@ function mountPage() {
 }
 
 describe('categories page', () => {
+  let wrapper: ReturnType<typeof mountPage> | null = null;
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.auth.currentData.value = {
@@ -68,20 +71,42 @@ describe('categories page', () => {
     mocks.api.listCategories.mockResolvedValue([income, expense]);
   });
 
+  afterEach(() => {
+    if (wrapper) {
+      wrapper.unmount();
+      wrapper = null;
+    }
+  });
+
   it('renders separate income and expense regions and creates typed category', async () => {
     mocks.api.createCategory.mockResolvedValue(income);
     mocks.api.listCategories
       .mockResolvedValueOnce([income, expense])
       .mockResolvedValueOnce([income, expense, { ...income, id: 'new-id', name: 'Подработка' }]);
-    const wrapper = mountPage();
+    wrapper = mountPage();
 
     await flushPromises();
     expect(wrapper.text()).toContain('Доходы');
     expect(wrapper.text()).toContain('Расходы');
     await wrapper.get('[data-action="create-category"]').trigger('click');
-    await wrapper.get('input[name="name"]').setValue('Подработка');
-    await wrapper.get('input[name="displayOrder"]').setValue('2');
-    await wrapper.get('form[data-category-form]').trigger('submit');
+    await flushPromises();
+
+    // Form is Teleported to body, access via document
+    const nameInput = document.querySelector('input[name="name"]') as HTMLInputElement;
+    const displayOrderInput = document.querySelector(
+      'input[name="displayOrder"]',
+    ) as HTMLInputElement;
+    const form = document.querySelector('form[data-category-form]') as HTMLFormElement;
+
+    nameInput.value = 'Подработка';
+    nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+
+    displayOrderInput.value = '2';
+    displayOrderInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+
+    form.dispatchEvent(new Event('submit', { bubbles: true }));
     await flushPromises();
 
     expect(mocks.api.createCategory).toHaveBeenCalledWith(
@@ -95,7 +120,7 @@ describe('categories page', () => {
       ...income,
       archivedAt: '2026-09-04T00:00:00.000Z',
     });
-    const wrapper = mountPage();
+    wrapper = mountPage();
 
     await flushPromises();
     await wrapper.get('[data-action="archive-category"]').trigger('click');

@@ -57,14 +57,14 @@ test('owner creates typed categories and envelope without client balance arithme
   await page.getByLabel('Название категории').fill('Зарплата');
   await page.getByLabel('Порядок отображения').fill('1');
   await page.getByRole('button', { name: 'Сохранить категорию' }).click();
-  await expect(page.getByText('Зарплата')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Зарплата' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Создать категорию' }).click();
   await page.getByLabel('Тип категории').selectOption('EXPENSE');
   await page.getByLabel('Название категории').fill('Продукты');
   await page.getByLabel('Порядок отображения').fill('2');
   await page.getByRole('button', { name: 'Сохранить категорию' }).click();
-  await expect(page.getByText('Продукты')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Продукты' })).toBeVisible();
 
   await page.goto('/app/envelopes');
   await page.getByRole('button', { name: 'Создать конверт' }).first().click();
