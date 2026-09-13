@@ -6,7 +6,7 @@
 
 **Architecture:** Один источник токенов (`tokens.css`) с сохранением семантических имён — значения меняются, 36 компонентов `/app` получают новую палитру без правок. Лендинг собирается из презентационных секций (`components/landing/sections/*`), которые получают демо-данные из единственного модуля `app/data/landing.ts` и используют общие примитивы (`components/landing/ui/*`, `components/ui/Button.vue`). Графика — только CSS/SVG, без `echarts` и растровых изображений.
 
-**Tech Stack:** Nuxt 4.5.2, Vue 3.5.42 (`<script setup lang="ts">`), TypeScript strict, Vitest + happy-dom + @vue/test-utils, Playwright, `lucide-vue-next`, CSS custom properties (без CSS-фреймворка).
+**Tech Stack:** Nuxt 4.5.2, Vue 3.5.42 (`<script setup lang="ts">`), TypeScript strict, Vitest + happy-dom + @vue/test-utils, Playwright, `@lucide/vue`, CSS custom properties (без CSS-фреймворка).
 
 **Spec:** `docs/superpowers/specs/2026-09-13-landing-redesign-design.md` (исходники: `docs/superpowers/specs/ТЗ для агента — лендинг HarmoFin.md`, `identity/landing-temporar_design.png`, `identity/temporary_UI.png`)
 
@@ -1272,7 +1272,7 @@ git commit -m "feat(web): add count-up and reveal-on-scroll composables"
 - Create: `apps/web/app/components/landing/ui/LandingMetric.vue`
 - Create: `apps/web/app/components/landing/ui/LandingSection.test.ts`
 - Create: `apps/web/app/components/landing/ui/LandingProgress.test.ts`
-- Modify: `apps/web/package.json` (зависимость `lucide-vue-next`)
+- Modify: `apps/web/package.json` (зависимость `@lucide/vue`)
 
 **Interfaces:**
 - Consumes: токены Task 1.
@@ -1285,8 +1285,8 @@ git commit -m "feat(web): add count-up and reveal-on-scroll composables"
 
 - [ ] **Step 1: Установить библиотеку иконок**
 
-Run: `pnpm --filter @harmofin/web add lucide-vue-next`
-Иконки импортируются точечно: `import { Menu, X } from 'lucide-vue-next';`.
+Run: `pnpm --filter @harmofin/web add @lucide/vue`
+Иконки импортируются точечно: `import { Menu, X } from '@lucide/vue';`.
 
 - [ ] **Step 2: Write the failing tests**
 
@@ -1516,7 +1516,7 @@ withDefaults(defineProps<{ title?: string | undefined }>(), { title: undefined }
 </style>
 ```
 
-`LandingCallout.vue` — блок с брендовой подложкой, иконкой `ArrowRight` из `lucide-vue-next` (`aria-hidden="true"`) и текстом из пропа `text: string`; фон `var(--hf-color-brand-soft)`, текст `var(--hf-color-text)`, радиус `var(--hf-radius-lg)`, отступ `var(--hf-space-5)`.
+`LandingCallout.vue` — блок с брендовой подложкой, иконкой `ArrowRight` из `@lucide/vue` (`aria-hidden="true"`) и текстом из пропа `text: string`; фон `var(--hf-color-brand-soft)`, текст `var(--hf-color-text)`, радиус `var(--hf-radius-lg)`, отступ `var(--hf-space-5)`.
 
 `LandingMetric.vue` — props `label: string`, `value: string`, `caption?: string`; разметка: `<p class="landing-metric__label">`, `<p class="landing-metric__value">`, необязательный `<p class="landing-metric__caption">`; значение — `font-size: var(--hf-font-size-display)`, `font-variant-numeric: tabular-nums`, `letter-spacing: -0.02em`.
 
@@ -1772,7 +1772,7 @@ export const landingSeo = {
 ```vue
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
-import { Menu, X } from 'lucide-vue-next';
+import { Menu, X } from '@lucide/vue';
 
 import UiButton from '../ui/Button.vue';
 import { landingNavLinks } from '../../data/landing.js';
@@ -2137,7 +2137,7 @@ const available = computed(() => formatLandingMoney(heroBudget.availableMinor));
 
 ```vue
 <script setup lang="ts">
-import { Check } from 'lucide-vue-next';
+import { Check } from '@lucide/vue';
 
 import DashboardMockup from '../mockups/DashboardMockup.vue';
 import UiButton from '../../ui/Button.vue';
@@ -2277,7 +2277,7 @@ Expected: FAIL — компонентов нет.
 
 ```vue
 <script setup lang="ts">
-import { Wallet, CalendarClock, PiggyBank } from 'lucide-vue-next';
+import { Wallet, CalendarClock, PiggyBank } from '@lucide/vue';
 
 import LandingCallout from '../ui/LandingCallout.vue';
 import LandingCard from '../ui/LandingCard.vue';
@@ -2685,7 +2685,7 @@ const periods = [
 ```vue
 <script setup lang="ts">
 import { computed } from 'vue';
-import { ArrowDown } from 'lucide-vue-next';
+import { ArrowDown } from '@lucide/vue';
 
 import { formatLandingMoney } from '../format-money.js';
 import { allocationData } from '../../../data/landing.js';
@@ -3024,7 +3024,7 @@ Expected: FAIL — компонента нет.
 ```vue
 <script setup lang="ts">
 import { computed } from 'vue';
-import { TrendingDown, TrendingUp } from 'lucide-vue-next';
+import { TrendingDown, TrendingUp } from '@lucide/vue';
 
 import { formatLandingMoney, formatLandingSignedMoney } from '../format-money.js';
 import { variableIncome } from '../../../data/landing.js';
@@ -3811,7 +3811,7 @@ Expected: FAIL — компонентов нет.
 
 ```vue
 <script setup lang="ts">
-import { Users, Heart, User } from 'lucide-vue-next';
+import { Users, Heart, User } from '@lucide/vue';
 
 import LandingCard from '../ui/LandingCard.vue';
 import LandingSection from '../ui/LandingSection.vue';
@@ -3882,9 +3882,9 @@ const icons = [Users, Heart, User];
 </div>
 ```
 
-Иконки `Check` и `Circle` — из `lucide-vue-next`; статус «сейчас/дальше» передаётся и заголовком колонки, и формой иконки, не только цветом. Сетка: одна колонка до 768px, две — от 768px, `gap: var(--hf-space-6)`; списки без маркеров, элементы — flex с `gap: var(--hf-space-2)`; `.roadmap__item` — `color: var(--hf-color-text)`, иконка `color: var(--hf-color-brand)`; `.roadmap__item--next` — иконка `color: var(--hf-color-text-muted)`.
+Иконки `Check` и `Circle` — из `@lucide/vue`; статус «сейчас/дальше» передаётся и заголовком колонки, и формой иконки, не только цветом. Сетка: одна колонка до 768px, две — от 768px, `gap: var(--hf-space-6)`; списки без маркеров, элементы — flex с `gap: var(--hf-space-2)`; `.roadmap__item` — `color: var(--hf-color-text)`, иконка `color: var(--hf-color-brand)`; `.roadmap__item--next` — иконка `color: var(--hf-color-text-muted)`.
 
-`SecuritySection.vue` — `LandingSection` с `section-id="security"`, `eyebrow="Безопасность"`, `title="Ваши финансовые данные — только ваши."`, тело — сетка из трёх `LandingCard` по `securityCards` с иконками `ShieldCheck`, `Lock`, `History` из `lucide-vue-next` (три колонки от 768px).
+`SecuritySection.vue` — `LandingSection` с `section-id="security"`, `eyebrow="Безопасность"`, `title="Ваши финансовые данные — только ваши."`, тело — сетка из трёх `LandingCard` по `securityCards` с иконками `ShieldCheck`, `Lock`, `History` из `@lucide/vue` (три колонки от 768px).
 
 - [ ] **Step 5: Подключить секции и запустить тесты**
 
@@ -3986,7 +3986,7 @@ Expected: FAIL — компонента нет.
 ```vue
 <script setup lang="ts">
 import { ref } from 'vue';
-import { ChevronDown } from 'lucide-vue-next';
+import { ChevronDown } from '@lucide/vue';
 
 import LandingSection from '../ui/LandingSection.vue';
 import { faqItems } from '../../../data/landing.js';
