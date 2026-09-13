@@ -12,9 +12,7 @@
   --hf-color-primary-strong-hover: #1a5fb8;
   --hf-color-danger-strong: #dc2626;
   --hf-color-danger-strong-hover: #b91c1c;
-  --hf-color-danger-bright: #ef4444;
   --hf-color-danger-soft: #fef2f2;
-  --hf-color-warning-bright: #f59e0b;
   --hf-color-warning-soft: #fffbeb;
   --hf-color-slate-900: #0f172a;
   --hf-color-slate-500: #64748b;
@@ -78,24 +76,24 @@
   --hf-sidebar-width: 16rem;
 
   /* semantic roles */
-  --hf-color-page-background: var(--hf-color-slate-50);
-  --hf-color-surface: var(--hf-color-white);
+  --hf-color-page-background: #f8fafc;
+  --hf-color-surface: #ffffff;
   --hf-color-surface-subtle: var(--hf-color-slate-50);
-  --hf-color-text: var(--hf-color-slate-900);
-  --hf-color-text-muted: var(--hf-color-slate-500);
+  --hf-color-text: #0f172a;
+  --hf-color-text-muted: #64748b;
   --hf-color-text-subtle: var(--hf-color-slate-500);
-  --hf-color-border: var(--hf-color-slate-200);
+  --hf-color-border: #e2e8f0;
   --hf-color-border-strong: #94a3b8;
   --hf-color-focus-ring: var(--hf-color-primary-strong);
   --hf-color-focus-halo: var(--hf-color-white);
   --hf-focus-indicator: 0 0 0 2px var(--hf-color-focus-halo), 0 0 0 5px var(--hf-color-focus-ring);
-  --hf-color-action-primary: var(--hf-color-primary-strong);
+  --hf-color-action-primary: #1d6fd6;
   --hf-color-action-primary-hover: var(--hf-color-primary-strong-hover);
   --hf-color-action-primary-active: #174f99;
   --hf-color-action-brand: var(--hf-color-brand);
   --hf-color-action-brand-hover: var(--hf-color-brand-hover);
   --hf-color-action-brand-active: var(--hf-color-brand-active);
-  --hf-color-action-danger: var(--hf-color-danger-strong);
+  --hf-color-action-danger: #dc2626;
   --hf-color-action-danger-hover: var(--hf-color-danger-strong-hover);
   --hf-color-action-secondary-hover: var(--hf-color-slate-50);
   --hf-color-status-neutral: var(--hf-color-slate-500);
@@ -106,10 +104,10 @@
   --hf-color-status-success-background: var(--hf-color-brand-soft);
   --hf-color-status-warning: #92400e;
   --hf-color-status-warning-background: var(--hf-color-warning-soft);
-  --hf-color-status-warning-bright: var(--hf-color-warning-bright);
+  --hf-color-status-warning-bright: #f59e0b;
   --hf-color-status-danger: var(--hf-color-danger-strong);
   --hf-color-status-danger-background: var(--hf-color-danger-soft);
-  --hf-color-status-danger-bright: var(--hf-color-danger-bright);
+  --hf-color-status-danger-bright: #ef4444;
   --hf-color-text-danger: var(--hf-color-danger-strong);
   --hf-color-border-danger: var(--hf-color-danger-strong);
   --hf-color-overlay: rgb(15 23 42 / 48%);
@@ -136,22 +134,4 @@
     --hf-control-height-md: 2.5rem;
     --hf-control-height-lg: 2.75rem;
   }
-}
-
-:root {
-  --hf-color-brand: #0a7f60;
-  --hf-color-brand-hover: #086b51;
-  --hf-color-brand-bright: #10b991;
-  --hf-color-brand-soft: #e7f7f2;
-  --hf-color-action-primary: #1d6fd6;
-  --hf-color-primary-bright: #4f9cf9;
-  --hf-color-primary-soft: #e6f2ff;
-  --hf-color-action-danger: #dc2626;
-  --hf-color-status-danger-bright: #ef4444;
-  --hf-color-status-warning-bright: #f59e0b;
-  --hf-color-text: #0f172a;
-  --hf-color-text-muted: #64748b;
-  --hf-color-border: #e2e8f0;
-  --hf-color-page-background: #f8fafc;
-  --hf-color-surface: #ffffff;
 }
