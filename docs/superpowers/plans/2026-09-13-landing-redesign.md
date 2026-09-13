@@ -891,7 +891,7 @@ import { describe, expect, it } from 'vitest';
 
 import { formatLandingMoney, formatLandingSignedMoney } from './format-money.js';
 
-const normalize = (value: string): string => value.replace(/[  ]/g, ' ');
+const normalize = (value: string): string => value.replace(/[\u00A0\u202F ]/g, ' ');
 
 describe('formatLandingMoney', () => {
   it('formats minor units as whole roubles', () => {
@@ -1332,7 +1332,7 @@ import { describe, expect, it } from 'vitest';
 
 import LandingProgress from './LandingProgress.vue';
 
-const normalize = (value: string): string => value.replace(/[  ]/g, ' ');
+const normalize = (value: string): string => value.replace(/[\u00A0\u202F ]/g, ' ');
 
 describe('LandingProgress', () => {
   it('exposes progress to assistive technology and shows both amounts as text', () => {
@@ -1979,7 +1979,7 @@ import { describe, expect, it } from 'vitest';
 
 import DashboardMockup from './DashboardMockup.vue';
 
-const normalize = (value: string): string => value.replace(/[  ]/g, ' ');
+const normalize = (value: string): string => value.replace(/[\u00A0\u202F ]/g, ' ');
 
 describe('DashboardMockup', () => {
   it('shows the available amount, the period frame and every envelope', () => {
@@ -2399,7 +2399,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import AvailableCard from './AvailableCard.vue';
 
-const normalize = (value: string): string => value.replace(/[  ]/g, ' ');
+const normalize = (value: string): string => value.replace(/[\u00A0\u202F ]/g, ' ');
 
 beforeEach(() => {
   window.matchMedia = ((query: string) => ({
@@ -2614,7 +2614,7 @@ import { describe, expect, it } from 'vitest';
 
 import AllocationFlow from './AllocationFlow.vue';
 
-const normalize = (value: string): string => value.replace(/[  ]/g, ' ');
+const normalize = (value: string): string => value.replace(/[\u00A0\u202F ]/g, ' ');
 
 describe('AllocationFlow', () => {
   it('shows the income and every allocation it feeds', () => {
@@ -2790,7 +2790,7 @@ import { describe, expect, it } from 'vitest';
 
 import GoalsGrid from './GoalsGrid.vue';
 
-const normalize = (value: string): string => value.replace(/[  ]/g, ' ');
+const normalize = (value: string): string => value.replace(/[\u00A0\u202F ]/g, ' ');
 
 describe('GoalsGrid', () => {
   it('shows each goal with its progress exposed to assistive technology', () => {
@@ -2817,7 +2817,7 @@ import { describe, expect, it } from 'vitest';
 
 import PlansList from './PlansList.vue';
 
-const normalize = (value: string): string => value.replace(/[  ]/g, ' ');
+const normalize = (value: string): string => value.replace(/[\u00A0\u202F ]/g, ' ');
 
 describe('PlansList', () => {
   it('lists upcoming obligations with dates and amounts', () => {
@@ -2988,7 +2988,7 @@ import { describe, expect, it } from 'vitest';
 
 import IncomeComparison from './IncomeComparison.vue';
 
-const normalize = (value: string): string => value.replace(/[  ]/g, ' ');
+const normalize = (value: string): string => value.replace(/[\u00A0\u202F ]/g, ' ');
 
 describe('IncomeComparison', () => {
   it('compares planned and actual income for both cases', () => {
@@ -3193,7 +3193,7 @@ import { describe, expect, it } from 'vitest';
 
 import PlanVsFactBars from './PlanVsFactBars.vue';
 
-const normalize = (value: string): string => value.replace(/[  ]/g, ' ');
+const normalize = (value: string): string => value.replace(/[\u00A0\u202F ]/g, ' ');
 
 describe('PlanVsFactBars', () => {
   it('shows a plan bar and a fact bar for every group', () => {
@@ -3584,7 +3584,7 @@ import { describe, expect, it } from 'vitest';
 
 import StepStrip from './StepStrip.vue';
 
-const normalize = (value: string): string => value.replace(/[  ]/g, ' ');
+const normalize = (value: string): string => value.replace(/[\u00A0\u202F ]/g, ' ');
 
 describe('StepStrip', () => {
   it('renders five ordered steps in the order from the brief', () => {
