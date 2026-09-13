@@ -17,6 +17,13 @@ export default defineConfig({
   testDir: '.',
   testMatch: '*.spec.ts',
   timeout: 30_000,
+  // These specs share one dev server, one database, and one IP-rate-limited API
+  // process — registration's real Argon2id hashing and the auth-recovery rate
+  // limiter both serialize badly under concurrent workers, causing sporadic
+  // timeouts that don't reproduce serially. Force a single worker everywhere
+  // instead of relying on Playwright's core-count default, which only happened
+  // to land on 1 in CI because that runner has 2 cores.
+  workers: 1,
   use: {
     baseURL: 'http://localhost:3000',
     browserName: 'chromium',
