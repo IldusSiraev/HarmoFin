@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useRevealOnScroll } from '../../../composables/useRevealOnScroll.js';
+
 defineOptions({ name: 'LandingSection' });
 
 withDefaults(
@@ -11,6 +13,8 @@ withDefaults(
   }>(),
   { eyebrow: undefined, description: undefined, tone: 'default' },
 );
+
+const { target, revealed } = useRevealOnScroll();
 </script>
 
 <template>
@@ -20,7 +24,7 @@ withDefaults(
     :class="`landing-section--${tone}`"
     :aria-labelledby="`${sectionId}-title`"
   >
-    <div class="landing-section__inner">
+    <div ref="target" class="landing-section__inner" :class="{ 'is-revealed': revealed }">
       <header class="landing-section__header">
         <p v-if="eyebrow" class="landing-section__eyebrow">{{ eyebrow }}</p>
         <h2 :id="`${sectionId}-title`" class="landing-section__title">{{ title }}</h2>
@@ -52,6 +56,16 @@ withDefaults(
   gap: var(--hf-space-8);
   max-width: var(--hf-container-max);
   margin: 0 auto;
+  opacity: 0;
+  transform: translateY(12px) scale(0.98);
+  transition:
+    opacity 400ms ease-out,
+    transform 400ms ease-out;
+}
+
+.landing-section__inner.is-revealed {
+  opacity: 1;
+  transform: none;
 }
 
 .landing-section__header {

@@ -26,4 +26,50 @@ describe('LandingSection', () => {
 
     expect(wrapper.find('.landing-section__description').exists()).toBe(false);
   });
+
+  it('reveals itself immediately when IntersectionObserver is unavailable', async () => {
+    Reflect.deleteProperty(window, 'IntersectionObserver');
+    const wrapper = mount(LandingSection, {
+      props: { sectionId: 'goals', title: 'Цели' },
+      attachTo: document.body,
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('.landing-section__inner').classes()).toContain('is-revealed');
+  });
+
+  it('stays hidden until the observer reports an intersection', async () => {
+    const callbacks: ((entries: { isIntersecting: boolean }[]) => void)[] = [];
+    class TestObserver {
+      constructor(callback: (entries: { isIntersecting: boolean }[]) => void) {
+        callbacks.push(callback);
+      }
+      observe(): void {}
+      disconnect(): void {}
+    }
+    window.IntersectionObserver = TestObserver as unknown as typeof window.IntersectionObserver;
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+      addListener: () => {},
+      removeListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+
+    const wrapper = mount(LandingSection, {
+      props: { sectionId: 'plans', title: 'Планы' },
+      attachTo: document.body,
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('.landing-section__inner').classes()).not.toContain('is-revealed');
+
+    callbacks[0]?.([{ isIntersecting: true }]);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('.landing-section__inner').classes()).toContain('is-revealed');
+  });
 });
