@@ -9,6 +9,7 @@ import AudienceSection from '../components/landing/sections/AudienceSection.vue'
 import AvailableToSpendSection from '../components/landing/sections/AvailableToSpendSection.vue';
 import ConceptSection from '../components/landing/sections/ConceptSection.vue';
 import FaqSection from '../components/landing/sections/FaqSection.vue';
+import FinalCtaSection from '../components/landing/sections/FinalCtaSection.vue';
 import HowItWorksSection from '../components/landing/sections/HowItWorksSection.vue';
 import FinancialCycleSection from '../components/landing/sections/FinancialCycleSection.vue';
 import GoalsSection from '../components/landing/sections/GoalsSection.vue';
@@ -51,6 +52,7 @@ if (isAuthenticated.value) {
       <RoadmapSection />
       <SecuritySection />
       <FaqSection />
+      <FinalCtaSection />
     </main>
     <LandingFooter />
   </div>
