@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { navigateTo } from '#imports';
+import { navigateTo, useSeoMeta } from '#imports';
 
-import FinalCTA from '../components/landing/FinalCTA.vue';
-import FeaturesGrid from '../components/landing/FeaturesGrid.vue';
-import HeroSection from '../components/landing/HeroSection.vue';
-import ShowcaseSection from '../components/landing/ShowcaseSection.vue';
+import LandingFooter from '../components/landing/LandingFooter.vue';
+import LandingHeader from '../components/landing/LandingHeader.vue';
+import { landingSeo } from '../data/landing-seo.js';
 import { useAuth } from '../composables/useAuth.js';
 
 const { currentData } = useAuth();
 const isAuthenticated = computed(() => !!currentData.value?.user);
+
+useSeoMeta(landingSeo);
 
 if (isAuthenticated.value) {
   await navigateTo('/app');
@@ -17,17 +18,19 @@ if (isAuthenticated.value) {
 </script>
 
 <template>
-  <main v-if="!isAuthenticated" class="landing">
-    <HeroSection />
-    <FeaturesGrid />
-    <ShowcaseSection />
-    <FinalCTA />
-  </main>
+  <div v-if="!isAuthenticated" class="landing">
+    <LandingHeader />
+    <main class="landing__main">
+      <!-- секции добавляются в задачах 8–17 -->
+    </main>
+    <LandingFooter />
+  </div>
 </template>
 
 <style scoped>
 .landing {
   min-height: 100vh;
-  background: var(--hf-color-page-background);
+  background: var(--hf-color-surface);
+  color: var(--hf-color-text);
 }
 </style>
