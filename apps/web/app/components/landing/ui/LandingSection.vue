@@ -14,7 +14,7 @@ withDefaults(
   { eyebrow: undefined, description: undefined, tone: 'default' },
 );
 
-const { target, revealed } = useRevealOnScroll();
+const { target, revealed, animating } = useRevealOnScroll();
 </script>
 
 <template>
@@ -24,7 +24,11 @@ const { target, revealed } = useRevealOnScroll();
     :class="`landing-section--${tone}`"
     :aria-labelledby="`${sectionId}-title`"
   >
-    <div ref="target" class="landing-section__inner" :class="{ 'is-revealed': revealed }">
+    <div
+      ref="target"
+      class="landing-section__inner"
+      :class="{ 'is-reveal-ready': animating, 'is-revealed': revealed }"
+    >
       <header class="landing-section__header">
         <p v-if="eyebrow" class="landing-section__eyebrow">{{ eyebrow }}</p>
         <h2 :id="`${sectionId}-title`" class="landing-section__title">{{ title }}</h2>
@@ -56,6 +60,9 @@ const { target, revealed } = useRevealOnScroll();
   gap: var(--hf-space-8);
   max-width: var(--hf-container-max);
   margin: 0 auto;
+}
+
+.landing-section__inner.is-reveal-ready {
   opacity: 0;
   transform: translateY(12px) scale(0.98);
   transition:
@@ -63,7 +70,7 @@ const { target, revealed } = useRevealOnScroll();
     transform 400ms ease-out;
 }
 
-.landing-section__inner.is-revealed {
+.landing-section__inner.is-reveal-ready.is-revealed {
   opacity: 1;
   transform: none;
 }

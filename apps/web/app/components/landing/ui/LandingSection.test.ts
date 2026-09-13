@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import LandingSection from './LandingSection.vue';
 
@@ -71,5 +71,54 @@ describe('LandingSection', () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.get('.landing-section__inner').classes()).toContain('is-revealed');
+  });
+
+  it('never marks the inner container as reveal-ready when no observer is created', async () => {
+    Reflect.deleteProperty(window, 'IntersectionObserver');
+    const wrapper = mount(LandingSection, {
+      props: { sectionId: 'goals', title: 'Цели' },
+      attachTo: document.body,
+    });
+    await wrapper.vm.$nextTick();
+
+    const classes = wrapper.get('.landing-section__inner').classes();
+    expect(classes).not.toContain('is-reveal-ready');
+    expect(classes).toContain('is-revealed');
+  });
+
+  it('becomes visible via the fallback timer when the observer never fires', async () => {
+    vi.useFakeTimers();
+    try {
+      class TestObserver {
+        observe(): void {}
+        disconnect(): void {}
+      }
+      window.IntersectionObserver = TestObserver as unknown as typeof window.IntersectionObserver;
+      window.matchMedia = ((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+        addListener: () => {},
+        removeListener: () => {},
+      })) as unknown as typeof window.matchMedia;
+
+      const wrapper = mount(LandingSection, {
+        props: { sectionId: 'income', title: 'Доходы' },
+        attachTo: document.body,
+      });
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.get('.landing-section__inner').classes()).not.toContain('is-revealed');
+
+      vi.advanceTimersByTime(2000);
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.get('.landing-section__inner').classes()).toContain('is-revealed');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
