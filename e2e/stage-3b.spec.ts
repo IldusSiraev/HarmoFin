@@ -37,10 +37,13 @@ test('owner edits, resolves allocation deletion, restores operation, and sees au
   await page.getByRole('dialog').getByRole('button', { name: 'Подтвердить', exact: true }).click();
   await expect(page.getByText('Данные обновлены на сервере.')).toBeVisible();
 
+  await page.getByRole('button', { name: 'Фильтры' }).click();
   await page.getByLabel('Статус').selectOption('DELETED');
   await expect(page.getByText('Удалена', { exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Восстановить' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Подтвердить', exact: true }).click();
+  await page.getByRole('button', { name: 'Фильтры' }).click();
   await page.getByLabel('Статус').selectOption('');
   await expect(page.getByText('Подтверждена', { exact: true })).toBeVisible();
 });
@@ -72,6 +75,7 @@ test('journal filters, sort, reset, direct links, and dashboard use server data'
     .getByRole('link', { name: 'Операции счёта' })
     .click();
   await expect(page).toHaveURL(/\/app\/operations\?accountId=/);
+  await page.getByRole('button', { name: 'Фильтры' }).click();
   await expect(page.getByLabel('Счёт в журнале')).toHaveValue(/.+/);
 
   await page.goto('/app/envelopes');
@@ -81,7 +85,9 @@ test('journal filters, sort, reset, direct links, and dashboard use server data'
     .getByRole('link', { name: 'Операции конверта' })
     .click();
   await expect(page).toHaveURL(/\/app\/operations\?envelopeId=/);
+  await page.getByRole('button', { name: 'Фильтры' }).click();
   await expect(page.getByLabel('Конверт в журнале')).toHaveValue(/.+/);
+  await page.keyboard.press('Escape');
 
   await page.getByLabel('Поиск').fill('Супермаркет Stage 3b');
   await expect(page.getByText('Супермаркет Stage 3b')).toBeVisible();
@@ -92,6 +98,7 @@ test('journal filters, sort, reset, direct links, and dashboard use server data'
   await expect(page).toHaveURL(/sortBy=amount/);
   await page.getByRole('button', { name: 'Сортировать по сумме' }).click();
   await expect(page).toHaveURL(/sortBy=amount.*sortDirection=asc/);
+  await page.getByRole('button', { name: 'Фильтры' }).click();
   await page.getByRole('button', { name: 'Сбросить фильтры' }).click();
   await expect(page).toHaveURL(/\/app\/operations$/);
 });

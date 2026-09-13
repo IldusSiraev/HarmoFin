@@ -22,6 +22,7 @@ test('owner accepts generic income allocation and logically deletes confirmed in
   await page.getByRole('button', { name: 'Удалить' }).click();
   await page.getByRole('button', { name: 'Подтвердить', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Подтвердить', exact: true }).click();
+  await page.getByRole('button', { name: 'Фильтры' }).click();
   await page.getByLabel('Статус').selectOption('DELETED');
   await expect(page.getByText('Удалена', { exact: true })).toBeVisible();
 });
@@ -105,6 +106,9 @@ test('owner sees financial validation and server-confirmed expense lifecycle', a
   await page.getByLabel('Сумма').fill('1.234');
   await page.getByRole('button', { name: 'Создать черновик' }).click();
   await expect(page.getByLabel('Сумма')).toHaveAttribute('aria-invalid', 'true');
+
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toBeHidden();
 
   await createExpense(page, '100,00', 'CONFIRMED');
   await page.goto('/app/accounts');
