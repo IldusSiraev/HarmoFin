@@ -40,29 +40,32 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
 </script>
 
 <template>
-  <component
-    :is="to ? 'NuxtLink' : 'button'"
-    v-bind="$attrs"
-    class="ui-button"
-    :class="[`ui-button--${variant}`, `ui-button--${size}`, { 'ui-button--full-width': fullWidth }]"
-    :to="to"
-    :type="to ? undefined : type"
-    :disabled="to ? undefined : disabled || loading"
-    :aria-busy="loading || undefined"
-    :aria-label="ariaLabel"
-    @click="handleClick($event, loading, disabled)"
+  <UiTooltip
+    v-slot="{ describedby }"
+    :text="tooltip"
+    :class="tooltip ? { 'ui-tooltip--full-width': fullWidth } : {}"
   >
-    <UiTooltip
-      v-slot="{ describedby }"
-      :text="tooltip"
-      :class="tooltip ? { 'ui-tooltip--full-width': fullWidth } : {}"
+    <component
+      :is="to ? 'NuxtLink' : 'button'"
+      v-bind="$attrs"
+      class="ui-button"
+      :class="[
+        `ui-button--${variant}`,
+        `ui-button--${size}`,
+        { 'ui-button--full-width': fullWidth },
+      ]"
+      :to="to"
+      :type="to ? undefined : type"
+      :disabled="to ? undefined : disabled || loading"
+      :aria-busy="loading || undefined"
+      :aria-label="ariaLabel"
+      :aria-describedby="describedby"
+      @click="handleClick($event, loading, disabled)"
     >
-      <div class="ui-button-inner" :aria-describedby="describedby">
-        <span v-if="loading" class="ui-button__loader" aria-hidden="true" />
-        <span class="ui-button__content"><slot /></span>
-      </div>
-    </UiTooltip>
-  </component>
+      <span v-if="loading" class="ui-button__loader" aria-hidden="true" />
+      <span class="ui-button__content"><slot /></span>
+    </component>
+  </UiTooltip>
 </template>
 
 <style scoped>
@@ -155,13 +158,6 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
 
 .ui-button:disabled {
   opacity: 0.6;
-}
-
-.ui-button-inner {
-  display: inherit;
-  align-items: inherit;
-  justify-content: inherit;
-  gap: inherit;
 }
 
 .ui-button__loader {
