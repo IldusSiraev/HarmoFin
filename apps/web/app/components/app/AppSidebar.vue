@@ -159,11 +159,13 @@ async function handleLogout() {
   align-items: center;
   justify-content: space-between;
   gap: var(--hf-space-2);
+  min-width: 0;
   padding: 0 var(--hf-space-3);
 }
 
 .app-sidebar__email {
   overflow: hidden;
+  min-width: 0;
   color: var(--hf-color-text-muted);
   font-size: 0.875rem;
   text-overflow: ellipsis;
@@ -171,6 +173,7 @@ async function handleLogout() {
 }
 
 .app-sidebar__logout {
+  flex-shrink: 0;
   padding: 0;
   border: none;
   background: none;

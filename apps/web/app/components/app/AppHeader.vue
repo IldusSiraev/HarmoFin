@@ -65,6 +65,7 @@ function closeMobileMenu() {
 }
 
 .app-header__user {
+  min-width: 0;
   margin-left: auto;
 }
 

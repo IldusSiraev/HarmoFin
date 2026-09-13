@@ -76,12 +76,15 @@ async function handleLogout() {
 <style scoped>
 .user-menu {
   position: relative;
+  min-width: 0;
 }
 
 .user-menu__button {
   display: flex;
   align-items: center;
   gap: var(--hf-space-2);
+  min-width: 0;
+  max-width: 100%;
   min-height: 44px;
   padding: var(--hf-space-2) var(--hf-space-3);
   color: var(--hf-color-text);
@@ -103,7 +106,12 @@ async function handleLogout() {
 }
 
 .user-menu__email {
+  overflow: hidden;
+  min-width: 0;
+  max-width: 12rem;
   font-weight: var(--hf-font-weight-medium);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .user-menu__chevron {

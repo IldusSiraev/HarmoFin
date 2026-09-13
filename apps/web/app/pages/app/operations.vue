@@ -68,6 +68,7 @@ const rejectedProposalIds = ref<Set<string>>(new Set());
 const formOpen = ref(false);
 const form = ref<OperationFormModel>(createOperationForm());
 const selectedTransaction = ref<TransactionDto | null>(null);
+const preloadedDraftId = ref<string | null>(null);
 const detailsTransaction = ref<TransactionDto | null>(null);
 const allocations = ref<IncomeAllocationDto[]>([]);
 const auditEvents = ref<AuditEventDto[]>([]);
@@ -149,6 +150,11 @@ async function preloadDraft() {
   if (!budget.value || selectedTransaction.value || formOpen.value) return;
   const draftId = typeof route.query.draftId === 'string' ? route.query.draftId : null;
   if (!draftId || !isUuid(draftId)) return;
+  // The draftId query param stays in the URL for deep-linking, but we only want to
+  // auto-open the edit modal for it once per visit — otherwise closing the modal
+  // (e.g. after saving changes, which reloads the list) would immediately reopen it.
+  if (preloadedDraftId.value === draftId) return;
+  preloadedDraftId.value = draftId;
   try {
     const draft = await api.getTransaction(budget.value.id, draftId);
     if (draft.status !== 'DRAFT') return;
