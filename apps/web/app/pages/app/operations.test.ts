@@ -9,6 +9,7 @@ const api = {
   listCategories: vi.fn(),
   listEnvelopes: vi.fn(),
   createTransaction: vi.fn(),
+  updateTransaction: vi.fn(),
   confirmTransaction: vi.fn(),
   cancelTransaction: vi.fn(),
   deleteTransaction: vi.fn(),
@@ -182,6 +183,64 @@ describe('operations page', () => {
     expect(document.body.textContent).toContain('Сохранить изменения');
     const amountInput = document.querySelector('input[name="amount"]') as HTMLInputElement;
     expect(amountInput?.value).toBe('100.00');
+  });
+
+  it('does not reopen the draft editor after saving it once (post-save reload)', async () => {
+    routeQuery.draftId = '00000000-0000-4000-8000-000000000001';
+    api.getTransaction.mockResolvedValue({
+      id: '00000000-0000-4000-8000-000000000001',
+      budgetId: 'budget-id',
+      transactionType: 'INCOME',
+      status: 'DRAFT',
+      amountMinor: '10000',
+      currency: 'RUB',
+      scale: 2,
+      occurredOn: '2026-09-10',
+      accountId: 'account-id',
+      categoryId: 'category-id',
+      envelopeId: null,
+      sourceDescription: 'Доход по плану',
+      merchantName: null,
+      isPlanned: true,
+      comment: null,
+      confirmedAt: null,
+      cancelledAt: null,
+      deletedAt: null,
+      accountCurrentBalanceMinor: '0',
+      envelopeCurrentBalanceMinor: null,
+      unallocatedMinor: '10000',
+      allocationProposal: null,
+    });
+    api.updateTransaction.mockResolvedValue(undefined);
+    mountPage();
+    await flushPromises();
+
+    expect(api.getTransaction).toHaveBeenCalledTimes(1);
+    expect(document.body.textContent).toContain('Сохранить изменения');
+
+    const amountInput = document.querySelector('input[name="amount"]') as HTMLInputElement;
+    amountInput.value = '150.00';
+    amountInput.dispatchEvent(new Event('input', { bubbles: true }));
+    amountInput.dispatchEvent(new Event('change', { bubbles: true }));
+    await flushPromises();
+
+    const form = document.querySelector('.operation-form') as HTMLFormElement;
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flushPromises();
+
+    const confirmButton = wrapper!
+      .findAll('button')
+      .find((button) => button.text() === 'Подтвердить');
+    await confirmButton!.trigger('click');
+    await flushPromises();
+
+    expect(api.updateTransaction).toHaveBeenCalledTimes(1);
+    // runConfirmation()'s 'update' branch clears formOpen AND selectedTransaction, then
+    // reloads. draftId is still in the URL and the (mocked) transaction is still DRAFT,
+    // so without the preloadedDraftId guard this reload would reopen the same edit
+    // modal in a loop.
+    expect(api.getTransaction).toHaveBeenCalledTimes(1);
+    expect(document.body.textContent).not.toContain('Сохранить изменения');
   });
 
   it('shows API money validation beside operation amount', async () => {
