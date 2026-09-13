@@ -4,6 +4,7 @@ import { navigateTo, useSeoMeta } from '#imports';
 
 import LandingFooter from '../components/landing/LandingFooter.vue';
 import LandingHeader from '../components/landing/LandingHeader.vue';
+import AnalyticsSection from '../components/landing/sections/AnalyticsSection.vue';
 import AvailableToSpendSection from '../components/landing/sections/AvailableToSpendSection.vue';
 import ConceptSection from '../components/landing/sections/ConceptSection.vue';
 import FinancialCycleSection from '../components/landing/sections/FinancialCycleSection.vue';
@@ -39,6 +40,7 @@ if (isAuthenticated.value) {
       <GoalsSection />
       <PlansSection />
       <VariableIncomeSection />
+      <AnalyticsSection />
     </main>
     <LandingFooter />
   </div>
