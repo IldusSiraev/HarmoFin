@@ -4,6 +4,7 @@ import { navigateTo, useSeoMeta } from '#imports';
 
 import LandingFooter from '../components/landing/LandingFooter.vue';
 import LandingHeader from '../components/landing/LandingHeader.vue';
+import HeroSection from '../components/landing/sections/HeroSection.vue';
 import { landingSeo } from '../data/landing-seo.js';
 import { useAuth } from '../composables/useAuth.js';
 
@@ -21,7 +22,7 @@ if (isAuthenticated.value) {
   <div v-if="!isAuthenticated" class="landing">
     <LandingHeader />
     <main class="landing__main">
-      <!-- секции добавляются в задачах 8–17 -->
+      <HeroSection />
     </main>
     <LandingFooter />
   </div>
