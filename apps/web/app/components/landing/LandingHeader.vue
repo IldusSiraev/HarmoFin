@@ -98,7 +98,7 @@ onBeforeUnmount(() => {
 }
 
 .landing-header--scrolled {
-  background: rgb(255 255 255 / 82%);
+  background: var(--hf-color-surface-translucent);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--hf-color-border);
 }

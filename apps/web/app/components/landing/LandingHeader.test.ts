@@ -56,4 +56,18 @@ describe('LandingHeader', () => {
       'false',
     );
   });
+
+  it('closes the mobile menu when Escape is pressed', async () => {
+    const wrapper = mountHeader();
+    await wrapper.get('[data-testid="landing-menu-toggle"]').trigger('click');
+    expect(wrapper.get('#landing-mobile-menu').isVisible()).toBe(true);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-testid="landing-menu-toggle"]').attributes('aria-expanded')).toBe(
+      'false',
+    );
+    expect(wrapper.find('#landing-mobile-menu').exists()).toBe(false);
+  });
 });

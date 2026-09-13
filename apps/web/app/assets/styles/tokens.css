@@ -79,6 +79,7 @@
   --hf-color-page-background: #f8fafc;
   --hf-color-surface: #ffffff;
   --hf-color-surface-subtle: var(--hf-color-slate-50);
+  --hf-color-surface-translucent: rgb(255 255 255 / 82%);
   --hf-color-text: #0f172a;
   --hf-color-text-muted: #64748b;
   --hf-color-text-subtle: var(--hf-color-slate-500);
