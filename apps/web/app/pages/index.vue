@@ -4,7 +4,9 @@ import { navigateTo, useSeoMeta } from '#imports';
 
 import LandingFooter from '../components/landing/LandingFooter.vue';
 import LandingHeader from '../components/landing/LandingHeader.vue';
+import ConceptSection from '../components/landing/sections/ConceptSection.vue';
 import HeroSection from '../components/landing/sections/HeroSection.vue';
+import ProblemSection from '../components/landing/sections/ProblemSection.vue';
 import { landingSeo } from '../data/landing-seo.js';
 import { useAuth } from '../composables/useAuth.js';
 
@@ -23,6 +25,8 @@ if (isAuthenticated.value) {
     <LandingHeader />
     <main class="landing__main">
       <HeroSection />
+      <ProblemSection />
+      <ConceptSection />
     </main>
     <LandingFooter />
   </div>
