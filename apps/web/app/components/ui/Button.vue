@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { NuxtLink } from '#components';
+
 import UiTooltip from './Tooltip.vue';
 
 defineOptions({ name: 'UiButton', inheritAttrs: false });
@@ -46,7 +48,7 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
     :class="tooltip ? { 'ui-tooltip--full-width': fullWidth } : {}"
   >
     <component
-      :is="to ? 'NuxtLink' : 'button'"
+      :is="to ? NuxtLink : 'button'"
       v-bind="$attrs"
       class="ui-button"
       :class="[

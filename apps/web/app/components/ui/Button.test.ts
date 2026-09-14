@@ -105,6 +105,20 @@ describe('UiButton', () => {
     expect(link.text()).toBe('Начать бесплатно');
   });
 
+  it('resolves the link component itself, without a test-supplied stub', () => {
+    // Guards the regression where `:is="'NuxtLink'"` rendered an unresolved
+    // <nuxtlink> element in the browser: nothing navigated, yet every test that
+    // supplied its own stub still passed.
+    const wrapper = mount(UiButton, {
+      props: { to: '/register' },
+      slots: { default: 'Начать бесплатно' },
+    });
+
+    const link = wrapper.get('a');
+    expect(link.attributes('href')).toBe('/register');
+    expect(wrapper.html()).not.toContain('<nuxtlink');
+  });
+
   it('does not emit click when disabled', async () => {
     const wrapper = mount(UiButton, { props: { disabled: true }, slots: { default: 'Ок' } });
 
