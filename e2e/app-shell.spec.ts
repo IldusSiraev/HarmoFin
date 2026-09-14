@@ -7,8 +7,10 @@ test('adds an operation from a page other than the dashboard', async ({ page }) 
   await initializeTemplate(page);
 
   await page.goto('/app/operations');
-  await page.getByTestId('add-menu-trigger').click();
-  await page.getByTestId('add-menu-expense').click();
+  // The shell mounts the menu twice — header and sidebar — and CSS hides one of
+  // them per width, so pick whichever copy this viewport actually shows.
+  await page.getByTestId('add-menu-trigger').filter({ visible: true }).click();
+  await page.getByTestId('add-menu-expense').filter({ visible: true }).click();
 
   await expect(page.getByRole('dialog')).toBeVisible();
 });
