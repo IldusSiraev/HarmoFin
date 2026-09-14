@@ -43,14 +43,25 @@ test.describe('landing page', () => {
   test('operates the FAQ accordion with the keyboard', async ({ page }) => {
     await page.goto('/');
 
+    // The server-rendered markup carries the accordion's buttons before Vue has
+    // hydrated, so a key press sent too early lands on an element with no
+    // listener. `is-reveal-ready` is set by client-side code on mount, which
+    // makes it a reliable "the page is interactive now" signal.
+    // Either class means mount ran: `is-revealed` is what the immediate-reveal
+    // paths (reduced motion, no IntersectionObserver) set instead.
+    await expect(
+      page
+        .locator('.landing-section__inner.is-reveal-ready, .landing-section__inner.is-revealed')
+        .first(),
+    ).toBeAttached();
+
     const question = page.getByRole('button', { name: 'Что такое HarmoFin?' });
-    await question.focus();
-    await page.keyboard.press('Enter');
+    await question.press('Enter');
 
     await expect(question).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByRole('region', { name: 'Что такое HarmoFin?' })).toBeVisible();
 
-    await page.keyboard.press('Enter');
+    await question.press('Enter');
     await expect(question).toHaveAttribute('aria-expanded', 'false');
   });
 
