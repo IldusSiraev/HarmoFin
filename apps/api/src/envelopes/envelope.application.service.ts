@@ -13,6 +13,16 @@ import {
 } from './envelope.repository.js';
 import type { CreateEnvelopeInput, UpdateEnvelopeInput } from './envelope.schemas.js';
 
+// The order the UI shows groups in: the client must not invent it.
+const ENVELOPE_TYPE_ORDER = [
+  'CURRENT_EXPENSES',
+  'MANDATORY_EXPENSES',
+  'SAVINGS_GOAL',
+  'RESERVE',
+  'FREE_MONEY',
+  'CUSTOM',
+] as const;
+
 export interface EnvelopeView {
   id: string;
   budgetId: string;
@@ -38,6 +48,18 @@ export interface EnvelopeView {
   archivedAt: string | null;
 }
 
+export interface EnvelopeSummaryView {
+  currency: 'RUB';
+  scale: 2;
+  totalMinor: string;
+  count: number;
+  byType: Array<{
+    envelopeType: (typeof ENVELOPE_TYPE_ORDER)[number];
+    totalMinor: string;
+    count: number;
+  }>;
+}
+
 @Injectable()
 export class EnvelopeApplicationService {
   constructor(
@@ -55,6 +77,40 @@ export class EnvelopeApplicationService {
     return (await this.repository.list(userId, budgetId, status)).map((envelope) =>
       this.toView(envelope),
     );
+  }
+
+  async summary(
+    userId: string,
+    budgetId: string,
+    status: ReferenceDataStatus,
+  ): Promise<EnvelopeSummaryView> {
+    const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
+    if (!budget) throw resourceNotFound();
+    const envelopes = await this.repository.list(userId, budgetId, status);
+
+    const totals = new Map<string, { totalMinor: bigint; count: number }>();
+    let totalMinor = 0n;
+    for (const envelope of envelopes) {
+      totalMinor += envelope.currentBalanceMinor;
+      const current = totals.get(envelope.envelopeType) ?? { totalMinor: 0n, count: 0 };
+      totals.set(envelope.envelopeType, {
+        totalMinor: current.totalMinor + envelope.currentBalanceMinor,
+        count: current.count + 1,
+      });
+    }
+
+    return {
+      currency: 'RUB',
+      scale: 2,
+      totalMinor: formatMinorUnits(totalMinor),
+      count: envelopes.length,
+      byType: ENVELOPE_TYPE_ORDER.flatMap((envelopeType) => {
+        const group = totals.get(envelopeType);
+        return group === undefined
+          ? []
+          : [{ envelopeType, totalMinor: formatMinorUnits(group.totalMinor), count: group.count }];
+      }),
+    };
   }
 
   async get(userId: string, budgetId: string, envelopeId: string): Promise<EnvelopeView> {

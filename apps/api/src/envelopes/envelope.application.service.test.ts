@@ -65,6 +65,54 @@ describe('EnvelopeApplicationService', () => {
     expect((service.toView(record) as { periodSlot?: string }).periodSlot).toBe('FIRST');
   });
 
+  it('groups envelope balances by type in domain order and skips empty types', async () => {
+    const repository = repositoryDouble();
+    const service = createService(repository);
+    repository.findAccessibleWithRole.mockResolvedValue(ownerBudget());
+    repository.list.mockResolvedValue([
+      envelope({ envelopeType: 'SAVINGS_GOAL', currentBalanceMinor: 500000n }),
+      envelope({ envelopeType: 'CURRENT_EXPENSES', currentBalanceMinor: 210000n }),
+      envelope({ envelopeType: 'CURRENT_EXPENSES', currentBalanceMinor: 100000n }),
+    ]);
+
+    await expect(service.summary(ownerId, budgetId, 'active')).resolves.toEqual({
+      currency: 'RUB',
+      scale: 2,
+      totalMinor: '810000',
+      count: 3,
+      byType: [
+        { envelopeType: 'CURRENT_EXPENSES', totalMinor: '310000', count: 2 },
+        { envelopeType: 'SAVINGS_GOAL', totalMinor: '500000', count: 1 },
+      ],
+    });
+  });
+
+  it('reports zero and an empty breakdown for a budget without envelopes', async () => {
+    const repository = repositoryDouble();
+    const service = createService(repository);
+    repository.findAccessibleWithRole.mockResolvedValue(ownerBudget());
+    repository.list.mockResolvedValue([]);
+
+    await expect(service.summary(ownerId, budgetId, 'archived')).resolves.toEqual({
+      currency: 'RUB',
+      scale: 2,
+      totalMinor: '0',
+      count: 0,
+      byType: [],
+    });
+  });
+
+  it('hides the summary of a budget the user cannot reach', async () => {
+    const repository = repositoryDouble();
+    const service = createService(repository);
+    repository.findAccessibleWithRole.mockResolvedValue(null);
+
+    await expect(service.summary(ownerId, budgetId, 'active')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'RESOURCE_NOT_FOUND' }),
+    });
+    expect(repository.list).not.toHaveBeenCalled();
+  });
+
   function createService(repository: ReturnType<typeof repositoryDouble>) {
     return new EnvelopeApplicationService(
       repository as unknown as EnvelopeRepository,
@@ -75,6 +123,7 @@ describe('EnvelopeApplicationService', () => {
   function repositoryDouble() {
     return {
       findAccessibleWithRole: vi.fn(),
+      list: vi.fn(),
     };
   }
 
