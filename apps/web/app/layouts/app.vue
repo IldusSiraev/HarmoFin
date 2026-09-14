@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppHeader from '../components/app/AppHeader.vue';
 import AppSidebar from '../components/app/AppSidebar.vue';
+import UiToastStack from '../components/ui/ToastStack.vue';
 
 defineOptions({ name: 'AppLayout' });
 </script>
@@ -14,6 +15,8 @@ defineOptions({ name: 'AppLayout' });
         <slot />
       </main>
     </div>
+
+    <UiToastStack />
   </div>
 </template>
 

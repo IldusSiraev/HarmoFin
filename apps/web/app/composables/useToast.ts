@@ -34,17 +34,33 @@ function dismiss(id: string): void {
   items.value = items.value.filter((item) => item.id !== id);
 }
 
-function push(input: ToastInput): string {
-  nextId += 1;
-  const id = `toast-${nextId}`;
-  items.value = [...items.value, { ...input, id }];
+function schedule(id: string, durationMs: number): void {
   timers.set(
     id,
     setTimeout(() => {
       dismiss(id);
-    }, input.durationMs ?? DEFAULT_DURATION_MS),
+    }, durationMs),
   );
+}
+
+function push(input: ToastInput): string {
+  nextId += 1;
+  const id = `toast-${nextId}`;
+  items.value = [...items.value, { ...input, id }];
+  schedule(id, input.durationMs ?? DEFAULT_DURATION_MS);
   return id;
+}
+
+// Pointer or keyboard focus inside a toast stops its countdown so a user
+// reading or reaching for the close button never loses it mid-motion.
+function hold(id: string): void {
+  clearTimer(id);
+}
+
+function release(id: string): void {
+  const item = items.value.find((candidate) => candidate.id === id);
+  if (item === undefined || timers.has(id)) return;
+  schedule(id, item.durationMs ?? DEFAULT_DURATION_MS);
 }
 
 function clear(): void {
@@ -56,7 +72,16 @@ export function useToast(): {
   toasts: Readonly<Ref<ToastItem[]>>;
   push: (input: ToastInput) => string;
   dismiss: (id: string) => void;
+  hold: (id: string) => void;
+  release: (id: string) => void;
   clear: () => void;
 } {
-  return { toasts: readonly(items) as Readonly<Ref<ToastItem[]>>, push, dismiss, clear };
+  return {
+    toasts: readonly(items) as Readonly<Ref<ToastItem[]>>,
+    push,
+    dismiss,
+    hold,
+    release,
+    clear,
+  };
 }

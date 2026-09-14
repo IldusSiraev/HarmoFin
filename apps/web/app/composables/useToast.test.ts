@@ -59,6 +59,20 @@ describe('useToast', () => {
     expect(toasts.value).toHaveLength(0);
   });
 
+  it('stops the countdown while a toast is held and restarts it on release', () => {
+    const { toasts, push, hold, release } = useToast();
+
+    const id = push({ tone: 'info', title: 'Наведи на меня' });
+
+    hold(id);
+    vi.advanceTimersByTime(60_000);
+    expect(toasts.value).toHaveLength(1);
+
+    release(id);
+    vi.advanceTimersByTime(6000);
+    expect(toasts.value).toHaveLength(0);
+  });
+
   it('gives every toast its own id', () => {
     const { push } = useToast();
 
