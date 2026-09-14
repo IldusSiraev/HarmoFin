@@ -174,7 +174,6 @@ export const upcomingPlans: { items: LandingPlan[]; reservedMinor: string } = {
     { dateLabel: '20 сентября', name: 'Подписки', amountMinor: '300000' },
     { dateLabel: '25 сентября', name: 'Секции', amountMinor: '600000' },
     { dateLabel: '26 сентября', name: 'Ипотека', amountMinor: '3600000' },
-    { dateLabel: '29 сентября', name: 'Алименты', amountMinor: '1600000' },
     { dateLabel: '01 октября', name: 'Детский сад', amountMinor: '300000' },
   ],
   reservedMinor: '5200000',

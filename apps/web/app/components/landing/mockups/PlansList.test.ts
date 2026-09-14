@@ -11,7 +11,7 @@ describe('PlansList', () => {
     const rows = wrapper.findAll('[data-testid="plan-row"]');
     const text = normalize(wrapper.text());
 
-    expect(rows).toHaveLength(5);
+    expect(rows).toHaveLength(4);
     expect(text).toContain('20 сентября');
     expect(text).toContain('Подписки');
     expect(text).toContain('3 000 ₽');
