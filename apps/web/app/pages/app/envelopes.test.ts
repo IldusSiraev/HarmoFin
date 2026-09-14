@@ -6,12 +6,20 @@ const mocks = vi.hoisted(() => ({
   api: {
     getBudget: vi.fn(),
     listEnvelopes: vi.fn(),
+    getEnvelopesSummary: vi.fn(),
     createEnvelope: vi.fn(),
     updateEnvelope: vi.fn(),
     archiveEnvelope: vi.fn(),
   },
+  route: { path: '/app/envelopes', query: {} as Record<string, string> },
+  navigateTo: vi.fn(),
 }));
 
+vi.mock('#imports', () => ({
+  definePageMeta: vi.fn(),
+  navigateTo: mocks.navigateTo,
+  useRoute: () => mocks.route,
+}));
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => mocks.auth }));
 vi.mock('../../composables/useBudgetReferenceData.js', () => ({
   useBudgetReferenceData: () => mocks.api,
@@ -38,17 +46,22 @@ const envelope = {
   archivedAt: null,
 };
 
+const currentExpenseEnvelope = {
+  ...envelope,
+  id: 'envelope-two-id',
+  name: 'Продукты',
+  envelopeType: 'CURRENT_EXPENSES' as const,
+  targetAmountMinor: null,
+};
+
+const normalize = (value: string): string => value.replace(/[\u00a0\u202f]/g, ' ');
+
 function mountPage() {
   return mount(EnvelopesPage, {
     attachTo: document.body,
     global: {
       stubs: {
         NuxtLink: { template: '<a><slot /></a>' },
-        EnvelopeCard: {
-          template:
-            '<article><strong>{{ envelope.name }}</strong><slot name="actions" /></article>',
-          props: ['envelope'],
-        },
         UiConfirmDialog: {
           props: ['open'],
           template:
@@ -64,6 +77,7 @@ describe('envelopes page', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.route.query = {};
     mocks.auth.currentData.value = {
       user: { id: 'user-id', email: 'owner@example.test', displayName: null },
       workspaces: [
@@ -90,6 +104,13 @@ describe('envelopes page', () => {
       status: 'ACTIVE',
     });
     mocks.api.listEnvelopes.mockResolvedValue([]);
+    mocks.api.getEnvelopesSummary.mockResolvedValue({
+      currency: 'RUB',
+      scale: 2,
+      totalMinor: '210000',
+      count: 1,
+      byType: [{ envelopeType: 'CURRENT_EXPENSES', totalMinor: '210000', count: 1 }],
+    });
   });
 
   afterEach(() => {
@@ -150,6 +171,7 @@ describe('envelopes page', () => {
     wrapper = mountPage();
 
     await flushPromises();
+    await wrapper.get('[data-testid="row-actions-envelope-id"]').trigger('click');
     await wrapper.get('[data-action="archive-envelope"]').trigger('click');
     expect(mocks.api.archiveEnvelope).not.toHaveBeenCalled();
     await wrapper.get('[data-confirm="archive-envelope"]').trigger('click');
@@ -175,5 +197,40 @@ describe('envelopes page', () => {
       'select[name="periodSlot"]',
     ) as HTMLSelectElement;
     expect(periodSlotSelect.textContent).toContain('Первый период');
+  });
+
+  it('groups envelopes by type with the server total in the heading', async () => {
+    mocks.api.listEnvelopes.mockResolvedValue([currentExpenseEnvelope]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    const headings = wrapper.findAll('[data-testid="envelope-group-label"]');
+    expect(headings.length).toBeGreaterThan(0);
+    expect(normalize(headings[0]?.text() ?? '')).toContain('Текущие расходы');
+    expect(normalize(wrapper.get('[data-testid="envelope-group-total"]').text())).toContain(
+      '2 100,00 ₽',
+    );
+  });
+
+  it('opens the drawer from a row', async () => {
+    mocks.api.listEnvelopes.mockResolvedValue([currentExpenseEnvelope]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="list-row-select"]').trigger('click');
+
+    expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(true);
+  });
+
+  it('switches both requests to the archive from the chip', async () => {
+    mocks.api.listEnvelopes.mockResolvedValue([currentExpenseEnvelope]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="chip-archived"]').trigger('click');
+    await flushPromises();
+
+    expect(mocks.api.listEnvelopes).toHaveBeenLastCalledWith('budget-id', 'archived');
+    expect(mocks.api.getEnvelopesSummary).toHaveBeenLastCalledWith('budget-id', 'archived');
   });
 });
