@@ -60,7 +60,8 @@ describe('reference summary API', () => {
   it('sums only the accounts the status asks for', async () => {
     const first = await createAccount(owner, { name: 'Карта', startingBalance: '1000.00' });
     await createAccount(owner, { name: 'Наличные', startingBalance: '500.00' });
-    await archiveAccount(owner, first.id);
+    const archived = await archiveAccount(owner, first.id);
+    expect(archived.statusCode).toBe(200);
 
     const active = await request(owner, `/api/v1/budgets/${owner.budgetId}/accounts/summary`);
     expect(active.json()).toEqual({
@@ -106,7 +107,9 @@ describe('reference summary API', () => {
     const envelopes = await request(foreign, `/api/v1/budgets/${owner.budgetId}/envelopes/summary`);
 
     expect(accounts.statusCode).toBe(404);
+    expect(accounts.json()).toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
     expect(envelopes.statusCode).toBe(404);
+    expect(envelopes.json()).toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
   });
 
   async function request(session: Session, url: string) {
