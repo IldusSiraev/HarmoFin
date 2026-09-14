@@ -64,7 +64,7 @@ test('journal filters, sort, reset, direct links, and dashboard use server data'
   );
 
   await page.goto('/app');
-  await expect(page.getByText('Всего на счетах')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Можно потратить' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Счета' })).toBeVisible();
   await expect(page.getByText('Карта Stage 3b')).toBeVisible();
 
@@ -135,7 +135,7 @@ test.describe('Stage 3b mobile routes', () => {
     await initializeTemplate(page);
 
     await page.goto('/app');
-    await expect(page.getByText('Всего на счетах')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Можно потратить' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       375,
     );
