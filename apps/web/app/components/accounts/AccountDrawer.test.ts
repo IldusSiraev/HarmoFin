@@ -69,4 +69,11 @@ describe('AccountDrawer', () => {
     expect(wrapper.find('[data-testid="account-drawer-archive"]').exists()).toBe(false);
     wrapper.unmount();
   });
+
+  it('offers no transfer for an account already in the archive', () => {
+    const wrapper = mountDrawer({ archivedAt: '2026-09-10T00:00:00.000Z' });
+
+    expect(wrapper.find('[data-testid="account-drawer-transfer"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
 });

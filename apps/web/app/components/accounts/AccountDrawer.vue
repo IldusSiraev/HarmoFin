@@ -94,7 +94,12 @@ const transferLink = computed(() =>
       <UiButton variant="secondary" data-testid="account-drawer-operations" :to="operationsLink">
         Операции счёта
       </UiButton>
-      <UiButton variant="secondary" data-testid="account-drawer-transfer" :to="transferLink">
+      <UiButton
+        v-if="!account.archivedAt"
+        variant="secondary"
+        data-testid="account-drawer-transfer"
+        :to="transferLink"
+      >
         Перевести со счёта
       </UiButton>
       <UiButton
