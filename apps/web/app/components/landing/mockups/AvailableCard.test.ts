@@ -43,4 +43,48 @@ describe('AvailableCard', () => {
       'Потрачено 41 200 ₽ из лимита 63 000 ₽',
     );
   });
+
+  it('renders visibly when IntersectionObserver is unavailable (no-JS-equivalent path)', async () => {
+    Reflect.deleteProperty(window, 'IntersectionObserver');
+    const wrapper = mount(AvailableCard, { attachTo: document.body });
+    await wrapper.vm.$nextTick();
+
+    const card = wrapper.get('.available-card');
+    expect(card.classes()).not.toContain('is-reveal-ready');
+    expect(card.classes()).toContain('is-revealed');
+  });
+
+  it('stays hidden until the observer reports an intersection', async () => {
+    const callbacks: ((entries: { isIntersecting: boolean }[]) => void)[] = [];
+    class TestObserver {
+      constructor(callback: (entries: { isIntersecting: boolean }[]) => void) {
+        callbacks.push(callback);
+      }
+      observe(): void {}
+      disconnect(): void {}
+    }
+    window.IntersectionObserver = TestObserver as unknown as typeof window.IntersectionObserver;
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+      addListener: () => {},
+      removeListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+
+    const wrapper = mount(AvailableCard, { attachTo: document.body });
+    await wrapper.vm.$nextTick();
+
+    const card = wrapper.get('.available-card');
+    expect(card.classes()).toContain('is-reveal-ready');
+    expect(card.classes()).not.toContain('is-revealed');
+
+    callbacks[0]?.([{ isIntersecting: true }]);
+    await wrapper.vm.$nextTick();
+
+    expect(card.classes()).toContain('is-revealed');
+  });
 });

@@ -8,7 +8,7 @@ import { useRevealOnScroll } from '../../../composables/useRevealOnScroll.js';
 
 defineOptions({ name: 'AvailableCard' });
 
-const { target, revealed } = useRevealOnScroll();
+const { target, revealed, animating } = useRevealOnScroll();
 const availableRoubles = Number(BigInt(heroBudget.availableMinor) / 100n);
 const { value: animated, start } = useCountUp(availableRoubles);
 
@@ -35,7 +35,11 @@ const progressLabel = computed(
 </script>
 
 <template>
-  <div ref="target" class="available-card" :class="{ 'is-revealed': revealed }">
+  <div
+    ref="target"
+    class="available-card"
+    :class="{ 'is-reveal-ready': animating, 'is-revealed': revealed }"
+  >
     <p class="available-card__label">Можно потратить</p>
     <p class="available-card__value">{{ displayed }}</p>
 
@@ -80,6 +84,9 @@ const progressLabel = computed(
   background: var(--hf-color-surface);
   box-shadow: var(--hf-shadow-md);
   padding: var(--hf-space-8);
+}
+
+.available-card.is-reveal-ready {
   opacity: 0;
   transform: translateY(12px) scale(0.98);
   transition:
@@ -87,7 +94,7 @@ const progressLabel = computed(
     transform 400ms ease-out;
 }
 
-.available-card.is-revealed {
+.available-card.is-reveal-ready.is-revealed {
   opacity: 1;
   transform: none;
 }

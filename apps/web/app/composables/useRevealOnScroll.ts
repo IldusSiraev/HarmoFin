@@ -2,8 +2,6 @@ import { onBeforeUnmount, onMounted, ref, type Ref } from 'vue';
 
 import { prefersReducedMotion } from './useCountUp.js';
 
-const FALLBACK_DELAY_MS = 2000;
-
 export function useRevealOnScroll(): {
   target: Ref<HTMLElement | null>;
   revealed: Ref<boolean>;
@@ -13,18 +11,9 @@ export function useRevealOnScroll(): {
   const revealed = ref(false);
   const animating = ref(false);
   let observer: IntersectionObserver | null = null;
-  let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
-
-  function clearFallbackTimer(): void {
-    if (fallbackTimer !== null) {
-      clearTimeout(fallbackTimer);
-      fallbackTimer = null;
-    }
-  }
 
   function reveal(): void {
     revealed.value = true;
-    clearFallbackTimer();
     observer?.disconnect();
     observer = null;
   }
@@ -52,17 +41,11 @@ export function useRevealOnScroll(): {
     );
 
     observer.observe(target.value);
-
-    fallbackTimer = setTimeout(() => {
-      fallbackTimer = null;
-      reveal();
-    }, FALLBACK_DELAY_MS);
   });
 
   onBeforeUnmount(() => {
     observer?.disconnect();
     observer = null;
-    clearFallbackTimer();
   });
 
   return { target, revealed, animating };

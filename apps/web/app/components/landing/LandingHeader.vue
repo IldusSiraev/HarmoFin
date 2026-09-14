@@ -168,5 +168,9 @@ onBeforeUnmount(() => {
   .landing-header__toggle {
     display: none;
   }
+
+  .landing-header__mobile {
+    display: none;
+  }
 }
 </style>

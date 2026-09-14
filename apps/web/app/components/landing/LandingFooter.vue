@@ -24,8 +24,8 @@ defineOptions({ name: 'LandingFooter' });
       <div class="landing-footer__column">
         <h3 class="landing-footer__heading">Информация</h3>
         <ul class="landing-footer__list">
-          <li v-for="link in footerInfoLinks" :key="link.href">
-            <a :href="link.href" class="landing-footer__link">{{ link.label }}</a>
+          <li v-for="link in footerInfoLinks" :key="link.label">
+            <span class="landing-footer__link landing-footer__link--text">{{ link.label }}</span>
           </li>
         </ul>
       </div>

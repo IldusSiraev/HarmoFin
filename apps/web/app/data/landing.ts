@@ -271,8 +271,10 @@ export const footerProductLinks: { href: string; label: string }[] = [
   { href: '#faq', label: 'FAQ' },
 ];
 
-export const footerInfoLinks: { href: string; label: string }[] = [
-  { href: '/privacy', label: 'Политика конфиденциальности' },
-  { href: '/terms', label: 'Пользовательское соглашение' },
-  { href: '/contacts', label: 'Контакты' },
+// TODO: these become real links (with `href`) once /privacy, /terms and /contacts pages exist.
+// Until then LandingFooter renders them as plain, non-interactive text.
+export const footerInfoLinks: { label: string }[] = [
+  { label: 'Политика конфиденциальности' },
+  { label: 'Пользовательское соглашение' },
+  { label: 'Контакты' },
 ];

@@ -13,7 +13,7 @@ const TONES = [
   'var(--hf-color-status-warning-bright)',
   'var(--hf-color-brand)',
   'var(--hf-color-action-primary)',
-  'var(--hf-color-slate-200)',
+  'var(--hf-color-text-muted)',
 ];
 
 const arcs = computed(() => {

@@ -83,7 +83,7 @@ const rows = computed(() =>
 }
 
 .plan-fact__bar--plan {
-  background: var(--hf-color-primary-soft);
+  background: var(--hf-color-primary-bright);
 }
 
 .plan-fact__bar--fact {

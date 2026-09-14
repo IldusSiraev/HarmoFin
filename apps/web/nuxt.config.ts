@@ -23,4 +23,19 @@ export default defineNuxtConfig({
       apiUrl: config.apiUrl,
     },
   },
+  vite: {
+    build: {
+      rollupOptions: {
+        output: {
+          hoistTransitiveImports: false,
+          manualChunks(id: string) {
+            if (id.includes('node_modules/echarts') || id.includes('node_modules/zrender')) {
+              return 'charts-vendor';
+            }
+            return undefined;
+          },
+        },
+      },
+    },
+  },
 });
