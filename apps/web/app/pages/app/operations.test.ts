@@ -394,6 +394,23 @@ describe('operations page', () => {
     expect(document.body.textContent).toContain('Сохранить изменения');
   });
 
+  it('opens the drawer for the operation named in the query', async () => {
+    routeQuery.operationId = '00000000-0000-4000-8000-000000000009';
+    api.getTransaction.mockResolvedValue({
+      ...draftExpense,
+      id: '00000000-0000-4000-8000-000000000009',
+      status: 'CONFIRMED',
+    });
+    mountPage();
+    await flushPromises();
+
+    expect(api.getTransaction).toHaveBeenCalledWith(
+      'budget-id',
+      '00000000-0000-4000-8000-000000000009',
+    );
+    expect(wrapper!.find('[data-testid="drawer"]').exists()).toBe(true);
+  });
+
   it('lists operations as rows grouped by day', async () => {
     api.listTransactions.mockResolvedValue({ items: [draftExpense], nextCursor: null });
     mountPage();
