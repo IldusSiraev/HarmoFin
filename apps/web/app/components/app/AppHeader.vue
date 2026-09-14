@@ -1,33 +1,21 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-
 import AppAddMenu from './AppAddMenu.vue';
-import AppMobileMenu from './AppMobileMenu.vue';
 import AppMobileMenuButton from './AppMobileMenuButton.vue';
 import AppUserMenu from './AppUserMenu.vue';
 
 defineOptions({ name: 'AppHeader' });
 
-const mobileMenuOpen = ref(false);
-
-function toggleMobileMenu() {
-  mobileMenuOpen.value = !mobileMenuOpen.value;
-}
-
-function closeMobileMenu() {
-  mobileMenuOpen.value = false;
-}
+defineEmits<{ toggleMobileMenu: [] }>();
 </script>
 
 <template>
   <header class="app-header">
     <div class="app-header__container">
-      <AppMobileMenuButton class="app-header__mobile-button" @toggle="toggleMobileMenu" />
+      <AppMobileMenuButton class="app-header__mobile-button" @toggle="$emit('toggleMobileMenu')" />
       <NuxtLink to="/app" class="app-header__wordmark">HarmoFin</NuxtLink>
       <AppAddMenu class="app-header__add" />
       <AppUserMenu class="app-header__user" />
     </div>
-    <AppMobileMenu :open="mobileMenuOpen" @close="closeMobileMenu" />
   </header>
 </template>
 
