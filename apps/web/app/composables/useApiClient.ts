@@ -20,31 +20,53 @@ export interface RequestClient {
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
-export function createApiClient(fetcher: Fetcher, apiUrl: string, origin: string) {
-  let csrfToken: string | null = null;
+export interface CsrfStore {
+  get(): string | null;
+  set(token: string | null): void;
+}
 
+export function createCsrfStore(): CsrfStore {
+  let token: string | null = null;
+  return {
+    get: () => token,
+    set: (value) => {
+      token = value;
+    },
+  };
+}
+
+// One token per browser tab, shared by every client instance: the API rotates
+// the CSRF token on each /auth/csrf read, so a second cache would invalidate
+// the token the first one still holds. On the server each call gets its own
+// store — a shared one would leak between users.
+const browserCsrfStore = createCsrfStore();
+
+export function createApiClient(
+  fetcher: Fetcher,
+  apiUrl: string,
+  origin: string,
+  csrfStore: CsrfStore = createCsrfStore(),
+) {
   async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const method = options.method?.toUpperCase() ?? 'GET';
-    const headers = new Headers(options.headers);
-    headers.set('Origin', origin);
-    if (options.body && !headers.has('Content-Type'))
-      headers.set('Content-Type', 'application/json');
-    if (
-      isUnsafe(method) &&
-      path !== '/api/v1/auth/login' &&
-      path !== '/api/v1/auth/register' &&
-      !path.startsWith('/api/v1/auth/recovery/')
-    ) {
-      csrfToken ??= await getCsrfToken();
-      headers.set('X-CSRF-Token', csrfToken);
+    const needsCsrf = requiresCsrf(method, path);
+    let response = await send(path, options, method, needsCsrf);
+
+    // A stale token is rejected before anything is written, so repeating the
+    // request once with a fresh one cannot duplicate a financial movement —
+    // and it keeps the caller's idempotency key.
+    if (needsCsrf && response.status === 403) {
+      const problem = await readProblem(response);
+      if (problem?.code !== 'CSRF_INVALID') {
+        throw new ApiRequestError(
+          403,
+          problem ?? { code: 'REQUEST_FAILED', detail: 'Не удалось выполнить запрос.' },
+        );
+      }
+      csrfStore.set(null);
+      response = await send(path, options, method, needsCsrf);
     }
 
-    const response = await fetcher(`${apiUrl}${path}`, {
-      ...options,
-      method,
-      headers,
-      credentials: 'include',
-    });
     if (
       response.status === 204 ||
       response.headers.get('content-length') === '0' ||
@@ -63,28 +85,42 @@ export function createApiClient(fetcher: Fetcher, apiUrl: string, origin: string
     return body as T;
   }
 
-  async function requestBlob(path: string, options: RequestInit = {}): Promise<Blob> {
-    const method = options.method?.toUpperCase() ?? 'GET';
+  async function send(
+    path: string,
+    options: RequestInit,
+    method: string,
+    needsCsrf: boolean,
+  ): Promise<Response> {
     const headers = new Headers(options.headers);
     headers.set('Origin', origin);
     if (options.body && !headers.has('Content-Type'))
       headers.set('Content-Type', 'application/json');
-    if (
-      isUnsafe(method) &&
-      path !== '/api/v1/auth/login' &&
-      path !== '/api/v1/auth/register' &&
-      !path.startsWith('/api/v1/auth/recovery/')
-    ) {
-      csrfToken ??= await getCsrfToken();
-      headers.set('X-CSRF-Token', csrfToken);
+    if (needsCsrf) {
+      const token = csrfStore.get() ?? (await getCsrfToken());
+      csrfStore.set(token);
+      headers.set('X-CSRF-Token', token);
     }
 
-    const response = await fetcher(`${apiUrl}${path}`, {
+    return fetcher(`${apiUrl}${path}`, {
       ...options,
       method,
       headers,
       credentials: 'include',
     });
+  }
+
+  async function readProblem(response: Response): Promise<ProblemDetails | null> {
+    if (!response.headers.get('content-type')?.includes('json')) return null;
+    try {
+      return (await response.json()) as ProblemDetails;
+    } catch {
+      return null;
+    }
+  }
+
+  async function requestBlob(path: string, options: RequestInit = {}): Promise<Blob> {
+    const method = options.method?.toUpperCase() ?? 'GET';
+    const response = await send(path, options, method, requiresCsrf(method, path));
     if (!response.ok) {
       const problem = response.headers.get('content-type')?.includes('json')
         ? ((await response.json()) as ProblemDetails)
@@ -113,9 +149,23 @@ export function createApiClient(fetcher: Fetcher, apiUrl: string, origin: string
 export function useApiClient() {
   const config = useRuntimeConfig();
   const origin = import.meta.client ? window.location.origin : config.public.apiUrl;
-  return createApiClient(globalThis.fetch.bind(globalThis), config.public.apiUrl, origin);
+  return createApiClient(
+    globalThis.fetch.bind(globalThis),
+    config.public.apiUrl,
+    origin,
+    import.meta.client ? browserCsrfStore : createCsrfStore(),
+  );
 }
 
 function isUnsafe(method: string): boolean {
   return ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+}
+
+function requiresCsrf(method: string, path: string): boolean {
+  return (
+    isUnsafe(method) &&
+    path !== '/api/v1/auth/login' &&
+    path !== '/api/v1/auth/register' &&
+    !path.startsWith('/api/v1/auth/recovery/')
+  );
 }

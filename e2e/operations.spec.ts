@@ -230,7 +230,7 @@ async function confirmDialog(page: Page): Promise<void> {
 
 async function filterByStatus(page: Page, status: string): Promise<void> {
   await page.getByTestId('more-filters').click();
-  await page.getByLabel('Статус').selectOption(status);
+  await page.getByRole('combobox', { name: 'Статус' }).selectOption(status);
   await page.getByRole('button', { name: 'Готово' }).click();
 }
 

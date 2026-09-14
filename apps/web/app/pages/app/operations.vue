@@ -312,13 +312,6 @@ function ask(
   confirmation.value = { action, transaction };
 }
 
-function askResolveDeletion(
-  transaction: TransactionDto,
-  allocationResolution: 'CANCEL' | 'DELETE',
-) {
-  confirmation.value = { action: 'delete', transaction, allocationResolution };
-}
-
 async function runConfirmation() {
   const current = confirmation.value;
   if (!current || !budget.value) return;
@@ -346,17 +339,6 @@ async function runConfirmation() {
   }
   if (current.action === 'restore') {
     apply(await mutations.restore(budget.value.id, transaction));
-    return;
-  }
-
-  if (current.allocationResolution) {
-    apply(
-      await mutations.removeWithAllocations(
-        budget.value.id,
-        transaction,
-        current.allocationResolution,
-      ),
-    );
     return;
   }
 
@@ -402,10 +384,13 @@ async function saveUpdate(transaction: TransactionDto, input: UpdateTransactionI
   }
 }
 
-function chooseAllocationResolution(resolution: 'CANCEL' | 'DELETE'): void {
+// Deletion was already confirmed once; this dialog only asks what happens to
+// the allocations, so the answer runs the mutation instead of asking again.
+async function chooseAllocationResolution(resolution: 'CANCEL' | 'DELETE'): Promise<void> {
   const transaction = allocationChoice.value;
   allocationChoice.value = null;
-  if (transaction) askResolveDeletion(transaction, resolution);
+  if (!transaction || !budget.value) return;
+  apply(await mutations.removeWithAllocations(budget.value.id, transaction, resolution));
 }
 
 async function downloadCsv() {

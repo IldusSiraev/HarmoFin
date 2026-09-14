@@ -447,6 +447,39 @@ describe('operations page', () => {
     expect(useToast().toasts.value.at(-1)?.title).toBe('Операция подтверждена');
   });
 
+  it('asks how to handle allocations before deleting an income and then deletes once', async () => {
+    const income = { ...draftExpense, transactionType: 'INCOME', status: 'CONFIRMED' };
+    api.listTransactions.mockResolvedValue({ items: [income], nextCursor: null });
+    api.deleteTransaction.mockRejectedValue(
+      new ApiRequestError(409, {
+        code: 'INCOME_HAS_CONFIRMED_ALLOCATIONS',
+        detail: 'У дохода есть подтверждённые распределения.',
+      }),
+    );
+    api.deleteTransactionWithAllocations.mockResolvedValue({ ...income, status: 'DELETED' });
+    mountPage();
+    await flushPromises();
+
+    await wrapper!.get('[data-testid="action-menu-trigger"]').trigger('click');
+    await wrapper!.get('[data-testid="row-delete"]').trigger('click');
+    await wrapper!.get('[data-confirm]').trigger('click');
+    await flushPromises();
+
+    // The choice dialog replaces the failed deletion, and answering it must not
+    // ask for a third confirmation.
+    const choice = wrapper!.findAll('[data-confirm]').at(-1);
+    await choice!.trigger('click');
+    await flushPromises();
+
+    expect(api.deleteTransactionWithAllocations).toHaveBeenCalledWith(
+      'budget-id',
+      'transaction-id',
+      { allocationResolution: 'DELETE' },
+      expect.any(String),
+    );
+    expect(useToast().toasts.value.at(-1)?.title).toBe('Операция удалена');
+  });
+
   it('shows skeletons while the first page is loading', async () => {
     api.listTransactions.mockReturnValueOnce(new Promise(() => {}));
     mountPage();

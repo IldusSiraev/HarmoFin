@@ -94,10 +94,10 @@ test('journal filters, sort, reset, direct links, and dashboard use server data'
   );
 
   await page.getByTestId('more-filters').click();
-  await page.getByLabel('Сортировка').selectOption('amount');
+  await page.getByRole('combobox', { name: 'Сортировка' }).selectOption('amount');
   await expect(page).toHaveURL(/sortBy=amount/);
   await expect(page.getByText('Отсортировано по сумме')).toBeVisible();
-  await page.getByLabel('Направление').selectOption('asc');
+  await page.getByRole('combobox', { name: 'Направление' }).selectOption('asc');
   await expect(page).toHaveURL(/sortDirection=asc/);
 
   await page.getByTestId('reset-filters').click();
@@ -217,7 +217,7 @@ async function confirmDialog(page: Page): Promise<void> {
 
 async function filterByStatus(page: Page, status: string): Promise<void> {
   await page.getByTestId('more-filters').click();
-  await page.getByLabel('Статус').selectOption(status);
+  await page.getByRole('combobox', { name: 'Статус' }).selectOption(status);
   await page.getByRole('button', { name: 'Готово' }).click();
 }
 

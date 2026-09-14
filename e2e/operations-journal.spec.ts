@@ -38,7 +38,7 @@ test('restores a deleted operation from the drawer', async ({ page }) => {
   await expect(page.getByTestId('toast-stack')).toContainText('Операция удалена');
 
   await page.getByTestId('more-filters').click();
-  await page.getByLabel('Статус').selectOption('DELETED');
+  await page.getByRole('combobox', { name: 'Статус' }).selectOption('DELETED');
   await page.getByRole('button', { name: 'Готово' }).click();
 
   await page.getByTestId('list-row-select').first().click();
@@ -53,6 +53,9 @@ test('creates an operation with the global button from another screen', async ({
   await createAccount(page, 'Карта из оболочки', '10 000,00');
 
   await page.goto('/app/accounts');
+  // The shell renders server-side, so wait for client-rendered content before
+  // driving the add menu — a pre-hydration click does nothing.
+  await expect(page.getByText('Карта из оболочки')).toBeVisible();
   await page.getByTestId('add-menu-trigger').filter({ visible: true }).click();
   await page.getByTestId('add-menu-income').filter({ visible: true }).click();
 
