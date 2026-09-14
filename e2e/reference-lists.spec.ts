@@ -51,12 +51,16 @@ test('opens an operation from the dashboard', async ({ page }) => {
   await createDraftExpense(page, 'Карта главной', 'Текущие главной', 'Магазин', '100,00');
 
   await page.goto('/app');
-  // Recent Operations sits above the balance lists and is the first list row
-  // on the dashboard, so `.first()` reaches it without a dedicated link testid
-  // (the dashboard row reuses UiListRow's plain "list-row-select" button —
-  // see RecentOperations.vue, which deliberately avoids wrapping it in a
-  // <NuxtLink> to keep a button from nesting inside an anchor).
-  await page.getByTestId('list-row-select').first().click();
+  // The dashboard row reuses UiListRow's plain "list-row-select" button (no
+  // dedicated link testid) — see RecentOperations.vue, which deliberately
+  // avoids wrapping it in a <NuxtLink> to keep a button from nesting inside
+  // an anchor. BalanceList rows use the same generic testid, so scope through
+  // the section's own aria-label landmark instead of relying on DOM order.
+  await page
+    .getByRole('region', { name: 'Последние операции' })
+    .getByTestId('list-row-select')
+    .first()
+    .click();
 
   await expect(page).toHaveURL(/\/app\/operations\?operationId=/);
   await expect(page.getByTestId('drawer')).toBeVisible();
