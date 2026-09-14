@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { navigateTo } from '#imports';
 
 import type {
   DashboardBalance,
   DashboardWarning,
 } from '../../composables/useBudgetReferenceData.js';
 import FinanceMoney from '../finance/FinanceMoney.vue';
-import UiListRow from '../ui/ListRow.vue';
 import UiStatus from '../ui/Status.vue';
 
 const LIMIT = 5;
@@ -27,10 +25,6 @@ const visible = computed(() => props.items.slice(0, props.limit ?? LIMIT));
 function hasWarning(id: string): boolean {
   return props.warnings.some((warning) => warning.subject === props.subject && warning.id === id);
 }
-
-function navigate(): void {
-  void navigateTo(props.moreLink);
-}
 </script>
 
 <template>
@@ -46,17 +40,22 @@ function navigate(): void {
     <p v-if="items.length === 0" class="balance-list__empty">Данных пока нет.</p>
 
     <ul v-else class="balance-list__list">
-      <li v-for="item in visible" :key="item.id">
-        <UiListRow :label="`Открыть ${item.name}`" @select="navigate">
+      <li
+        v-for="item in visible"
+        :key="item.id"
+        class="balance-list__row"
+        data-testid="balance-list-row"
+      >
+        <span class="balance-list__body">
           <span class="balance-list__name">{{ item.name }}</span>
           <span v-if="hasWarning(item.id)" class="balance-list__meta">
             <UiStatus label="Дефицит" tone="warning" />
           </span>
+        </span>
 
-          <template #trailing>
-            <FinanceMoney :minor-units="item.balanceMinor" currency="RUB" :scale="2" />
-          </template>
-        </UiListRow>
+        <span class="balance-list__trailing">
+          <FinanceMoney :minor-units="item.balanceMinor" currency="RUB" :scale="2" />
+        </span>
       </li>
     </ul>
   </section>
@@ -107,6 +106,27 @@ function navigate(): void {
 
 .balance-list__list > li {
   min-width: 0;
+}
+
+.balance-list__row {
+  display: flex;
+  gap: var(--hf-space-3);
+  align-items: center;
+  min-height: 2.75rem;
+  padding: var(--hf-space-2) var(--hf-space-3);
+}
+
+.balance-list__body {
+  display: grid;
+  flex: 1;
+  gap: 0.125rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.balance-list__trailing {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .balance-list__name {

@@ -232,4 +232,16 @@ describe('dashboard page', () => {
     expect(wrapper.text()).toContain('Счета');
     expect(wrapper.text()).not.toContain('Не удалось загрузить сводку');
   });
+
+  it('keeps the rest of the dashboard usable when recent operations fail to load', async () => {
+    api.listTransactions.mockRejectedValue(new Error('network'));
+    const wrapper = mount(DashboardPage, {
+      global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } },
+    });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Можно потратить');
+    expect(wrapper.text()).toContain('Операций пока нет.');
+    expect(wrapper.text()).not.toContain('Не удалось загрузить сводку');
+  });
 });

@@ -52,6 +52,31 @@ describe('AccountRow', () => {
     ).toBe('В архиве');
   });
 
+  it('carries the balance and status in the accessible name, since role=button hides visible content from assistive tech', () => {
+    const plainLabel = normalize(
+      mountRow().get('[data-testid="list-row-select"]').attributes('aria-label') ?? '',
+    );
+    expect(plainLabel).toContain('Основная карта');
+    expect(plainLabel).toContain('2 450,00 ₽');
+    expect(plainLabel).not.toContain('ниже нуля');
+    expect(plainLabel).not.toContain('в архиве');
+
+    const negativeLabel = normalize(
+      mountRow({ currentBalanceMinor: '-1000' })
+        .get('[data-testid="list-row-select"]')
+        .attributes('aria-label') ?? '',
+    );
+    expect(negativeLabel).toContain('-10,00 ₽');
+    expect(negativeLabel).toContain('ниже нуля');
+
+    const archivedLabel = normalize(
+      mountRow({ archivedAt: '2026-09-10T00:00:00.000Z' })
+        .get('[data-testid="list-row-select"]')
+        .attributes('aria-label') ?? '',
+    );
+    expect(archivedLabel).toContain('в архиве');
+  });
+
   it('selects the account when the row is pressed', async () => {
     const wrapper = mountRow();
 

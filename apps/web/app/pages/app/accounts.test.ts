@@ -204,29 +204,27 @@ describe('accounts page', () => {
 
   it('lists accounts as rows with the server total above them', async () => {
     mocks.api.listAccounts.mockResolvedValue([account]);
-    const wrapper = mountPage();
+    wrapper = mountPage();
     await flushPromises();
 
     expect(wrapper.findAll('[data-testid="list-row-select"]').length).toBeGreaterThan(0);
     expect(normalize(wrapper.get('[data-testid="accounts-total"]').text())).toContain('1 500,00 ₽');
     expect(mocks.api.getAccountsSummary).toHaveBeenCalledWith('budget-id', 'active');
-    wrapper.unmount();
   });
 
   it('opens the drawer from a row', async () => {
     mocks.api.listAccounts.mockResolvedValue([account]);
-    const wrapper = mountPage();
+    wrapper = mountPage();
     await flushPromises();
 
     await wrapper.get('[data-testid="list-row-select"]').trigger('click');
 
     expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(true);
-    wrapper.unmount();
   });
 
   it('switches both requests to the archive from the chip', async () => {
     mocks.api.listAccounts.mockResolvedValue([account]);
-    const wrapper = mountPage();
+    wrapper = mountPage();
     await flushPromises();
 
     await wrapper.get('[data-testid="chip-archived"]').trigger('click');
@@ -234,12 +232,11 @@ describe('accounts page', () => {
 
     expect(mocks.api.listAccounts).toHaveBeenLastCalledWith('budget-id', 'archived');
     expect(mocks.api.getAccountsSummary).toHaveBeenLastCalledWith('budget-id', 'archived');
-    wrapper.unmount();
   });
 
   it('separates an empty archive from an empty budget', async () => {
     mocks.api.listAccounts.mockResolvedValue([]);
-    const wrapper = mountPage();
+    wrapper = mountPage();
     await flushPromises();
     expect(wrapper.text()).toContain('Счетов пока нет');
 
@@ -247,6 +244,5 @@ describe('accounts page', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('В архиве пусто');
-    wrapper.unmount();
   });
 });

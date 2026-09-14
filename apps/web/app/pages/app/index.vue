@@ -65,6 +65,14 @@ async function safeTotal(read: Promise<{ totalMinor: string }>): Promise<string 
   return read.then((value) => value.totalMinor).catch(() => null);
 }
 
+// Same reasoning as safeTotal: recent operations are a nice-to-have next to
+// the summary cards, not something worth failing the whole page over.
+async function safeTransactions(
+  read: Promise<{ items: TransactionDto[]; nextCursor: string | null }>,
+): Promise<{ items: TransactionDto[]; nextCursor: string | null }> {
+  return read.catch(() => ({ items: [], nextCursor: null }));
+}
+
 async function loadDashboard() {
   loading.value = true;
   error.value = '';
@@ -75,10 +83,20 @@ async function loadDashboard() {
     const [summaryResult, recentResult, accountsTotalResult, envelopesTotalResult] =
       await Promise.all([
         api.getDashboardSummary(budget.id),
-        api.listTransactions(budget.id, { limit: 5, sortBy: 'occurredOn', sortDirection: 'desc' }),
+        safeTransactions(
+          api.listTransactions(budget.id, {
+            limit: 5,
+            sortBy: 'occurredOn',
+            sortDirection: 'desc',
+          }),
+        ),
         safeTotal(api.getAccountsSummary(budget.id)),
         safeTotal(api.getEnvelopesSummary(budget.id)),
-        loadReferenceData(),
+        // The account/category/envelope names behind recent operations are
+        // also a nice-to-have: if they fail to load, RecentOperations still
+        // renders with whatever fallback it has, instead of taking down the
+        // whole dashboard.
+        loadReferenceData().catch(() => undefined),
       ]);
     summary.value = summaryResult;
     recent.value = recentResult.items;

@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { Banknote, CreditCard, Landmark } from '@lucide/vue';
 
 import FinanceMoney from '../finance/FinanceMoney.vue';
+import { formatMinorUnits } from '../finance/money-format.js';
 import UiListRow from '../ui/ListRow.vue';
 import UiStatus from '../ui/Status.vue';
 import type { AccountDto } from '../../composables/useBudgetReferenceData.js';
@@ -37,7 +38,20 @@ const subtitle = computed(() =>
 // The sign comes from the server value; the client never computes the balance.
 const isNegative = computed(() => props.account.currentBalanceMinor.startsWith('-'));
 
-const rowLabel = computed(() => `Открыть счёт «${props.account.name}»`);
+// UiListRow renders this as the button's explicit aria-label, which per ARIA
+// semantics replaces name-from-content entirely — so the balance and status
+// badges rendered inside the row (visually) must also be folded in here, or
+// assistive tech never receives them at all.
+const formattedBalance = computed(() =>
+  formatMinorUnits(props.account.currentBalanceMinor, props.account.currency, props.account.scale),
+);
+
+const rowLabel = computed(() => {
+  const parts = [`Открыть счёт «${props.account.name}»`, `баланс ${formattedBalance.value}`];
+  if (isNegative.value) parts.push('ниже нуля');
+  if (props.account.archivedAt) parts.push('в архиве');
+  return parts.join(', ');
+});
 </script>
 
 <template>

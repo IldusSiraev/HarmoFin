@@ -59,7 +59,24 @@ const goalLabel = computed(() => {
   return `${saved} из ${total}`;
 });
 
-const rowLabel = computed(() => `Открыть конверт «${props.envelope.name}»`);
+// UiListRow renders this as the button's explicit aria-label, which per ARIA
+// semantics replaces name-from-content entirely — so the balance, the goal
+// progress and the archived badge rendered inside the row (visually) must
+// also be folded in here, or assistive tech never receives them at all.
+const formattedBalance = computed(() =>
+  formatMinorUnits(
+    props.envelope.currentBalanceMinor,
+    props.envelope.currency,
+    props.envelope.scale,
+  ),
+);
+
+const rowLabel = computed(() => {
+  const parts = [`Открыть конверт «${props.envelope.name}»`, `баланс ${formattedBalance.value}`];
+  if (goalTarget.value !== null) parts.push(`накоплено ${goalLabel.value}`);
+  if (props.envelope.archivedAt) parts.push('в архиве');
+  return parts.join(', ');
+});
 </script>
 
 <template>

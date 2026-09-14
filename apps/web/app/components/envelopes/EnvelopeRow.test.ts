@@ -62,6 +62,36 @@ describe('EnvelopeRow', () => {
     ).toBe('В архиве');
   });
 
+  it('carries the balance, the goal progress and the archived state in the accessible name, since role=button hides visible content from assistive tech', () => {
+    const plainLabel = normalize(
+      mountRow().get('[data-testid="list-row-select"]').attributes('aria-label') ?? '',
+    );
+    expect(plainLabel).toContain('Текущие расходы');
+    expect(plainLabel).toContain('2 450,00 ₽');
+    expect(plainLabel).not.toContain('накоплено');
+    expect(plainLabel).not.toContain('в архиве');
+
+    const goalLabel = normalize(
+      mountRow({
+        envelopeType: 'SAVINGS_GOAL',
+        name: 'Отпуск',
+        periodSlot: null,
+        targetAmountMinor: '5000000',
+        currentBalanceMinor: '1000000',
+      })
+        .get('[data-testid="list-row-select"]')
+        .attributes('aria-label') ?? '',
+    );
+    expect(goalLabel).toContain('накоплено 10 000,00 ₽ из 50 000,00 ₽');
+
+    const archivedLabel = normalize(
+      mountRow({ archivedAt: '2026-09-10T00:00:00.000Z' })
+        .get('[data-testid="list-row-select"]')
+        .attributes('aria-label') ?? '',
+    );
+    expect(archivedLabel).toContain('в архиве');
+  });
+
   it('selects the envelope when the row is pressed', async () => {
     const wrapper = mountRow();
 
