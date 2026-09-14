@@ -13,6 +13,8 @@ describe('CycleTimeline', () => {
     expect(items[0]?.text()).toContain('Новый цикл');
     expect(items[1]?.text()).toContain('Следующая выплата');
     expect(items[2]?.text()).toContain('Граница периода');
-    expect(wrapper.text()).toContain('Период 25–9');
+    expect(wrapper.text()).toContain('Период 1');
+    expect(wrapper.text()).toContain('Период 2');
+    expect(wrapper.text()).not.toContain('Период 25');
   });
 });

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { formatLandingMoney } from '../format-money.js';
 import { heroBudget } from '../../../data/landing.js';
@@ -12,15 +12,20 @@ const { target, revealed, animating } = useRevealOnScroll();
 const availableRoubles = Number(BigInt(heroBudget.availableMinor) / 100n);
 const { value: animated, start } = useCountUp(availableRoubles);
 
-watch(
-  revealed,
-  (isRevealed) => {
-    if (isRevealed) start();
-  },
-  { immediate: true },
-);
+// Count-up запускается при монтировании, а не по появлению секции: иначе главный
+// показатель страницы залипает на нуле везде, где браузер не доставляет колбэк
+// IntersectionObserver (фоновая вкладка, троттлинг). До запуска — и в разметке с
+// сервера, и без JS — показывается конечная сумма.
+const counting = ref(false);
 
-const displayed = computed(() => formatLandingMoney(`${animated.value}00`));
+onMounted(() => {
+  counting.value = true;
+  start();
+});
+
+const displayed = computed(() =>
+  formatLandingMoney(counting.value ? `${animated.value}00` : heroBudget.availableMinor),
+);
 const spentPercent = computed(() => {
   const spent = Number(BigInt(heroBudget.spentMinor));
   const limit = Number(BigInt(heroBudget.periodLimitMinor));

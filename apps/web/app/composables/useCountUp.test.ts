@@ -52,6 +52,19 @@ describe('useCountUp', () => {
     expect(value.value).toBe(1000);
   });
 
+  it('jumps straight to the target when the document is hidden', () => {
+    mockReducedMotion(false);
+    const { frames } = mockFrames();
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+    const { value, start } = useCountUp(1000);
+
+    start();
+
+    expect(value.value).toBe(1000);
+    expect(frames).toHaveLength(0);
+    hidden.mockRestore();
+  });
+
   it('jumps straight to the target when reduced motion is requested', () => {
     mockReducedMotion(true);
     const { frames } = mockFrames();

@@ -14,7 +14,7 @@ describe('AllocationFlow', () => {
     expect(text).toContain('106 000 ₽');
     expect(text).toContain('Обязательные');
     expect(text).toContain('50 000 ₽');
-    expect(text).toContain('Текущие 25–9');
+    expect(text).toContain('Текущие расходы');
     expect(text).toContain('36 000 ₽');
     expect(text).toContain('Ремонт');
     expect(text).toContain('20 000 ₽');

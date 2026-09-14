@@ -12,7 +12,7 @@ describe('DashboardMockup', () => {
 
     expect(text).toContain('Можно потратить');
     expect(text).toContain('21 800 ₽');
-    expect(text).toContain('Период 25–9');
+    expect(text).toContain('Период 25.09 – 09.10');
     expect(text).toContain('Осталось 7 дней');
     expect(text).toContain('63 000 ₽');
     expect(text).toContain('41 200 ₽');

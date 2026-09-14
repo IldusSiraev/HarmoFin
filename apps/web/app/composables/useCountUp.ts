@@ -32,7 +32,12 @@ export function useCountUp(
     if (started) return;
     started = true;
 
-    if (prefersReducedMotion() || typeof window === 'undefined') {
+    // A hidden document does not run animation frames, so an animation started
+    // there would leave the value stuck at its starting point until the tab is
+    // looked at. Nobody can see the animation anyway — go straight to the end.
+    const documentHidden = typeof document !== 'undefined' && document.hidden;
+
+    if (prefersReducedMotion() || documentHidden || typeof window === 'undefined') {
       value.value = targetValue;
       return;
     }

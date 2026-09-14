@@ -26,7 +26,7 @@ describe('AvailableCard', () => {
 
     const text = normalize(wrapper.text());
     expect(text).toContain('21 800 ₽');
-    expect(text).toContain('Период 25–9');
+    expect(text).toContain('Период 25.09 – 09.10');
     expect(text).toContain('Осталось 7 дней');
     expect(text).toContain('41 200 ₽');
     expect(text).toContain('63 000 ₽');
@@ -86,5 +86,12 @@ describe('AvailableCard', () => {
     await wrapper.vm.$nextTick();
 
     expect(card.classes()).toContain('is-revealed');
+  });
+
+  it('shows the final amount rather than zero while the count-up cannot run', async () => {
+    const wrapper = mount(AvailableCard, { attachTo: document.body });
+    await wrapper.vm.$nextTick();
+
+    expect(normalize(wrapper.get('.available-card__value').text())).toBe('21 800 ₽');
   });
 });

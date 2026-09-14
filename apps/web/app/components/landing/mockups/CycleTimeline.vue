@@ -1,12 +1,7 @@
 <script setup lang="ts">
-import { cycleMilestones } from '../../../data/landing.js';
+import { cycleMilestones, cyclePeriods } from '../../../data/landing.js';
 
 defineOptions({ name: 'CycleTimeline' });
-
-const periods = [
-  { label: 'Период 1', range: '10–24' },
-  { label: 'Период 25–9', range: '25–9' },
-];
 </script>
 
 <template>
@@ -24,7 +19,7 @@ const periods = [
     </ol>
 
     <ul class="cycle-timeline__periods">
-      <li v-for="period in periods" :key="period.label" class="cycle-timeline__period">
+      <li v-for="period in cyclePeriods" :key="period.label" class="cycle-timeline__period">
         <strong>{{ period.label }}</strong>
         <span>{{ period.range }}</span>
       </li>

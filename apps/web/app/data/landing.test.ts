@@ -9,7 +9,6 @@ import {
   howItWorksSteps,
   landingNavLinks,
   upcomingPlans,
-  variableIncome,
 } from './landing.js';
 
 const toNumber = (minorUnits: string): number => Number(BigInt(minorUnits));
@@ -23,7 +22,6 @@ describe('landing demo data', () => {
       heroBudget.dailyAverageMinor,
       allocationData.incomeMinor,
       upcomingPlans.reservedMinor,
-      variableIncome.plannedMinor,
       ...allocationData.allocations.map((item) => item.amountMinor),
       ...goalData.flatMap((goal) => [goal.savedMinor, goal.targetMinor]),
       ...upcomingPlans.items.map((item) => item.amountMinor),
@@ -70,6 +68,5 @@ describe('landing demo data', () => {
     ]);
     expect(faqItems).toHaveLength(6);
     expect(howItWorksSteps).toHaveLength(5);
-    expect(variableIncome.cases).toHaveLength(2);
   });
 });

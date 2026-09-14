@@ -61,7 +61,7 @@ export interface LandingTextCard {
 
 export const heroBudget: LandingBudgetSnapshot = {
   dateLabel: 'Сегодня, 13 сентября',
-  periodLabel: 'Период 25–9',
+  periodLabel: 'Период 25.09 – 09.10',
   daysLeft: 7,
   availableMinor: '2180000',
   periodLimitMinor: '6300000',
@@ -114,6 +114,41 @@ export const cycleMilestones: { dateLabel: string; caption: string }[] = [
   { dateLabel: '10 октября', caption: 'Новый цикл' },
 ];
 
+export const cyclePeriods: { label: string; range: string }[] = [
+  { label: 'Период 1', range: '10.09 – 24.09' },
+  { label: 'Период 2', range: '25.09 – 09.10' },
+];
+
+export const availableExplainers: LandingTextCard[] = [
+  {
+    title: 'Считаем по фактическим операциям',
+    text: 'В расчёт идут подтверждённые доходы и расходы, а не ожидаемая сумма будущей выплаты.',
+  },
+  {
+    title: 'Вычитаем то, что уже обещано',
+    text: 'Обязательные платежи и накопления остаются зарезервированными и не попадают в доступный остаток.',
+  },
+  {
+    title: 'Считаем до границы периода',
+    text: 'Остаток и дневной ориентир рассчитаны до конца текущего периода, а не до конца календарного месяца.',
+  },
+];
+
+export const allocationExplainers: LandingTextCard[] = [
+  {
+    title: 'Доход остаётся одним',
+    text: 'Распределение не создаёт новых поступлений и не удваивает сумму в отчётах.',
+  },
+  {
+    title: 'Назначений может быть несколько',
+    text: 'Обязательные платежи, текущие расходы и накопления получают свою часть за одно действие.',
+  },
+  {
+    title: 'Нераспределённое видно сразу',
+    text: 'Понятно, какая часть поступления ещё ждёт назначения.',
+  },
+];
+
 export const allocationData: {
   incomeName: string;
   incomeMinor: string;
@@ -123,7 +158,7 @@ export const allocationData: {
   incomeMinor: '10600000',
   allocations: [
     { name: 'Обязательные', amountMinor: '5000000' },
-    { name: 'Текущие 25–9', amountMinor: '3600000' },
+    { name: 'Текущие расходы', amountMinor: '3600000' },
     { name: 'Ремонт', amountMinor: '2000000' },
   ],
 };
@@ -143,11 +178,6 @@ export const upcomingPlans: { items: LandingPlan[]; reservedMinor: string } = {
     { dateLabel: '01 октября', name: 'Детский сад', amountMinor: '300000' },
   ],
   reservedMinor: '5200000',
-};
-
-export const variableIncome: { plannedMinor: string; cases: { receivedMinor: string }[] } = {
-  plannedMinor: '10000000',
-  cases: [{ receivedMinor: '10600000' }, { receivedMinor: '9900000' }],
 };
 
 export const analyticsData: {
@@ -192,24 +222,6 @@ export const audienceCards: LandingTextCard[] = [
   { title: 'Один человек', text: 'Бюджет под ваши выплаты, цели и реальные финансовые привычки.' },
 ];
 
-export const roadmapNow: string[] = [
-  'Личный бюджет',
-  'Счета',
-  'Конверты',
-  'Финансовые циклы',
-  'Регулярные планы',
-  'Аналитика',
-];
-
-export const roadmapNext: string[] = [
-  'Семейный доступ',
-  'Импорт банковских выписок',
-  'Банковские интеграции',
-  'Telegram',
-  'AI-анализ',
-  'SaaS-функции',
-];
-
 export const securityCards: LandingTextCard[] = [
   {
     title: 'Защищённый доступ',
@@ -217,7 +229,7 @@ export const securityCards: LandingTextCard[] = [
   },
   {
     title: 'Изоляция бюджета',
-    text: 'Данные бюджетов изолированы и не должны быть доступны другим пользователям.',
+    text: 'Данные бюджетов изолированы и недоступны другим пользователям.',
   },
   { title: 'История изменений', text: 'Изменения финансовых данных сохраняются в журнале.' },
 ];
@@ -248,12 +260,12 @@ export const faqItems: LandingFaqItem[] = [
   {
     id: 'bank-sync',
     question: 'Есть ли банковская синхронизация?',
-    answer: 'Не в текущем MVP. Банковские интеграции предусмотрены для следующих этапов.',
+    answer: 'Пока нет. Банковские интеграции появятся на следующих этапах.',
   },
   {
     id: 'mobile',
     question: 'Можно ли пользоваться с телефона?',
-    answer: 'Да. Интерфейс должен адаптироваться под смартфоны и планшеты.',
+    answer: 'Да. Интерфейс адаптируется под смартфоны и планшеты.',
   },
 ];
 
