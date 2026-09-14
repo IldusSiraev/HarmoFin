@@ -113,7 +113,7 @@ const rowLabel = computed(() => `Открыть конверт «${props.envelop
 
 .envelope-row__goal {
   display: grid;
-  gap: 0.25rem;
+  gap: var(--hf-space-1);
 }
 
 .envelope-row__meta {
