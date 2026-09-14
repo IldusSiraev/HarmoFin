@@ -7,9 +7,18 @@ test('adds an operation from a page other than the dashboard', async ({ page }) 
   await initializeTemplate(page);
 
   await page.goto('/app/operations');
+  // The shell renders server-side, so its buttons are clickable before Vue has
+  // hydrated them; wait for content the client renders before driving the menu.
+  await expect(
+    page.getByRole('main').getByRole('button', { name: 'Добавить операцию' }),
+  ).toBeVisible();
+
   // The shell mounts the menu twice — header and sidebar — and CSS hides one of
   // them per width, so pick whichever copy this viewport actually shows.
-  await page.getByTestId('add-menu-trigger').filter({ visible: true }).click();
+  const trigger = page.getByTestId('add-menu-trigger').filter({ visible: true });
+  await trigger.click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+
   await page.getByTestId('add-menu-expense').filter({ visible: true }).click();
 
   await expect(page.getByRole('dialog')).toBeVisible();
