@@ -75,6 +75,16 @@ describe('useOperationMutations', () => {
     expect(useToast().toasts.value.at(-1)?.title).toBe('Не удалось удалить операцию');
   });
 
+  it('keeps the rejection so a caller can act on the server code', async () => {
+    const failure = new Error('INCOME_HAS_CONFIRMED_ALLOCATIONS');
+    api.deleteTransaction.mockRejectedValue(failure);
+    const { remove, lastError } = useOperationMutations();
+
+    await remove('budget-id', transaction);
+
+    expect(lastError.value).toBe(failure);
+  });
+
   it('resolves an income deletion with its allocations', async () => {
     api.deleteTransactionWithAllocations.mockResolvedValue({ ...transaction, status: 'DELETED' });
     const { removeWithAllocations } = useOperationMutations();

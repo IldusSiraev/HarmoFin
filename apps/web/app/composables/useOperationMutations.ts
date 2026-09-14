@@ -28,6 +28,9 @@ const ACTIONS: Record<TransactionDto['status'], OperationAction[]> = {
 
 export interface OperationMutations {
   pending: Readonly<Ref<boolean>>;
+  // The last rejection, kept so a caller can react to a specific server code —
+  // deleting an income with confirmed allocations needs a second decision.
+  lastError: Readonly<Ref<unknown>>;
   confirm: (budgetId: string, transaction: TransactionDto) => Promise<TransactionDto | null>;
   cancel: (budgetId: string, transaction: TransactionDto) => Promise<TransactionDto | null>;
   remove: (budgetId: string, transaction: TransactionDto) => Promise<TransactionDto | null>;
@@ -44,6 +47,7 @@ export function useOperationMutations(): OperationMutations {
   const api = useBudgetReferenceData();
   const { push } = useToast();
   const pending = ref(false);
+  const lastError = ref<unknown>(null);
 
   // A retry after a network error must carry the same key, or the server would
   // treat it as a second money movement.
@@ -68,9 +72,11 @@ export function useOperationMutations(): OperationMutations {
     try {
       const result = await call(idempotencyKey);
       keys.delete(`${action}:${transactionId}`);
+      lastError.value = null;
       push({ tone: 'success', title: COPY[action].success });
       return result;
     } catch (error) {
+      lastError.value = error;
       const description = error instanceof Error ? error.message : undefined;
       push({ tone: 'error', title: COPY[action].failure, ...(description ? { description } : {}) });
       return null;
@@ -81,6 +87,7 @@ export function useOperationMutations(): OperationMutations {
 
   return {
     pending: readonly(pending),
+    lastError: readonly(lastError),
     confirm: (budgetId, transaction) =>
       run('confirm', transaction.id, (key) =>
         api.confirmTransaction(budgetId, transaction.id, key),

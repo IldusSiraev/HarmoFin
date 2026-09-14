@@ -6,8 +6,13 @@ defineProps<{ label: string }>();
 
 <template>
   <section class="operation-group">
-    <h3 class="operation-group__label" data-testid="operation-group-label">{{ label }}</h3>
-    <ul class="operation-group__list" :aria-label="`Операции за ${label}`">
+    <h3 v-if="label" class="operation-group__label" data-testid="operation-group-label">
+      {{ label }}
+    </h3>
+    <ul
+      class="operation-group__list"
+      :aria-label="label ? `Операции за ${label}` : 'Список операций'"
+    >
       <slot />
     </ul>
   </section>

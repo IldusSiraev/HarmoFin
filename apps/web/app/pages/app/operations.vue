@@ -1,58 +1,54 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { definePageMeta, navigateTo, useRoute } from '#imports';
+import { definePageMeta, useRoute } from '#imports';
 
-import IncomeAllocationForm from '../../components/operations/IncomeAllocationForm.vue';
-import OperationCard from '../../components/operations/OperationCard.vue';
-import OperationDetails from '../../components/operations/OperationDetails.vue';
+import OperationDrawer from '../../components/operations/OperationDrawer.vue';
 import OperationForm from '../../components/operations/OperationForm.vue';
+import OperationGroup from '../../components/operations/OperationGroup.vue';
+import OperationRow from '../../components/operations/OperationRow.vue';
+import OperationsToolbar from '../../components/operations/OperationsToolbar.vue';
+import { groupByDay } from '../../components/operations/group-by-day.js';
+import FinanceMoney from '../../components/finance/FinanceMoney.vue';
+import UiActionMenu from '../../components/ui/ActionMenu.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
-import UiFilterPanel from '../../components/ui/FilterPanel.vue';
-import UiInput from '../../components/ui/Input.vue';
 import UiModal from '../../components/ui/Modal.vue';
 import UiReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
-import UiSelect from '../../components/ui/Select.vue';
+import UiSkeleton from '../../components/ui/Skeleton.vue';
 import {
   createOperationForm,
   type OperationFormModel,
 } from '../../composables/useOperationForm.js';
 import {
-  type AuditEventDto,
+  type CategoryDto,
   type CreateTransactionInput,
-  type IncomeAllocationDto,
   type TransactionDto,
   type UpdateTransactionInput,
   useBudgetReferenceData,
 } from '../../composables/useBudgetReferenceData.js';
 import { useAuth } from '../../composables/useAuth.js';
+import {
+  useOperationFilters,
+  type OperationFilters,
+} from '../../composables/useOperationFilters.js';
+import { useOperationMutations } from '../../composables/useOperationMutations.js';
+import { useToast } from '../../composables/useToast.js';
 import { ApiRequestError } from '../../composables/useApiClient.js';
 
 defineOptions({ name: 'OperationsJournalPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
 
-type ConfirmationAction =
-  'confirm' | 'cancel' | 'delete' | 'restore' | 'create' | 'update' | 'resolveDelete';
-type Filters = {
-  search: string;
-  type: '' | 'INCOME' | 'EXPENSE';
-  status: '' | 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED' | 'all';
-  from: string;
-  to: string;
-  cycleStart: string;
-  periodStart: string;
-  accountId: string;
-  categoryId: string;
-  envelopeId: string;
-  planId: string;
-  sortBy: 'occurredOn' | 'amount';
-  sortDirection: 'asc' | 'desc';
-};
+type ConfirmationAction = 'confirm' | 'cancel' | 'delete' | 'restore' | 'create' | 'update';
 
 const auth = useAuth();
 const route = useRoute();
 const api = useBudgetReferenceData();
+const { push } = useToast();
+const { filters, activeCount, isGrouped, toListInput, set, reset, syncQuery } =
+  useOperationFilters();
+const mutations = useOperationMutations();
+
 const transactions = ref<TransactionDto[]>([]);
 const nextCursor = ref<string | null>(null);
 const loading = ref(true);
@@ -63,15 +59,12 @@ const exportStatus = ref('');
 const exportError = ref('');
 const error = ref('');
 const formErrors = ref<Partial<Record<string, string>>>({});
-const statusText = ref('');
-const rejectedProposalIds = ref<Set<string>>(new Set());
 const formOpen = ref(false);
 const form = ref<OperationFormModel>(createOperationForm());
 const selectedTransaction = ref<TransactionDto | null>(null);
 const preloadedDraftId = ref<string | null>(null);
-const detailsTransaction = ref<TransactionDto | null>(null);
-const allocations = ref<IncomeAllocationDto[]>([]);
-const auditEvents = ref<AuditEventDto[]>([]);
+const detailed = ref<TransactionDto | null>(null);
+const allocationChoice = ref<TransactionDto | null>(null);
 const mutationKeys = new Map<string, string>();
 const confirmation = ref<null | {
   action: ConfirmationAction;
@@ -79,27 +72,46 @@ const confirmation = ref<null | {
   input?: CreateTransactionInput | UpdateTransactionInput;
   allocationResolution?: 'CANCEL' | 'DELETE';
 }>(null);
-const filters = ref<Filters>(filtersFromQuery(route.query));
 let requestVersion = 0;
 
 const workspace = computed(() => auth.currentData.value?.workspaces[0] ?? null);
 const budget = computed(() => workspace.value?.budgets[0] ?? null);
 const isOwner = computed(() => workspace.value?.role === 'OWNER');
 const accounts = ref<Array<{ value: string; label: string }>>([]);
-const categories = ref<
-  Array<{
-    id: string;
-    budgetId: string;
-    templateKey: string | null;
-    name: string;
-    categoryType: 'INCOME' | 'EXPENSE';
-    parentId: string | null;
-    displayOrder: number;
-    comment: string | null;
-    archivedAt: string | null;
-  }>
->([]);
+const categories = ref<CategoryDto[]>([]);
 const envelopes = ref<Array<{ value: string; label: string }>>([]);
+
+const categoryOptions = computed(() =>
+  categories.value.map((category) => ({ value: category.id, label: category.name })),
+);
+const categoryById = computed(
+  () => new Map(categories.value.map((category) => [category.id, category])),
+);
+const accountNameById = computed(
+  () => new Map(accounts.value.map((account) => [account.value, account.label])),
+);
+const envelopeNameById = computed(
+  () => new Map(envelopes.value.map((envelope) => [envelope.value, envelope.label])),
+);
+
+const today = new Date().toISOString().slice(0, 10);
+
+// One list of sections drives both shapes: grouped by day, or one flat section
+// when the server sorted by amount and day headings would lie about the order.
+const sections = computed(() =>
+  isGrouped.value
+    ? groupByDay(transactions.value, today)
+    : [{ date: 'all', label: '', items: transactions.value }],
+);
+
+const unallocatedIncome = computed(() =>
+  transactions.value.find(
+    (item) =>
+      item.transactionType === 'INCOME' &&
+      item.status === 'CONFIRMED' &&
+      item.unallocatedMinor !== '0',
+  ),
+);
 
 onMounted(() => {
   hydrated.value = true;
@@ -124,7 +136,7 @@ async function load(append = false) {
   try {
     const [result, accountData, categoryData, envelopeData] = await Promise.all([
       api.listTransactions(budget.value.id, {
-        ...transactionFilters(),
+        ...toListInput(),
         ...(append && nextCursor.value ? { cursor: nextCursor.value } : {}),
       }),
       api.listAccounts(budget.value.id, 'active'),
@@ -164,22 +176,48 @@ async function preloadDraft() {
   }
 }
 
-function activeFilterCount() {
-  const advanced: Array<string> = [
-    filters.value.status,
-    filters.value.from,
-    filters.value.to,
-    filters.value.cycleStart,
-    filters.value.periodStart,
-    filters.value.accountId,
-    filters.value.categoryId,
-    filters.value.envelopeId,
-  ];
-  return advanced.filter((value) => value !== '').length;
-}
-
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function categoryName(transaction: TransactionDto): string {
+  return categoryById.value.get(transaction.categoryId)?.name ?? 'Без категории';
+}
+
+function categoryTemplateKey(transaction: TransactionDto): string | null {
+  return categoryById.value.get(transaction.categoryId)?.templateKey ?? null;
+}
+
+function accountName(transaction: TransactionDto): string {
+  return accountNameById.value.get(transaction.accountId) ?? 'Счёт';
+}
+
+function envelopeName(transaction: TransactionDto): string | null {
+  return transaction.envelopeId === null
+    ? null
+    : (envelopeNameById.value.get(transaction.envelopeId) ?? 'Конверт');
+}
+
+function onFilterChange(key: keyof OperationFilters, value: string): void {
+  set(key, value as never);
+  void load();
+}
+
+function onSearch(value: string): void {
+  filters.value.search = value;
+  void syncQuery();
+  void load();
+}
+
+function onReset(): void {
+  reset();
+  void load();
+}
+
+// A closed drawer must not cost a full reload: replace the one row that changed.
+function applyChanged(updated: TransactionDto): void {
+  transactions.value = transactions.value.map((item) => (item.id === updated.id ? updated : item));
+  if (detailed.value?.id === updated.id) detailed.value = updated;
 }
 
 function openCreate() {
@@ -190,28 +228,11 @@ function openCreate() {
 }
 
 function openEdit(transaction: TransactionDto) {
+  detailed.value = null;
   form.value = createOperationForm(transaction);
   formErrors.value = {};
   selectedTransaction.value = transaction;
   formOpen.value = true;
-}
-
-async function openDetails(transaction: TransactionDto) {
-  if (!budget.value) return;
-  detailsTransaction.value = transaction;
-  try {
-    const [allocationData, auditData] = await Promise.all([
-      transaction.transactionType === 'INCOME'
-        ? api.listTransactionAllocations(budget.value.id, transaction.id)
-        : Promise.resolve([]),
-      api.listTransactionAudit(budget.value.id, transaction.id).catch(() => []),
-    ]);
-    if (detailsTransaction.value?.id !== transaction.id) return;
-    allocations.value = allocationData;
-    auditEvents.value = auditData;
-  } catch {
-    error.value = 'Не удалось загрузить детали операции.';
-  }
 }
 
 function mapFormError(exception: unknown): string {
@@ -228,11 +249,7 @@ function mapFormError(exception: unknown): string {
     fieldErrors.amount = exception.problem.detail;
   }
   formErrors.value = fieldErrors;
-  return Object.keys(fieldErrors).length > 0
-    ? 'Укажите данные формы.'
-    : exception instanceof ApiRequestError
-      ? exception.problem.detail
-      : 'Не удалось сохранить операцию. Повторите попытку.';
+  return Object.keys(fieldErrors).length > 0 ? 'Укажите данные формы.' : exception.problem.detail;
 }
 
 function receiveForm(input: CreateTransactionInput | UpdateTransactionInput) {
@@ -258,78 +275,12 @@ async function saveCreate(input: CreateTransactionInput) {
     await api.createTransaction(budget.value.id, input, key);
     mutationKeys.delete('create');
     formOpen.value = false;
-    statusText.value = input.status === 'DRAFT' ? 'Черновик сохранён.' : 'Операция подтверждена.';
+    push({
+      tone: 'success',
+      title: input.status === 'DRAFT' ? 'Черновик сохранён' : 'Операция подтверждена',
+    });
     await load();
   } catch (exception) {
-    error.value = mapFormError(exception);
-  } finally {
-    pending.value = false;
-  }
-}
-
-function ask(
-  action: Exclude<ConfirmationAction, 'create' | 'update'>,
-  transaction: TransactionDto,
-) {
-  confirmation.value = { action, transaction };
-}
-
-async function runConfirmation() {
-  const current = confirmation.value;
-  if (!current || !budget.value) return;
-  confirmation.value = null;
-  if (current.action === 'create' && current.input) {
-    await saveCreate(current.input as CreateTransactionInput);
-    return;
-  }
-  if (!current.transaction) return;
-  pending.value = true;
-  error.value = '';
-  try {
-    const operation = `${current.action}:${current.transaction.id}`;
-    const key = keyFor(operation);
-    if (current.action === 'update' && current.input) {
-      await api.updateTransaction(
-        budget.value.id,
-        current.transaction.id,
-        current.input as UpdateTransactionInput,
-        key,
-      );
-      formOpen.value = false;
-      selectedTransaction.value = null;
-    }
-    if (current.action === 'confirm')
-      await api.confirmTransaction(budget.value.id, current.transaction.id, key);
-    if (current.action === 'cancel')
-      await api.cancelTransaction(budget.value.id, current.transaction.id, key);
-    if (current.action === 'delete')
-      await api.deleteTransaction(budget.value.id, current.transaction.id, key);
-    if (current.action === 'restore')
-      await api.restoreTransaction(budget.value.id, current.transaction.id, key);
-    if (current.action === 'resolveDelete')
-      await api.deleteTransactionWithAllocations(
-        budget.value.id,
-        current.transaction.id,
-        { allocationResolution: current.allocationResolution ?? 'DELETE' },
-        key,
-      );
-    mutationKeys.delete(operation);
-    statusText.value = 'Данные обновлены на сервере.';
-    await load();
-  } catch (exception) {
-    if (
-      current.action === 'delete' &&
-      exception instanceof ApiRequestError &&
-      exception.problem.code === 'INCOME_HAS_CONFIRMED_ALLOCATIONS'
-    ) {
-      statusText.value = 'Удалите связанные распределения, чтобы удалить доход.';
-      confirmation.value = {
-        action: 'resolveDelete',
-        transaction: current.transaction,
-        allocationResolution: 'DELETE',
-      };
-      return;
-    }
     error.value = mapFormError(exception);
   } finally {
     pending.value = false;
@@ -344,67 +295,107 @@ function keyFor(operation: string) {
   return key;
 }
 
-function applyFilters() {
-  void navigateTo({ query: filterQuery() }, { replace: true });
+function ask(
+  action: Exclude<ConfirmationAction, 'create' | 'update'>,
+  transaction: TransactionDto,
+) {
+  confirmation.value = { action, transaction };
+}
+
+function askResolveDeletion(
+  transaction: TransactionDto,
+  allocationResolution: 'CANCEL' | 'DELETE',
+) {
+  confirmation.value = { action: 'delete', transaction, allocationResolution };
+}
+
+async function runConfirmation() {
+  const current = confirmation.value;
+  if (!current || !budget.value) return;
+  confirmation.value = null;
+
+  if (current.action === 'create' && current.input) {
+    await saveCreate(current.input as CreateTransactionInput);
+    return;
+  }
+  if (!current.transaction) return;
+
+  if (current.action === 'update' && current.input) {
+    await saveUpdate(current.transaction, current.input as UpdateTransactionInput);
+    return;
+  }
+
+  const transaction = current.transaction;
+  if (current.action === 'confirm') {
+    apply(await mutations.confirm(budget.value.id, transaction));
+    return;
+  }
+  if (current.action === 'cancel') {
+    apply(await mutations.cancel(budget.value.id, transaction));
+    return;
+  }
+  if (current.action === 'restore') {
+    apply(await mutations.restore(budget.value.id, transaction));
+    return;
+  }
+
+  if (current.allocationResolution) {
+    apply(
+      await mutations.removeWithAllocations(
+        budget.value.id,
+        transaction,
+        current.allocationResolution,
+      ),
+    );
+    return;
+  }
+
+  const removed = await mutations.remove(budget.value.id, transaction);
+  if (removed) {
+    apply(removed);
+    return;
+  }
+  // Deleting an income that still carries confirmed allocations is a deliberate
+  // second decision: cancel those allocations, or delete them with the income.
+  const failure = mutations.lastError.value;
+  if (
+    failure instanceof ApiRequestError &&
+    failure.problem.code === 'INCOME_HAS_CONFIRMED_ALLOCATIONS'
+  ) {
+    allocationChoice.value = transaction;
+  }
+}
+
+function apply(updated: TransactionDto | null): void {
+  if (!updated) return;
+  applyChanged(updated);
   void load();
 }
 
-function filterQuery() {
-  return Object.fromEntries(
-    Object.entries({
-      ...transactionFilters(),
-      sortBy: filters.value.sortBy === 'occurredOn' ? undefined : filters.value.sortBy,
-      sortDirection:
-        filters.value.sortDirection === 'desc' ? undefined : filters.value.sortDirection,
-    }).filter(([, value]) => value !== '' && value !== undefined),
-  );
+async function saveUpdate(transaction: TransactionDto, input: UpdateTransactionInput) {
+  if (!budget.value) return;
+  pending.value = true;
+  error.value = '';
+  const operation = `update:${transaction.id}`;
+  const key = keyFor(operation);
+  try {
+    await api.updateTransaction(budget.value.id, transaction.id, input, key);
+    mutationKeys.delete(operation);
+    formOpen.value = false;
+    selectedTransaction.value = null;
+    push({ tone: 'success', title: 'Операция обновлена' });
+    await load();
+  } catch (exception) {
+    error.value = mapFormError(exception);
+  } finally {
+    pending.value = false;
+  }
 }
 
-function filtersFromQuery(
-  query: Record<string, string | null | Array<string | null> | undefined>,
-): Filters {
-  const value = (name: string) => {
-    const candidate = query[name];
-    return typeof candidate === 'string' ? candidate : '';
-  };
-  const type = value('type');
-  const status = value('status');
-  const sortBy = value('sortBy');
-  const sortDirection = value('sortDirection');
-  return {
-    search: value('search'),
-    type: type === 'INCOME' || type === 'EXPENSE' ? type : '',
-    status: ['DRAFT', 'CONFIRMED', 'CANCELLED', 'DELETED', 'all'].includes(status)
-      ? (status as Filters['status'])
-      : '',
-    from: value('from'),
-    to: value('to'),
-    cycleStart: value('cycleStart'),
-    periodStart: value('periodStart'),
-    accountId: value('accountId'),
-    categoryId: value('categoryId'),
-    envelopeId: value('envelopeId'),
-    planId: value('planId'),
-    sortBy: sortBy === 'amount' ? 'amount' : 'occurredOn',
-    sortDirection: sortDirection === 'asc' ? 'asc' : 'desc',
-  };
-}
-function transactionFilters() {
-  return {
-    ...(filters.value.search ? { search: filters.value.search } : {}),
-    ...(filters.value.type ? { type: filters.value.type } : {}),
-    ...(filters.value.status ? { status: filters.value.status } : {}),
-    ...(filters.value.from ? { from: filters.value.from } : {}),
-    ...(filters.value.to ? { to: filters.value.to } : {}),
-    ...(filters.value.cycleStart ? { cycleStart: filters.value.cycleStart } : {}),
-    ...(filters.value.periodStart ? { periodStart: filters.value.periodStart } : {}),
-    ...(filters.value.accountId ? { accountId: filters.value.accountId } : {}),
-    ...(filters.value.categoryId ? { categoryId: filters.value.categoryId } : {}),
-    ...(filters.value.envelopeId ? { envelopeId: filters.value.envelopeId } : {}),
-    ...(filters.value.planId ? { planId: filters.value.planId } : {}),
-    sortBy: filters.value.sortBy,
-    sortDirection: filters.value.sortDirection,
-  };
+function chooseAllocationResolution(resolution: 'CANCEL' | 'DELETE'): void {
+  const transaction = allocationChoice.value;
+  allocationChoice.value = null;
+  if (transaction) askResolveDeletion(transaction, resolution);
 }
 
 async function downloadCsv() {
@@ -413,7 +404,7 @@ async function downloadCsv() {
   exportStatus.value = '';
   exportError.value = '';
   try {
-    const blob = await api.downloadTransactionsCsv(budget.value.id, transactionFilters());
+    const blob = await api.downloadTransactionsCsv(budget.value.id, toListInput());
     if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
@@ -430,59 +421,6 @@ async function downloadCsv() {
   } finally {
     exportPending.value = false;
   }
-}
-
-function resetFilters() {
-  filters.value = {
-    search: '',
-    type: '',
-    status: '',
-    from: '',
-    to: '',
-    cycleStart: '',
-    periodStart: '',
-    accountId: '',
-    categoryId: '',
-    envelopeId: '',
-    planId: '',
-    sortBy: 'occurredOn',
-    sortDirection: 'desc',
-  };
-  applyFilters();
-}
-
-function toggleSort(sortBy: Filters['sortBy']) {
-  filters.value.sortDirection =
-    filters.value.sortBy === sortBy && filters.value.sortDirection === 'desc' ? 'asc' : 'desc';
-  filters.value.sortBy = sortBy;
-  applyFilters();
-}
-
-async function saveAllocation(
-  transaction: TransactionDto,
-  input: { amount: string; occurredOn: string; accountId: string; envelopeId: string },
-) {
-  if (!budget.value) return;
-  pending.value = true;
-  try {
-    await api.createIncomeAllocation(
-      budget.value.id,
-      transaction.id,
-      input,
-      keyFor(`allocation:${transaction.id}`),
-    );
-    mutationKeys.delete(`allocation:${transaction.id}`);
-    await load();
-  } catch {
-    error.value = 'Не удалось сохранить распределение. Повторите попытку.';
-  } finally {
-    pending.value = false;
-  }
-}
-
-function rejectAllocationProposal(transactionId: string) {
-  rejectedProposalIds.value = new Set([...rejectedProposalIds.value, transactionId]);
-  statusText.value = 'Предложение распределения отклонено.';
 }
 </script>
 
@@ -511,198 +449,151 @@ function rejectAllocationProposal(transactionId: string) {
       </template>
 
       <template #filters>
-        <UiFilterPanel :active-count="activeFilterCount()">
-          <template #quick>
-            <UiInput
-              v-model="filters.search"
-              name="search"
-              label="Поиск"
-              @update:model-value="applyFilters"
-            />
-            <UiSelect
-              v-model="filters.type"
-              name="type"
-              label="Тип"
-              :options="[
-                { value: '', label: 'Все типы' },
-                { value: 'INCOME', label: 'Доходы' },
-                { value: 'EXPENSE', label: 'Расходы' },
-              ]"
-              @update:model-value="applyFilters"
-            />
-          </template>
-          <UiSelect
-            v-model="filters.status"
-            name="status"
-            label="Статус"
-            :options="[
-              { value: '', label: 'Все активные' },
-              { value: 'DRAFT', label: 'Черновики' },
-              { value: 'CONFIRMED', label: 'Подтверждённые' },
-              { value: 'CANCELLED', label: 'Отменённые' },
-              { value: 'DELETED', label: 'Удалённые' },
-              { value: 'all', label: 'Все статусы' },
-            ]"
-            @update:model-value="applyFilters"
-          />
-          <UiInput
-            v-model="filters.from"
-            name="from"
-            label="С даты"
-            type="date"
-            @update:model-value="applyFilters"
-          />
-          <UiInput
-            v-model="filters.to"
-            name="to"
-            label="По дату"
-            type="date"
-            @update:model-value="applyFilters"
-          />
-          <UiInput
-            v-model="filters.cycleStart"
-            name="cycleStart"
-            label="Дата цикла"
-            type="date"
-            @update:model-value="applyFilters"
-          />
-          <UiInput
-            v-model="filters.periodStart"
-            name="periodStart"
-            label="Дата периода"
-            type="date"
-            @update:model-value="applyFilters"
-          />
-          <UiSelect
-            v-model="filters.accountId"
-            name="journal-account-id"
-            label="Счёт в журнале"
-            :options="[{ value: '', label: 'Все счета' }, ...accounts]"
-            @update:model-value="applyFilters"
-          />
-          <UiSelect
-            v-model="filters.categoryId"
-            name="journal-category-id"
-            label="Категория в журнале"
-            :options="[
-              { value: '', label: 'Все категории' },
-              ...categories.map((item) => ({ value: item.id, label: item.name })),
-            ]"
-            @update:model-value="applyFilters"
-          />
-          <UiSelect
-            v-model="filters.envelopeId"
-            name="journal-envelope-id"
-            label="Конверт в журнале"
-            :options="[{ value: '', label: 'Все конверты' }, ...envelopes]"
-            @update:model-value="applyFilters"
-          />
-          <UiButton variant="tertiary" @click="resetFilters">Сбросить фильтры</UiButton>
-        </UiFilterPanel>
+        <OperationsToolbar
+          :filters="filters"
+          :active-count="activeCount"
+          :accounts="accounts"
+          :categories="categoryOptions"
+          :envelopes="envelopes"
+          :periods="[]"
+          @change="onFilterChange"
+          @search="onSearch"
+          @reset="onReset"
+        />
       </template>
 
       <template #content>
         <p v-if="exportStatus" class="operations-page__status" role="status">{{ exportStatus }}</p>
         <p v-if="exportError" class="operations-page__error" role="alert">{{ exportError }}</p>
-        <p v-if="statusText" class="operations-page__status" role="status">{{ statusText }}</p>
         <p v-if="error" class="operations-page__error" role="alert">
           {{ error }} <UiButton variant="tertiary" @click="load()">Повторить</UiButton>
         </p>
-        <div class="operations-page__sort" aria-label="Сортировка операций">
+
+        <p v-if="unallocatedIncome" class="operations-page__unallocated">
+          Не распределено
+          <FinanceMoney
+            :minor-units="unallocatedIncome.unallocatedMinor"
+            :currency="unallocatedIncome.currency"
+            :scale="unallocatedIncome.scale"
+          />
           <UiButton
-            :aria-sort="filters.sortBy === 'occurredOn' ? filters.sortDirection : 'none'"
             variant="tertiary"
-            @click="toggleSort('occurredOn')"
+            data-testid="open-unallocated"
+            @click="detailed = unallocatedIncome"
           >
-            Сортировать по дате
+            Распределить
           </UiButton>
-          <UiButton
-            :aria-sort="filters.sortBy === 'amount' ? filters.sortDirection : 'none'"
-            variant="tertiary"
-            @click="toggleSort('amount')"
-          >
-            Сортировать по сумме
-          </UiButton>
+        </p>
+
+        <div
+          v-if="loading && transactions.length === 0"
+          data-testid="operations-loading"
+          aria-busy="true"
+        >
+          <UiSkeleton variant="row" :count="6" />
         </div>
-        <p v-if="loading">Загрузка операций…</p>
+
         <UiEmptyState
-          v-else-if="transactions.length === 0"
+          v-else-if="transactions.length === 0 && activeCount === 0"
           title="Операций пока нет"
           description="Добавьте доход или расход, чтобы начать журнал."
         />
-        <section v-else class="operations-page__list" aria-label="Список операций">
-          <article
-            v-for="transaction in transactions"
-            :key="transaction.id"
-            class="operations-page__item"
-          >
-            <OperationCard :transaction="transaction" />
-            <div class="operations-page__actions">
-              <UiButton
-                data-action="show-operation-details"
-                variant="tertiary"
-                @click="openDetails(transaction)"
-              >
-                Детали
-              </UiButton>
-              <UiButton
-                v-if="transaction.status !== 'DELETED'"
-                data-action="edit-operation"
-                variant="secondary"
-                @click="openEdit(transaction)"
-              >
-                Изменить
-              </UiButton>
-              <UiButton
-                v-if="transaction.status === 'DRAFT'"
-                variant="secondary"
-                @click="ask('confirm', transaction)"
-              >
-                Подтвердить операцию
-              </UiButton>
-              <UiButton
-                v-if="transaction.status === 'DRAFT'"
-                variant="tertiary"
-                @click="ask('cancel', transaction)"
-              >
-                Отменить
-              </UiButton>
-              <UiButton
-                v-if="transaction.status !== 'DELETED'"
-                variant="tertiary"
-                @click="ask('delete', transaction)"
-              >
-                Удалить
-              </UiButton>
-              <UiButton
-                v-if="transaction.status === 'DELETED'"
-                variant="secondary"
-                @click="ask('restore', transaction)"
-              >
-                Восстановить
-              </UiButton>
-            </div>
-            <IncomeAllocationForm
-              v-if="
-                transaction.status === 'CONFIRMED' &&
-                transaction.transactionType === 'INCOME' &&
-                !rejectedProposalIds.has(transaction.id)
-              "
-              :proposal="transaction.allocationProposal"
-              :remaining-minor="transaction.unallocatedMinor"
-              :accounts="accounts"
-              :envelopes="envelopes"
-              :pending="pending"
-              @submit="saveAllocation(transaction, $event)"
-              @reject="rejectAllocationProposal(transaction.id)"
-            />
-          </article>
-        </section>
+
+        <UiEmptyState
+          v-else-if="transactions.length === 0"
+          title="Ничего не найдено"
+          description="Под текущие фильтры не подошла ни одна операция."
+        />
+
+        <template v-else>
+          <p v-if="!isGrouped" class="operations-page__sorted">Отсортировано по сумме</p>
+
+          <div class="operations-page__sections">
+            <OperationGroup v-for="section in sections" :key="section.date" :label="section.label">
+              <li v-for="transaction in section.items" :key="transaction.id">
+                <OperationRow
+                  :transaction="transaction"
+                  :category-name="categoryName(transaction)"
+                  :category-template-key="categoryTemplateKey(transaction)"
+                  :account-name="accountName(transaction)"
+                  :envelope-name="envelopeName(transaction)"
+                  @select="detailed = transaction"
+                >
+                  <template #actions>
+                    <UiActionMenu label="Действия над операцией">
+                      <button
+                        v-if="mutations.availableActions(transaction.status).includes('confirm')"
+                        type="button"
+                        role="menuitem"
+                        data-testid="row-confirm"
+                        @click="ask('confirm', transaction)"
+                      >
+                        Подтвердить
+                      </button>
+                      <button
+                        v-if="transaction.status !== 'DELETED'"
+                        type="button"
+                        role="menuitem"
+                        data-testid="row-edit"
+                        @click="openEdit(transaction)"
+                      >
+                        Изменить
+                      </button>
+                      <button
+                        v-if="mutations.availableActions(transaction.status).includes('cancel')"
+                        type="button"
+                        role="menuitem"
+                        data-testid="row-cancel"
+                        @click="ask('cancel', transaction)"
+                      >
+                        Отменить
+                      </button>
+                      <button
+                        v-if="mutations.availableActions(transaction.status).includes('delete')"
+                        type="button"
+                        role="menuitem"
+                        data-testid="row-delete"
+                        @click="ask('delete', transaction)"
+                      >
+                        Удалить
+                      </button>
+                      <button
+                        v-if="mutations.availableActions(transaction.status).includes('restore')"
+                        type="button"
+                        role="menuitem"
+                        data-testid="row-restore"
+                        @click="ask('restore', transaction)"
+                      >
+                        Восстановить
+                      </button>
+                    </UiActionMenu>
+                  </template>
+                </OperationRow>
+              </li>
+            </OperationGroup>
+          </div>
+        </template>
+
         <UiButton v-if="nextCursor" variant="secondary" :disabled="loading" @click="load(true)">
-          Загрузить ещё
+          Показать ещё
         </UiButton>
       </template>
     </UiReferencePageLayout>
+
+    <OperationDrawer
+      v-if="budget"
+      :transaction="detailed"
+      :budget-id="budget.id"
+      :account-name="detailed ? accountName(detailed) : ''"
+      :category-name="detailed ? categoryName(detailed) : ''"
+      :envelope-name="detailed ? envelopeName(detailed) : null"
+      :accounts="accounts"
+      :envelopes="envelopes"
+      @close="detailed = null"
+      @changed="applyChanged"
+      @edit="openEdit"
+      @request-delete="ask('delete', $event)"
+    />
 
     <UiModal
       :open="formOpen"
@@ -722,11 +613,6 @@ function rejectAllocationProposal(transactionId: string) {
       />
     </UiModal>
 
-    <OperationDetails
-      v-if="detailsTransaction"
-      :allocations="allocations"
-      :audit-events="auditEvents"
-    />
     <UiConfirmDialog
       :open="confirmation !== null"
       :title="
@@ -744,35 +630,50 @@ function rejectAllocationProposal(transactionId: string) {
       confirm-label="Подтвердить"
       cancel-label="Отмена"
       :variant="confirmation?.action === 'delete' ? 'danger' : 'primary'"
-      :loading="pending"
+      :loading="pending || mutations.pending.value"
       @confirm="runConfirmation"
       @cancel="confirmation = null"
+    />
+
+    <UiConfirmDialog
+      :open="allocationChoice !== null"
+      title="У дохода есть распределения"
+      description="Отменить распределения и оставить их в истории или удалить вместе с доходом?"
+      confirm-label="Удалить распределения"
+      cancel-label="Отменить распределения"
+      variant="danger"
+      :loading="mutations.pending.value"
+      @confirm="chooseAllocationResolution('DELETE')"
+      @cancel="chooseAllocationResolution('CANCEL')"
     />
   </div>
 </template>
 
 <style scoped>
-.operations-page__sort,
-.operations-page__actions {
+.operations-page__sections {
+  display: grid;
+  gap: var(--hf-space-5);
+}
+
+.operations-page__sorted,
+.operations-page__status {
+  margin-bottom: var(--hf-space-4);
+  color: var(--hf-color-text-muted);
+}
+
+.operations-page__status {
+  color: var(--hf-color-status-success);
+}
+
+.operations-page__unallocated {
   display: flex;
   flex-wrap: wrap;
   gap: var(--hf-space-2);
-}
-.operations-page__sort {
-  margin-bottom: var(--hf-space-6);
-}
-.operations-page__list {
-  display: grid;
-  gap: var(--hf-space-4);
-}
-.operations-page__item {
-  display: grid;
-  gap: var(--hf-space-3);
-}
-.operations-page__status {
+  align-items: center;
   margin-bottom: var(--hf-space-4);
-  color: var(--hf-color-status-success);
+  color: var(--hf-color-status-warning);
 }
+
 .operations-page__error {
   display: flex;
   align-items: center;
