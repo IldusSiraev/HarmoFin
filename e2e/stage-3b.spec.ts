@@ -70,20 +70,22 @@ test('journal filters, sort, reset, direct links, and dashboard use server data'
 
   await page.goto('/app/accounts');
   await page
-    .getByRole('article')
+    .locator('li')
     .filter({ hasText: 'Карта Stage 3b' })
-    .getByRole('link', { name: 'Операции счёта' })
+    .getByRole('button', { name: 'Действия над счётом' })
     .click();
+  await page.getByTestId('row-operations').click();
   await expect(page).toHaveURL(/\/app\/operations\?accountId=/);
   await expect(page.getByTestId('chip-accountId')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('chip-accountId')).toContainText('Карта Stage 3b');
 
   await page.goto('/app/envelopes');
   await page
-    .getByRole('article')
+    .locator('li')
     .filter({ hasText: 'Продукты Stage 3b' })
-    .getByRole('link', { name: 'Операции конверта' })
+    .getByRole('button', { name: 'Действия над конвертом' })
     .click();
+  await page.getByTestId('row-operations').click();
   await expect(page).toHaveURL(/\/app\/operations\?envelopeId=/);
   await expect(page.getByTestId('chip-envelopeId')).toHaveAttribute('aria-pressed', 'true');
 
