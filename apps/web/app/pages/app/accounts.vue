@@ -1,15 +1,20 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
-import { definePageMeta } from '#imports';
+import { definePageMeta, navigateTo, useRoute } from '#imports';
 
-import AccountCard from '../../components/accounts/AccountCard.vue';
+import AccountDrawer from '../../components/accounts/AccountDrawer.vue';
+import AccountRow from '../../components/accounts/AccountRow.vue';
+import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
+import UiActionMenu from '../../components/ui/ActionMenu.vue';
 import UiButton from '../../components/ui/Button.vue';
+import UiChip from '../../components/ui/Chip.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
 import UiInput from '../../components/ui/Input.vue';
 import UiModal from '../../components/ui/Modal.vue';
 import UiSelect from '../../components/ui/Select.vue';
+import UiSkeleton from '../../components/ui/Skeleton.vue';
 import UiStatus from '../../components/ui/Status.vue';
 import { useAuth } from '../../composables/useAuth.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
@@ -18,6 +23,7 @@ import {
   type AccountType,
   type CreateAccountInput,
   type ReferenceStatus,
+  type ReferenceSummaryDto,
   type UpdateAccountInput,
   useBudgetReferenceData,
 } from '../../composables/useBudgetReferenceData.js';
@@ -37,20 +43,26 @@ const accountFields = [
   'comment',
 ] as const;
 const { currentData, loadMe } = useAuth();
+const route = useRoute();
 const api = useBudgetReferenceData();
 const formHelper = useReferenceDataForm(accountFields);
 const { push } = useToast();
 const accounts = ref<AccountDto[]>([]);
+const summary = ref<ReferenceSummaryDto | null>(null);
+const detailed = ref<AccountDto | null>(null);
 const loading = ref(true);
 const loadError = ref('');
-const summary = ref('');
+// A short-lived confirmation/failure line for form and archive actions,
+// separate from the server-computed accounts summary above the list.
+const statusMessage = ref('');
 const saving = ref(false);
 const archiving = ref(false);
 const formVisible = ref(false);
 const editingId = ref<string | null>(null);
 const editingAccount = ref<AccountDto | null>(null);
 const archiveTarget = ref<AccountDto | null>(null);
-const status = ref<ReferenceStatus>('active');
+// The archive filter lives in the URL so the view survives a reload and can be shared.
+const status = ref<ReferenceStatus>(route.query.status === 'archived' ? 'archived' : 'active');
 const fieldErrors = ref<Partial<Record<(typeof accountFields)[number], string>>>({});
 const form = reactive({
   name: '',
@@ -63,13 +75,6 @@ const form = reactive({
 });
 
 const budgetId = computed(() => currentData.value?.workspaces[0]?.budgets[0]?.id);
-function getStatusOptions() {
-  return [
-    { value: 'active', label: 'Активные' },
-    { value: 'archived', label: 'В архиве' },
-    { value: 'all', label: 'Все' },
-  ];
-}
 
 function getAccountTypeOptions() {
   return [
@@ -95,7 +100,7 @@ function startCreate() {
   editingId.value = null;
   editingAccount.value = null;
   formVisible.value = true;
-  summary.value = '';
+  statusMessage.value = '';
 }
 
 function startEdit(account: AccountDto) {
@@ -109,8 +114,10 @@ function startEdit(account: AccountDto) {
   fieldErrors.value = {};
   editingId.value = account.id;
   editingAccount.value = account;
+  // Close the drawer first, otherwise the modal opens stacked on top of it.
+  detailed.value = null;
   formVisible.value = true;
-  summary.value = '';
+  statusMessage.value = '';
 }
 
 function cancelForm() {
@@ -120,13 +127,18 @@ function cancelForm() {
   resetForm();
 }
 
-async function loadAccounts() {
+async function loadAccounts(): Promise<void> {
   const id = budgetId.value;
   if (!id) return;
   // A reference record may have just changed, so the shared cache the journal,
   // the transfers page and the global dialogs read must not stay on old names.
   useOperationReferenceData().invalidate();
-  accounts.value = await api.listAccounts(id, status.value);
+  const [items, totals] = await Promise.all([
+    api.listAccounts(id, status.value),
+    api.getAccountsSummary(id, status.value),
+  ]);
+  accounts.value = items;
+  summary.value = totals;
 }
 
 async function loadPage() {
@@ -142,9 +154,13 @@ async function loadPage() {
   }
 }
 
-async function changeStatus(value: string) {
-  status.value = value as ReferenceStatus;
-  await loadAccounts();
+async function toggleArchived(): Promise<void> {
+  status.value = status.value === 'archived' ? 'active' : 'archived';
+  await navigateTo(
+    { path: route.path, query: status.value === 'archived' ? { status: 'archived' } : {} },
+    { replace: true },
+  );
+  await loadPage();
 }
 
 function getFieldError(field: (typeof accountFields)[number]) {
@@ -159,7 +175,7 @@ async function saveAccount() {
   const id = budgetId.value;
   if (!id) return;
   saving.value = true;
-  summary.value = '';
+  statusMessage.value = '';
   fieldErrors.value = {};
 
   try {
@@ -182,14 +198,14 @@ async function saveAccount() {
         input.startingBalance = formHelper.normalizeDecimal(form.startingBalance);
       }
       if (Object.keys(input).length === 0) {
-        summary.value = 'Нет изменений для сохранения.';
+        statusMessage.value = 'Нет изменений для сохранения.';
         cancelForm();
         return;
       }
 
       await api.updateAccount(id, editingId.value, input);
       await loadAccounts();
-      summary.value = 'Счёт обновлён.';
+      statusMessage.value = 'Счёт обновлён.';
       push({ tone: 'success', title: 'Счёт обновлён' });
     } else {
       const input: CreateAccountInput = {
@@ -204,14 +220,14 @@ async function saveAccount() {
       };
       await api.createAccount(id, input);
       await loadAccounts();
-      summary.value = 'Счёт создан.';
+      statusMessage.value = 'Счёт создан.';
       push({ tone: 'success', title: 'Счёт создан' });
     }
     cancelForm();
   } catch (error) {
     const mapped = formHelper.errorMessage(error);
     fieldErrors.value = mapped.fields;
-    summary.value = mapped.summary;
+    statusMessage.value = mapped.summary;
     push({ tone: 'error', title: 'Не удалось сохранить', description: mapped.summary });
   } finally {
     saving.value = false;
@@ -234,11 +250,12 @@ async function confirmArchive() {
   try {
     await api.archiveAccount(id, target.id);
     archiveTarget.value = null;
+    detailed.value = null;
     await loadAccounts();
-    summary.value = 'Счёт перемещён в архив.';
+    statusMessage.value = 'Счёт перемещён в архив.';
     push({ tone: 'success', title: 'Счёт перемещён в архив' });
   } catch {
-    summary.value = 'Не удалось выполнить действие. Повторите попытку.';
+    statusMessage.value = 'Не удалось выполнить действие. Повторите попытку.';
   } finally {
     archiving.value = false;
   }
@@ -251,16 +268,13 @@ onMounted(() => {
 
 <template>
   <div class="reference-page">
-    <template v-if="loading">
-      <UiStatus label="Загрузка счетов…" tone="info" aria-live="polite" />
-    </template>
-    <template v-else-if="loadError">
+    <template v-if="loadError">
       <UiEmptyState title="Счета недоступны" :description="loadError">
         <template #action><UiButton @click="loadPage">Повторить</UiButton></template>
       </UiEmptyState>
     </template>
     <UiEmptyState
-      v-else-if="!budgetId"
+      v-else-if="!loading && !budgetId"
       title="Бюджет не выбран"
       description="Выберите бюджет, чтобы управлять счетами."
     />
@@ -272,54 +286,105 @@ onMounted(() => {
         <UiButton data-action="create-account" @click="startCreate">Создать счёт</UiButton>
       </template>
       <template #filters>
-        <UiSelect
-          class="reference-status-filter"
-          :model-value="status"
-          name="status"
-          label="Показать счета"
-          :options="getStatusOptions()"
-          @update:model-value="changeStatus"
+        <UiChip
+          label="В архиве"
+          :active="status === 'archived'"
+          data-testid="chip-archived"
+          @click="toggleArchived"
         />
       </template>
       <template #content>
-        <UiStatus v-if="summary" :label="summary" tone="info" aria-live="polite" />
-        <UiEmptyState
-          v-if="accounts.length === 0"
-          title="Счетов пока нет"
-          description="Добавьте счёт, чтобы начать вести учёт."
+        <UiStatus v-if="statusMessage" :label="statusMessage" tone="info" aria-live="polite" />
+
+        <div
+          v-if="loading && accounts.length === 0"
+          data-testid="accounts-loading"
+          aria-busy="true"
         >
-          <template #action><UiButton @click="startCreate">Создать счёт</UiButton></template>
-        </UiEmptyState>
-        <div v-else class="reference-grid">
-          <AccountCard v-for="account in accounts" :key="account.id" :account="account">
-            <template #actions>
-              <UiButton variant="secondary" data-action="edit-account" @click="startEdit(account)"
-                >Изменить</UiButton
-              >
-              <NuxtLink
-                class="account-transfer-link"
-                :to="`/app/operations?accountId=${encodeURIComponent(account.id)}`"
-                >Операции счёта</NuxtLink
-              >
-              <NuxtLink
-                v-if="!account.archivedAt"
-                class="account-transfer-link"
-                data-action="transfer-from-account"
-                :to="`/app/transfers?sourceAccountId=${encodeURIComponent(account.id)}`"
-                >Перевести со счёта</NuxtLink
-              >
-              <UiButton
-                v-if="!account.archivedAt"
-                variant="danger"
-                data-action="archive-account"
-                @click="requestArchive(account)"
-                >Переместить в архив</UiButton
-              >
-            </template>
-          </AccountCard>
+          <UiSkeleton variant="row" :count="4" />
         </div>
+
+        <template v-else>
+          <p v-if="summary" class="accounts-page__total" data-testid="accounts-total">
+            Всего на счетах
+            <FinanceMoney
+              :minor-units="summary.totalMinor"
+              :currency="summary.currency"
+              :scale="summary.scale"
+            />
+          </p>
+
+          <UiEmptyState
+            v-if="accounts.length === 0 && status === 'archived'"
+            title="В архиве пусто"
+            description="Архивные счета появятся здесь после архивирования."
+          />
+          <UiEmptyState
+            v-else-if="accounts.length === 0"
+            title="Счетов пока нет"
+            description="Создайте счёт, чтобы вести на нём операции."
+          >
+            <template #action><UiButton @click="startCreate">Создать счёт</UiButton></template>
+          </UiEmptyState>
+
+          <ul v-else class="accounts-page__list" aria-label="Список счетов">
+            <li v-for="account in accounts" :key="account.id" class="accounts-page__list-item">
+              <AccountRow :account="account" @select="detailed = account">
+                <template #actions>
+                  <UiActionMenu
+                    label="Действия над счётом"
+                    :trigger-test-id="`row-actions-${account.id}`"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      data-testid="row-edit"
+                      data-action="edit-account"
+                      @click="startEdit(account)"
+                    >
+                      Изменить
+                    </button>
+                    <NuxtLink
+                      role="menuitem"
+                      data-testid="row-operations"
+                      :to="`/app/operations?accountId=${encodeURIComponent(account.id)}`"
+                    >
+                      Операции счёта
+                    </NuxtLink>
+                    <NuxtLink
+                      v-if="!account.archivedAt"
+                      role="menuitem"
+                      data-testid="row-transfer"
+                      data-action="transfer-from-account"
+                      :to="`/app/transfers?sourceAccountId=${encodeURIComponent(account.id)}`"
+                    >
+                      Перевести со счёта
+                    </NuxtLink>
+                    <button
+                      v-if="!account.archivedAt"
+                      type="button"
+                      role="menuitem"
+                      data-testid="row-archive"
+                      data-action="archive-account"
+                      @click="requestArchive(account)"
+                    >
+                      Переместить в архив
+                    </button>
+                  </UiActionMenu>
+                </template>
+              </AccountRow>
+            </li>
+          </ul>
+        </template>
       </template>
     </ReferencePageLayout>
+
+    <AccountDrawer
+      :account="detailed"
+      @close="detailed = null"
+      @edit="startEdit"
+      @archive="requestArchive"
+    />
 
     <UiModal
       :open="formVisible"
@@ -434,23 +499,23 @@ form[data-account-form] {
   flex-wrap: wrap;
   gap: var(--hf-space-3);
 }
-.reference-status-filter {
-  max-width: 18rem;
+.accounts-page__total {
+  margin: 0;
+  display: flex;
+  gap: var(--hf-space-2);
+  align-items: baseline;
+  color: var(--hf-color-text);
+  font-size: var(--hf-font-size-h3);
+  font-weight: var(--hf-font-weight-semibold);
 }
-.reference-grid {
+.accounts-page__list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
-  gap: var(--hf-space-5);
+  gap: var(--hf-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-.account-transfer-link {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--hf-control-height-md);
-  color: var(--hf-color-action-primary-hover);
-  font-weight: var(--hf-font-weight-medium);
-  text-decoration: none;
-}
-.account-transfer-link:hover {
-  text-decoration: underline;
+.accounts-page__list-item {
+  min-width: 0;
 }
 </style>
