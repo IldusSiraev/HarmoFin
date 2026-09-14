@@ -146,7 +146,9 @@ test.describe('operations mobile route', () => {
     await registerAndReachApp(page);
     await page.goto('/app/operations');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Операции');
-    await page.getByRole('button', { name: 'Добавить операцию' }).click();
+    // On a phone the bottom navigation carries the same accessible name, so
+    // this has to name the journal's own button.
+    await page.getByRole('main').getByRole('button', { name: 'Добавить операцию' }).click();
     await expect(page.getByLabel('Тип операции')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       375,

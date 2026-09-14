@@ -24,6 +24,7 @@ import {
   useBudgetReferenceData,
 } from '../../composables/useBudgetReferenceData.js';
 import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js';
+import { useToast } from '../../composables/useToast.js';
 
 defineOptions({ name: 'AppEnvelopesPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
@@ -42,6 +43,7 @@ const envelopeFields = [
 const { currentData, loadMe } = useAuth();
 const api = useBudgetReferenceData();
 const formHelper = useReferenceDataForm(envelopeFields);
+const { push } = useToast();
 const envelopes = ref<EnvelopeDto[]>([]);
 const budget = ref<BudgetDto | null>(null);
 const loading = ref(true);
@@ -207,6 +209,7 @@ async function saveEnvelope() {
       await api.updateEnvelope(id, editingId.value, input);
       await loadEnvelopes();
       summary.value = 'Конверт обновлён.';
+      push({ tone: 'success', title: 'Конверт обновлён' });
     } else {
       const input: CreateEnvelopeInput = {
         name: form.name,
@@ -223,12 +226,14 @@ async function saveEnvelope() {
       await api.createEnvelope(id, input);
       await loadEnvelopes();
       summary.value = 'Конверт создан.';
+      push({ tone: 'success', title: 'Конверт создан' });
     }
     cancelForm();
   } catch (error) {
     const mapped = formHelper.errorMessage(error);
     fieldErrors.value = mapped.fields;
     summary.value = mapped.summary;
+    push({ tone: 'error', title: 'Не удалось сохранить', description: mapped.summary });
   } finally {
     saving.value = false;
   }
@@ -252,6 +257,7 @@ async function confirmArchive() {
     archiveTarget.value = null;
     await loadEnvelopes();
     summary.value = 'Конверт перемещён в архив.';
+    push({ tone: 'success', title: 'Конверт перемещён в архив' });
   } catch {
     summary.value = 'Не удалось выполнить действие. Повторите попытку.';
   } finally {

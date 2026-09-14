@@ -43,6 +43,15 @@ describe('AppSidebar', () => {
     );
   });
 
+  it('marks the active section for assistive technology, not only with colour', () => {
+    const wrapper = mountSidebar();
+
+    expect(wrapper.get('a.app-sidebar__link[href="/app"]').attributes('aria-current')).toBe('page');
+    expect(
+      wrapper.get('a.app-sidebar__link[href="/app/accounts"]').attributes('aria-current'),
+    ).toBeUndefined();
+  });
+
   it('shows the signed-in email and logs out on click', async () => {
     const wrapper = mountSidebar();
     expect(wrapper.text()).toContain('owner@example.test');

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { watch } from 'vue';
-import { navigateTo } from '#imports';
+import { navigateTo, useRoute } from '#imports';
 
 import { useAuth } from '../../composables/useAuth.js';
 
@@ -15,6 +15,13 @@ const emit = defineEmits<{
 }>();
 
 const { currentData, logout } = useAuth();
+const route = useRoute();
+
+// `/app` would otherwise match every nested section, so only it compares exactly.
+function currentPage(to: string): 'page' | undefined {
+  const active = to === '/app' ? route.path === '/app' : route.path.startsWith(to);
+  return active ? 'page' : undefined;
+}
 
 function userEmail() {
   return currentData.value?.user?.email ?? '';
@@ -75,6 +82,7 @@ watch(
               to="/app"
               class="mobile-menu__link"
               active-class="mobile-menu__link--active"
+              :aria-current="currentPage('/app')"
               @click="handleClose"
             >
               Главная
@@ -83,6 +91,7 @@ watch(
               to="/app/operations"
               class="mobile-menu__link"
               active-class="mobile-menu__link--active"
+              :aria-current="currentPage('/app/operations')"
               @click="handleClose"
             >
               Операции
@@ -91,6 +100,7 @@ watch(
               to="/app/transfers"
               class="mobile-menu__link"
               active-class="mobile-menu__link--active"
+              :aria-current="currentPage('/app/transfers')"
               @click="handleClose"
             >
               Переводы
@@ -99,6 +109,7 @@ watch(
               to="/app/accounts"
               class="mobile-menu__link"
               active-class="mobile-menu__link--active"
+              :aria-current="currentPage('/app/accounts')"
               @click="handleClose"
             >
               Счета
@@ -107,6 +118,7 @@ watch(
               to="/app/envelopes"
               class="mobile-menu__link"
               active-class="mobile-menu__link--active"
+              :aria-current="currentPage('/app/envelopes')"
               @click="handleClose"
             >
               Конверты
@@ -115,6 +127,7 @@ watch(
               to="/app/plans"
               class="mobile-menu__link"
               active-class="mobile-menu__link--active"
+              :aria-current="currentPage('/app/plans')"
               @click="handleClose"
             >
               Планы
@@ -123,6 +136,7 @@ watch(
               to="/app/categories"
               class="mobile-menu__link"
               active-class="mobile-menu__link--active"
+              :aria-current="currentPage('/app/categories')"
               @click="handleClose"
             >
               Категории
@@ -131,6 +145,7 @@ watch(
               to="/app/analytics"
               class="mobile-menu__link"
               active-class="mobile-menu__link--active"
+              :aria-current="currentPage('/app/analytics')"
               @click="handleClose"
             >
               Аналитика
@@ -139,6 +154,7 @@ watch(
               to="/app/notifications"
               class="mobile-menu__link"
               active-class="mobile-menu__link--active"
+              :aria-current="currentPage('/app/notifications')"
               @click="handleClose"
             >
               Уведомления
@@ -147,6 +163,7 @@ watch(
               to="/app/settings"
               class="mobile-menu__link"
               active-class="mobile-menu__link--active"
+              :aria-current="currentPage('/app/settings')"
               @click="handleClose"
             >
               Настройки
@@ -239,8 +256,9 @@ watch(
 }
 
 .mobile-menu__link {
-  display: block;
-  min-height: 44px;
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
   padding: var(--hf-space-3) var(--hf-space-4);
   color: var(--hf-color-text);
   border-radius: var(--hf-control-radius);
@@ -259,8 +277,9 @@ watch(
 }
 
 .mobile-menu__link--active {
-  color: var(--hf-color-action-primary);
-  background: var(--hf-color-action-secondary-hover);
+  color: var(--hf-color-brand);
+  background: var(--hf-color-brand-soft);
+  font-weight: var(--hf-font-weight-semibold);
 }
 
 .mobile-menu__footer {

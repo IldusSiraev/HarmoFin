@@ -20,6 +20,7 @@ import {
   useBudgetReferenceData,
 } from '../../composables/useBudgetReferenceData.js';
 import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js';
+import { useToast } from '../../composables/useToast.js';
 
 defineOptions({ name: 'AppCategoriesPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
@@ -28,6 +29,7 @@ const categoryFields = ['name', 'categoryType', 'parentId', 'displayOrder', 'com
 const { currentData, loadMe } = useAuth();
 const api = useBudgetReferenceData();
 const formHelper = useReferenceDataForm(categoryFields);
+const { push } = useToast();
 const categories = ref<CategoryDto[]>([]);
 const loading = ref(true);
 const loadError = ref('');
@@ -162,6 +164,7 @@ async function saveCategory() {
       await api.updateCategory(id, editingId.value, input);
       await loadCategories();
       summary.value = 'Категория обновлена.';
+      push({ tone: 'success', title: 'Категория обновлена' });
     } else {
       const input: CreateCategoryInput = {
         name: form.name,
@@ -173,12 +176,14 @@ async function saveCategory() {
       await api.createCategory(id, input);
       await loadCategories();
       summary.value = 'Категория создана.';
+      push({ tone: 'success', title: 'Категория создана' });
     }
     cancelForm();
   } catch (error) {
     const mapped = formHelper.errorMessage(error);
     fieldErrors.value = mapped.fields;
     summary.value = mapped.summary;
+    push({ tone: 'error', title: 'Не удалось сохранить', description: mapped.summary });
   } finally {
     saving.value = false;
   }
@@ -202,6 +207,7 @@ async function confirmArchive() {
     archiveTarget.value = null;
     await loadCategories();
     summary.value = 'Категория перемещена в архив.';
+    push({ tone: 'success', title: 'Категория перемещена в архив' });
   } catch {
     summary.value = 'Не удалось выполнить действие. Повторите попытку.';
   } finally {

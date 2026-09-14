@@ -1,31 +1,21 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-
-import AppMobileMenu from './AppMobileMenu.vue';
+import AppAddMenu from './AppAddMenu.vue';
 import AppMobileMenuButton from './AppMobileMenuButton.vue';
 import AppUserMenu from './AppUserMenu.vue';
 
 defineOptions({ name: 'AppHeader' });
 
-const mobileMenuOpen = ref(false);
-
-function toggleMobileMenu() {
-  mobileMenuOpen.value = !mobileMenuOpen.value;
-}
-
-function closeMobileMenu() {
-  mobileMenuOpen.value = false;
-}
+defineEmits<{ toggleMobileMenu: [] }>();
 </script>
 
 <template>
   <header class="app-header">
     <div class="app-header__container">
-      <AppMobileMenuButton class="app-header__mobile-button" @toggle="toggleMobileMenu" />
+      <AppMobileMenuButton class="app-header__mobile-button" @toggle="$emit('toggleMobileMenu')" />
       <NuxtLink to="/app" class="app-header__wordmark">HarmoFin</NuxtLink>
+      <AppAddMenu class="app-header__add" />
       <AppUserMenu class="app-header__user" />
     </div>
-    <AppMobileMenu :open="mobileMenuOpen" @close="closeMobileMenu" />
   </header>
 </template>
 
@@ -36,13 +26,14 @@ function closeMobileMenu() {
   z-index: 100;
   border-bottom: 1px solid var(--hf-color-border);
   background: var(--hf-color-surface);
-  box-shadow: 0 1px 2px rgb(13 27 42 / 4%);
+  box-shadow: var(--hf-shadow-xs);
 }
 
 .app-header__container {
   display: flex;
   align-items: center;
   gap: var(--hf-space-4);
+  min-height: 4.5rem;
   padding: var(--hf-space-4) var(--hf-space-5);
 }
 
@@ -64,9 +55,12 @@ function closeMobileMenu() {
   border-radius: var(--hf-radius-sm);
 }
 
+.app-header__add {
+  margin-left: auto;
+}
+
 .app-header__user {
   min-width: 0;
-  margin-left: auto;
 }
 
 .app-header__mobile-button {
