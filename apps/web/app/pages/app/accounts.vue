@@ -21,6 +21,7 @@ import {
   useBudgetReferenceData,
 } from '../../composables/useBudgetReferenceData.js';
 import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js';
+import { useToast } from '../../composables/useToast.js';
 
 defineOptions({ name: 'AppAccountsPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
@@ -37,6 +38,7 @@ const accountFields = [
 const { currentData, loadMe } = useAuth();
 const api = useBudgetReferenceData();
 const formHelper = useReferenceDataForm(accountFields);
+const { push } = useToast();
 const accounts = ref<AccountDto[]>([]);
 const loading = ref(true);
 const loadError = ref('');
@@ -184,6 +186,7 @@ async function saveAccount() {
       await api.updateAccount(id, editingId.value, input);
       await loadAccounts();
       summary.value = 'Счёт обновлён.';
+      push({ tone: 'success', title: 'Счёт обновлён' });
     } else {
       const input: CreateAccountInput = {
         name: form.name,
@@ -198,12 +201,14 @@ async function saveAccount() {
       await api.createAccount(id, input);
       await loadAccounts();
       summary.value = 'Счёт создан.';
+      push({ tone: 'success', title: 'Счёт создан' });
     }
     cancelForm();
   } catch (error) {
     const mapped = formHelper.errorMessage(error);
     fieldErrors.value = mapped.fields;
     summary.value = mapped.summary;
+    push({ tone: 'error', title: 'Не удалось сохранить', description: mapped.summary });
   } finally {
     saving.value = false;
   }
@@ -227,6 +232,7 @@ async function confirmArchive() {
     archiveTarget.value = null;
     await loadAccounts();
     summary.value = 'Счёт перемещён в архив.';
+    push({ tone: 'success', title: 'Счёт перемещён в архив' });
   } catch {
     summary.value = 'Не удалось выполнить действие. Повторите попытку.';
   } finally {

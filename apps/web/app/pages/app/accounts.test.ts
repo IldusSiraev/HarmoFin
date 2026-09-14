@@ -20,6 +20,7 @@ vi.mock('../../composables/useBudgetReferenceData.js', () => ({
 }));
 
 import AccountsPage from './accounts.vue';
+import { useToast } from '../../composables/useToast.js';
 
 const account = {
   id: 'account-id',
@@ -74,6 +75,7 @@ describe('accounts page', () => {
       ],
     };
     mocks.api.listAccounts.mockResolvedValue([]);
+    useToast().clear();
   });
 
   afterEach(() => {
@@ -124,6 +126,39 @@ describe('accounts page', () => {
     expect(mocks.api.listAccounts).toHaveBeenCalledTimes(2);
     expect(wrapper.text()).toContain('Основной счёт');
   });
+
+  it('announces a created account through a toast', async () => {
+    mocks.api.createAccount.mockResolvedValue(account);
+    mocks.api.listAccounts.mockResolvedValueOnce([]).mockResolvedValueOnce([account]);
+    wrapper = mountPage();
+
+    await flushPromises();
+    await wrapper.get('[data-action="create-account"]').trigger('click');
+    await flushPromises();
+
+    const nameInput = document.querySelector('input[name="name"]') as HTMLInputElement;
+    const startingBalanceInput = document.querySelector(
+      'input[name="startingBalance"]',
+    ) as HTMLInputElement;
+    const accountingStartDateInput = document.querySelector(
+      'input[name="accountingStartDate"]',
+    ) as HTMLInputElement;
+    const form = document.querySelector('form[data-account-form]') as HTMLFormElement;
+
+    nameInput.value = 'Новый счёт';
+    nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+    startingBalanceInput.value = '0,00';
+    startingBalanceInput.dispatchEvent(new Event('input', { bubbles: true }));
+    accountingStartDateInput.value = '2026-09-03';
+    accountingStartDateInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+
+    form.dispatchEvent(new Event('submit', { bubbles: true }));
+    await flushPromises();
+
+    expect(useToast().toasts.value.at(-1)?.title).toBe('Счёт создан');
+  });
+
   it('requires explicit archive confirmation', async () => {
     mocks.api.listAccounts.mockResolvedValue([account]);
     mocks.api.archiveAccount.mockResolvedValue({
