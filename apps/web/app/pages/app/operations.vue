@@ -225,9 +225,13 @@ function onReset(): void {
 }
 
 // A closed drawer must not cost a full reload: replace the one row that changed.
+// A deleted transaction has nothing left to view, so its drawer closes instead
+// of lingering over the list and blocking the controls behind it.
 function applyChanged(updated: TransactionDto): void {
   transactions.value = transactions.value.map((item) => (item.id === updated.id ? updated : item));
-  if (detailed.value?.id === updated.id) detailed.value = updated;
+  if (detailed.value?.id === updated.id) {
+    detailed.value = updated.status === 'DELETED' ? null : updated;
+  }
 }
 
 function openCreate() {
