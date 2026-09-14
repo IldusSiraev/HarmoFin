@@ -19,10 +19,11 @@ defineProps<{ label?: string | undefined }>();
 .app-sidebar-section__label {
   margin: 0;
   padding: 0 var(--hf-space-3);
-  color: var(--hf-color-text-subtle);
-  font-size: 0.75rem;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-caption);
   font-weight: var(--hf-font-weight-semibold);
-  letter-spacing: 0.05em;
+  line-height: var(--hf-line-height-caption);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 

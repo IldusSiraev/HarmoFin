@@ -26,13 +26,14 @@ defineEmits<{ toggleMobileMenu: [] }>();
   z-index: 100;
   border-bottom: 1px solid var(--hf-color-border);
   background: var(--hf-color-surface);
-  box-shadow: 0 1px 2px rgb(13 27 42 / 4%);
+  box-shadow: var(--hf-shadow-xs);
 }
 
 .app-header__container {
   display: flex;
   align-items: center;
   gap: var(--hf-space-4);
+  min-height: 4.5rem;
   padding: var(--hf-space-4) var(--hf-space-5);
 }
 
