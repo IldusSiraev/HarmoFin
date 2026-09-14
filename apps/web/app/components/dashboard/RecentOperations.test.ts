@@ -1,5 +1,8 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({ navigateTo: vi.fn() }));
+vi.mock('#imports', () => ({ navigateTo: mocks.navigateTo }));
 
 import RecentOperations from './RecentOperations.vue';
 import type { CategoryDto, TransactionDto } from '../../composables/useBudgetReferenceData.js';
@@ -55,12 +58,12 @@ describe('RecentOperations', () => {
     expect(wrapper.text()).toContain('Основная карта');
   });
 
-  it('links each row to the journal with that operation open', () => {
+  it('opens the journal with that operation selected on click', async () => {
     const wrapper = mountBlock(1);
 
-    expect(wrapper.get('[data-testid="recent-operation-link"]').attributes('href')).toBe(
-      '/app/operations?operationId=transaction-0',
-    );
+    await wrapper.get('[data-testid="list-row-select"]').trigger('click');
+
+    expect(mocks.navigateTo).toHaveBeenCalledWith('/app/operations?operationId=transaction-0');
   });
 
   it('says so when there is nothing yet', () => {

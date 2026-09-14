@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { navigateTo } from '#imports';
 
 import OperationRow from '../operations/OperationRow.vue';
 import type { CategoryDto, TransactionDto } from '../../composables/useBudgetReferenceData.js';
@@ -42,6 +43,14 @@ function envelopeName(transaction: TransactionDto): string | null {
     ? null
     : (envelopeNameById.value.get(transaction.envelopeId) ?? 'Конверт');
 }
+
+// OperationRow already renders its own clickable button (see UiListRow); a
+// wrapping <NuxtLink> around it would nest a <button> inside an <a>, which is
+// invalid HTML5 and gives the row two redundant keyboard-focus stops. Reuse
+// the row's own select event and navigate the same way the link would have.
+function openOperation(transactionId: string): void {
+  void navigateTo(`/app/operations?operationId=${encodeURIComponent(transactionId)}`);
+}
 </script>
 
 <template>
@@ -55,19 +64,14 @@ function envelopeName(transaction: TransactionDto): string | null {
 
     <ul v-else class="recent-operations__list">
       <li v-for="transaction in transactions" :key="transaction.id">
-        <NuxtLink
-          class="recent-operations__link"
-          data-testid="recent-operation-link"
-          :to="`/app/operations?operationId=${encodeURIComponent(transaction.id)}`"
-        >
-          <OperationRow
-            :transaction="transaction"
-            :category-name="categoryName(transaction)"
-            :category-template-key="categoryTemplateKey(transaction)"
-            :account-name="accountName(transaction)"
-            :envelope-name="envelopeName(transaction)"
-          />
-        </NuxtLink>
+        <OperationRow
+          :transaction="transaction"
+          :category-name="categoryName(transaction)"
+          :category-template-key="categoryTemplateKey(transaction)"
+          :account-name="accountName(transaction)"
+          :envelope-name="envelopeName(transaction)"
+          @select="openOperation(transaction.id)"
+        />
       </li>
     </ul>
   </section>
@@ -112,11 +116,5 @@ function envelopeName(transaction: TransactionDto): string | null {
 
 .recent-operations__list > li {
   min-width: 0;
-}
-
-.recent-operations__link {
-  display: block;
-  color: inherit;
-  text-decoration: none;
 }
 </style>
