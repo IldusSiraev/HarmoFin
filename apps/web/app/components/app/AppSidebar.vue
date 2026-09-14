@@ -2,6 +2,7 @@
 import { navigateTo } from '#imports';
 
 import { useAuth } from '../../composables/useAuth.js';
+import AppAddMenu from './AppAddMenu.vue';
 import AppSidebarSection from './AppSidebarSection.vue';
 
 defineOptions({ name: 'AppSidebar' });
@@ -21,6 +22,7 @@ async function handleLogout() {
 <template>
   <aside class="app-sidebar" aria-label="Основная навигация">
     <NuxtLink to="/app" class="app-sidebar__wordmark">HarmoFin</NuxtLink>
+    <AppAddMenu class="app-sidebar__add" />
     <nav class="app-sidebar__nav">
       <AppSidebarSection>
         <NuxtLink to="/app" class="app-sidebar__link" active-class="app-sidebar__link--active"
@@ -113,6 +115,10 @@ async function handleLogout() {
   font-weight: var(--hf-font-weight-bold);
   letter-spacing: -0.04em;
   text-decoration: none;
+}
+
+.app-sidebar__add {
+  padding: 0 var(--hf-space-3);
 }
 
 .app-sidebar__nav {
