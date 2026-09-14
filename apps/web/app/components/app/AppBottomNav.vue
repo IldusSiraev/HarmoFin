@@ -27,7 +27,7 @@ const { openOperation } = useOperationDialogs();
       class="app-bottom-nav__add"
       data-testid="bottom-nav-add"
       aria-label="Добавить операцию"
-      @click="openOperation"
+      @click="openOperation()"
     >
       <Plus :size="24" aria-hidden="true" />
     </button>

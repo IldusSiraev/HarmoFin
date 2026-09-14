@@ -21,11 +21,21 @@ const { openOperation, openTransfer } = useOperationDialogs();
       Добавить
     </template>
 
-    <button type="button" role="menuitem" data-testid="add-menu-income" @click="openOperation()">
+    <button
+      type="button"
+      role="menuitem"
+      data-testid="add-menu-income"
+      @click="openOperation('INCOME')"
+    >
       <Plus :size="16" aria-hidden="true" />
       Доход
     </button>
-    <button type="button" role="menuitem" data-testid="add-menu-expense" @click="openOperation()">
+    <button
+      type="button"
+      role="menuitem"
+      data-testid="add-menu-expense"
+      @click="openOperation('EXPENSE')"
+    >
       <Minus :size="16" aria-hidden="true" />
       Расход
     </button>
