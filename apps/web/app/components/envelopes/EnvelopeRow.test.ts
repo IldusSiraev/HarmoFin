@@ -26,7 +26,7 @@ const envelope: EnvelopeDto = {
 const mountRow = (overrides: Partial<EnvelopeDto> = {}) =>
   mount(EnvelopeRow, { props: { envelope: { ...envelope, ...overrides } } });
 
-const normalize = (value: string): string => value.replace(/[  ]/g, ' ');
+const normalize = (value: string): string => value.replace(/[\u00a0\u202f]/g, ' ');
 
 describe('EnvelopeRow', () => {
   it('leads with the name, the type and the period half', () => {
