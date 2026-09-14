@@ -11,19 +11,23 @@ test('owner accepts generic income allocation and logically deletes confirmed in
   await configureIncomeAllocationRule(page);
 
   await createIncome(page, '12 000,00', 'CONFIRMED');
+  await openFirstOperation(page);
   await expect(page.getByRole('button', { name: 'Применить предложение' })).toBeVisible();
   await page.getByRole('button', { name: 'Применить предложение' }).click();
-  await expect(page.getByText(/доступно 0 минимальных единиц/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Применить предложение' })).toBeHidden();
 
   await page.goto('/app/accounts');
   await expect(page.getByText(/22.*000.*00/).first()).toBeVisible();
 
   await page.goto('/app/operations');
-  await page.getByRole('button', { name: 'Удалить' }).click();
-  await page.getByRole('button', { name: 'Подтвердить', exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Подтвердить', exact: true }).click();
-  await page.getByRole('button', { name: 'Фильтры' }).click();
-  await page.getByLabel('Статус').selectOption('DELETED');
+  await openFirstOperation(page);
+  await page.getByTestId('drawer-delete').click();
+  await confirmDialog(page);
+  // Deleting an income with confirmed allocations asks for a second decision.
+  await page.locator('dialog[open]').getByRole('button', { name: 'Удалить распределения' }).click();
+  await expect(page.getByTestId('toast-stack')).toContainText('Операция удалена');
+
+  await filterByStatus(page, 'DELETED');
   await expect(page.getByText('Удалена', { exact: true })).toBeVisible();
 });
 
@@ -33,16 +37,19 @@ test('owner changes and rejects non-binding generic allocation proposals', async
   await createAccount(page, 'Основная карта', '10 000,00');
   await configureIncomeAllocationRule(page);
 
-  await createIncome(page, '12 000,00', 'CONFIRMED');
+  await createIncome(page, '12 000,00', 'CONFIRMED', 'Доход первый');
+  await openFirstOperation(page, 'Доход первый');
   await page.getByLabel('Распределение дохода').getByRole('button', { name: 'Изменить' }).click();
   await page.getByLabel('Сумма распределения').fill('1 000,00');
   await page.getByRole('button', { name: 'Сохранить распределение' }).click();
   await expect(page.getByText(/доступно 1100000 минимальных единиц/)).toBeVisible();
+  await page.getByTestId('drawer-close').click();
 
-  await createIncome(page, '2 000,00', 'CONFIRMED');
-  await page.getByRole('button', { name: 'Не распределять' }).last().click();
-  await expect(page.getByText('Предложение распределения отклонено.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Не распределять' })).toHaveCount(1);
+  await createIncome(page, '2 000,00', 'CONFIRMED', 'Доход второй');
+  await openFirstOperation(page, 'Доход второй');
+  await page.getByRole('button', { name: 'Не распределять' }).click();
+  await expect(page.getByRole('button', { name: 'Не распределять' })).toHaveCount(0);
+  await expect(page.getByText('Распределений пока нет.')).toBeVisible();
 });
 
 test('browser retry with same idempotency key creates one income', async ({ page }) => {
@@ -51,7 +58,7 @@ test('browser retry with same idempotency key creates one income', async ({ page
   await createAccount(page, 'Основная карта', '10 000,00');
 
   await page.goto('/app/operations');
-  await page.getByRole('button', { name: 'Добавить операцию' }).click();
+  await page.locator('[data-action="create-operation"]').click();
   await page.getByLabel('Тип операции').selectOption('INCOME');
   await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная карта' });
   await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Шабашка' });
@@ -99,7 +106,7 @@ test('owner sees financial validation and server-confirmed expense lifecycle', a
   await createEnvelope(page, 'Продукты на неделю', '1 000,00');
 
   await page.goto('/app/operations');
-  await page.getByRole('button', { name: 'Добавить операцию' }).click();
+  await page.locator('[data-action="create-operation"]').click();
   await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная карта' });
   await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Продукты' });
   await page.getByLabel(/^Конверт\s*\*?$/).selectOption({ label: 'Продукты на неделю' });
@@ -121,18 +128,20 @@ test('owner sees financial validation and server-confirmed expense lifecycle', a
   await expect(page.getByRole('alert')).toContainText(
     'Недостаточно средств на счёте или в конверте.',
   );
-  await expect(page.getByText('Подтверждена', { exact: true })).toHaveCount(1);
+  await expect(page.getByTestId('list-row-select')).toHaveCount(1);
 
-  await createIncome(page, '10,00', 'DRAFT');
-  const cancelOperation = page.getByRole('button', { name: 'Отменить' });
-  await cancelOperation.click();
-  await expect(page.getByRole('dialog')).toBeVisible();
+  await createIncome(page, '10,00', 'DRAFT', 'Черновик дохода');
+  await openRowMenu(page, 'Черновик дохода');
+  await page.getByTestId('row-cancel').click();
+  await expect(page.locator('dialog[open]')).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).toBeHidden();
-  await expect(cancelOperation).toBeFocused();
-  await cancelOperation.click();
-  await page.getByRole('button', { name: 'Подтвердить', exact: true }).click();
-  await expect(page.getByText('Отменена')).toBeVisible();
+  await expect(page.locator('dialog[open]')).toHaveCount(0);
+
+  await openRowMenu(page, 'Черновик дохода');
+  await page.getByTestId('row-cancel').click();
+  await confirmDialog(page);
+  await expect(page.getByTestId('toast-stack')).toContainText('Операция отменена');
+  await expect(page.getByText('Отменена', { exact: true })).toBeVisible();
 });
 
 test.describe('operations mobile route', () => {
@@ -146,9 +155,7 @@ test.describe('operations mobile route', () => {
     await registerAndReachApp(page);
     await page.goto('/app/operations');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Операции');
-    // On a phone the bottom navigation carries the same accessible name, so
-    // this has to name the journal's own button.
-    await page.getByRole('main').getByRole('button', { name: 'Добавить операцию' }).click();
+    await page.locator('[data-action="create-operation"]').click();
     await expect(page.getByLabel('Тип операции')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       375,
@@ -201,23 +208,51 @@ async function configureIncomeAllocationRule(page: Page): Promise<void> {
   await expect(page.getByText('Настройки бюджета сохранены.')).toBeVisible();
 }
 
+// The row is one button; its "⋮" menu sits outside that button.
+async function openRowMenu(page: Page, text?: string): Promise<void> {
+  const row =
+    text === undefined ? page.locator('li') : page.locator('li').filter({ hasText: text });
+  await row.first().getByTestId('action-menu-trigger').click();
+}
+
+async function openFirstOperation(page: Page, text?: string): Promise<void> {
+  const row =
+    text === undefined
+      ? page.getByTestId('list-row-select').first()
+      : page.locator('li').filter({ hasText: text }).getByTestId('list-row-select').first();
+  await row.click();
+  await expect(page.getByTestId('drawer')).toBeVisible();
+}
+
+async function confirmDialog(page: Page): Promise<void> {
+  await page.locator('dialog[open] [data-confirm]').click();
+}
+
+async function filterByStatus(page: Page, status: string): Promise<void> {
+  await page.getByTestId('more-filters').click();
+  await page.getByLabel('Статус').selectOption(status);
+  await page.getByRole('button', { name: 'Готово' }).click();
+}
+
 async function createIncome(
   page: Page,
   amount: string,
   status: 'DRAFT' | 'CONFIRMED',
+  source?: string,
 ): Promise<void> {
   await page.goto('/app/operations');
-  await page.getByRole('button', { name: 'Добавить операцию' }).click();
+  await page.locator('[data-action="create-operation"]').click();
   await page.getByLabel('Тип операции').selectOption('INCOME');
   await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная карта' });
   await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Шабашка' });
+  if (source !== undefined) await page.getByLabel('Источник дохода').fill(source);
   await page.getByLabel('Сумма').fill(amount);
   await page
     .getByRole('button', { name: status === 'DRAFT' ? 'Создать черновик' : 'Подтвердить операцию' })
     .click();
   if (status === 'CONFIRMED') {
-    await page.getByRole('button', { name: 'Подтвердить', exact: true }).click();
-    await expect(page.getByText('Подтверждена', { exact: true })).toBeVisible();
+    await confirmDialog(page);
+    await expect(page.getByTestId('toast-stack')).toContainText('Операция подтверждена');
   } else {
     await expect(page.getByText('Черновик', { exact: true })).toBeVisible();
   }
@@ -228,7 +263,7 @@ async function createExpense(
   amount: string,
   status: 'DRAFT' | 'CONFIRMED',
 ): Promise<void> {
-  await page.getByRole('button', { name: 'Добавить операцию' }).click();
+  await page.locator('[data-action="create-operation"]').click();
   await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная карта' });
   await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Продукты' });
   await page.getByLabel(/^Конверт\s*\*?$/).selectOption({ label: 'Продукты на неделю' });
@@ -237,6 +272,6 @@ async function createExpense(
     .getByRole('button', { name: status === 'DRAFT' ? 'Создать черновик' : 'Подтвердить операцию' })
     .click();
   if (status === 'CONFIRMED') {
-    await page.getByRole('button', { name: 'Подтвердить', exact: true }).click();
+    await confirmDialog(page);
   }
 }

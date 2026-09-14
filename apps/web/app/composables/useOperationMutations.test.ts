@@ -13,6 +13,7 @@ vi.mock('./useBudgetReferenceData.js', async (importOriginal) => ({
   useBudgetReferenceData: () => api,
 }));
 
+import { ApiRequestError } from './useApiClient.js';
 import { useOperationMutations } from './useOperationMutations.js';
 import { useToast } from './useToast.js';
 import type { TransactionDto } from './useBudgetReferenceData.js';
@@ -76,13 +77,28 @@ describe('useOperationMutations', () => {
   });
 
   it('keeps the rejection so a caller can act on the server code', async () => {
-    const failure = new Error('INCOME_HAS_CONFIRMED_ALLOCATIONS');
+    const failure = new Error('network');
     api.deleteTransaction.mockRejectedValue(failure);
     const { remove, lastError } = useOperationMutations();
 
     await remove('budget-id', transaction);
 
     expect(lastError.value).toBe(failure);
+  });
+
+  it('leaves an income with allocations to the caller instead of announcing a failure', async () => {
+    const failure = new ApiRequestError(409, {
+      code: 'INCOME_HAS_CONFIRMED_ALLOCATIONS',
+      detail: 'У дохода есть подтверждённые распределения.',
+    });
+    api.deleteTransaction.mockRejectedValue(failure);
+    const { remove, lastError } = useOperationMutations();
+
+    const result = await remove('budget-id', transaction);
+
+    expect(result).toBeNull();
+    expect(lastError.value).toBe(failure);
+    expect(useToast().toasts.value).toHaveLength(0);
   });
 
   it('resolves an income deletion with its allocations', async () => {

@@ -1,7 +1,13 @@
 import { readonly, ref, type Ref } from 'vue';
 
+import { ApiRequestError } from './useApiClient.js';
 import { useBudgetReferenceData, type TransactionDto } from './useBudgetReferenceData.js';
 import { useToast } from './useToast.js';
+
+// Deleting an income that still carries confirmed allocations is not a failure:
+// the caller has to ask whether those allocations are cancelled or deleted, so
+// this code is reported through lastError instead of a toast.
+const CALLER_HANDLED_CODES = new Set(['INCOME_HAS_CONFIRMED_ALLOCATIONS']);
 
 export type OperationAction = 'confirm' | 'cancel' | 'delete' | 'restore';
 
@@ -77,6 +83,9 @@ export function useOperationMutations(): OperationMutations {
       return result;
     } catch (error) {
       lastError.value = error;
+      if (error instanceof ApiRequestError && CALLER_HANDLED_CODES.has(error.problem.code)) {
+        return null;
+      }
       const description = error instanceof Error ? error.message : undefined;
       push({ tone: 'error', title: COPY[action].failure, ...(description ? { description } : {}) });
       return null;

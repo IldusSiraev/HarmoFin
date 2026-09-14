@@ -101,7 +101,12 @@ function chooseOption(key: ChipKey, value: string): void {
     </div>
 
     <div class="operations-toolbar__chips">
-      <div v-for="chip in chips" :key="chip.key" class="operations-toolbar__chip">
+      <div
+        v-for="chip in chips"
+        v-show="chip.options.length > 0"
+        :key="chip.key"
+        class="operations-toolbar__chip"
+      >
         <UiChip
           :label="chip.label"
           :value="chosenLabel(chip.key, chip.options)"
