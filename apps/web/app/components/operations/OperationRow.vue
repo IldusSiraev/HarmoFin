@@ -96,8 +96,10 @@ const rowLabel = computed(
         :currency="transaction.currency"
         :scale="transaction.scale"
       />
-      <span class="operation-row__subtitle">{{ accountName }}</span>
-      <span v-if="envelopeName" class="operation-row__subtitle">{{ envelopeName }}</span>
+      <span class="operation-row__subtitle operation-row__placement">{{ accountName }}</span>
+      <span v-if="envelopeName" class="operation-row__subtitle operation-row__placement">
+        {{ envelopeName }}
+      </span>
     </template>
 
     <template v-if="$slots.actions" #actions><slot name="actions" /></template>
@@ -113,9 +115,13 @@ const rowLabel = computed(
 }
 
 .operation-row__subtitle {
+  overflow: hidden;
+  max-width: 100%;
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-caption);
   line-height: var(--hf-line-height-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .operation-row__meta {
@@ -136,6 +142,7 @@ const rowLabel = computed(
 
 .operation-row__amount {
   font-weight: var(--hf-font-weight-semibold);
+  white-space: nowrap;
 }
 
 .operation-row__amount--income {
@@ -144,5 +151,13 @@ const rowLabel = computed(
 
 .operation-row__amount--expense {
   color: var(--hf-color-text);
+}
+
+/* A phone has no room for three columns of text: the account and the envelope
+   stay one tap away in the detail panel. */
+@media (max-width: 599px) {
+  .operation-row__placement {
+    display: none;
+  }
 }
 </style>

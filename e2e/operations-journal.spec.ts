@@ -77,7 +77,14 @@ test.describe('journal on a phone', () => {
     await initializeTemplate(page);
     await createAccount(page, 'Карта телефона', '10 000,00');
     await createEnvelope(page, 'Текущие телефона', '10 000,00');
-    await createDraftExpense(page, 'Карта телефона', 'Текущие телефона', 'Магазин', '100,00');
+    // Long names on purpose: a row that cannot shrink used to widen the page.
+    await createDraftExpense(
+      page,
+      'Карта телефона',
+      'Текущие телефона',
+      'Супермаркет у дома на углу',
+      '100,00',
+    );
 
     await page.goto('/app/operations');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Операции');

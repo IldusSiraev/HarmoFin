@@ -27,6 +27,7 @@ const options = [
 
 const mountToolbar = (overrides: Partial<OperationFilters> = {}, activeCount = 0) =>
   mount(OperationsToolbar, {
+    attachTo: document.body,
     props: {
       filters: { ...filters, ...overrides },
       activeCount,
@@ -80,6 +81,38 @@ describe('OperationsToolbar', () => {
     await wrapper.get('[data-testid="chip-option-accountId-account-id"]').trigger('click');
 
     expect(wrapper.emitted('change')).toEqual([['accountId', '']]);
+  });
+
+  it('renders the option list outside the scrolling chip row so it is not clipped', async () => {
+    const wrapper = mountToolbar();
+
+    await wrapper.get('[data-testid="chip-accountId"]').trigger('click');
+
+    const list = wrapper.get('[data-testid="chip-options"]').element;
+    expect(list.closest('.operations-toolbar__chips')).toBeNull();
+    expect(list.closest('.operations-toolbar')).not.toBeNull();
+  });
+
+  it('closes the option list on Escape and returns focus to its chip', async () => {
+    const wrapper = mountToolbar();
+    const chip = wrapper.get('[data-testid="chip-accountId"]');
+    await chip.trigger('click');
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-testid="chip-options"]').exists()).toBe(false);
+    expect(document.activeElement).toBe(chip.element);
+  });
+
+  it('closes the option list when a click lands outside', async () => {
+    const wrapper = mountToolbar();
+    await wrapper.get('[data-testid="chip-accountId"]').trigger('click');
+
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-testid="chip-options"]').exists()).toBe(false);
   });
 
   it('counts active filters on the more-filters button', () => {

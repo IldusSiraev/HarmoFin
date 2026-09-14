@@ -91,25 +91,31 @@ function handleInput(event: Event) {
         </button>
       </UiTooltip>
     </div>
-    <input
-      :id="getInputId()"
-      class="ui-field__control"
-      :class="{ 'ui-field__control--error': error }"
-      :value="modelValue"
-      :name="name"
-      :type="type"
-      :autocomplete="autocomplete"
-      :inputmode="getInputMode()"
-      :placeholder="placeholder"
-      :aria-describedby="getDescribedBy()"
-      :aria-invalid="error ? 'true' : undefined"
-      :aria-required="required || undefined"
-      :required="required"
-      :disabled="disabled"
-      :readonly="readonly"
-      @input="handleInput"
-      @blur="emit('blur', $event)"
-    />
+    <div class="ui-field__control-shell">
+      <span v-if="$slots.icon" class="ui-field__icon" aria-hidden="true"><slot name="icon" /></span>
+      <input
+        :id="getInputId()"
+        class="ui-field__control"
+        :class="{
+          'ui-field__control--error': error,
+          'ui-field__control--with-icon': Boolean($slots.icon),
+        }"
+        :value="modelValue"
+        :name="name"
+        :type="type"
+        :autocomplete="autocomplete"
+        :inputmode="getInputMode()"
+        :placeholder="placeholder"
+        :aria-describedby="getDescribedBy()"
+        :aria-invalid="error ? 'true' : undefined"
+        :aria-required="required || undefined"
+        :required="required"
+        :disabled="disabled"
+        :readonly="readonly"
+        @input="handleInput"
+        @blur="emit('blur', $event)"
+      />
+    </div>
     <p v-if="hint" :id="getHintId()" class="ui-field__hint">{{ hint }}</p>
     <p v-if="error" :id="getErrorId()" class="ui-field__error">{{ error }}</p>
   </div>
@@ -125,6 +131,24 @@ function handleInput(event: Event) {
   display: flex;
   align-items: center;
   gap: var(--hf-space-2);
+}
+
+/* The icon belongs inside the control, not next to the label: otherwise it
+   centres against the whole field block and drifts away from the input. */
+.ui-field__control-shell {
+  position: relative;
+  display: grid;
+}
+
+.ui-field__icon {
+  position: absolute;
+  top: 50%;
+  left: var(--hf-control-padding-inline);
+  display: inline-flex;
+  align-items: center;
+  transform: translateY(-50%);
+  color: var(--hf-color-text-muted);
+  pointer-events: none;
 }
 
 .ui-field__label {
@@ -164,6 +188,11 @@ function handleInput(event: Event) {
   border: 1px solid var(--hf-color-border-strong);
   border-radius: var(--hf-control-radius);
   background: var(--hf-color-surface);
+}
+
+/* After .ui-field__control: its padding-inline shorthand would win otherwise. */
+.ui-field__control--with-icon {
+  padding-left: calc(var(--hf-control-padding-inline) + var(--hf-space-3) + 1.125rem);
 }
 
 .ui-field__control::placeholder {

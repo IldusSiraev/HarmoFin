@@ -650,9 +650,12 @@ async function downloadCsv() {
 </template>
 
 <style scoped>
+/* Grid items default to min-width: auto, so without this the widest row sets
+   the page width and a phone gets horizontal scrolling. */
 .operations-page__sections {
   display: grid;
   gap: var(--hf-space-5);
+  min-width: 0;
 }
 
 .operations-page__sorted,
