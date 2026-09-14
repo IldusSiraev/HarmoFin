@@ -6,14 +6,17 @@ import { RefreshCw } from '@lucide/vue';
 import AvailableBudgetCard from '../../components/dashboard/AvailableBudgetCard.vue';
 import BalanceList from '../../components/dashboard/BalanceList.vue';
 import DashboardWarnings from '../../components/dashboard/DashboardWarnings.vue';
+import RecentOperations from '../../components/dashboard/RecentOperations.vue';
 import UpcomingObligations from '../../components/dashboard/UpcomingObligations.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
 import UiSkeleton from '../../components/ui/Skeleton.vue';
 import { useAuth } from '../../composables/useAuth.js';
 import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
+import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import {
   type DashboardSummaryDto,
+  type TransactionDto,
   useBudgetReferenceData,
 } from '../../composables/useBudgetReferenceData.js';
 
@@ -24,6 +27,10 @@ const api = useBudgetReferenceData();
 const loading = ref(true);
 const error = ref('');
 const summary = ref<DashboardSummaryDto | null>(null);
+const recent = ref<TransactionDto[]>([]);
+const accountsTotal = ref<string | null>(null);
+const envelopesTotal = ref<string | null>(null);
+const { accounts, categories, envelopes, load: loadReferenceData } = useOperationReferenceData();
 const { openDialog } = useOperationDialogs();
 const activeBudget = computed(() => currentData.value?.workspaces[0]?.budgets[0] ?? null);
 function workspaceName() {
@@ -51,13 +58,32 @@ onMounted(() => {
   void loadDashboard();
 });
 
+// A dashboard total is a nice-to-have next to the balance rows below it, not
+// something worth failing the whole page over — a rejection here becomes
+// "no total shown" instead of the generic error state.
+async function safeTotal(read: Promise<{ totalMinor: string }>): Promise<string | null> {
+  return read.then((value) => value.totalMinor).catch(() => null);
+}
+
 async function loadDashboard() {
   loading.value = true;
   error.value = '';
   try {
     if (!currentData.value) await loadMe();
-    if (!activeBudget.value) return;
-    summary.value = await api.getDashboardSummary(activeBudget.value.id);
+    const budget = activeBudget.value;
+    if (!budget) return;
+    const [summaryResult, recentResult, accountsTotalResult, envelopesTotalResult] =
+      await Promise.all([
+        api.getDashboardSummary(budget.id),
+        api.listTransactions(budget.id, { limit: 5, sortBy: 'occurredOn', sortDirection: 'desc' }),
+        safeTotal(api.getAccountsSummary(budget.id)),
+        safeTotal(api.getEnvelopesSummary(budget.id)),
+        loadReferenceData(),
+      ]);
+    summary.value = summaryResult;
+    recent.value = recentResult.items;
+    accountsTotal.value = accountsTotalResult;
+    envelopesTotal.value = envelopesTotalResult;
   } catch {
     error.value = 'Не удалось загрузить сводку бюджета.';
   } finally {
@@ -115,17 +141,28 @@ async function loadDashboard() {
           :unallocated-income-minor="summary.unallocatedIncomeMinor"
         />
         <UpcomingObligations class="dashboard-grid__wide" :items="summary.upcomingObligations" />
+        <RecentOperations
+          class="dashboard-grid__wide"
+          :transactions="recent"
+          :categories="categories"
+          :accounts="accounts"
+          :envelopes="envelopes"
+        />
         <BalanceList
           title="Конверты"
           :items="summary.envelopes"
           :warnings="summary.warnings"
           subject="ENVELOPE"
+          :total-minor="envelopesTotal"
+          more-link="/app/envelopes"
         />
         <BalanceList
           title="Счета"
           :items="summary.accounts"
           :warnings="summary.warnings"
           subject="ACCOUNT"
+          :total-minor="accountsTotal"
+          more-link="/app/accounts"
         />
       </section>
     </template>
