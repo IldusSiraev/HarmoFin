@@ -7,9 +7,9 @@ import AvailableBudgetCard from '../../components/dashboard/AvailableBudgetCard.
 import BalanceList from '../../components/dashboard/BalanceList.vue';
 import DashboardWarnings from '../../components/dashboard/DashboardWarnings.vue';
 import UpcomingObligations from '../../components/dashboard/UpcomingObligations.vue';
-import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
+import UiSkeleton from '../../components/ui/Skeleton.vue';
 import { useAuth } from '../../composables/useAuth.js';
 import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 import {
@@ -29,6 +29,17 @@ const activeBudget = computed(() => currentData.value?.workspaces[0]?.budgets[0]
 function workspaceName() {
   return currentData.value?.workspaces[0]?.name ?? 'Бюджет';
 }
+
+function formatDay(iso: string): string {
+  const [, month, day] = iso.split('-');
+  return `${day}.${month}`;
+}
+
+const cycleLabel = computed(() => {
+  const cycle = summary.value?.cycle;
+  if (!cycle) return '';
+  return `${formatDay(cycle.start)} – ${formatDay(cycle.end)}`;
+});
 
 // The dialogs live in the layout now, so the page reloads its summary whenever
 // one of them closes instead of owning their state.
@@ -57,8 +68,10 @@ async function loadDashboard() {
 
 <template>
   <div class="dashboard">
-    <div v-if="loading" class="dashboard-loading">
-      <p>Загрузка бюджета…</p>
+    <div v-if="loading" data-testid="dashboard-loading" aria-busy="true" class="dashboard-loading">
+      <UiSkeleton variant="card" />
+      <UiSkeleton variant="row" :count="3" />
+      <UiSkeleton variant="card" :count="2" />
     </div>
     <div v-else-if="error" class="dashboard-error" role="alert">
       <p>{{ error }}</p>
@@ -76,6 +89,7 @@ async function loadDashboard() {
         <div>
           <p class="dashboard-kicker">{{ workspaceName() }}</p>
           <h1 class="dashboard-title">{{ activeBudget.name }}</h1>
+          <p class="dashboard-cycle">Цикл {{ cycleLabel }}</p>
         </div>
         <UiButton
           variant="tertiary"
@@ -88,33 +102,30 @@ async function loadDashboard() {
       </div>
 
       <section class="dashboard-grid" aria-label="Сводка бюджета">
-        <section class="total-money" aria-labelledby="total-money-title">
-          <p id="total-money-title">Всего на счетах</p>
-          <FinanceMoney :minor-units="summary.totalAccountMoneyMinor" currency="RUB" :scale="2" />
-          <p>
-            Нераспределено:
-            <FinanceMoney :minor-units="summary.unallocatedIncomeMinor" currency="RUB" :scale="2" />
-          </p>
-        </section>
-        <AvailableBudgetCard :period-limit="summary.periodLimit" :period="summary.period" />
+        <AvailableBudgetCard
+          class="dashboard-grid__wide"
+          :period-limit="summary.periodLimit"
+          :period="summary.period"
+        />
         <DashboardWarnings
+          class="dashboard-grid__wide"
           :warnings="summary.warnings"
           :accounts="summary.accounts"
           :envelopes="summary.envelopes"
           :unallocated-income-minor="summary.unallocatedIncomeMinor"
         />
-        <UpcomingObligations :items="summary.upcomingObligations" />
-        <BalanceList
-          title="Счета"
-          :items="summary.accounts"
-          :warnings="summary.warnings"
-          subject="ACCOUNT"
-        />
+        <UpcomingObligations class="dashboard-grid__wide" :items="summary.upcomingObligations" />
         <BalanceList
           title="Конверты"
           :items="summary.envelopes"
           :warnings="summary.warnings"
           subject="ENVELOPE"
+        />
+        <BalanceList
+          title="Счета"
+          :items="summary.accounts"
+          :warnings="summary.warnings"
+          subject="ACCOUNT"
         />
       </section>
     </template>
@@ -126,19 +137,19 @@ async function loadDashboard() {
   color: var(--hf-color-text);
 }
 
-.dashboard-loading,
+.dashboard-loading {
+  display: grid;
+  gap: var(--hf-space-5);
+}
+
 .dashboard-error {
   display: flex;
   flex-wrap: wrap;
   gap: var(--hf-space-3);
   align-items: center;
-}
-
-.dashboard-error {
   color: var(--hf-color-text-danger);
 }
 
-.dashboard-loading p,
 .dashboard-error p {
   margin: 0;
 }
@@ -167,45 +178,27 @@ async function loadDashboard() {
   letter-spacing: -0.04em;
   line-height: 1.1;
 }
+
+.dashboard-cycle {
+  margin: var(--hf-space-2) 0 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+  line-height: var(--hf-line-height-small);
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--hf-space-5);
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .dashboard-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-}
 
-.total-money {
-  display: grid;
-  gap: var(--hf-space-3);
-  padding: var(--hf-card-padding);
-  border: 1px solid var(--hf-color-border);
-  border-top: 4px solid var(--hf-color-action-primary);
-  border-radius: var(--hf-card-radius);
-  background: var(--hf-color-surface);
-  box-shadow: var(--hf-shadow-card);
-}
-
-@media (min-width: 768px) {
-  .total-money {
-    grid-column: span 2;
+  .dashboard-grid__wide {
+    grid-column: 1 / -1;
   }
-}
-
-.total-money p {
-  margin: 0;
-  color: var(--hf-color-text-muted);
-  font-size: 0.875rem;
-  font-weight: var(--hf-font-weight-medium);
-}
-
-.total-money > .finance-money {
-  color: var(--hf-color-text);
-  font-size: clamp(2rem, 4vw, 3.25rem);
-  font-weight: var(--hf-font-weight-bold);
 }
 </style>

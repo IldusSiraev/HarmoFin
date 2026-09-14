@@ -92,6 +92,41 @@ describe('dashboard page', () => {
     expect(api.getDashboardSummary).toHaveBeenCalledTimes(2);
   });
 
+  it('orders the dashboard around the available amount', async () => {
+    const wrapper = mount(DashboardPage, {
+      global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } },
+    });
+    await flushPromises();
+
+    const headings = wrapper.findAll('h2').map((heading) => heading.text());
+    expect(headings.slice(0, 3)).toEqual([
+      'Можно потратить',
+      'Ближайшие обязательства',
+      'Конверты',
+    ]);
+    expect(headings[3]).toBe('Счета');
+  });
+
+  it('shows skeletons while the summary is loading', async () => {
+    let resolveSummary: (value: typeof summary) => void = () => {};
+    api.getDashboardSummary.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSummary = resolve;
+      }),
+    );
+
+    const wrapper = mount(DashboardPage);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-testid="dashboard-loading"]').attributes('aria-busy')).toBe('true');
+    expect(wrapper.findAll('[data-testid="skeleton-item"]').length).toBeGreaterThan(0);
+
+    resolveSummary(summary);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="dashboard-loading"]').exists()).toBe(false);
+  });
+
   it('reloads the summary after a dialog closes', async () => {
     const wrapper = mount(DashboardPage, {
       global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } },
