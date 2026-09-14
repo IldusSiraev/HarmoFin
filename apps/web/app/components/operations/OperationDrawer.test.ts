@@ -90,6 +90,31 @@ describe('OperationDrawer', () => {
     wrapper.unmount();
   });
 
+  it('writes the history in words instead of raw codes', async () => {
+    api.listTransactionAudit.mockResolvedValue([
+      {
+        id: 'audit-id',
+        createdAt: '2026-09-14T10:28:07.826Z',
+        actor: { id: 'user-id', displayName: null, email: 'owner@harmofin.test' },
+        entityType: 'transaction',
+        entityId: 'transaction-id',
+        action: 'CONFIRMED',
+        source: 'API',
+        oldValues: null,
+        newValues: null,
+      },
+    ]);
+    const wrapper = mountDrawer();
+    await flushPromises();
+
+    const entry = wrapper.get('[data-testid="drawer-audit-event"]').text();
+    expect(entry).toContain('Подтверждена');
+    expect(entry).toContain('owner@harmofin.test');
+    expect(entry).not.toContain('CONFIRMED');
+    expect(entry).not.toContain('2026-09-14T10:28:07.826Z');
+    wrapper.unmount();
+  });
+
   it('confirms a draft and reports the new state', async () => {
     api.confirmTransaction.mockResolvedValue({ ...transaction, status: 'CONFIRMED' });
     const wrapper = mountDrawer();

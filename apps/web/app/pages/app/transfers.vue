@@ -18,6 +18,7 @@ import {
   type TransferStatus,
   useBudgetReferenceData,
 } from '../../composables/useBudgetReferenceData.js';
+import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import { createTransferForm, type TransferFormModel } from '../../composables/useTransferForm.js';
 
 defineOptions({ name: 'TransfersPage' });
@@ -27,8 +28,8 @@ const auth = useAuth();
 const api = useBudgetReferenceData();
 const route = useRoute();
 const transfers = ref<TransferDto[]>([]);
-const accounts = ref<Array<{ value: string; label: string }>>([]);
-const envelopes = ref<Array<{ value: string; label: string }>>([]);
+// Same cached reference lists the journal and the global dialogs read.
+const { accounts, envelopes, load: loadReferenceData } = useOperationReferenceData();
 const nextCursor = ref<string | null>(null);
 const loading = ref(true);
 const hydrated = ref(false);
@@ -69,21 +70,15 @@ async function load(append = false) {
   loading.value = true;
   error.value = '';
   try {
-    const [result, accountData, envelopeData] = await Promise.all([
+    const [result] = await Promise.all([
       api.listTransfers(id, {
         ...(statusFilter.value ? { status: statusFilter.value } : {}),
         ...(append && nextCursor.value ? { cursor: nextCursor.value } : {}),
       }),
-      api.listAccounts(id, 'active'),
-      api.listEnvelopes(id, 'active'),
+      loadReferenceData(),
     ]);
     transfers.value = append ? [...transfers.value, ...result.items] : result.items;
     nextCursor.value = result.nextCursor;
-    accounts.value = accountData.map((account) => ({ value: account.id, label: account.name }));
-    envelopes.value = envelopeData.map((envelope) => ({
-      value: envelope.id,
-      label: envelope.name,
-    }));
     const sourceAccountId = route.query.sourceAccountId;
     prefilledSourceAccountId.value =
       typeof sourceAccountId === 'string' &&

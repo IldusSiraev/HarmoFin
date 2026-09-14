@@ -5,12 +5,14 @@ const api = {
   listCategories: vi.fn(),
   listEnvelopes: vi.fn(),
 };
+type AuthData = {
+  user: { email: string };
+  workspaces: Array<{ name: string; budgets: Array<{ id: string; name: string }> }>;
+} | null;
+
 const auth = {
   currentData: {
-    value: {
-      user: { email: 'owner@example.test' },
-      workspaces: [{ name: 'Семья', budgets: [{ id: 'budget-id', name: 'Бюджет' }] }],
-    },
+    value: null as AuthData,
   },
   loadMe: vi.fn(),
 };
@@ -25,6 +27,10 @@ import { useOperationReferenceData } from './useOperationReferenceData.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  auth.currentData.value = {
+    user: { email: 'owner@example.test' },
+    workspaces: [{ name: 'Семья', budgets: [{ id: 'budget-id', name: 'Бюджет' }] }],
+  };
   useOperationReferenceData().invalidate();
   api.listAccounts.mockResolvedValue([{ id: 'account-id', name: 'Основная карта' }]);
   api.listCategories.mockResolvedValue([
@@ -52,5 +58,42 @@ describe('useOperationReferenceData', () => {
     await load();
 
     expect(api.listAccounts).toHaveBeenCalledTimes(1);
+  });
+
+  it('reloads after a reference record changed', async () => {
+    const { load, invalidate } = useOperationReferenceData();
+    await load();
+
+    invalidate();
+    await load();
+
+    expect(api.listAccounts).toHaveBeenCalledTimes(2);
+  });
+
+  it('never serves one budget the cache of another', async () => {
+    const { load, accounts, budgetId } = useOperationReferenceData();
+    await load();
+
+    auth.currentData.value = {
+      user: { email: 'other@example.test' },
+      workspaces: [{ name: 'Другая семья', budgets: [{ id: 'other-budget-id', name: 'Бюджет' }] }],
+    };
+    api.listAccounts.mockResolvedValue([{ id: 'other-account-id', name: 'Чужая карта' }]);
+    await load();
+
+    expect(budgetId.value).toBe('other-budget-id');
+    expect(accounts.value).toEqual([{ value: 'other-account-id', label: 'Чужая карта' }]);
+    expect(api.listAccounts).toHaveBeenLastCalledWith('other-budget-id', 'active');
+  });
+
+  it('drops what it holds when nobody is signed in', async () => {
+    const { load, accounts } = useOperationReferenceData();
+    await load();
+
+    auth.currentData.value = null;
+    auth.loadMe.mockResolvedValue(undefined);
+    await load();
+
+    expect(accounts.value).toEqual([]);
   });
 });

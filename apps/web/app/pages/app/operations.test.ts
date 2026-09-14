@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const api = {
   listTransactions: vi.fn(),
+  getDashboardSummary: vi.fn(),
   downloadTransactionsCsv: vi.fn(),
   getTransaction: vi.fn(),
   listAccounts: vi.fn(),
@@ -107,6 +108,9 @@ describe('operations page', () => {
     api.listEnvelopes.mockResolvedValue([]);
     api.listTransactionAllocations.mockResolvedValue([]);
     api.listTransactionAudit.mockResolvedValue([]);
+    api.getDashboardSummary.mockResolvedValue({
+      period: { id: 'FIRST', start: '2026-09-10', end: '2026-09-24' },
+    });
     useToast().clear();
   });
 
@@ -397,6 +401,20 @@ describe('operations page', () => {
 
     expect(wrapper!.findAll('[data-testid="operation-group-label"]').length).toBeGreaterThan(0);
     expect(wrapper!.findAll('[data-testid="list-row-select"]').length).toBe(1);
+  });
+
+  it('fills the period chip from the cycle the server computed', async () => {
+    mountPage();
+    await flushPromises();
+
+    await wrapper!.get('[data-testid="chip-periodStart"]').trigger('click');
+
+    expect(wrapper!.get('[data-testid="chip-option-periodStart-2026-09-10"]').text()).toBe(
+      'Текущий период (10.09 – 24.09)',
+    );
+    expect(wrapper!.find('[data-testid="chip-option-periodStart-2026-09-09"]').text()).toBe(
+      'Прошлый период',
+    );
   });
 
   it('opens the drawer from a row', async () => {

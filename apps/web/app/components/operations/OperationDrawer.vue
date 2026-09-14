@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 
+import { auditActionLabel, auditActorName, formatAuditMoment } from './audit-event.js';
 import IncomeAllocationForm from './IncomeAllocationForm.vue';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiButton from '../ui/Button.vue';
@@ -197,9 +198,14 @@ async function saveAllocation(input: {
 
       <section aria-labelledby="operation-drawer-audit">
         <h3 id="operation-drawer-audit">История изменений</h3>
-        <ol v-if="auditEvents.length > 0" class="operation-drawer__list">
-          <li v-for="event in auditEvents" :key="event.id">
-            {{ event.action }} — {{ event.createdAt }}
+        <ol v-if="auditEvents.length > 0" class="operation-drawer__history">
+          <li v-for="event in auditEvents" :key="event.id" data-testid="drawer-audit-event">
+            <span class="operation-drawer__history-action">{{
+              auditActionLabel(event.action)
+            }}</span>
+            <span class="operation-drawer__history-meta">
+              {{ formatAuditMoment(event.createdAt) }} · {{ auditActorName(event) }}
+            </span>
           </li>
         </ol>
         <p v-else>История пуста.</p>
@@ -292,6 +298,29 @@ async function saveAllocation(input: {
   gap: var(--hf-space-1);
   margin: 0;
   padding-left: var(--hf-space-5);
+}
+
+.operation-drawer__history {
+  display: grid;
+  gap: var(--hf-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.operation-drawer__history li {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.operation-drawer__history-action {
+  font-weight: var(--hf-font-weight-medium);
+}
+
+.operation-drawer__history-meta {
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-caption);
+  line-height: var(--hf-line-height-caption);
 }
 
 .operation-drawer__error {

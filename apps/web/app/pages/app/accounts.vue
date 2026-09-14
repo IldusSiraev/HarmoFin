@@ -12,6 +12,7 @@ import UiModal from '../../components/ui/Modal.vue';
 import UiSelect from '../../components/ui/Select.vue';
 import UiStatus from '../../components/ui/Status.vue';
 import { useAuth } from '../../composables/useAuth.js';
+import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import {
   type AccountDto,
   type AccountType,
@@ -122,6 +123,9 @@ function cancelForm() {
 async function loadAccounts() {
   const id = budgetId.value;
   if (!id) return;
+  // A reference record may have just changed, so the shared cache the journal,
+  // the transfers page and the global dialogs read must not stay on old names.
+  useOperationReferenceData().invalidate();
   accounts.value = await api.listAccounts(id, status.value);
 }
 

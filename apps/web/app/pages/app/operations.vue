@@ -8,6 +8,7 @@ import OperationGroup from '../../components/operations/OperationGroup.vue';
 import OperationRow from '../../components/operations/OperationRow.vue';
 import OperationsToolbar from '../../components/operations/OperationsToolbar.vue';
 import { groupByDay } from '../../components/operations/group-by-day.js';
+import { periodChipOptions } from '../../components/operations/period-options.js';
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import UiActionMenu from '../../components/ui/ActionMenu.vue';
 import UiButton from '../../components/ui/Button.vue';
@@ -21,7 +22,6 @@ import {
   type OperationFormModel,
 } from '../../composables/useOperationForm.js';
 import {
-  type CategoryDto,
   type CreateTransactionInput,
   type TransactionDto,
   type UpdateTransactionInput,
@@ -33,6 +33,7 @@ import {
   type OperationFilters,
 } from '../../composables/useOperationFilters.js';
 import { useOperationMutations } from '../../composables/useOperationMutations.js';
+import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import { useToast } from '../../composables/useToast.js';
 import { ApiRequestError } from '../../composables/useApiClient.js';
 
@@ -77,9 +78,10 @@ let requestVersion = 0;
 const workspace = computed(() => auth.currentData.value?.workspaces[0] ?? null);
 const budget = computed(() => workspace.value?.budgets[0] ?? null);
 const isOwner = computed(() => workspace.value?.role === 'OWNER');
-const accounts = ref<Array<{ value: string; label: string }>>([]);
-const categories = ref<CategoryDto[]>([]);
-const envelopes = ref<Array<{ value: string; label: string }>>([]);
+// Accounts, categories and envelopes come from the shared cache the global add
+// dialogs already use, so opening the journal does not re-read them every time.
+const { accounts, categories, envelopes, load: loadReferenceData } = useOperationReferenceData();
+const periods = ref<Array<{ value: string; label: string }>>([]);
 
 const categoryOptions = computed(() =>
   categories.value.map((category) => ({ value: category.id, label: category.name })),
@@ -118,6 +120,18 @@ onMounted(() => {
   void load();
 });
 
+// The cycle and the period are the server's arithmetic; the journal only asks
+// for them once to fill the period chip.
+async function loadPeriods() {
+  if (!budget.value) return;
+  try {
+    const summary = await api.getDashboardSummary(budget.value.id);
+    periods.value = periodChipOptions(summary.period);
+  } catch {
+    periods.value = [];
+  }
+}
+
 async function load(append = false) {
   if (!budget.value) {
     try {
@@ -134,21 +148,17 @@ async function load(append = false) {
   loading.value = true;
   error.value = '';
   try {
-    const [result, accountData, categoryData, envelopeData] = await Promise.all([
+    const [result] = await Promise.all([
       api.listTransactions(budget.value.id, {
         ...toListInput(),
         ...(append && nextCursor.value ? { cursor: nextCursor.value } : {}),
       }),
-      api.listAccounts(budget.value.id, 'active'),
-      api.listCategories(budget.value.id, undefined, 'active'),
-      api.listEnvelopes(budget.value.id, 'active'),
+      loadReferenceData(),
     ]);
     if (version !== requestVersion) return;
     transactions.value = append ? [...transactions.value, ...result.items] : result.items;
     nextCursor.value = result.nextCursor;
-    accounts.value = accountData.map((item) => ({ value: item.id, label: item.name }));
-    categories.value = categoryData;
-    envelopes.value = envelopeData.map((item) => ({ value: item.id, label: item.name }));
+    if (periods.value.length === 0) void loadPeriods();
     await preloadDraft();
   } catch {
     if (version === requestVersion)
@@ -455,7 +465,7 @@ async function downloadCsv() {
           :accounts="accounts"
           :categories="categoryOptions"
           :envelopes="envelopes"
-          :periods="[]"
+          :periods="periods"
           @change="onFilterChange"
           @search="onSearch"
           @reset="onReset"
