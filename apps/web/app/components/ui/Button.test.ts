@@ -3,6 +3,12 @@ import { describe, expect, it } from 'vitest';
 
 import UiButton from './Button.vue';
 
+const NuxtLinkStub = {
+  name: 'NuxtLink',
+  props: { to: { type: String, required: true } },
+  template: '<a :href="to"><slot /></a>',
+};
+
 describe('UiButton', () => {
   it('uses native button defaults and blocks clicks while loading', async () => {
     const wrapper = mount(UiButton, { slots: { default: 'Сохранить' } });
@@ -75,5 +81,49 @@ describe('UiButton', () => {
     });
 
     expect(wrapper.get('button').attributes('data-action')).toBe('create-account');
+  });
+
+  it('renders a button element by default', () => {
+    const wrapper = mount(UiButton, { slots: { default: 'Сохранить' } });
+
+    expect(wrapper.get('button').element.tagName).toBe('BUTTON');
+    expect(wrapper.get('button').classes()).toContain('ui-button--primary');
+  });
+
+  it('renders a link when "to" is provided', () => {
+    const wrapper = mount(UiButton, {
+      props: { to: '/register', variant: 'brand', size: 'lg' },
+      slots: { default: 'Начать бесплатно' },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+
+    const link = wrapper.get('a');
+    expect(link.attributes('href')).toBe('/register');
+    expect(link.classes()).toContain('ui-button--brand');
+    expect(link.classes()).toContain('ui-button--lg');
+    expect(link.attributes('type')).toBeUndefined();
+    expect(link.text()).toBe('Начать бесплатно');
+  });
+
+  it('resolves the link component itself, without a test-supplied stub', () => {
+    // Guards the regression where `:is="'NuxtLink'"` rendered an unresolved
+    // <nuxtlink> element in the browser: nothing navigated, yet every test that
+    // supplied its own stub still passed.
+    const wrapper = mount(UiButton, {
+      props: { to: '/register' },
+      slots: { default: 'Начать бесплатно' },
+    });
+
+    const link = wrapper.get('a');
+    expect(link.attributes('href')).toBe('/register');
+    expect(wrapper.html()).not.toContain('<nuxtlink');
+  });
+
+  it('does not emit click when disabled', async () => {
+    const wrapper = mount(UiButton, { props: { disabled: true }, slots: { default: 'Ок' } });
+
+    await wrapper.trigger('click');
+
+    expect(wrapper.emitted('click')).toBeUndefined();
   });
 });

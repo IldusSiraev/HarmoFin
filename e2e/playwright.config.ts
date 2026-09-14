@@ -16,7 +16,12 @@ const testEnvironment = {
 export default defineConfig({
   testDir: '.',
   testMatch: '*.spec.ts',
-  timeout: 30_000,
+  timeout: 60_000,
+  // These specs run against a dev server, so the first visit to a route pays
+  // for on-demand compilation — the analytics page, which pulls in echarts,
+  // regularly needs more than Playwright's default five seconds before its
+  // report renders. A longer wait costs nothing on a passing run.
+  expect: { timeout: 20_000 },
   // These specs share one dev server, one database, and one IP-rate-limited API
   // process — registration's real Argon2id hashing and the auth-recovery rate
   // limiter both serialize badly under concurrent workers, causing sporadic

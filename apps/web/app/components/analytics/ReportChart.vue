@@ -20,6 +20,12 @@ function rowAmount(row: Record<string, unknown>) {
   return typeof value === 'string' ? Number(value) : 0;
 }
 
+function readToken(name: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback;
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
 function renderChart() {
   if (
     !chartElement.value ||
@@ -32,17 +38,22 @@ function renderChart() {
   chart = echarts.init(chartElement.value);
   const labels = props.report.rows.map(rowLabel);
   const amounts = props.report.rows.map(rowAmount);
+  const chartColors = {
+    grid: readToken('--hf-color-border', '#e2e8f0'),
+    axis: readToken('--hf-color-text-muted', '#64748b'),
+    bar: readToken('--hf-color-brand', '#0a7f60'),
+  };
   chart.setOption({
     animation: false,
     grid: { top: 16, right: 24, bottom: 32, left: 112 },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    xAxis: { type: 'value', splitLine: { lineStyle: { color: '#d8ddd9' } } },
-    yAxis: { type: 'category', data: labels, axisLabel: { color: '#33403a' } },
+    xAxis: { type: 'value', splitLine: { lineStyle: { color: chartColors.grid } } },
+    yAxis: { type: 'category', data: labels, axisLabel: { color: chartColors.axis } },
     series: [
       {
         type: 'bar',
         data: amounts,
-        itemStyle: { color: '#2f6e5a', borderRadius: [0, 4, 4, 0] },
+        itemStyle: { color: chartColors.bar, borderRadius: [0, 4, 4, 0] },
       },
     ],
   });

@@ -28,6 +28,10 @@ export const vueConfig = [
           ignores: ['index'],
         },
       ],
+      // Unsound for <script setup>: this rule's control-flow analysis cannot see reads inside
+      // <template> expression containers, so it flags refs/computed values that are only used
+      // in the template as dead stores.
+      'no-useless-assignment': 'off',
     },
   },
 ];

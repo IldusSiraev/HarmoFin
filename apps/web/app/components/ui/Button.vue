@@ -1,11 +1,13 @@
 <script setup lang="ts">
+import { NuxtLink } from '#components';
+
 import UiTooltip from './Tooltip.vue';
 
 defineOptions({ name: 'UiButton', inheritAttrs: false });
 
 withDefaults(
   defineProps<{
-    variant?: 'primary' | 'secondary' | 'tertiary' | 'danger';
+    variant?: 'primary' | 'secondary' | 'tertiary' | 'danger' | 'brand';
     size?: 'sm' | 'md' | 'lg';
     type?: 'button' | 'submit' | 'reset';
     loading?: boolean;
@@ -13,6 +15,7 @@ withDefaults(
     fullWidth?: boolean;
     ariaLabel?: string | undefined;
     tooltip?: string | undefined;
+    to?: string | undefined;
   }>(),
   {
     variant: 'primary',
@@ -23,6 +26,7 @@ withDefaults(
     fullWidth: false,
     ariaLabel: undefined,
     tooltip: undefined,
+    to: undefined,
   },
 );
 
@@ -43,7 +47,8 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
     :text="tooltip"
     :class="tooltip ? { 'ui-tooltip--full-width': fullWidth } : {}"
   >
-    <button
+    <component
+      :is="to ? NuxtLink : 'button'"
       v-bind="$attrs"
       class="ui-button"
       :class="[
@@ -51,8 +56,9 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
         `ui-button--${size}`,
         { 'ui-button--full-width': fullWidth },
       ]"
-      :type="type"
-      :disabled="disabled || loading"
+      :to="to"
+      :type="to ? undefined : type"
+      :disabled="to ? undefined : disabled || loading"
       :aria-busy="loading || undefined"
       :aria-label="ariaLabel"
       :aria-describedby="describedby"
@@ -60,7 +66,7 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
     >
       <span v-if="loading" class="ui-button__loader" aria-hidden="true" />
       <span class="ui-button__content"><slot /></span>
-    </button>
+    </component>
   </UiTooltip>
 </template>
 
@@ -77,6 +83,7 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
   border-radius: var(--hf-button-radius);
   font-weight: var(--hf-button-font-weight);
   line-height: 1.25;
+  text-decoration: none;
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
@@ -133,6 +140,22 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
 
 .ui-button--danger:hover:not(:disabled) {
   background: var(--hf-color-action-danger-hover);
+}
+
+.ui-button--brand {
+  color: var(--hf-color-white);
+  border: 1px solid var(--hf-color-action-brand);
+  background: var(--hf-color-action-brand);
+}
+
+.ui-button--brand:hover:not(:disabled) {
+  border-color: var(--hf-color-action-brand-hover);
+  background: var(--hf-color-action-brand-hover);
+}
+
+.ui-button--brand:active:not(:disabled) {
+  border-color: var(--hf-color-action-brand-active);
+  background: var(--hf-color-action-brand-active);
 }
 
 .ui-button:disabled {

@@ -4,6 +4,12 @@ const config = loadWebConfig(process.env);
 
 export default defineNuxtConfig({
   css: ['~/assets/styles/tokens.css', '~/assets/styles/base.css'],
+  app: {
+    head: {
+      htmlAttrs: { lang: 'ru' },
+      link: [{ rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
+    },
+  },
   devServer: {
     port: config.webPort,
   },
@@ -15,6 +21,21 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiUrl: config.apiUrl,
+    },
+  },
+  vite: {
+    build: {
+      rollupOptions: {
+        output: {
+          hoistTransitiveImports: false,
+          manualChunks(id: string) {
+            if (id.includes('node_modules/echarts') || id.includes('node_modules/zrender')) {
+              return 'charts-vendor';
+            }
+            return undefined;
+          },
+        },
+      },
     },
   },
 });
