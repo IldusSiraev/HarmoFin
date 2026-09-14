@@ -234,3 +234,21 @@ describe('transfers API client', () => {
     });
   });
 });
+
+describe('reference summaries API client', () => {
+  it('reads both reference summaries with the status the screen shows', async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValue({ currency: 'RUB', scale: 2, totalMinor: '150000', count: 2 });
+    const data = createBudgetReferenceData({ request, requestBlob: vi.fn() });
+
+    await data.getAccountsSummary('budget-id', 'archived');
+    await data.getEnvelopesSummary('budget-id');
+
+    expect(request).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/budgets/budget-id/accounts/summary?status=archived',
+    );
+    expect(request).toHaveBeenNthCalledWith(2, '/api/v1/budgets/budget-id/envelopes/summary');
+  });
+});
