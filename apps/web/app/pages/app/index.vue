@@ -3,8 +3,8 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { definePageMeta } from '#imports';
 import { RefreshCw } from '@lucide/vue';
 
+import AvailableBudgetCard from '../../components/dashboard/AvailableBudgetCard.vue';
 import BalanceList from '../../components/dashboard/BalanceList.vue';
-import PeriodLimitCard from '../../components/dashboard/PeriodLimitCard.vue';
 import UpcomingObligations from '../../components/dashboard/UpcomingObligations.vue';
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import UiButton from '../../components/ui/Button.vue';
@@ -95,7 +95,7 @@ async function loadDashboard() {
             <FinanceMoney :minor-units="summary.unallocatedIncomeMinor" currency="RUB" :scale="2" />
           </p>
         </section>
-        <PeriodLimitCard :period-limit="summary.periodLimit" />
+        <AvailableBudgetCard :period-limit="summary.periodLimit" :period="summary.period" />
         <UpcomingObligations :items="summary.upcomingObligations" />
         <BalanceList
           title="Счета"

@@ -75,7 +75,8 @@ describe('dashboard page', () => {
     await flushPromises();
 
     const text = wrapper.text().replaceAll(' ', ' ');
-    expect(text).toContain('Остаток:75,00 ₽');
+    expect(text).toContain('Можно потратить');
+    expect(text).toContain('75,00 ₽');
     expect(text).toContain('Наличные');
     expect(text).toContain('Ипотека');
     expect(wrapper.get('a[href="/app/plans?occurrence=occurrence-id"]')).toBeTruthy();
