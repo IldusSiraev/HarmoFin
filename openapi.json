@@ -74,6 +74,27 @@
         ],
         "type": "object"
       },
+      "AccountSummaryResponse": {
+        "properties": {
+          "count": {
+            "type": "number"
+          },
+          "currency": {
+            "enum": ["RUB"],
+            "type": "string"
+          },
+          "scale": {
+            "enum": [2],
+            "type": "number"
+          },
+          "totalMinor": {
+            "pattern": "^-?\\d+$",
+            "type": "string"
+          }
+        },
+        "required": ["currency", "scale", "totalMinor", "count"],
+        "type": "object"
+      },
       "AllocationProposalResponse": {
         "properties": {
           "amountMinor": {
@@ -3373,6 +3394,50 @@
             "description": ""
           },
           "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["accounts"]
+      }
+    },
+    "/api/v1/budgets/{budgetId}/accounts/summary": {
+      "get": {
+        "operationId": "AccountController_summary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountSummaryResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
             "content": {
               "application/json": {
                 "schema": {

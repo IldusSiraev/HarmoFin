@@ -68,6 +68,49 @@ describe('AccountApplicationService', () => {
     });
   });
 
+  it('sums the balances it hands to the list and counts the rows', async () => {
+    const repository = repositoryDouble();
+    const service = createService(repository);
+    repository.findAccessibleWithRole.mockResolvedValue(ownerBudget());
+    repository.list.mockResolvedValue([
+      account({ currentBalanceMinor: 120050n }),
+      account({ currentBalanceMinor: -20050n }),
+    ]);
+
+    await expect(service.summary(ownerId, budgetId, 'active')).resolves.toEqual({
+      currency: 'RUB',
+      scale: 2,
+      totalMinor: '100000',
+      count: 2,
+    });
+    expect(repository.list).toHaveBeenCalledWith(ownerId, budgetId, 'active');
+  });
+
+  it('reports zero for a budget without accounts', async () => {
+    const repository = repositoryDouble();
+    const service = createService(repository);
+    repository.findAccessibleWithRole.mockResolvedValue(ownerBudget());
+    repository.list.mockResolvedValue([]);
+
+    await expect(service.summary(ownerId, budgetId, 'all')).resolves.toEqual({
+      currency: 'RUB',
+      scale: 2,
+      totalMinor: '0',
+      count: 0,
+    });
+  });
+
+  it('hides the summary of a budget the user cannot reach', async () => {
+    const repository = repositoryDouble();
+    const service = createService(repository);
+    repository.findAccessibleWithRole.mockResolvedValue(null);
+
+    await expect(service.summary(ownerId, budgetId, 'active')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'RESOURCE_NOT_FOUND' }),
+    });
+    expect(repository.list).not.toHaveBeenCalled();
+  });
+
   function createService(repository: ReturnType<typeof repositoryDouble>) {
     return new AccountApplicationService(
       repository as unknown as AccountRepository,
@@ -79,6 +122,7 @@ describe('AccountApplicationService', () => {
     return {
       findAccessibleWithRole: vi.fn(),
       create: vi.fn(),
+      list: vi.fn(),
     };
   }
 

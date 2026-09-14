@@ -27,9 +27,16 @@ import type { RequestContext } from '../common/request-context/request-context.j
 import { CsrfGuard } from '../common/security/csrf.guard.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import { AccountApplicationService } from './account.application.service.js';
-import { AccountResponse, CreateAccountRequest, UpdateAccountRequest } from './account.dto.js';
 import {
+  AccountResponse,
+  AccountSummaryResponse,
+  CreateAccountRequest,
+  UpdateAccountRequest,
+} from './account.dto.js';
+import {
+  accountSummarySchema,
   createAccountSchema,
+  type AccountSummaryInput,
   type CreateAccountInput,
   type ListAccountsInput,
   listAccountsSchema,
@@ -58,6 +65,18 @@ export class AccountController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.service.list(contextOf(request).userId, budgetId, query.status);
+  }
+
+  @Get('budgets/:budgetId/accounts/summary')
+  @ApiOkResponse({ type: AccountSummaryResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  summary(
+    @Param('budgetId') budgetId: string,
+    @Query(new ZodValidationPipe(accountSummarySchema)) query: AccountSummaryInput,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.summary(contextOf(request).userId, budgetId, query.status);
   }
 
   @Post('budgets/:budgetId/accounts')
