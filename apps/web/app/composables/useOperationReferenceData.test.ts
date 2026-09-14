@@ -1,0 +1,99 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const api = {
+  listAccounts: vi.fn(),
+  listCategories: vi.fn(),
+  listEnvelopes: vi.fn(),
+};
+type AuthData = {
+  user: { email: string };
+  workspaces: Array<{ name: string; budgets: Array<{ id: string; name: string }> }>;
+} | null;
+
+const auth = {
+  currentData: {
+    value: null as AuthData,
+  },
+  loadMe: vi.fn(),
+};
+
+vi.mock('./useBudgetReferenceData.js', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useBudgetReferenceData: () => api,
+}));
+vi.mock('./useAuth.js', () => ({ useAuth: () => auth }));
+
+import { useOperationReferenceData } from './useOperationReferenceData.js';
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  auth.currentData.value = {
+    user: { email: 'owner@example.test' },
+    workspaces: [{ name: 'Семья', budgets: [{ id: 'budget-id', name: 'Бюджет' }] }],
+  };
+  useOperationReferenceData().invalidate();
+  api.listAccounts.mockResolvedValue([{ id: 'account-id', name: 'Основная карта' }]);
+  api.listCategories.mockResolvedValue([
+    { id: 'category-id', name: 'Продукты', categoryType: 'EXPENSE', templateKey: null },
+  ]);
+  api.listEnvelopes.mockResolvedValue([{ id: 'envelope-id', name: 'Текущие' }]);
+});
+
+describe('useOperationReferenceData', () => {
+  it('loads options for the active budget', async () => {
+    const { load, accounts, envelopes, categories, budgetId } = useOperationReferenceData();
+
+    await load();
+
+    expect(budgetId.value).toBe('budget-id');
+    expect(accounts.value).toEqual([{ value: 'account-id', label: 'Основная карта' }]);
+    expect(envelopes.value).toEqual([{ value: 'envelope-id', label: 'Текущие' }]);
+    expect(categories.value).toHaveLength(1);
+  });
+
+  it('does not refetch what it already has', async () => {
+    const { load } = useOperationReferenceData();
+
+    await load();
+    await load();
+
+    expect(api.listAccounts).toHaveBeenCalledTimes(1);
+  });
+
+  it('reloads after a reference record changed', async () => {
+    const { load, invalidate } = useOperationReferenceData();
+    await load();
+
+    invalidate();
+    await load();
+
+    expect(api.listAccounts).toHaveBeenCalledTimes(2);
+  });
+
+  it('never serves one budget the cache of another', async () => {
+    const { load, accounts, budgetId } = useOperationReferenceData();
+    await load();
+
+    auth.currentData.value = {
+      user: { email: 'other@example.test' },
+      workspaces: [{ name: 'Другая семья', budgets: [{ id: 'other-budget-id', name: 'Бюджет' }] }],
+    };
+    api.listAccounts.mockResolvedValue([{ id: 'other-account-id', name: 'Чужая карта' }]);
+    await load();
+
+    expect(budgetId.value).toBe('other-budget-id');
+    expect(accounts.value).toEqual([{ value: 'other-account-id', label: 'Чужая карта' }]);
+    expect(api.listAccounts).toHaveBeenLastCalledWith('other-budget-id', 'active');
+  });
+
+  it('drops what it holds when nobody is signed in', async () => {
+    const { load, accounts } = useOperationReferenceData();
+    await load();
+
+    auth.currentData.value = null;
+    auth.loadMe.mockResolvedValue(undefined);
+    await load();
+
+    expect(accounts.value).toEqual([]);
+  });
+});

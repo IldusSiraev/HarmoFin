@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   },
   api: {
     listAccounts: vi.fn(),
+    listCategories: vi.fn(),
     listEnvelopes: vi.fn(),
     listTransfers: vi.fn(),
     createTransfer: vi.fn(),
@@ -36,10 +37,14 @@ vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) =>
 }));
 
 import TransfersPage from './transfers.vue';
+import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 
 describe('transfers page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The page reads the shared reference cache, which outlives a single test.
+    useOperationReferenceData().invalidate();
+    mocks.api.listCategories.mockResolvedValue([]);
     mocks.api.listAccounts.mockResolvedValue([
       { id: 'source-account', name: 'Основной счёт', archivedAt: null },
       { id: 'destination-account', name: 'Накопительный счёт', archivedAt: null },

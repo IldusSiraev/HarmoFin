@@ -11,41 +11,41 @@ test('owner edits, resolves allocation deletion, restores operation, and sees au
   await configureIncomeAllocationRule(page);
   await createIncome(page, 'Премия до редактирования', '1 000,00');
 
+  await openFirstOperation(page);
   await page.getByRole('button', { name: 'Применить предложение' }).click();
-  await expect(page.getByText(/доступно 0 минимальных единиц/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Применить предложение' })).toBeHidden();
 
-  await page.getByRole('button', { name: 'Изменить' }).click();
+  await page.getByTestId('drawer-edit').click();
   await page.getByLabel('Источник дохода').fill('Премия после редактирования');
   await page.getByRole('button', { name: 'Сохранить изменения' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Подтвердить', exact: true }).click();
+  await confirmDialog(page);
   await expect(page.getByText('Премия после редактирования')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Детали' }).click();
+  await openFirstOperation(page);
   await expect(page.getByRole('heading', { name: 'Распределения дохода' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'История изменений' })).toBeVisible();
 
-  const deleteButton = page.getByRole('button', { name: 'Удалить' });
-  await deleteButton.click();
-  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByTestId('drawer-delete').click();
+  await expect(page.locator('dialog[open]')).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).toBeHidden();
-  await expect(deleteButton).toBeFocused();
+  await expect(page.locator('dialog[open]')).toHaveCount(0);
 
-  await deleteButton.click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Подтвердить', exact: true }).click();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await page.getByRole('dialog').getByRole('button', { name: 'Подтвердить', exact: true }).click();
-  await expect(page.getByText('Данные обновлены на сервере.')).toBeVisible();
+  await page.getByTestId('drawer-delete').click();
+  await confirmDialog(page);
+  // An income with confirmed allocations needs the second decision.
+  await page.locator('dialog[open]').getByRole('button', { name: 'Удалить распределения' }).click();
+  await expect(page.getByTestId('toast-stack')).toContainText('Операция удалена');
 
-  await page.getByRole('button', { name: 'Фильтры' }).click();
-  await page.getByLabel('Статус').selectOption('DELETED');
+  await filterByStatus(page, 'DELETED');
   await expect(page.getByText('Удалена', { exact: true })).toBeVisible();
-  await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'Восстановить' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Подтвердить', exact: true }).click();
-  await page.getByRole('button', { name: 'Фильтры' }).click();
-  await page.getByLabel('Статус').selectOption('');
-  await expect(page.getByText('Подтверждена', { exact: true })).toBeVisible();
+
+  await page.getByTestId('action-menu-trigger').first().click();
+  await page.getByTestId('row-restore').click();
+  await confirmDialog(page);
+  await expect(page.getByTestId('toast-stack')).toContainText('Операция восстановлена');
+
+  await filterByStatus(page, '');
+  await expect(page.getByText('Премия после редактирования')).toBeVisible();
 });
 
 test('journal filters, sort, reset, direct links, and dashboard use server data', async ({
@@ -75,8 +75,8 @@ test('journal filters, sort, reset, direct links, and dashboard use server data'
     .getByRole('link', { name: 'Операции счёта' })
     .click();
   await expect(page).toHaveURL(/\/app\/operations\?accountId=/);
-  await page.getByRole('button', { name: 'Фильтры' }).click();
-  await expect(page.getByLabel('Счёт в журнале')).toHaveValue(/.+/);
+  await expect(page.getByTestId('chip-accountId')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('chip-accountId')).toContainText('Карта Stage 3b');
 
   await page.goto('/app/envelopes');
   await page
@@ -85,21 +85,22 @@ test('journal filters, sort, reset, direct links, and dashboard use server data'
     .getByRole('link', { name: 'Операции конверта' })
     .click();
   await expect(page).toHaveURL(/\/app\/operations\?envelopeId=/);
-  await page.getByRole('button', { name: 'Фильтры' }).click();
-  await expect(page.getByLabel('Конверт в журнале')).toHaveValue(/.+/);
-  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('chip-envelopeId')).toHaveAttribute('aria-pressed', 'true');
 
-  await page.getByLabel('Поиск').fill('Супермаркет Stage 3b');
+  await page.getByLabel('Поиск по операциям').fill('Супермаркет Stage 3b');
   await expect(page.getByText('Супермаркет Stage 3b')).toBeVisible();
   await expect(page).toHaveURL(
     /search=%D0%A1%D1%83%D0%BF%D0%B5%D1%80%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82/,
   );
-  await page.getByRole('button', { name: 'Сортировать по сумме' }).click();
+
+  await page.getByTestId('more-filters').click();
+  await page.getByRole('combobox', { name: 'Сортировка' }).selectOption('amount');
   await expect(page).toHaveURL(/sortBy=amount/);
-  await page.getByRole('button', { name: 'Сортировать по сумме' }).click();
-  await expect(page).toHaveURL(/sortBy=amount.*sortDirection=asc/);
-  await page.getByRole('button', { name: 'Фильтры' }).click();
-  await page.getByRole('button', { name: 'Сбросить фильтры' }).click();
+  await expect(page.getByText('Отсортировано по сумме')).toBeVisible();
+  await page.getByRole('combobox', { name: 'Направление' }).selectOption('asc');
+  await expect(page).toHaveURL(/sortDirection=asc/);
+
+  await page.getByTestId('reset-filters').click();
   await expect(page).toHaveURL(/\/app\/operations$/);
 });
 
@@ -194,15 +195,30 @@ async function configureIncomeAllocationRule(page: Page): Promise<void> {
 
 async function createIncome(page: Page, source: string, amount: string): Promise<void> {
   await page.goto('/app/operations');
-  await page.getByRole('button', { name: 'Добавить операцию' }).click();
+  await page.locator('[data-action="create-operation"]').click();
   await page.getByLabel('Тип операции').selectOption('INCOME');
   await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная Stage 3b' });
   await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Шабашка' });
   await page.getByLabel('Источник дохода').fill(source);
   await page.getByLabel('Сумма').fill(amount);
   await page.getByRole('button', { name: 'Подтвердить операцию' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Подтвердить', exact: true }).click();
-  await expect(page.getByText('Подтверждена', { exact: true })).toBeVisible();
+  await confirmDialog(page);
+  await expect(page.getByTestId('toast-stack')).toContainText('Операция подтверждена');
+}
+
+async function openFirstOperation(page: Page): Promise<void> {
+  await page.getByTestId('list-row-select').first().click();
+  await expect(page.getByTestId('drawer')).toBeVisible();
+}
+
+async function confirmDialog(page: Page): Promise<void> {
+  await page.locator('dialog[open] [data-confirm]').click();
+}
+
+async function filterByStatus(page: Page, status: string): Promise<void> {
+  await page.getByTestId('more-filters').click();
+  await page.getByRole('combobox', { name: 'Статус' }).selectOption(status);
+  await page.getByRole('button', { name: 'Готово' }).click();
 }
 
 async function createExpense(
@@ -213,13 +229,13 @@ async function createExpense(
   amount: string,
 ): Promise<void> {
   await page.goto('/app/operations');
-  await page.getByRole('button', { name: 'Добавить операцию' }).click();
+  await page.locator('[data-action="create-operation"]').click();
   await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: account });
   await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Продукты' });
   await page.getByLabel(/^Конверт\s*\*?$/).selectOption({ label: envelope });
   await page.getByLabel('Получатель или магазин').fill(merchant);
   await page.getByLabel('Сумма').fill(amount);
   await page.getByRole('button', { name: 'Подтвердить операцию' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Подтвердить', exact: true }).click();
-  await expect(page.getByText('Подтверждена', { exact: true })).toBeVisible();
+  await confirmDialog(page);
+  await expect(page.getByTestId('toast-stack')).toContainText('Операция подтверждена');
 }

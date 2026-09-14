@@ -22,6 +22,9 @@ test('adds an operation from a page other than the dashboard', async ({ page }) 
   await page.getByTestId('add-menu-expense').filter({ visible: true }).click();
 
   await expect(page.getByRole('dialog')).toBeVisible();
+  // The stub modal is gone: the shell now mounts the real operation form.
+  await expect(page.getByLabel('Сумма')).toBeVisible();
+  await expect(page.getByLabel('Тип операции')).toHaveValue('EXPENSE');
 });
 
 test('shows a toast after a reference record is created', async ({ page }) => {

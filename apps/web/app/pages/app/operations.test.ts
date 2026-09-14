@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const api = {
   listTransactions: vi.fn(),
+  getDashboardSummary: vi.fn(),
   downloadTransactionsCsv: vi.fn(),
   getTransaction: vi.fn(),
   listAccounts: vi.fn(),
@@ -43,7 +44,7 @@ const { routeQuery } = vi.hoisted(() => ({ routeQuery: {} as Record<string, stri
 vi.mock('#imports', () => ({
   definePageMeta: vi.fn(),
   navigateTo: vi.fn(),
-  useRoute: () => ({ query: routeQuery }),
+  useRoute: () => ({ path: '/app/operations', query: routeQuery }),
 }));
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => auth }));
 vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) => ({
@@ -52,7 +53,33 @@ vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) =>
 }));
 
 import { ApiRequestError } from '../../composables/useApiClient.js';
+import { useToast } from '../../composables/useToast.js';
 import OperationsPage from './operations.vue';
+
+const draftExpense = {
+  id: 'transaction-id',
+  budgetId: 'budget-id',
+  transactionType: 'EXPENSE',
+  status: 'DRAFT',
+  amountMinor: '125000',
+  currency: 'RUB',
+  scale: 2,
+  occurredOn: '2026-09-05',
+  accountId: 'account-id',
+  categoryId: 'category-id',
+  envelopeId: 'envelope-id',
+  sourceDescription: null,
+  merchantName: 'Магазин',
+  isPlanned: false,
+  comment: null,
+  confirmedAt: null,
+  cancelledAt: null,
+  deletedAt: null,
+  accountCurrentBalanceMinor: '0',
+  envelopeCurrentBalanceMinor: '0',
+  unallocatedMinor: '0',
+  allocationProposal: null,
+};
 
 describe('operations page', () => {
   let wrapper: ReturnType<typeof mount> | null = null;
@@ -79,6 +106,12 @@ describe('operations page', () => {
     api.listAccounts.mockResolvedValue([]);
     api.listCategories.mockResolvedValue([]);
     api.listEnvelopes.mockResolvedValue([]);
+    api.listTransactionAllocations.mockResolvedValue([]);
+    api.listTransactionAudit.mockResolvedValue([]);
+    api.getDashboardSummary.mockResolvedValue({
+      period: { id: 'FIRST', start: '2026-09-10', end: '2026-09-24' },
+    });
+    useToast().clear();
   });
 
   afterEach(() => {
@@ -309,6 +342,9 @@ describe('operations page', () => {
     mountPage();
     await flushPromises();
 
+    await wrapper!.get('[data-testid="list-row-select"]').trigger('click');
+    await flushPromises();
+
     await wrapper!.get('.allocation-form button:last-child').trigger('click');
     await flushPromises();
 
@@ -349,12 +385,121 @@ describe('operations page', () => {
     mountPage();
     await flushPromises();
 
-    await wrapper!.get('[data-action="edit-operation"]').trigger('click');
+    await wrapper!.get('[data-testid="action-menu-trigger"]').trigger('click');
+    await wrapper!.get('[data-testid="row-edit"]').trigger('click');
     await flushPromises();
 
     const amountInput = document.querySelector('input[name="amount"]') as HTMLInputElement;
     expect(amountInput?.value).toBe('1250.00');
     expect(document.body.textContent).toContain('Сохранить изменения');
+  });
+
+  it('lists operations as rows grouped by day', async () => {
+    api.listTransactions.mockResolvedValue({ items: [draftExpense], nextCursor: null });
+    mountPage();
+    await flushPromises();
+
+    expect(wrapper!.findAll('[data-testid="operation-group-label"]').length).toBeGreaterThan(0);
+    expect(wrapper!.findAll('[data-testid="list-row-select"]').length).toBe(1);
+  });
+
+  it('fills the period chip from the cycle the server computed', async () => {
+    mountPage();
+    await flushPromises();
+
+    await wrapper!.get('[data-testid="chip-periodStart"]').trigger('click');
+
+    expect(wrapper!.get('[data-testid="chip-option-periodStart-2026-09-10"]').text()).toBe(
+      'Текущий период (10.09 – 24.09)',
+    );
+    expect(wrapper!.find('[data-testid="chip-option-periodStart-2026-09-09"]').text()).toBe(
+      'Прошлый период',
+    );
+  });
+
+  it('opens the drawer from a row', async () => {
+    api.listTransactions.mockResolvedValue({ items: [draftExpense], nextCursor: null });
+    mountPage();
+    await flushPromises();
+
+    await wrapper!.get('[data-testid="list-row-select"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper!.find('[data-testid="drawer"]').exists()).toBe(true);
+  });
+
+  it('confirms a draft from the row menu through the confirmation dialog', async () => {
+    api.listTransactions.mockResolvedValue({ items: [draftExpense], nextCursor: null });
+    api.confirmTransaction.mockResolvedValue({ ...draftExpense, status: 'CONFIRMED' });
+    mountPage();
+    await flushPromises();
+
+    await wrapper!.get('[data-testid="action-menu-trigger"]').trigger('click');
+    await wrapper!.get('[data-testid="row-confirm"]').trigger('click');
+    await wrapper!.get('[data-confirm]').trigger('click');
+    await flushPromises();
+
+    expect(api.confirmTransaction).toHaveBeenCalledWith(
+      'budget-id',
+      'transaction-id',
+      expect.any(String),
+    );
+    expect(useToast().toasts.value.at(-1)?.title).toBe('Операция подтверждена');
+  });
+
+  it('asks how to handle allocations before deleting an income and then deletes once', async () => {
+    const income = { ...draftExpense, transactionType: 'INCOME', status: 'CONFIRMED' };
+    api.listTransactions.mockResolvedValue({ items: [income], nextCursor: null });
+    api.deleteTransaction.mockRejectedValue(
+      new ApiRequestError(409, {
+        code: 'INCOME_HAS_CONFIRMED_ALLOCATIONS',
+        detail: 'У дохода есть подтверждённые распределения.',
+      }),
+    );
+    api.deleteTransactionWithAllocations.mockResolvedValue({ ...income, status: 'DELETED' });
+    mountPage();
+    await flushPromises();
+
+    await wrapper!.get('[data-testid="action-menu-trigger"]').trigger('click');
+    await wrapper!.get('[data-testid="row-delete"]').trigger('click');
+    await wrapper!.get('[data-confirm]').trigger('click');
+    await flushPromises();
+
+    // The choice dialog replaces the failed deletion, and answering it must not
+    // ask for a third confirmation.
+    const choice = wrapper!.findAll('[data-confirm]').at(-1);
+    await choice!.trigger('click');
+    await flushPromises();
+
+    expect(api.deleteTransactionWithAllocations).toHaveBeenCalledWith(
+      'budget-id',
+      'transaction-id',
+      { allocationResolution: 'DELETE' },
+      expect.any(String),
+    );
+    expect(useToast().toasts.value.at(-1)?.title).toBe('Операция удалена');
+  });
+
+  it('shows skeletons while the first page is loading', async () => {
+    api.listTransactions.mockReturnValueOnce(new Promise(() => {}));
+    mountPage();
+    await wrapper!.vm.$nextTick();
+
+    expect(wrapper!.get('[data-testid="operations-loading"]').attributes('aria-busy')).toBe('true');
+    expect(wrapper!.findAll('[data-testid="skeleton-item"]').length).toBeGreaterThan(0);
+  });
+
+  it('separates an empty result from an empty journal', async () => {
+    api.listTransactions.mockResolvedValue({ items: [], nextCursor: null });
+    mountPage();
+    await flushPromises();
+    expect(wrapper!.text()).toContain('Операций пока нет');
+
+    await wrapper!.get('[data-testid="chip-type"]').trigger('click');
+    await wrapper!.get('[data-testid="chip-option-type-EXPENSE"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper!.text()).toContain('Ничего не найдено');
   });
 
   it('renders no-budget empty state without inventing budget id', async () => {

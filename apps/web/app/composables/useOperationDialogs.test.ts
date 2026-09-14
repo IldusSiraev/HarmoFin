@@ -29,6 +29,16 @@ describe('useOperationDialogs', () => {
     expect(openDialog.value).toBe('transfer');
   });
 
+  it('remembers the operation type the caller asked for', () => {
+    const { openOperation, presetType, close } = useOperationDialogs();
+
+    openOperation('INCOME');
+    expect(presetType.value).toBe('INCOME');
+
+    close();
+    expect(presetType.value).toBeNull();
+  });
+
   it('closes', () => {
     const { openDialog, openTransfer, close } = useOperationDialogs();
 

@@ -53,4 +53,21 @@ describe('UiInput', () => {
     await trigger.trigger('focusin');
     expect(withTooltip.get('[role="tooltip"]').text()).toBe('Сумма на счёте на дату начала учёта.');
   });
+
+  it('puts a decorative icon inside the control instead of beside the label', () => {
+    const withoutIcon = mount(UiInput, {
+      props: { modelValue: '', name: 'name', label: 'Название' },
+    });
+    expect(withoutIcon.find('.ui-field__icon').exists()).toBe(false);
+
+    const withIcon = mount(UiInput, {
+      props: { modelValue: '', name: 'search', label: 'Поиск по операциям' },
+      slots: { icon: '<span data-testid="search-icon">i</span>' },
+    });
+    const icon = withIcon.get('.ui-field__icon');
+
+    expect(icon.attributes('aria-hidden')).toBe('true');
+    expect(icon.element.nextElementSibling).toBe(withIcon.get('input').element);
+    expect(withIcon.get('input').classes()).toContain('ui-field__control--with-icon');
+  });
 });

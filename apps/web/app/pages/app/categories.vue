@@ -11,6 +11,7 @@ import UiModal from '../../components/ui/Modal.vue';
 import UiSelect from '../../components/ui/Select.vue';
 import UiStatus from '../../components/ui/Status.vue';
 import { useAuth } from '../../composables/useAuth.js';
+import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import {
   type CategoryDto,
   type CategoryType,
@@ -106,6 +107,9 @@ function cancelForm() {
 async function loadCategories() {
   const id = budgetId.value;
   if (!id) return;
+  // A reference record may have just changed, so the shared cache the journal,
+  // the transfers page and the global dialogs read must not stay on old names.
+  useOperationReferenceData().invalidate();
   categories.value = await api.listCategories(id, undefined, status.value);
 }
 

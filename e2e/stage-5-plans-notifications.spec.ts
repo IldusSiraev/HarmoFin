@@ -48,12 +48,10 @@ test.describe('Stage 5 plans and notifications (CI-only)', () => {
       .getByRole('dialog')
       .getByRole('button', { name: 'Подтвердить', exact: true })
       .click();
-    await page.getByRole('button', { name: 'Подтвердить операцию' }).click();
-    await page
-      .getByRole('dialog')
-      .getByRole('button', { name: 'Подтвердить', exact: true })
-      .click();
-    await expect(page.getByText('Подтверждена', { exact: true })).toBeVisible();
+    await page.getByTestId('action-menu-trigger').first().click();
+    await page.getByTestId('row-confirm').click();
+    await page.locator('dialog[open] [data-confirm]').click();
+    await expect(page.getByTestId('toast-stack')).toContainText('Операция подтверждена');
 
     await page.goto('/app/plans');
     await expect(page.getByText('Выполнено', { exact: true })).toBeVisible();
