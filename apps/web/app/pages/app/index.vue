@@ -5,6 +5,7 @@ import { RefreshCw } from '@lucide/vue';
 
 import AvailableBudgetCard from '../../components/dashboard/AvailableBudgetCard.vue';
 import BalanceList from '../../components/dashboard/BalanceList.vue';
+import DashboardWarnings from '../../components/dashboard/DashboardWarnings.vue';
 import UpcomingObligations from '../../components/dashboard/UpcomingObligations.vue';
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import UiButton from '../../components/ui/Button.vue';
@@ -96,6 +97,12 @@ async function loadDashboard() {
           </p>
         </section>
         <AvailableBudgetCard :period-limit="summary.periodLimit" :period="summary.period" />
+        <DashboardWarnings
+          :warnings="summary.warnings"
+          :accounts="summary.accounts"
+          :envelopes="summary.envelopes"
+          :unallocated-income-minor="summary.unallocatedIncomeMinor"
+        />
         <UpcomingObligations :items="summary.upcomingObligations" />
         <BalanceList
           title="Счета"
