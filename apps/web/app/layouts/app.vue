@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppHeader from '../components/app/AppHeader.vue';
+import AppOperationDialogs from '../components/app/AppOperationDialogs.vue';
 import AppSidebar from '../components/app/AppSidebar.vue';
 import UiToastStack from '../components/ui/ToastStack.vue';
 
@@ -16,6 +17,7 @@ defineOptions({ name: 'AppLayout' });
       </main>
     </div>
 
+    <AppOperationDialogs />
     <UiToastStack />
   </div>
 </template>

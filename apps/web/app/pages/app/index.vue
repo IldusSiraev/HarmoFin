@@ -1,17 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { definePageMeta } from '#imports';
+import { RefreshCw } from '@lucide/vue';
 
-import AddOperationModal from '../../components/dashboard/AddOperationModal.vue';
-import AddTransferModal from '../../components/dashboard/AddTransferModal.vue';
 import BalanceList from '../../components/dashboard/BalanceList.vue';
 import PeriodLimitCard from '../../components/dashboard/PeriodLimitCard.vue';
-import QuickActionBar from '../../components/dashboard/QuickActionBar.vue';
 import UpcomingObligations from '../../components/dashboard/UpcomingObligations.vue';
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
 import { useAuth } from '../../composables/useAuth.js';
+import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 import {
   type DashboardSummaryDto,
   useBudgetReferenceData,
@@ -24,28 +23,17 @@ const api = useBudgetReferenceData();
 const loading = ref(true);
 const error = ref('');
 const summary = ref<DashboardSummaryDto | null>(null);
-const operationModalOpen = ref(false);
-const transferModalOpen = ref(false);
+const { openDialog } = useOperationDialogs();
 const activeBudget = computed(() => currentData.value?.workspaces[0]?.budgets[0] ?? null);
 function workspaceName() {
   return currentData.value?.workspaces[0]?.name ?? 'Бюджет';
 }
 
-function openOperationModal() {
-  operationModalOpen.value = true;
-}
-
-function closeOperationModal() {
-  operationModalOpen.value = false;
-}
-
-function openTransferModal() {
-  transferModalOpen.value = true;
-}
-
-function closeTransferModal() {
-  transferModalOpen.value = false;
-}
+// The dialogs live in the layout now, so the page reloads its summary whenever
+// one of them closes instead of owning their state.
+watch(openDialog, (value, previous) => {
+  if (value === 'none' && previous !== 'none') void loadDashboard();
+});
 
 onMounted(() => {
   void loadDashboard();
@@ -88,13 +76,15 @@ async function loadDashboard() {
           <p class="dashboard-kicker">{{ workspaceName() }}</p>
           <h1 class="dashboard-title">{{ activeBudget.name }}</h1>
         </div>
+        <UiButton
+          variant="tertiary"
+          data-action="refresh-summary"
+          aria-label="Обновить данные"
+          @click="loadDashboard"
+        >
+          <RefreshCw :size="18" aria-hidden="true" />
+        </UiButton>
       </div>
-
-      <QuickActionBar
-        @add-operation="openOperationModal"
-        @add-transfer="openTransferModal"
-        @refresh="loadDashboard"
-      />
 
       <section class="dashboard-grid" aria-label="Сводка бюджета">
         <section class="total-money" aria-labelledby="total-money-title">
@@ -121,9 +111,6 @@ async function loadDashboard() {
         />
       </section>
     </template>
-
-    <AddOperationModal :open="operationModalOpen" @close="closeOperationModal" />
-    <AddTransferModal :open="transferModalOpen" @close="closeTransferModal" />
   </div>
 </template>
 
@@ -150,6 +137,10 @@ async function loadDashboard() {
 }
 
 .dashboard-header {
+  display: flex;
+  gap: var(--hf-space-4);
+  align-items: flex-start;
+  justify-content: space-between;
   margin-bottom: var(--hf-space-6);
 }
 
