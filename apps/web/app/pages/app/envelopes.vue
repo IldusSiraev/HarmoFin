@@ -356,64 +356,70 @@ onMounted(() => {
             <template #action><UiButton @click="startCreate">Создать конверт</UiButton></template>
           </UiEmptyState>
 
-          <section v-for="group in groups" :key="group.envelopeType" class="envelopes-page__group">
-            <header class="envelopes-page__group-header">
-              <h2 class="envelopes-page__group-label" data-testid="envelope-group-label">
-                {{ group.label }}
-              </h2>
-              <p
-                v-if="group.totalMinor !== null"
-                class="envelopes-page__group-total"
-                data-testid="envelope-group-total"
-              >
-                <FinanceMoney :minor-units="group.totalMinor" currency="RUB" :scale="2" />
-              </p>
-            </header>
+          <div v-if="groups.length > 0" class="envelopes-page__panel">
+            <section
+              v-for="group in groups"
+              :key="group.envelopeType"
+              class="envelopes-page__group"
+            >
+              <header class="envelopes-page__group-header">
+                <h2 class="envelopes-page__group-label" data-testid="envelope-group-label">
+                  {{ group.label }}
+                </h2>
+                <p
+                  v-if="group.totalMinor !== null"
+                  class="envelopes-page__group-total"
+                  data-testid="envelope-group-total"
+                >
+                  <FinanceMoney :minor-units="group.totalMinor" currency="RUB" :scale="2" />
+                </p>
+              </header>
 
-            <ul class="envelopes-page__list" :aria-label="`Конверты: ${group.label}`">
-              <li
-                v-for="envelope in group.items"
-                :key="envelope.id"
-                class="envelopes-page__list-item"
-              >
-                <EnvelopeRow :envelope="envelope" @select="detailed = envelope">
-                  <template #actions>
-                    <UiActionMenu
-                      label="Действия над конвертом"
-                      :trigger-test-id="`row-actions-${envelope.id}`"
-                    >
-                      <button
-                        type="button"
-                        role="menuitem"
-                        data-testid="row-edit"
-                        data-action="edit-envelope"
-                        @click="startEdit(envelope)"
+              <ul class="envelopes-page__list" :aria-label="`Конверты: ${group.label}`">
+                <li
+                  v-for="envelope in group.items"
+                  :key="envelope.id"
+                  class="envelopes-page__list-item"
+                >
+                  <EnvelopeRow :envelope="envelope" @select="detailed = envelope">
+                    <template #actions>
+                      <UiActionMenu
+                        label="Действия над конвертом"
+                        :trigger-test-id="`row-actions-${envelope.id}`"
                       >
-                        Изменить
-                      </button>
-                      <NuxtLink
-                        role="menuitem"
-                        data-testid="row-operations"
-                        :to="`/app/operations?envelopeId=${encodeURIComponent(envelope.id)}`"
-                      >
-                        Операции конверта
-                      </NuxtLink>
-                      <button
-                        v-if="!envelope.archivedAt"
-                        type="button"
-                        role="menuitem"
-                        data-testid="row-archive"
-                        data-action="archive-envelope"
-                        @click="requestArchive(envelope)"
-                      >
-                        Переместить в архив
-                      </button>
-                    </UiActionMenu>
-                  </template>
-                </EnvelopeRow>
-              </li>
-            </ul>
-          </section>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          data-testid="row-edit"
+                          data-action="edit-envelope"
+                          @click="startEdit(envelope)"
+                        >
+                          Изменить
+                        </button>
+                        <NuxtLink
+                          role="menuitem"
+                          data-testid="row-operations"
+                          :to="`/app/operations?envelopeId=${encodeURIComponent(envelope.id)}`"
+                        >
+                          Операции конверта
+                        </NuxtLink>
+                        <button
+                          v-if="!envelope.archivedAt"
+                          type="button"
+                          role="menuitem"
+                          data-testid="row-archive"
+                          data-action="archive-envelope"
+                          @click="requestArchive(envelope)"
+                        >
+                          Переместить в архив
+                        </button>
+                      </UiActionMenu>
+                    </template>
+                  </EnvelopeRow>
+                </li>
+              </ul>
+            </section>
+          </div>
         </template>
       </template>
     </ReferencePageLayout>
@@ -575,13 +581,19 @@ form[data-envelope-form] {
   font-size: var(--hf-font-size-h3);
   font-weight: var(--hf-font-weight-semibold);
 }
+.envelopes-page__panel {
+  padding: var(--hf-space-2) var(--hf-card-padding);
+  border-radius: var(--hf-card-radius);
+  background: var(--hf-color-surface);
+  box-shadow: var(--hf-shadow-card);
+}
 .envelopes-page__group {
   display: grid;
   gap: var(--hf-space-3);
-  margin-top: var(--hf-space-6);
+  padding-top: var(--hf-space-6);
 }
 .envelopes-page__group:first-of-type {
-  margin-top: 0;
+  padding-top: var(--hf-space-4);
 }
 .envelopes-page__group-header {
   display: flex;
@@ -605,12 +617,14 @@ form[data-envelope-form] {
 }
 .envelopes-page__list {
   display: grid;
-  gap: var(--hf-space-1);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .envelopes-page__list-item {
   min-width: 0;
+}
+.envelopes-page__list-item + .envelopes-page__list-item {
+  border-top: 1px solid var(--hf-color-border);
 }
 </style>
