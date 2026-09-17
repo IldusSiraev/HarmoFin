@@ -164,10 +164,10 @@ describe('dashboard page', () => {
     expect(headings.slice(0, 4)).toEqual([
       'Можно потратить',
       'Ближайшие обязательства',
-      'Последние операции',
+      'Счета',
       'Конверты',
     ]);
-    expect(headings[4]).toBe('Счета');
+    expect(headings[4]).toBe('Последние операции');
   });
 
   it('shows skeletons while the summary is loading', async () => {

@@ -30,6 +30,8 @@ defineProps<{
 <style scoped>
 .upcoming-obligations {
   padding: var(--hf-card-padding);
+  border: 1px solid var(--hf-color-border);
+  border-radius: var(--hf-radius-lg);
   background: var(--hf-color-surface);
   box-shadow: var(--hf-shadow-card);
 }

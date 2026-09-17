@@ -13,12 +13,12 @@ const { openOperation, openTransfer } = useOperationDialogs();
   <UiActionMenu
     class="app-add-menu"
     label="Добавить операцию или перевод"
+    tooltip="Добавить операцию или перевод"
     trigger-test-id="add-menu-trigger"
     list-id="app-add-menu"
   >
     <template #trigger>
       <Plus :size="18" aria-hidden="true" />
-      Добавить
     </template>
 
     <button
@@ -48,19 +48,12 @@ const { openOperation, openTransfer } = useOperationDialogs();
 
 <style scoped>
 .app-add-menu :deep(.ui-action-menu__trigger) {
-  gap: var(--hf-space-2);
-  width: auto;
-  min-width: 2.75rem;
-  padding: 0 var(--hf-button-padding-inline);
-  border: 1px solid var(--hf-color-action-brand);
   border-radius: var(--hf-button-radius);
   background: var(--hf-color-action-brand);
   color: var(--hf-color-white);
-  font-weight: var(--hf-button-font-weight);
 }
 
 .app-add-menu :deep(.ui-action-menu__trigger:hover) {
-  border-color: var(--hf-color-action-brand-hover);
   background: var(--hf-color-action-brand-hover);
   color: var(--hf-color-white);
 }

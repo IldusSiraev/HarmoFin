@@ -62,20 +62,23 @@ async function handleLogout() {
   <aside class="app-sidebar" aria-label="Основная навигация">
     <div class="app-sidebar__top">
       <NuxtLink to="/app" class="app-sidebar__wordmark">HarmoFin</NuxtLink>
-      <UiButton
-        variant="tertiary"
-        size="sm"
-        class="app-sidebar__theme-toggle"
-        :aria-label="
-          hydrated && resolved() === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'
-        "
-        @click="toggle"
-      >
-        <Sun v-if="hydrated && resolved() === 'dark'" :size="18" aria-hidden="true" />
-        <Moon v-else :size="18" aria-hidden="true" />
-      </UiButton>
+      <div class="app-sidebar__top-actions">
+        <AppAddMenu class="app-sidebar__add" />
+        <UiButton
+          variant="tertiary"
+          size="sm"
+          class="app-sidebar__theme-toggle"
+          tooltip="Сменить тему"
+          :aria-label="
+            hydrated && resolved() === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'
+          "
+          @click="toggle"
+        >
+          <Sun v-if="hydrated && resolved() === 'dark'" :size="18" aria-hidden="true" />
+          <Moon v-else :size="18" aria-hidden="true" />
+        </UiButton>
+      </div>
     </div>
-    <AppAddMenu class="app-sidebar__add" />
     <nav class="app-sidebar__nav">
       <AppSidebarSection>
         <NuxtLink
@@ -193,13 +196,20 @@ async function handleLogout() {
   text-decoration: none;
 }
 
+.app-sidebar__top-actions {
+  display: flex;
+  gap: var(--hf-space-1);
+  align-items: center;
+}
+
 .app-sidebar__theme-toggle {
   min-width: 2.25rem;
   padding-inline: 0;
 }
 
-.app-sidebar__add {
-  padding: 0 var(--hf-space-3);
+.app-sidebar__add :deep(.ui-action-menu__trigger) {
+  width: 2.25rem;
+  height: 2.25rem;
 }
 
 .app-sidebar__nav {

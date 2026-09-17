@@ -140,50 +140,60 @@ async function loadDashboard() {
         :period="summary.period"
       />
 
-      <section class="dashboard-grid" aria-label="Сводка бюджета">
-        <AvailableBudgetCard
-          class="dashboard-grid__wide"
-          :period-limit="summary.periodLimit"
-          :period="summary.period"
-        />
+      <div class="dashboard-sections">
         <DashboardWarnings
-          class="dashboard-grid__wide"
           :warnings="summary.warnings"
           :accounts="summary.accounts"
           :envelopes="summary.envelopes"
           :unallocated-income-minor="summary.unallocatedIncomeMinor"
         />
-        <UpcomingObligations class="dashboard-grid__wide" :items="summary.upcomingObligations" />
+
+        <div class="dashboard-hero-row">
+          <AvailableBudgetCard
+            class="dashboard-hero-row__spend"
+            :period-limit="summary.periodLimit"
+            :period="summary.period"
+          />
+          <UpcomingObligations
+            class="dashboard-hero-row__obligations"
+            :items="summary.upcomingObligations"
+          />
+        </div>
+
+        <div class="dashboard-lists-row">
+          <BalanceList
+            title="Счета"
+            :items="summary.accounts"
+            :warnings="summary.warnings"
+            subject="ACCOUNT"
+            :total-minor="accountsTotal"
+            more-link="/app/accounts"
+          />
+          <BalanceList
+            title="Конверты"
+            :items="summary.envelopes"
+            :warnings="summary.warnings"
+            subject="ENVELOPE"
+            :total-minor="envelopesTotal"
+            more-link="/app/envelopes"
+          />
+        </div>
+
         <RecentOperations
-          class="dashboard-grid__wide"
           :transactions="recent"
           :categories="categories"
           :accounts="accounts"
           :envelopes="envelopes"
         />
-        <BalanceList
-          title="Конверты"
-          :items="summary.envelopes"
-          :warnings="summary.warnings"
-          subject="ENVELOPE"
-          :total-minor="envelopesTotal"
-          more-link="/app/envelopes"
-        />
-        <BalanceList
-          title="Счета"
-          :items="summary.accounts"
-          :warnings="summary.warnings"
-          subject="ACCOUNT"
-          :total-minor="accountsTotal"
-          more-link="/app/accounts"
-        />
-      </section>
+      </div>
     </template>
   </div>
 </template>
 
 <style scoped>
 .dashboard {
+  max-width: 70rem;
+  margin: 0 auto;
   color: var(--hf-color-text);
 }
 
@@ -233,19 +243,26 @@ async function loadDashboard() {
   margin-bottom: var(--hf-space-6);
 }
 
-.dashboard-grid {
+.dashboard-sections {
+  display: grid;
+  gap: var(--hf-space-5);
+}
+
+.dashboard-hero-row,
+.dashboard-lists-row {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--hf-space-5);
 }
 
 @media (min-width: 1024px) {
-  .dashboard-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .dashboard-hero-row {
+    grid-template-columns: 2fr 1fr;
+    align-items: stretch;
   }
 
-  .dashboard-grid__wide {
-    grid-column: 1 / -1;
+  .dashboard-lists-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

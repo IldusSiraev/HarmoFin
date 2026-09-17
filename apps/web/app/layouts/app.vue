@@ -57,7 +57,10 @@ const mobileMenuOpen = ref(false);
   }
 
   .app-layout__sidebar {
+    position: sticky;
+    top: 0;
     display: flex;
+    align-self: start;
   }
 
   .app-layout__header {
