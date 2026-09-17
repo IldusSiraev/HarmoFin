@@ -283,7 +283,9 @@ onMounted(() => {
     <ReferencePageLayout v-else>
       <template #kicker>Справочники</template>
       <template #title>Счета</template>
-      <template #description>Храните счета и их подтверждённые остатки.</template>
+      <template #description>
+        Счёт — это место, где физически находятся деньги: карта, банковский счёт или наличные.
+      </template>
       <template #actions>
         <UiButton data-action="create-account" @click="startCreate">Создать счёт</UiButton>
       </template>

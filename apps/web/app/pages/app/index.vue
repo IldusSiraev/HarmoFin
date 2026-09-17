@@ -133,7 +133,7 @@ async function loadDashboard() {
         <div>
           <p class="dashboard-kicker">{{ workspaceName() }}</p>
           <h1 class="dashboard-title">{{ activeBudget.name }}</h1>
-          <p class="dashboard-cycle">Цикл {{ cycleLabel }}</p>
+          <p class="dashboard-cycle">Финансовый месяц {{ cycleLabel }}</p>
         </div>
         <UiButton
           variant="tertiary"

@@ -310,7 +310,10 @@ onMounted(() => {
     <ReferencePageLayout v-else>
       <template #kicker>Справочники</template>
       <template #title>Конверты</template>
-      <template #description>Планируйте деньги по целям и направлениям.</template>
+      <template #description>
+        Конверт показывает, для чего предназначены деньги — например, продукты, ипотека или ремонт.
+        Один счёт может одновременно содержать деньги нескольких конвертов.
+      </template>
       <template #actions>
         <UiButton data-action="create-envelope" @click="startCreate">Создать конверт</UiButton>
       </template>
