@@ -63,12 +63,13 @@ async function handleLogout() {
     <div class="app-sidebar__top">
       <NuxtLink to="/app" class="app-sidebar__wordmark">HarmoFin</NuxtLink>
       <div class="app-sidebar__top-actions">
-        <AppAddMenu class="app-sidebar__add" />
+        <AppAddMenu class="app-sidebar__add" align="start" tooltip-placement="bottom" />
         <UiButton
           variant="tertiary"
           size="sm"
           class="app-sidebar__theme-toggle"
           tooltip="Сменить тему"
+          tooltip-placement="bottom"
           :aria-label="
             hydrated && resolved() === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'
           "

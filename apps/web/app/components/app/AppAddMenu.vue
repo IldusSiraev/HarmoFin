@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useId } from 'vue';
 import { ArrowLeftRight, Minus, Plus } from '@lucide/vue';
 
 import UiActionMenu from '../ui/ActionMenu.vue';
@@ -6,7 +7,18 @@ import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 
 defineOptions({ name: 'AppAddMenu' });
 
+withDefaults(
+  defineProps<{
+    align?: 'start' | 'end';
+    tooltipPlacement?: 'top' | 'bottom';
+  }>(),
+  { align: 'end', tooltipPlacement: 'top' },
+);
+
 const { openOperation, openTransfer } = useOperationDialogs();
+// This component renders in the sidebar and in a page header at the same
+// time, so a hardcoded list id would duplicate an `id` attribute in the DOM.
+const listId = `app-add-menu-${useId()}`;
 </script>
 
 <template>
@@ -14,8 +26,10 @@ const { openOperation, openTransfer } = useOperationDialogs();
     class="app-add-menu"
     label="Добавить операцию или перевод"
     tooltip="Добавить операцию или перевод"
+    :tooltip-placement="tooltipPlacement"
+    :align="align"
     trigger-test-id="add-menu-trigger"
-    list-id="app-add-menu"
+    :list-id="listId"
   >
     <template #trigger>
       <Plus :size="18" aria-hidden="true" />

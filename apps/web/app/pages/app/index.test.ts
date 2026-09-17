@@ -119,13 +119,43 @@ describe('dashboard page', () => {
       byType: [],
     });
     api.listAccounts.mockResolvedValue([
-      { id: 'account-id', budgetId: 'budget-id', name: 'Наличные' },
+      {
+        id: 'account-id',
+        budgetId: 'budget-id',
+        name: 'Наличные',
+        accountType: 'BANK_CARD',
+        bankName: null,
+        lastFourDigits: '4801',
+        currency: 'RUB',
+        scale: 2,
+        startingBalanceMinor: '0',
+        currentBalanceMinor: '100000',
+        accountingStartDate: '2026-01-01',
+        comment: null,
+        archivedAt: null,
+      },
     ]);
     api.listCategories.mockResolvedValue([
       { id: 'category-id', name: 'Продукты', templateKey: 'expense-groceries' },
     ]);
     api.listEnvelopes.mockResolvedValue([
-      { id: 'envelope-id', budgetId: 'budget-id', name: 'Текущие' },
+      {
+        id: 'envelope-id',
+        budgetId: 'budget-id',
+        name: 'Текущие',
+        envelopeType: 'MANDATORY_EXPENSES',
+        periodSlot: 'FIRST',
+        currency: 'RUB',
+        scale: 2,
+        startingBalanceMinor: '0',
+        currentBalanceMinor: '7500',
+        monthlyPlannedAmountMinor: null,
+        targetAmountMinor: null,
+        targetDate: null,
+        displayOrder: 0,
+        comment: null,
+        archivedAt: null,
+      },
     ]);
     useOperationDialogs().close();
   });
@@ -142,6 +172,17 @@ describe('dashboard page', () => {
     expect(text).toContain('Наличные');
     expect(text).toContain('Ипотека');
     expect(wrapper.get('a[href="/app/plans?occurrence=occurrence-id"]')).toBeTruthy();
+  });
+
+  it('shows account and envelope type details next to each balance row', async () => {
+    const wrapper = mount(DashboardPage, {
+      global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } },
+    });
+    await flushPromises();
+
+    const text = normalize(wrapper.text());
+    expect(text).toContain('Банковская карта · 4801');
+    expect(text).toContain('Обязательные расходы · Первая половина');
   });
 
   it('shows retry after summary request error', async () => {

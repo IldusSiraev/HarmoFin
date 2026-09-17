@@ -1,17 +1,24 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { definePageMeta } from '#imports';
-import { RefreshCw } from '@lucide/vue';
+import { RefreshCw, Wallet } from '@lucide/vue';
 
+import AppAddMenu from '../../components/app/AppAddMenu.vue';
+import { accountSubtitle, ACCOUNT_TYPE_ICONS } from '../../components/accounts/account-type.js';
 import AvailableBudgetCard from '../../components/dashboard/AvailableBudgetCard.vue';
 import BalanceList from '../../components/dashboard/BalanceList.vue';
 import DashboardWarnings from '../../components/dashboard/DashboardWarnings.vue';
 import FinancialMonthTimeline from '../../components/dashboard/FinancialMonthTimeline.vue';
 import RecentOperations from '../../components/dashboard/RecentOperations.vue';
 import UpcomingObligations from '../../components/dashboard/UpcomingObligations.vue';
+import { envelopeSubtitle, ENVELOPE_TYPE_ICONS } from '../../components/envelopes/envelope-type.js';
+import FinanceMoney from '../../components/finance/FinanceMoney.vue';
+import { formatMinorUnits } from '../../components/finance/money-format.js';
 import UiButton from '../../components/ui/Button.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
+import UiProgress from '../../components/ui/Progress.vue';
 import UiSkeleton from '../../components/ui/Skeleton.vue';
+import UiStatus from '../../components/ui/Status.vue';
 import { useAuth } from '../../composables/useAuth.js';
 import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
@@ -31,8 +38,58 @@ const summary = ref<DashboardSummaryDto | null>(null);
 const recent = ref<TransactionDto[]>([]);
 const accountsTotal = ref<string | null>(null);
 const envelopesTotal = ref<string | null>(null);
-const { accounts, categories, envelopes, load: loadReferenceData } = useOperationReferenceData();
+const {
+  accounts,
+  accountDetails,
+  categories,
+  envelopes,
+  envelopeDetails,
+  load: loadReferenceData,
+} = useOperationReferenceData();
 const { openDialog } = useOperationDialogs();
+const accountById = computed(
+  () => new Map(accountDetails.value.map((account) => [account.id, account])),
+);
+const envelopeById = computed(
+  () => new Map(envelopeDetails.value.map((envelope) => [envelope.id, envelope])),
+);
+
+function accountIcon(id: string) {
+  const account = accountById.value.get(id);
+  return account ? ACCOUNT_TYPE_ICONS[account.accountType] : null;
+}
+
+function accountSubtitleFor(id: string): string {
+  const account = accountById.value.get(id);
+  return account ? accountSubtitle(account) : '';
+}
+
+function envelopeIcon(id: string) {
+  const envelope = envelopeById.value.get(id);
+  return envelope ? ENVELOPE_TYPE_ICONS[envelope.envelopeType] : null;
+}
+
+function envelopeSubtitleFor(id: string): string {
+  const envelope = envelopeById.value.get(id);
+  return envelope ? envelopeSubtitle(envelope) : '';
+}
+
+// Only savings-goal envelopes carry a meaningful target — the same condition
+// EnvelopeRow.vue already uses on the reference page, so the dashboard's
+// progress bar means the same thing there and here.
+function envelopeTarget(id: string): string | null {
+  return envelopeById.value.get(id)?.targetAmountMinor ?? null;
+}
+
+function envelopeGoalLabel(id: string, balanceMinor: string): string {
+  const envelope = envelopeById.value.get(id);
+  const target = envelope?.targetAmountMinor;
+  if (!envelope || target === null || target === undefined) return '';
+  const saved = formatMinorUnits(balanceMinor, envelope.currency, envelope.scale);
+  const total = formatMinorUnits(target, envelope.currency, envelope.scale);
+  return `${saved} из ${total}`;
+}
+
 const activeBudget = computed(() => currentData.value?.workspaces[0]?.budgets[0] ?? null);
 function workspaceName() {
   return currentData.value?.workspaces[0]?.name ?? 'Бюджет';
@@ -124,14 +181,19 @@ async function loadDashboard() {
           <p class="dashboard-kicker">{{ workspaceName() }}</p>
           <h1 class="dashboard-title">{{ activeBudget.name }}</h1>
         </div>
-        <UiButton
-          variant="tertiary"
-          data-action="refresh-summary"
-          aria-label="Обновить данные"
-          @click="loadDashboard"
-        >
-          <RefreshCw :size="18" aria-hidden="true" />
-        </UiButton>
+        <div class="dashboard-header__actions">
+          <AppAddMenu tooltip-placement="bottom" />
+          <UiButton
+            variant="tertiary"
+            data-action="refresh-summary"
+            aria-label="Обновить данные"
+            tooltip="Обновить данные"
+            tooltip-placement="bottom"
+            @click="loadDashboard"
+          >
+            <RefreshCw :size="18" aria-hidden="true" />
+          </UiButton>
+        </div>
       </div>
 
       <FinancialMonthTimeline
@@ -168,7 +230,26 @@ async function loadDashboard() {
             subject="ACCOUNT"
             :total-minor="accountsTotal"
             more-link="/app/accounts"
-          />
+          >
+            <template #row="{ item, hasWarning }">
+              <span class="dashboard-balance-icon">
+                <component :is="accountIcon(item.id) ?? Wallet" :size="16" aria-hidden="true" />
+              </span>
+              <span class="dashboard-balance-body">
+                <span class="dashboard-balance-name">{{ item.name }}</span>
+                <span class="dashboard-balance-subtitle">{{ accountSubtitleFor(item.id) }}</span>
+              </span>
+              <span v-if="hasWarning" class="dashboard-balance-meta">
+                <UiStatus label="Дефицит" tone="warning" />
+              </span>
+              <FinanceMoney
+                class="dashboard-balance-trailing"
+                :minor-units="item.balanceMinor"
+                currency="RUB"
+                :scale="2"
+              />
+            </template>
+          </BalanceList>
           <BalanceList
             title="Конверты"
             :items="summary.envelopes"
@@ -176,7 +257,41 @@ async function loadDashboard() {
             subject="ENVELOPE"
             :total-minor="envelopesTotal"
             more-link="/app/envelopes"
-          />
+          >
+            <template #row="{ item, hasWarning }">
+              <span class="dashboard-balance-icon">
+                <component :is="envelopeIcon(item.id) ?? Wallet" :size="16" aria-hidden="true" />
+              </span>
+              <span class="dashboard-balance-body">
+                <span class="dashboard-balance-line">
+                  <span class="dashboard-balance-name">{{ item.name }}</span>
+                  <span v-if="hasWarning" class="dashboard-balance-meta">
+                    <UiStatus label="Дефицит" tone="warning" />
+                  </span>
+                  <FinanceMoney
+                    class="dashboard-balance-trailing"
+                    :minor-units="item.balanceMinor"
+                    currency="RUB"
+                    :scale="2"
+                  />
+                </span>
+                <template v-if="envelopeTarget(item.id)">
+                  <UiProgress
+                    class="dashboard-balance-progress"
+                    :value="item.balanceMinor"
+                    :max="envelopeTarget(item.id) ?? '0'"
+                    :label="`Накоплено ${envelopeGoalLabel(item.id, item.balanceMinor)}`"
+                  />
+                  <span class="dashboard-balance-subtitle">{{
+                    envelopeGoalLabel(item.id, item.balanceMinor)
+                  }}</span>
+                </template>
+                <span v-else class="dashboard-balance-subtitle">{{
+                  envelopeSubtitleFor(item.id)
+                }}</span>
+              </span>
+            </template>
+          </BalanceList>
         </div>
 
         <RecentOperations
@@ -222,6 +337,12 @@ async function loadDashboard() {
   margin-bottom: var(--hf-space-6);
 }
 
+.dashboard-header__actions {
+  display: flex;
+  gap: var(--hf-space-2);
+  align-items: center;
+}
+
 .dashboard-kicker {
   margin: 0 0 var(--hf-space-2);
   color: var(--hf-color-action-primary-hover);
@@ -264,5 +385,64 @@ async function loadDashboard() {
   .dashboard-lists-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.dashboard-balance-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--hf-radius-md);
+  background: var(--hf-color-surface-subtle);
+  color: var(--hf-color-text-muted);
+}
+
+.dashboard-balance-body {
+  display: grid;
+  flex: 1;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.dashboard-balance-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-balance-subtitle {
+  overflow: hidden;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-caption);
+  line-height: var(--hf-line-height-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-balance-meta {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.dashboard-balance-trailing {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-balance-line {
+  display: flex;
+  gap: var(--hf-space-2);
+  align-items: center;
+}
+
+.dashboard-balance-line .dashboard-balance-name {
+  flex: 1;
+}
+
+.dashboard-balance-progress {
+  margin-top: var(--hf-space-1);
 }
 </style>

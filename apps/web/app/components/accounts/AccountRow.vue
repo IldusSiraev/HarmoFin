@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Banknote, CreditCard, Landmark } from '@lucide/vue';
 
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import { formatMinorUnits } from '../finance/money-format.js';
 import UiListRow from '../ui/ListRow.vue';
 import UiStatus from '../ui/Status.vue';
 import type { AccountDto } from '../../composables/useBudgetReferenceData.js';
+import { ACCOUNT_TYPE_ICONS, accountSubtitle } from './account-type.js';
 
 defineOptions({ name: 'AccountRow' });
 
@@ -14,26 +14,8 @@ const props = defineProps<{ account: AccountDto }>();
 
 defineEmits<{ select: [] }>();
 
-const TYPE_LABELS = {
-  BANK_ACCOUNT: 'Банковский счёт',
-  BANK_CARD: 'Банковская карта',
-  CASH: 'Наличные',
-} as const;
-
-const TYPE_ICONS = {
-  BANK_ACCOUNT: Landmark,
-  BANK_CARD: CreditCard,
-  CASH: Banknote,
-} as const;
-
-const icon = computed(() => TYPE_ICONS[props.account.accountType]);
-const typeLabel = computed(() => TYPE_LABELS[props.account.accountType]);
-
-const subtitle = computed(() =>
-  [typeLabel.value, props.account.bankName, props.account.lastFourDigits]
-    .filter((part): part is string => Boolean(part))
-    .join(' · '),
-);
+const icon = computed(() => ACCOUNT_TYPE_ICONS[props.account.accountType]);
+const subtitle = computed(() => accountSubtitle(props.account));
 
 // The sign comes from the server value; the client never computes the balance.
 const isNegative = computed(() => props.account.currentBalanceMinor.startsWith('-'));

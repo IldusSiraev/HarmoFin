@@ -13,8 +13,15 @@ withDefaults(
     triggerTestId?: string | undefined;
     listId?: string | undefined;
     tooltip?: string | undefined;
+    tooltipPlacement?: 'top' | 'bottom';
   }>(),
-  { align: 'end', triggerTestId: undefined, listId: undefined, tooltip: undefined },
+  {
+    align: 'end',
+    triggerTestId: undefined,
+    listId: undefined,
+    tooltip: undefined,
+    tooltipPlacement: 'top',
+  },
 );
 
 const open = ref(false);
@@ -91,7 +98,7 @@ defineExpose({ openAndFocusFirst });
 
 <template>
   <div ref="root" class="ui-action-menu">
-    <UiTooltip v-slot="{ describedby }" :text="tooltip">
+    <UiTooltip v-slot="{ describedby }" :text="tooltip" :placement="tooltipPlacement">
       <button
         type="button"
         class="ui-action-menu__trigger"
