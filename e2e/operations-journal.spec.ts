@@ -122,6 +122,7 @@ async function initializeTemplate(page: Page): Promise<void> {
 
 async function createAccount(page: Page, name: string, balance: string): Promise<void> {
   await page.goto('/app/accounts');
+  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
   await page.getByRole('button', { name: 'Создать счёт' }).first().click();
   await page.getByLabel('Название счёта').fill(name);
   await page.getByLabel('Начальный баланс').fill(balance);
@@ -132,6 +133,7 @@ async function createAccount(page: Page, name: string, balance: string): Promise
 
 async function createEnvelope(page: Page, name: string, balance: string): Promise<void> {
   await page.goto('/app/envelopes');
+  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
   await page.getByRole('button', { name: 'Создать конверт' }).first().click();
   await page.getByLabel('Название конверта').fill(name);
   await page.getByLabel('Начальный баланс').fill(balance);

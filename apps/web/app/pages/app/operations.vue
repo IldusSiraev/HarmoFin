@@ -64,6 +64,7 @@ const formOpen = ref(false);
 const form = ref<OperationFormModel>(createOperationForm());
 const selectedTransaction = ref<TransactionDto | null>(null);
 const preloadedDraftId = ref<string | null>(null);
+const preloadedOperationId = ref<string | null>(null);
 const detailed = ref<TransactionDto | null>(null);
 const allocationChoice = ref<TransactionDto | null>(null);
 const mutationKeys = new Map<string, string>();
@@ -160,6 +161,7 @@ async function load(append = false) {
     nextCursor.value = result.nextCursor;
     if (periods.value.length === 0) void loadPeriods();
     await preloadDraft();
+    await preloadDetailed();
   } catch {
     if (version === requestVersion)
       error.value = 'Не удалось загрузить операции. Повторите попытку.';
@@ -183,6 +185,21 @@ async function preloadDraft() {
     openEdit(draft);
   } catch {
     error.value = 'Не удалось открыть черновик операции.';
+  }
+}
+
+// A row on the dashboard links here: without this the click would land on the
+// journal and lose the operation the reader asked for.
+async function preloadDetailed(): Promise<void> {
+  if (!budget.value || detailed.value) return;
+  const operationId = typeof route.query.operationId === 'string' ? route.query.operationId : null;
+  if (!operationId || !isUuid(operationId)) return;
+  if (preloadedOperationId.value === operationId) return;
+  preloadedOperationId.value = operationId;
+  try {
+    detailed.value = await api.getTransaction(budget.value.id, operationId);
+  } catch {
+    error.value = 'Не удалось открыть операцию.';
   }
 }
 

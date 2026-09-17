@@ -21,6 +21,7 @@ test('owner initializes template and manages account through server-confirmed da
   await expect(page.getByText('Зарплата')).toHaveCount(1);
 
   await page.goto('/app/accounts');
+  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
   await page.getByRole('button', { name: 'Создать счёт' }).first().click();
   await page.getByLabel('Название счёта').fill('Основной счёт');
   await page.getByLabel('Начальный баланс').fill('1 234,50');
@@ -29,22 +30,40 @@ test('owner initializes template and manages account through server-confirmed da
   await expect(page.getByText('Основной счёт')).toBeVisible();
   await expect(page.getByText(/1.*234.*50/).first()).toBeVisible();
 
-  await page.getByRole('button', { name: 'Изменить' }).click();
+  await page
+    .locator('li')
+    .filter({ hasText: 'Основной счёт' })
+    .getByTestId('list-row-select')
+    .click();
+  await expect(page.getByTestId('drawer')).toBeVisible();
+  await page.getByTestId('account-drawer-edit').click();
   await page.getByLabel('Название счёта').fill('Основной счёт обновлён');
   await page.getByRole('button', { name: 'Сохранить счёт' }).click();
   await expect(page.getByText('Основной счёт обновлён')).toBeVisible();
 
-  const archiveButton = page.getByRole('button', { name: 'Переместить в архив' });
+  await page
+    .locator('li')
+    .filter({ hasText: 'Основной счёт обновлён' })
+    .getByTestId('list-row-select')
+    .click();
+  await expect(page.getByTestId('drawer')).toBeVisible();
+  const archiveButton = page.getByTestId('account-drawer-archive');
   await archiveButton.click();
-  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.locator('dialog[open]')).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).toBeHidden();
+  await expect(page.locator('dialog[open]')).toHaveCount(0);
   await expect(archiveButton).toBeFocused();
 
   await archiveButton.click();
-  await page.getByRole('button', { name: 'Архивировать счёт' }).click();
-  await page.getByLabel('Показать счета').selectOption('archived');
-  await expect(page.getByRole('article').getByText('В архиве')).toBeVisible();
+  await page.locator('dialog[open] [data-confirm]').click();
+
+  await page.getByTestId('chip-archived').click();
+  await expect(
+    page
+      .locator('li')
+      .filter({ hasText: 'Основной счёт обновлён' })
+      .getByTestId('account-row-archived'),
+  ).toBeVisible();
 });
 
 test('owner creates typed categories and envelope without client balance arithmetic', async ({
@@ -67,6 +86,7 @@ test('owner creates typed categories and envelope without client balance arithme
   await expect(page.getByRole('heading', { name: 'Продукты' })).toBeVisible();
 
   await page.goto('/app/envelopes');
+  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
   await page.getByRole('button', { name: 'Создать конверт' }).first().click();
   await page.getByLabel('Название конверта').fill('Накопления');
   await page.getByLabel('Тип конверта').selectOption('SAVINGS_GOAL');
@@ -80,6 +100,7 @@ test('owner creates typed categories and envelope without client balance arithme
 test('shows server validation beside invalid money input', async ({ page }) => {
   await registerAndReachApp(page);
   await page.goto('/app/accounts');
+  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
   await page.getByRole('button', { name: 'Создать счёт' }).first().click();
   await page.getByLabel('Название счёта').fill('Некорректный счёт');
   await page.getByLabel('Начальный баланс').fill('1.234');

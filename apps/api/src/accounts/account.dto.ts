@@ -89,3 +89,17 @@ export class AccountResponse {
   @ApiProperty({ type: String, nullable: true, format: 'date-time' })
   archivedAt!: string | null;
 }
+
+export class AccountSummaryResponse {
+  @ApiProperty({ enum: ['RUB'] })
+  currency!: 'RUB';
+
+  @ApiProperty({ type: Number, enum: [2] })
+  scale!: 2;
+
+  @ApiProperty({ type: String, pattern: '^-?\\d+$' })
+  totalMinor!: string;
+
+  @ApiProperty({ type: Number })
+  count!: number;
+}

@@ -47,6 +47,11 @@ export const listEnvelopesSchema = z
   .object({ status: z.enum(['active', 'archived', 'all']).default('active') })
   .strict();
 
+export const envelopeSummarySchema = z
+  .object({ status: z.enum(['active', 'archived', 'all']).default('active') })
+  .strict();
+
 export type CreateEnvelopeInput = z.output<typeof createEnvelopeSchema>;
 export type UpdateEnvelopeInput = z.output<typeof updateEnvelopeSchema>;
 export type ListEnvelopesInput = z.output<typeof listEnvelopesSchema>;
+export type EnvelopeSummaryInput = z.output<typeof envelopeSummarySchema>;

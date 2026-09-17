@@ -4,6 +4,7 @@ import { computed } from 'vue';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import { formatMinorUnits } from '../finance/money-format.js';
 import type { DashboardSummaryDto } from '../../composables/useBudgetReferenceData.js';
+import UiProgress from '../ui/Progress.vue';
 
 defineOptions({ name: 'AvailableBudgetCard' });
 
@@ -38,14 +39,6 @@ const stateLabel = computed(() => {
   if (state.value === 'critical') return 'Остатка хватит меньше чем на день';
   if (state.value === 'warning') return 'Лимит периода почти исчерпан';
   return 'В пределах лимита';
-});
-
-const spentPercent = computed(() => {
-  const limit = details.value;
-  if (!limit) return 0;
-  const total = Number(BigInt(limit.limitMinor));
-  if (total <= 0) return 0;
-  return Math.min(100, Math.round((Number(BigInt(limit.spentMinor)) / total) * 100));
 });
 
 function formatDay(iso: string): string {
@@ -89,16 +82,7 @@ const progressLabel = computed(() => {
         <FinanceMoney :minor-units="details.remainingMinor" currency="RUB" :scale="2" />
       </p>
 
-      <div
-        class="available-budget__track"
-        role="progressbar"
-        :aria-label="progressLabel"
-        :aria-valuenow="spentPercent"
-        aria-valuemin="0"
-        aria-valuemax="100"
-      >
-        <div class="available-budget__fill" :style="{ width: `${spentPercent}%` }" />
-      </div>
+      <UiProgress :value="details.spentMinor" :max="details.limitMinor" :label="progressLabel" />
 
       <p class="available-budget__state">{{ stateLabel }}</p>
 
@@ -171,26 +155,6 @@ const progressLabel = computed(() => {
 
 .available-budget--negative .available-budget__amount {
   color: var(--hf-color-status-danger);
-}
-
-.available-budget__track {
-  overflow: hidden;
-  height: 0.625rem;
-  border-radius: var(--hf-radius-sm);
-  background: var(--hf-color-slate-200);
-}
-
-.available-budget__fill {
-  height: 100%;
-  background: var(--hf-color-brand-bright);
-}
-
-.available-budget--critical .available-budget__fill {
-  background: var(--hf-color-status-warning-bright);
-}
-
-.available-budget--negative .available-budget__fill {
-  background: var(--hf-color-status-danger-bright);
 }
 
 .available-budget__state {

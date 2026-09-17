@@ -36,6 +36,11 @@ export const listAccountsSchema = z
   .object({ status: z.enum(['active', 'archived', 'all']).default('active') })
   .strict();
 
+export const accountSummarySchema = z
+  .object({ status: z.enum(['active', 'archived', 'all']).default('active') })
+  .strict();
+
 export type CreateAccountInput = z.output<typeof createAccountSchema>;
 export type UpdateAccountInput = z.output<typeof updateAccountSchema>;
 export type ListAccountsInput = z.output<typeof listAccountsSchema>;
+export type AccountSummaryInput = z.output<typeof accountSummarySchema>;

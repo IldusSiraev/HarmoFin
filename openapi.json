@@ -74,6 +74,27 @@
         ],
         "type": "object"
       },
+      "AccountSummaryResponse": {
+        "properties": {
+          "count": {
+            "type": "number"
+          },
+          "currency": {
+            "enum": ["RUB"],
+            "type": "string"
+          },
+          "scale": {
+            "enum": [2],
+            "type": "number"
+          },
+          "totalMinor": {
+            "pattern": "^-?\\d+$",
+            "type": "string"
+          }
+        },
+        "required": ["currency", "scale", "totalMinor", "count"],
+        "type": "object"
+      },
       "AllocationProposalResponse": {
         "properties": {
           "amountMinor": {
@@ -952,6 +973,57 @@
           "comment",
           "archivedAt"
         ],
+        "type": "object"
+      },
+      "EnvelopeSummaryGroupResponse": {
+        "properties": {
+          "count": {
+            "type": "number"
+          },
+          "envelopeType": {
+            "enum": [
+              "CURRENT_EXPENSES",
+              "MANDATORY_EXPENSES",
+              "SAVINGS_GOAL",
+              "RESERVE",
+              "FREE_MONEY",
+              "CUSTOM"
+            ],
+            "type": "string"
+          },
+          "totalMinor": {
+            "pattern": "^-?\\d+$",
+            "type": "string"
+          }
+        },
+        "required": ["envelopeType", "totalMinor", "count"],
+        "type": "object"
+      },
+      "EnvelopeSummaryResponse": {
+        "properties": {
+          "byType": {
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeSummaryGroupResponse"
+            },
+            "type": "array"
+          },
+          "count": {
+            "type": "number"
+          },
+          "currency": {
+            "enum": ["RUB"],
+            "type": "string"
+          },
+          "scale": {
+            "enum": [2],
+            "type": "number"
+          },
+          "totalMinor": {
+            "pattern": "^-?\\d+$",
+            "type": "string"
+          }
+        },
+        "required": ["currency", "scale", "totalMinor", "count", "byType"],
         "type": "object"
       },
       "FieldErrorResponse": {
@@ -3391,6 +3463,50 @@
         "tags": ["accounts"]
       }
     },
+    "/api/v1/budgets/{budgetId}/accounts/summary": {
+      "get": {
+        "operationId": "AccountController_summary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountSummaryResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["accounts"]
+      }
+    },
     "/api/v1/budgets/{budgetId}/accounts/{accountId}": {
       "get": {
         "operationId": "AccountController_get",
@@ -4262,6 +4378,50 @@
             "description": ""
           },
           "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["envelopes"]
+      }
+    },
+    "/api/v1/budgets/{budgetId}/envelopes/summary": {
+      "get": {
+        "operationId": "EnvelopeController_summary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeSummaryResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
             "content": {
               "application/json": {
                 "schema": {

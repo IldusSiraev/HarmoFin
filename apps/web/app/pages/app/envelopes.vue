@@ -1,16 +1,22 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
-import { definePageMeta } from '#imports';
+import { definePageMeta, navigateTo, useRoute } from '#imports';
 
-import EnvelopeCard from '../../components/envelopes/EnvelopeCard.vue';
+import EnvelopeDrawer from '../../components/envelopes/EnvelopeDrawer.vue';
+import EnvelopeRow from '../../components/envelopes/EnvelopeRow.vue';
+import { groupByType } from '../../components/envelopes/group-by-type.js';
+import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import FinanceMoneyInput from '../../components/finance/FinanceMoneyInput.vue';
 import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
+import UiActionMenu from '../../components/ui/ActionMenu.vue';
 import UiButton from '../../components/ui/Button.vue';
+import UiChip from '../../components/ui/Chip.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
 import UiInput from '../../components/ui/Input.vue';
 import UiModal from '../../components/ui/Modal.vue';
 import UiSelect from '../../components/ui/Select.vue';
+import UiSkeleton from '../../components/ui/Skeleton.vue';
 import UiStatus from '../../components/ui/Status.vue';
 import { useAuth } from '../../composables/useAuth.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
@@ -18,6 +24,7 @@ import {
   type BudgetDto,
   type CreateEnvelopeInput,
   type EnvelopeDto,
+  type EnvelopeSummaryDto,
   type EnvelopeType,
   type PeriodSlot,
   type ReferenceStatus,
@@ -42,20 +49,27 @@ const envelopeFields = [
   'comment',
 ] as const;
 const { currentData, loadMe } = useAuth();
+const route = useRoute();
 const api = useBudgetReferenceData();
 const formHelper = useReferenceDataForm(envelopeFields);
 const { push } = useToast();
 const envelopes = ref<EnvelopeDto[]>([]);
+const summary = ref<EnvelopeSummaryDto | null>(null);
+const detailed = ref<EnvelopeDto | null>(null);
 const budget = ref<BudgetDto | null>(null);
 const loading = ref(true);
 const loadError = ref('');
-const summary = ref('');
+// A short-lived confirmation/failure line for form and archive actions,
+// separate from the server-computed envelopes summary above the list.
+const statusMessage = ref('');
 const saving = ref(false);
 const archiving = ref(false);
 const formVisible = ref(false);
 const editingId = ref<string | null>(null);
 const archiveTarget = ref<EnvelopeDto | null>(null);
-const status = ref<ReferenceStatus>('active');
+const hydrated = ref(false);
+// The archive filter lives in the URL so the view survives a reload and can be shared.
+const status = ref<ReferenceStatus>(route.query.status === 'archived' ? 'archived' : 'active');
 const fieldErrors = ref<Partial<Record<(typeof envelopeFields)[number], string>>>({});
 const form = reactive({
   name: '',
@@ -70,13 +84,7 @@ const form = reactive({
 });
 
 const budgetId = computed(() => currentData.value?.workspaces[0]?.budgets[0]?.id);
-function getStatusOptions() {
-  return [
-    { value: 'active', label: 'Активные' },
-    { value: 'archived', label: 'В архиве' },
-    { value: 'all', label: 'Все' },
-  ];
-}
+const groups = computed(() => groupByType(envelopes.value, summary.value));
 
 function getEnvelopeTypeOptions() {
   return [
@@ -110,7 +118,7 @@ function startCreate() {
   resetForm();
   editingId.value = null;
   formVisible.value = true;
-  summary.value = '';
+  statusMessage.value = '';
 }
 
 function startEdit(envelope: EnvelopeDto) {
@@ -125,8 +133,10 @@ function startEdit(envelope: EnvelopeDto) {
   form.comment = envelope.comment ?? '';
   fieldErrors.value = {};
   editingId.value = envelope.id;
+  // Close the drawer first, otherwise the modal opens stacked on top of it.
+  detailed.value = null;
   formVisible.value = true;
-  summary.value = '';
+  statusMessage.value = '';
 }
 
 function cancelForm() {
@@ -135,13 +145,18 @@ function cancelForm() {
   resetForm();
 }
 
-async function loadEnvelopes() {
+async function loadEnvelopes(): Promise<void> {
   const id = budgetId.value;
   if (!id) return;
   // A reference record may have just changed, so the shared cache the journal,
   // the transfers page and the global dialogs read must not stay on old names.
   useOperationReferenceData().invalidate();
-  envelopes.value = await api.listEnvelopes(id, status.value);
+  const [items, totals] = await Promise.all([
+    api.listEnvelopes(id, status.value),
+    api.getEnvelopesSummary(id, status.value),
+  ]);
+  envelopes.value = items;
+  summary.value = totals;
 }
 
 async function loadPage() {
@@ -160,9 +175,13 @@ async function loadPage() {
   }
 }
 
-async function changeStatus(value: string) {
-  status.value = value as ReferenceStatus;
-  await loadEnvelopes();
+async function toggleArchived(): Promise<void> {
+  status.value = status.value === 'archived' ? 'active' : 'archived';
+  await navigateTo(
+    { path: route.path, query: status.value === 'archived' ? { status: 'archived' } : {} },
+    { replace: true },
+  );
+  await loadPage();
 }
 
 function negativeBalanceAllowed() {
@@ -186,7 +205,7 @@ async function saveEnvelope() {
   const id = budgetId.value;
   if (!id) return;
   saving.value = true;
-  summary.value = '';
+  statusMessage.value = '';
   fieldErrors.value = {};
 
   try {
@@ -212,7 +231,7 @@ async function saveEnvelope() {
       }
       await api.updateEnvelope(id, editingId.value, input);
       await loadEnvelopes();
-      summary.value = 'Конверт обновлён.';
+      statusMessage.value = 'Конверт обновлён.';
       push({ tone: 'success', title: 'Конверт обновлён' });
     } else {
       const input: CreateEnvelopeInput = {
@@ -229,14 +248,14 @@ async function saveEnvelope() {
       };
       await api.createEnvelope(id, input);
       await loadEnvelopes();
-      summary.value = 'Конверт создан.';
+      statusMessage.value = 'Конверт создан.';
       push({ tone: 'success', title: 'Конверт создан' });
     }
     cancelForm();
   } catch (error) {
     const mapped = formHelper.errorMessage(error);
     fieldErrors.value = mapped.fields;
-    summary.value = mapped.summary;
+    statusMessage.value = mapped.summary;
     push({ tone: 'error', title: 'Не удалось сохранить', description: mapped.summary });
   } finally {
     saving.value = false;
@@ -259,33 +278,32 @@ async function confirmArchive() {
   try {
     await api.archiveEnvelope(id, target.id);
     archiveTarget.value = null;
+    detailed.value = null;
     await loadEnvelopes();
-    summary.value = 'Конверт перемещён в архив.';
+    statusMessage.value = 'Конверт перемещён в архив.';
     push({ tone: 'success', title: 'Конверт перемещён в архив' });
   } catch {
-    summary.value = 'Не удалось выполнить действие. Повторите попытку.';
+    statusMessage.value = 'Не удалось выполнить действие. Повторите попытку.';
   } finally {
     archiving.value = false;
   }
 }
 
 onMounted(() => {
+  hydrated.value = true;
   void loadPage();
 });
 </script>
 
 <template>
-  <div class="reference-page">
-    <template v-if="loading">
-      <UiStatus label="Загрузка конвертов…" tone="info" aria-live="polite" />
-    </template>
-    <template v-else-if="loadError">
+  <div v-if="hydrated" class="reference-page" data-hydrated="true">
+    <template v-if="loadError">
       <UiEmptyState title="Конверты недоступны" :description="loadError">
         <template #action><UiButton @click="loadPage">Повторить</UiButton></template>
       </UiEmptyState>
     </template>
     <UiEmptyState
-      v-else-if="!budgetId"
+      v-else-if="!loading && !budgetId"
       title="Бюджет не выбран"
       description="Выберите бюджет, чтобы управлять конвертами."
     />
@@ -297,47 +315,115 @@ onMounted(() => {
         <UiButton data-action="create-envelope" @click="startCreate">Создать конверт</UiButton>
       </template>
       <template #filters>
-        <UiSelect
-          class="reference-status-filter"
-          :model-value="status"
-          name="status"
-          label="Показать конверты"
-          :options="getStatusOptions()"
-          @update:model-value="changeStatus"
+        <UiChip
+          label="В архиве"
+          :active="status === 'archived'"
+          data-testid="chip-archived"
+          @click="toggleArchived"
         />
       </template>
       <template #content>
-        <UiStatus v-if="summary" :label="summary" tone="info" aria-live="polite" />
-        <UiEmptyState
-          v-if="envelopes.length === 0"
-          title="Конвертов пока нет"
-          description="Добавьте конверт, чтобы планировать деньги."
+        <UiStatus v-if="statusMessage" :label="statusMessage" tone="info" aria-live="polite" />
+
+        <div
+          v-if="loading && envelopes.length === 0"
+          data-testid="envelopes-loading"
+          aria-busy="true"
         >
-          <template #action><UiButton @click="startCreate">Создать конверт</UiButton></template>
-        </UiEmptyState>
-        <div v-else class="reference-grid">
-          <EnvelopeCard v-for="envelope in envelopes" :key="envelope.id" :envelope="envelope">
-            <template #actions>
-              <UiButton variant="secondary" data-action="edit-envelope" @click="startEdit(envelope)"
-                >Изменить</UiButton
-              >
-              <NuxtLink
-                class="envelope-journal-link"
-                :to="`/app/operations?envelopeId=${encodeURIComponent(envelope.id)}`"
-                >Операции конверта</NuxtLink
-              >
-              <UiButton
-                v-if="!envelope.archivedAt"
-                variant="danger"
-                data-action="archive-envelope"
-                @click="requestArchive(envelope)"
-                >Переместить в архив</UiButton
-              >
-            </template>
-          </EnvelopeCard>
+          <UiSkeleton variant="row" :count="4" />
         </div>
+
+        <template v-else>
+          <p v-if="summary" class="envelopes-page__total" data-testid="envelopes-total">
+            Всего в конвертах
+            <FinanceMoney
+              :minor-units="summary.totalMinor"
+              :currency="summary.currency"
+              :scale="summary.scale"
+            />
+          </p>
+
+          <UiEmptyState
+            v-if="envelopes.length === 0 && status === 'archived'"
+            title="В архиве пусто"
+            description="Архивные конверты появятся здесь после архивирования."
+          />
+          <UiEmptyState
+            v-else-if="envelopes.length === 0"
+            title="Конвертов пока нет"
+            description="Создайте конверт, чтобы распределять в него деньги."
+          >
+            <template #action><UiButton @click="startCreate">Создать конверт</UiButton></template>
+          </UiEmptyState>
+
+          <section v-for="group in groups" :key="group.envelopeType" class="envelopes-page__group">
+            <header class="envelopes-page__group-header">
+              <h2 class="envelopes-page__group-label" data-testid="envelope-group-label">
+                {{ group.label }}
+              </h2>
+              <p
+                v-if="group.totalMinor !== null"
+                class="envelopes-page__group-total"
+                data-testid="envelope-group-total"
+              >
+                <FinanceMoney :minor-units="group.totalMinor" currency="RUB" :scale="2" />
+              </p>
+            </header>
+
+            <ul class="envelopes-page__list" :aria-label="`Конверты: ${group.label}`">
+              <li
+                v-for="envelope in group.items"
+                :key="envelope.id"
+                class="envelopes-page__list-item"
+              >
+                <EnvelopeRow :envelope="envelope" @select="detailed = envelope">
+                  <template #actions>
+                    <UiActionMenu
+                      label="Действия над конвертом"
+                      :trigger-test-id="`row-actions-${envelope.id}`"
+                    >
+                      <button
+                        type="button"
+                        role="menuitem"
+                        data-testid="row-edit"
+                        data-action="edit-envelope"
+                        @click="startEdit(envelope)"
+                      >
+                        Изменить
+                      </button>
+                      <NuxtLink
+                        role="menuitem"
+                        data-testid="row-operations"
+                        :to="`/app/operations?envelopeId=${encodeURIComponent(envelope.id)}`"
+                      >
+                        Операции конверта
+                      </NuxtLink>
+                      <button
+                        v-if="!envelope.archivedAt"
+                        type="button"
+                        role="menuitem"
+                        data-testid="row-archive"
+                        data-action="archive-envelope"
+                        @click="requestArchive(envelope)"
+                      >
+                        Переместить в архив
+                      </button>
+                    </UiActionMenu>
+                  </template>
+                </EnvelopeRow>
+              </li>
+            </ul>
+          </section>
+        </template>
       </template>
     </ReferencePageLayout>
+
+    <EnvelopeDrawer
+      :envelope="detailed"
+      @close="detailed = null"
+      @edit="startEdit"
+      @archive="requestArchive"
+    />
 
     <UiModal
       :open="formVisible"
@@ -480,23 +566,51 @@ form[data-envelope-form] {
   flex-wrap: wrap;
   gap: var(--hf-space-3);
 }
-.reference-status-filter {
-  max-width: 18rem;
+.envelopes-page__total {
+  margin: 0;
+  display: flex;
+  gap: var(--hf-space-2);
+  align-items: baseline;
+  color: var(--hf-color-text);
+  font-size: var(--hf-font-size-h3);
+  font-weight: var(--hf-font-weight-semibold);
 }
-.reference-grid {
+.envelopes-page__group {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
-  gap: var(--hf-space-5);
+  gap: var(--hf-space-3);
+  margin-top: var(--hf-space-6);
 }
-.envelope-journal-link {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--hf-control-height-md);
-  color: var(--hf-color-action-primary-hover);
+.envelopes-page__group:first-of-type {
+  margin-top: 0;
+}
+.envelopes-page__group-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hf-space-2);
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: var(--hf-space-2);
+  border-bottom: 1px solid var(--hf-color-border);
+}
+.envelopes-page__group-label {
+  margin: 0;
+  color: var(--hf-color-text);
+  font-size: var(--hf-font-size-small);
+  font-weight: var(--hf-font-weight-semibold);
+}
+.envelopes-page__group-total {
+  margin: 0;
+  color: var(--hf-color-text-muted);
   font-weight: var(--hf-font-weight-medium);
-  text-decoration: none;
 }
-.envelope-journal-link:hover {
-  text-decoration: underline;
+.envelopes-page__list {
+  display: grid;
+  gap: var(--hf-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.envelopes-page__list-item {
+  min-width: 0;
 }
 </style>

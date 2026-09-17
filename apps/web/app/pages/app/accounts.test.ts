@@ -8,12 +8,20 @@ const mocks = vi.hoisted(() => ({
   },
   api: {
     listAccounts: vi.fn(),
+    getAccountsSummary: vi.fn(),
     createAccount: vi.fn(),
     updateAccount: vi.fn(),
     archiveAccount: vi.fn(),
   },
+  route: { path: '/app/accounts', query: {} as Record<string, string> },
+  navigateTo: vi.fn(),
 }));
 
+vi.mock('#imports', () => ({
+  definePageMeta: vi.fn(),
+  navigateTo: mocks.navigateTo,
+  useRoute: () => mocks.route,
+}));
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => mocks.auth }));
 vi.mock('../../composables/useBudgetReferenceData.js', () => ({
   useBudgetReferenceData: () => mocks.api,
@@ -38,16 +46,14 @@ const account = {
   archivedAt: null,
 };
 
+const normalize = (value: string): string => value.replace(/[\u00a0\u202f]/g, ' ');
+
 function mountPage() {
   return mount(AccountsPage, {
     attachTo: document.body,
     global: {
       stubs: {
         NuxtLink: { template: '<a><slot /></a>' },
-        AccountCard: {
-          template: '<article><strong>{{ account.name }}</strong><slot name="actions" /></article>',
-          props: ['account'],
-        },
         UiConfirmDialog: {
           props: ['open'],
           template:
@@ -63,6 +69,7 @@ describe('accounts page', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.route.query = {};
     mocks.auth.currentData.value = {
       user: { id: 'user-id', email: 'owner@example.test', displayName: null },
       workspaces: [
@@ -75,6 +82,12 @@ describe('accounts page', () => {
       ],
     };
     mocks.api.listAccounts.mockResolvedValue([]);
+    mocks.api.getAccountsSummary.mockResolvedValue({
+      currency: 'RUB',
+      scale: 2,
+      totalMinor: '150000',
+      count: 2,
+    });
     useToast().clear();
   });
 
@@ -83,6 +96,13 @@ describe('accounts page', () => {
       wrapper.unmount();
       wrapper = null;
     }
+  });
+
+  it('marks the page ready after client hydration', async () => {
+    wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.get('[data-hydrated]').attributes('data-hydrated')).toBe('true');
   });
 
   it('creates account from decimal text and refreshes server-confirmed card', async () => {
@@ -168,6 +188,9 @@ describe('accounts page', () => {
     wrapper = mountPage();
 
     await flushPromises();
+    // The archive action now lives behind the row's action menu instead of
+    // being a card-level button, so the menu has to be opened first.
+    await wrapper.get('[data-testid="row-actions-account-id"]').trigger('click');
     await wrapper.get('[data-action="archive-account"]').trigger('click');
     expect(mocks.api.archiveAccount).not.toHaveBeenCalled();
     await wrapper.get('[data-confirm="archive-account"]').trigger('click');
@@ -180,8 +203,53 @@ describe('accounts page', () => {
     wrapper = mountPage();
 
     await flushPromises();
+    await wrapper.get('[data-testid="row-actions-account-id"]').trigger('click');
     const link = wrapper.get('[data-action="transfer-from-account"]');
     expect(link.text()).toContain('Перевести со счёта');
     expect(link.attributes('to')).toContain('sourceAccountId=account-id');
+  });
+
+  it('lists accounts as rows with the server total above them', async () => {
+    mocks.api.listAccounts.mockResolvedValue([account]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.findAll('[data-testid="list-row-select"]').length).toBeGreaterThan(0);
+    expect(normalize(wrapper.get('[data-testid="accounts-total"]').text())).toContain('1 500,00 ₽');
+    expect(mocks.api.getAccountsSummary).toHaveBeenCalledWith('budget-id', 'active');
+  });
+
+  it('opens the drawer from a row', async () => {
+    mocks.api.listAccounts.mockResolvedValue([account]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="list-row-select"]').trigger('click');
+
+    expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(true);
+  });
+
+  it('switches both requests to the archive from the chip', async () => {
+    mocks.api.listAccounts.mockResolvedValue([account]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="chip-archived"]').trigger('click');
+    await flushPromises();
+
+    expect(mocks.api.listAccounts).toHaveBeenLastCalledWith('budget-id', 'archived');
+    expect(mocks.api.getAccountsSummary).toHaveBeenLastCalledWith('budget-id', 'archived');
+  });
+
+  it('separates an empty archive from an empty budget', async () => {
+    mocks.api.listAccounts.mockResolvedValue([]);
+    wrapper = mountPage();
+    await flushPromises();
+    expect(wrapper.text()).toContain('Счетов пока нет');
+
+    await wrapper.get('[data-testid="chip-archived"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('В архиве пусто');
   });
 });

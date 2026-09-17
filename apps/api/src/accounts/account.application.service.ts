@@ -28,6 +28,13 @@ export interface AccountView {
   archivedAt: string | null;
 }
 
+export interface AccountSummaryView {
+  currency: 'RUB';
+  scale: 2;
+  totalMinor: string;
+  count: number;
+}
+
 @Injectable()
 export class AccountApplicationService {
   constructor(
@@ -45,6 +52,26 @@ export class AccountApplicationService {
     return (await this.repository.list(userId, budgetId, status)).map((account) =>
       this.toView(account),
     );
+  }
+
+  // The total is the sum of the very balances the list hands out, computed by
+  // the same repository call inside one transaction: a second SQL formula would
+  // drift away from the rows and nobody would notice.
+  async summary(
+    userId: string,
+    budgetId: string,
+    status: ReferenceDataStatus,
+  ): Promise<AccountSummaryView> {
+    const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
+    if (!budget) throw resourceNotFound();
+    const accounts = await this.repository.list(userId, budgetId, status);
+    const totalMinor = accounts.reduce((sum, account) => sum + account.currentBalanceMinor, 0n);
+    return {
+      currency: 'RUB',
+      scale: 2,
+      totalMinor: formatMinorUnits(totalMinor),
+      count: accounts.length,
+    };
   }
 
   async get(userId: string, budgetId: string, accountId: string): Promise<AccountView> {

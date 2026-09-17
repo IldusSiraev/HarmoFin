@@ -27,10 +27,17 @@ import type { RequestContext } from '../common/request-context/request-context.j
 import { CsrfGuard } from '../common/security/csrf.guard.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import { EnvelopeApplicationService } from './envelope.application.service.js';
-import { CreateEnvelopeRequest, EnvelopeResponse, UpdateEnvelopeRequest } from './envelope.dto.js';
+import {
+  CreateEnvelopeRequest,
+  EnvelopeResponse,
+  EnvelopeSummaryResponse,
+  UpdateEnvelopeRequest,
+} from './envelope.dto.js';
 import {
   createEnvelopeSchema,
   type CreateEnvelopeInput,
+  type EnvelopeSummaryInput,
+  envelopeSummarySchema,
   type ListEnvelopesInput,
   listEnvelopesSchema,
   type UpdateEnvelopeInput,
@@ -75,6 +82,18 @@ export class EnvelopeController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.service.create(contextOf(request).userId, budgetId, input, request.id);
+  }
+
+  @Get('budgets/:budgetId/envelopes/summary')
+  @ApiOkResponse({ type: EnvelopeSummaryResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  summary(
+    @Param('budgetId') budgetId: string,
+    @Query(new ZodValidationPipe(envelopeSummarySchema)) query: EnvelopeSummaryInput,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.summary(contextOf(request).userId, budgetId, query.status);
   }
 
   @Get('budgets/:budgetId/envelopes/:envelopeId')

@@ -1,5 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createSSRApp } from 'vue';
+import { renderToString } from 'vue/server-renderer';
 
 import UiDrawer from './Drawer.vue';
 
@@ -67,5 +69,24 @@ describe('UiDrawer', () => {
 
     expect(document.body.style.overflow).toBe('');
     wrapper.unmount();
+  });
+
+  it('renders on the server without touching `document`', async () => {
+    // Nuxt SSR runs in Node, where there is no `document` global. `onMounted`
+    // callbacks (unlike an immediate `watch` run during `setup()`) never fire
+    // during SSR, so `renderToString` here exercises exactly the code path
+    // that used to crash `GET /app/accounts` and `GET /app/envelopes` when
+    // this drawer was mounted unconditionally (no `v-if="budget"` guard).
+    const originalDocument = globalThis.document;
+    // @ts-expect-error -- simulate real Node SSR, which has no `document` global.
+    delete globalThis.document;
+
+    try {
+      const app = createSSRApp(UiDrawer, { open: true, title: 'Операция' });
+      const html = await renderToString(app);
+      expect(html).toContain('ui-drawer');
+    } finally {
+      globalThis.document = originalDocument;
+    }
   });
 });

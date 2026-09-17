@@ -139,3 +139,40 @@ export class EnvelopeResponse {
   @ApiProperty({ type: String, nullable: true, format: 'date-time' })
   archivedAt!: string | null;
 }
+
+export class EnvelopeSummaryGroupResponse {
+  @ApiProperty({
+    enum: [
+      'CURRENT_EXPENSES',
+      'MANDATORY_EXPENSES',
+      'SAVINGS_GOAL',
+      'RESERVE',
+      'FREE_MONEY',
+      'CUSTOM',
+    ],
+  })
+  envelopeType!: string;
+
+  @ApiProperty({ type: String, pattern: '^-?\\d+$' })
+  totalMinor!: string;
+
+  @ApiProperty({ type: Number })
+  count!: number;
+}
+
+export class EnvelopeSummaryResponse {
+  @ApiProperty({ enum: ['RUB'] })
+  currency!: 'RUB';
+
+  @ApiProperty({ type: Number, enum: [2] })
+  scale!: 2;
+
+  @ApiProperty({ type: String, pattern: '^-?\\d+$' })
+  totalMinor!: string;
+
+  @ApiProperty({ type: Number })
+  count!: number;
+
+  @ApiProperty({ type: [EnvelopeSummaryGroupResponse] })
+  byType!: EnvelopeSummaryGroupResponse[];
+}

@@ -32,6 +32,7 @@ test('shows a toast after a reference record is created', async ({ page }) => {
   await initializeTemplate(page);
 
   await page.goto('/app/accounts');
+  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
   await page.getByRole('button', { name: 'Создать счёт' }).first().click();
   await page.getByLabel('Название счёта').fill('Карта для тоста');
   await page.getByLabel('Начальный баланс').fill('1 000,00');

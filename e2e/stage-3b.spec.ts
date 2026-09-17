@@ -66,24 +66,28 @@ test('journal filters, sort, reset, direct links, and dashboard use server data'
   await page.goto('/app');
   await expect(page.getByRole('heading', { name: 'Можно потратить' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Счета' })).toBeVisible();
-  await expect(page.getByText('Карта Stage 3b')).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: 'Счета' }).getByText('Карта Stage 3b'),
+  ).toBeVisible();
 
   await page.goto('/app/accounts');
   await page
-    .getByRole('article')
+    .locator('li')
     .filter({ hasText: 'Карта Stage 3b' })
-    .getByRole('link', { name: 'Операции счёта' })
+    .getByRole('button', { name: 'Действия над счётом' })
     .click();
+  await page.getByTestId('row-operations').click();
   await expect(page).toHaveURL(/\/app\/operations\?accountId=/);
   await expect(page.getByTestId('chip-accountId')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('chip-accountId')).toContainText('Карта Stage 3b');
 
   await page.goto('/app/envelopes');
   await page
-    .getByRole('article')
+    .locator('li')
     .filter({ hasText: 'Продукты Stage 3b' })
-    .getByRole('link', { name: 'Операции конверта' })
+    .getByRole('button', { name: 'Действия над конвертом' })
     .click();
+  await page.getByTestId('row-operations').click();
   await expect(page).toHaveURL(/\/app\/operations\?envelopeId=/);
   await expect(page.getByTestId('chip-envelopeId')).toHaveAttribute('aria-pressed', 'true');
 
@@ -166,6 +170,7 @@ async function initializeTemplate(page: Page): Promise<void> {
 
 async function createAccount(page: Page, name: string, balance: string): Promise<void> {
   await page.goto('/app/accounts');
+  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
   await page.getByRole('button', { name: 'Создать счёт' }).first().click();
   await page.getByLabel('Название счёта').fill(name);
   await page.getByLabel('Начальный баланс').fill(balance);
@@ -176,6 +181,7 @@ async function createAccount(page: Page, name: string, balance: string): Promise
 
 async function createEnvelope(page: Page, name: string, balance: string): Promise<void> {
   await page.goto('/app/envelopes');
+  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
   await page.getByRole('button', { name: 'Создать конверт' }).first().click();
   await page.getByLabel('Название конверта').fill(name);
   await page.getByLabel('Начальный баланс').fill(balance);

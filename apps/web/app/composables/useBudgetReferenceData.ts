@@ -40,6 +40,23 @@ export interface ReferenceTemplateResult {
   existingEnvelopeKeys: string[];
 }
 
+export interface ReferenceSummaryDto {
+  currency: 'RUB';
+  scale: 2;
+  totalMinor: string;
+  count: number;
+}
+
+export interface EnvelopeSummaryGroupDto {
+  envelopeType: EnvelopeType;
+  totalMinor: string;
+  count: number;
+}
+
+export interface EnvelopeSummaryDto extends ReferenceSummaryDto {
+  byType: EnvelopeSummaryGroupDto[];
+}
+
 export interface AccountDto {
   id: string;
   budgetId: string;
@@ -552,6 +569,8 @@ export interface BudgetReferenceDataApi {
   getBudget(budgetId: string): Promise<BudgetDto>;
   updateBudget(budgetId: string, input: UpdateBudgetInput): Promise<BudgetDto>;
   initializeTemplate(budgetId: string): Promise<ReferenceTemplateResult>;
+  getAccountsSummary(budgetId: string, status?: ReferenceStatus): Promise<ReferenceSummaryDto>;
+  getEnvelopesSummary(budgetId: string, status?: ReferenceStatus): Promise<EnvelopeSummaryDto>;
   listAccounts(budgetId: string, status?: ReferenceStatus): Promise<AccountDto[]>;
   getAccount(budgetId: string, accountId: string): Promise<AccountDto>;
   createAccount(budgetId: string, input: CreateAccountInput): Promise<AccountDto>;
@@ -797,6 +816,10 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
       api.request<ReferenceTemplateResult>(`${budgetPath(budgetId)}/reference-template`, {
         method: 'POST',
       }),
+    getAccountsSummary: (budgetId, status) =>
+      api.request<ReferenceSummaryDto>(withQuery(`${accountPath(budgetId)}/summary`, { status })),
+    getEnvelopesSummary: (budgetId, status) =>
+      api.request<EnvelopeSummaryDto>(withQuery(`${envelopePath(budgetId)}/summary`, { status })),
     listAccounts: (budgetId, status) =>
       api.request<AccountDto[]>(withQuery(accountPath(budgetId), { status })),
     getAccount: (budgetId, accountId) => api.request<AccountDto>(accountPath(budgetId, accountId)),

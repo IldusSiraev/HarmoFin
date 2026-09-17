@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, watch, type WatchStopHandle } from 'vue';
 import { X } from '@lucide/vue';
 
 defineOptions({ name: 'UiDrawer' });
@@ -10,6 +10,7 @@ const emit = defineEmits<{ close: [] }>();
 const panel = ref<HTMLElement | null>(null);
 const titleId = `ui-drawer-title-${Math.random().toString(36).slice(2)}`;
 let previouslyFocused: HTMLElement | null = null;
+let stopWatch: WatchStopHandle | undefined;
 
 function focusable(): HTMLElement[] {
   if (!panel.value) return [];
@@ -61,9 +62,16 @@ function syncState(open: boolean): void {
   }
 }
 
-watch(() => props.open, syncState, { immediate: true });
+// syncState touches `document`, which does not exist during SSR. Setting up
+// the watcher inside onMounted (client-only) — rather than an immediate
+// watcher evaluated during setup() — keeps this drawer safe to mount
+// unconditionally, matching the pattern in ConfirmDialog.vue.
+onMounted(() => {
+  stopWatch = watch(() => props.open, syncState, { immediate: true });
+});
 
 onBeforeUnmount(() => {
+  stopWatch?.();
   document.body.style.overflow = '';
   document.removeEventListener('keydown', handleKeydown);
 });
