@@ -5,7 +5,9 @@ import { renderToString } from 'vue/server-renderer';
 
 const mocks = vi.hoisted(() => ({
   auth: {
-    currentData: { value: { user: { email: 'owner@example.test' } } as { user: { email: string } } | null },
+    currentData: {
+      value: { user: { email: 'owner@example.test' } } as { user: { email: string } } | null,
+    },
     logout: vi.fn(),
   },
 }));
