@@ -230,7 +230,6 @@ async function loadDashboard() {
 }
 
 .dashboard-timeline {
-  max-width: 28rem;
   margin-bottom: var(--hf-space-6);
 }
 
