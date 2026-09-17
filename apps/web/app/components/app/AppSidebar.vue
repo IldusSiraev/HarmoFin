@@ -1,6 +1,18 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { navigateTo, useRoute } from '#imports';
+import {
+  ArrowLeftRight,
+  BarChart3,
+  Bell,
+  CalendarClock,
+  Home,
+  PiggyBank,
+  Receipt,
+  Settings,
+  Tag,
+  Wallet,
+} from '@lucide/vue';
 
 import { useAuth } from '../../composables/useAuth.js';
 import AppAddMenu from './AppAddMenu.vue';
@@ -52,7 +64,7 @@ async function handleLogout() {
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app')"
-          >Главная</NuxtLink
+          ><Home :size="18" aria-hidden="true" />Главная</NuxtLink
         >
       </AppSidebarSection>
       <AppSidebarSection label="Учёт">
@@ -61,21 +73,21 @@ async function handleLogout() {
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app/operations')"
-          >Операции</NuxtLink
+          ><Receipt :size="18" aria-hidden="true" />Операции</NuxtLink
         >
         <NuxtLink
           to="/app/transfers"
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app/transfers')"
-          >Переводы</NuxtLink
+          ><ArrowLeftRight :size="18" aria-hidden="true" />Переводы</NuxtLink
         >
         <NuxtLink
           to="/app/plans"
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app/plans')"
-          >Планы</NuxtLink
+          ><CalendarClock :size="18" aria-hidden="true" />Планы</NuxtLink
         >
       </AppSidebarSection>
       <AppSidebarSection label="Справочники">
@@ -84,21 +96,21 @@ async function handleLogout() {
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app/accounts')"
-          >Счета</NuxtLink
+          ><Wallet :size="18" aria-hidden="true" />Счета</NuxtLink
         >
         <NuxtLink
           to="/app/envelopes"
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app/envelopes')"
-          >Конверты</NuxtLink
+          ><PiggyBank :size="18" aria-hidden="true" />Конверты</NuxtLink
         >
         <NuxtLink
           to="/app/categories"
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app/categories')"
-          >Категории</NuxtLink
+          ><Tag :size="18" aria-hidden="true" />Категории</NuxtLink
         >
       </AppSidebarSection>
       <AppSidebarSection>
@@ -107,14 +119,14 @@ async function handleLogout() {
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app/analytics')"
-          >Аналитика</NuxtLink
+          ><BarChart3 :size="18" aria-hidden="true" />Аналитика</NuxtLink
         >
         <NuxtLink
           to="/app/notifications"
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app/notifications')"
-          >Уведомления</NuxtLink
+          ><Bell :size="18" aria-hidden="true" />Уведомления</NuxtLink
         >
       </AppSidebarSection>
     </nav>
@@ -124,7 +136,7 @@ async function handleLogout() {
         class="app-sidebar__link"
         active-class="app-sidebar__link--active"
         :aria-current="currentPage('/app/settings')"
-        >Настройки</NuxtLink
+        ><Settings :size="18" aria-hidden="true" />Настройки</NuxtLink
       >
       <div class="app-sidebar__user">
         <span class="app-sidebar__email">{{ userEmail() }}</span>
@@ -167,14 +179,21 @@ async function handleLogout() {
 
 .app-sidebar__link {
   display: flex;
+  gap: var(--hf-space-3);
   align-items: center;
   min-height: 2.75rem;
   padding: var(--hf-space-2) var(--hf-space-3);
   border-radius: var(--hf-radius-md);
-  color: var(--hf-color-text);
+  color: var(--hf-color-text-muted);
   font-weight: var(--hf-font-weight-medium);
   text-decoration: none;
-  transition: background var(--hf-transition-fast);
+  transition:
+    background var(--hf-transition-fast),
+    color var(--hf-transition-fast);
+}
+
+.app-sidebar__link svg {
+  flex-shrink: 0;
 }
 
 .app-sidebar__link:hover {

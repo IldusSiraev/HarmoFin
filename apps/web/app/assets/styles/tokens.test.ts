@@ -14,20 +14,18 @@ const appDir = join(currentDir, '../../');
 const tokens = readFileSync(tokensPath, 'utf8');
 
 const requiredTokens = [
-  ['--hf-color-brand', '#0a7f60'],
-  ['--hf-color-brand-hover', '#086b51'],
-  ['--hf-color-brand-bright', '#10b991'],
-  ['--hf-color-brand-soft', '#e7f7f2'],
-  ['--hf-color-action-primary', '#1d6fd6'],
-  ['--hf-color-primary-bright', '#4f9cf9'],
-  ['--hf-color-primary-soft', '#e6f2ff'],
-  ['--hf-color-action-danger', '#dc2626'],
-  ['--hf-color-status-danger-bright', '#ef4444'],
-  ['--hf-color-status-warning-bright', '#f59e0b'],
-  ['--hf-color-text', '#0f172a'],
-  ['--hf-color-text-muted', '#64748b'],
-  ['--hf-color-border', '#e2e8f0'],
-  ['--hf-color-page-background', '#f8fafc'],
+  ['--hf-color-brand', '#1ba39c'],
+  ['--hf-color-brand-hover', '#168f89'],
+  ['--hf-color-brand-bright', '#3fc2ba'],
+  ['--hf-color-brand-soft', '#e3f5f3'],
+  ['--hf-color-primary-bright', '#73c6b6'],
+  ['--hf-color-primary-strong', '#2c5b8a'],
+  ['--hf-color-danger-strong', '#d14343'],
+  ['--hf-color-status-danger-bright', '#e15c5c'],
+  ['--hf-color-status-warning-bright', '#f5a524'],
+  ['--hf-color-slate-900', '#0d1b2a'],
+  ['--hf-color-slate-500', '#5b6b78'],
+  ['--hf-color-slate-50', '#f7f9fa'],
   ['--hf-color-surface', '#ffffff'],
 ];
 
@@ -56,10 +54,10 @@ describe('design tokens', () => {
   });
 
   it('defines the kit radius scale', () => {
-    expect(tokens).toContain('--hf-radius-sm: 0.25rem;');
-    expect(tokens).toContain('--hf-radius-md: 0.5rem;');
-    expect(tokens).toContain('--hf-radius-lg: 0.75rem;');
-    expect(tokens).toContain('--hf-radius-xl: 1rem;');
+    expect(tokens).toContain('--hf-radius-sm: 0.375rem;');
+    expect(tokens).toContain('--hf-radius-md: 0.625rem;');
+    expect(tokens).toContain('--hf-radius-lg: 1rem;');
+    expect(tokens).toContain('--hf-radius-xl: 1.25rem;');
   });
 
   it('defines the kit shadow scale and keeps the card alias', () => {

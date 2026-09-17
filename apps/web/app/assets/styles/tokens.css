@@ -1,23 +1,25 @@
 :root {
-  /* palette */
+  /* palette — "Calm Fintech": HarmoFin's own brand set (Navy/Teal/Green/
+     Blue/Mint) on a light, soft-shadow surface instead of a generic
+     Tailwind slate/blue SaaS palette. */
   --hf-color-white: #ffffff;
-  --hf-color-brand: #0a7f60;
-  --hf-color-brand-hover: #086b51;
-  --hf-color-brand-active: #065a44;
-  --hf-color-brand-bright: #10b991;
-  --hf-color-brand-soft: #e7f7f2;
-  --hf-color-primary-bright: #4f9cf9;
-  --hf-color-primary-soft: #e6f2ff;
-  --hf-color-primary-strong: #1d6fd6;
-  --hf-color-primary-strong-hover: #1a5fb8;
-  --hf-color-danger-strong: #dc2626;
-  --hf-color-danger-strong-hover: #b91c1c;
-  --hf-color-danger-soft: #fef2f2;
-  --hf-color-warning-soft: #fffbeb;
-  --hf-color-slate-900: #0f172a;
-  --hf-color-slate-500: #64748b;
-  --hf-color-slate-200: #e2e8f0;
-  --hf-color-slate-50: #f8fafc;
+  --hf-color-brand: #1ba39c;
+  --hf-color-brand-hover: #168f89;
+  --hf-color-brand-active: #127a75;
+  --hf-color-brand-bright: #3fc2ba;
+  --hf-color-brand-soft: #e3f5f3;
+  --hf-color-primary-bright: #73c6b6;
+  --hf-color-primary-soft: #e8eef3;
+  --hf-color-primary-strong: #2c5b8a;
+  --hf-color-primary-strong-hover: #234a6e;
+  --hf-color-danger-strong: #d14343;
+  --hf-color-danger-strong-hover: #b33636;
+  --hf-color-danger-soft: #fbeaea;
+  --hf-color-warning-soft: #fdf3e3;
+  --hf-color-slate-900: #0d1b2a;
+  --hf-color-slate-500: #5b6b78;
+  --hf-color-slate-200: #e4e8ec;
+  --hf-color-slate-50: #f7f9fa;
 
   /* typography */
   --hf-font-family-sans: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -54,17 +56,17 @@
   --hf-space-20: 5rem;
   --hf-space-24: 6rem;
 
-  /* radii */
-  --hf-radius-sm: 0.25rem;
-  --hf-radius-md: 0.5rem;
-  --hf-radius-lg: 0.75rem;
-  --hf-radius-xl: 1rem;
+  /* radii — soft, rounded surfaces */
+  --hf-radius-sm: 0.375rem;
+  --hf-radius-md: 0.625rem;
+  --hf-radius-lg: 1rem;
+  --hf-radius-xl: 1.25rem;
 
-  /* shadows */
-  --hf-shadow-xs: 0 1px 2px rgb(15 23 42 / 6%);
-  --hf-shadow-sm: 0 1px 3px rgb(15 23 42 / 8%), 0 1px 2px rgb(15 23 42 / 6%);
-  --hf-shadow-md: 0 4px 12px rgb(15 23 42 / 8%);
-  --hf-shadow-lg: 0 12px 32px rgb(15 23 42 / 12%);
+  /* shadows — soft, navy-tinted, low-contrast */
+  --hf-shadow-xs: 0 1px 2px rgb(13 27 42 / 5%);
+  --hf-shadow-sm: 0 2px 6px rgb(13 27 42 / 6%), 0 1px 2px rgb(13 27 42 / 5%);
+  --hf-shadow-md: 0 8px 24px rgb(13 27 42 / 8%);
+  --hf-shadow-lg: 0 20px 48px rgb(13 27 42 / 12%);
   --hf-shadow-card: var(--hf-shadow-sm);
 
   /* layout */
@@ -76,42 +78,42 @@
   --hf-sidebar-width: 16rem;
 
   /* semantic roles */
-  --hf-color-page-background: #f8fafc;
+  --hf-color-page-background: var(--hf-color-slate-50);
   --hf-color-surface: #ffffff;
   --hf-color-surface-subtle: var(--hf-color-slate-50);
   --hf-color-surface-translucent: rgb(255 255 255 / 82%);
-  --hf-color-text: #0f172a;
-  --hf-color-text-muted: #64748b;
+  --hf-color-text: var(--hf-color-slate-900);
+  --hf-color-text-muted: var(--hf-color-slate-500);
   --hf-color-text-subtle: var(--hf-color-slate-500);
-  --hf-color-border: #e2e8f0;
-  --hf-color-border-strong: #94a3b8;
-  --hf-color-focus-ring: var(--hf-color-primary-strong);
+  --hf-color-border: rgb(13 27 42 / 8%);
+  --hf-color-border-strong: rgb(13 27 42 / 18%);
+  --hf-color-focus-ring: var(--hf-color-brand-active);
   --hf-color-focus-halo: var(--hf-color-white);
   --hf-focus-indicator: 0 0 0 2px var(--hf-color-focus-halo), 0 0 0 5px var(--hf-color-focus-ring);
-  --hf-color-action-primary: #1d6fd6;
-  --hf-color-action-primary-hover: var(--hf-color-primary-strong-hover);
-  --hf-color-action-primary-active: #174f99;
+  --hf-color-action-primary: var(--hf-color-brand);
+  --hf-color-action-primary-hover: var(--hf-color-brand-hover);
+  --hf-color-action-primary-active: var(--hf-color-brand-active);
   --hf-color-action-brand: var(--hf-color-brand);
   --hf-color-action-brand-hover: var(--hf-color-brand-hover);
   --hf-color-action-brand-active: var(--hf-color-brand-active);
-  --hf-color-action-danger: #dc2626;
+  --hf-color-action-danger: var(--hf-color-danger-strong);
   --hf-color-action-danger-hover: var(--hf-color-danger-strong-hover);
   --hf-color-action-secondary-hover: var(--hf-color-slate-50);
   --hf-color-status-neutral: var(--hf-color-slate-500);
   --hf-color-status-neutral-background: var(--hf-color-slate-200);
   --hf-color-status-info: var(--hf-color-primary-strong);
   --hf-color-status-info-background: var(--hf-color-primary-soft);
-  --hf-color-status-success: var(--hf-color-brand);
-  --hf-color-status-success-background: var(--hf-color-brand-soft);
+  --hf-color-status-success: #22a06b;
+  --hf-color-status-success-background: #e4f3ea;
   --hf-color-status-warning: #92400e;
   --hf-color-status-warning-background: var(--hf-color-warning-soft);
-  --hf-color-status-warning-bright: #f59e0b;
+  --hf-color-status-warning-bright: #f5a524;
   --hf-color-status-danger: var(--hf-color-danger-strong);
   --hf-color-status-danger-background: var(--hf-color-danger-soft);
-  --hf-color-status-danger-bright: #ef4444;
+  --hf-color-status-danger-bright: #e15c5c;
   --hf-color-text-danger: var(--hf-color-danger-strong);
   --hf-color-border-danger: var(--hf-color-danger-strong);
-  --hf-color-overlay: rgb(15 23 42 / 48%);
+  --hf-color-overlay: rgb(13 27 42 / 48%);
   --hf-z-index-tooltip: 150;
   --hf-tooltip-background: var(--hf-color-slate-900);
   --hf-tooltip-color: var(--hf-color-white);
