@@ -217,7 +217,7 @@ function isHighlightedOccurrence(occurrenceId: string) {
   <div v-if="hydrated" class="plans-page" data-hydrated="true">
     <ReferencePageLayout>
       <template #kicker>Регулярные планы</template>
-      <template #title>Планы и обязательства</template>
+      <template #title>Планы</template>
       <template #actions>
         <UiButton data-action="create-plan" @click="openCreate">Добавить план</UiButton>
       </template>
@@ -228,13 +228,13 @@ function isHighlightedOccurrence(occurrenceId: string) {
         <template v-else-if="budget">
           <section class="plans-page__section" aria-labelledby="occurrences-title">
             <div class="plans-page__section-heading">
-              <h2 id="occurrences-title">Возникновения</h2>
+              <h2 id="occurrences-title">Ближайшие платежи</h2>
               <p>План не меняет баланс, пока операция не подтверждена.</p>
             </div>
             <UiEmptyState
               v-if="occurrences.length === 0"
-              title="Возникновений пока нет"
-              description="Worker добавит ближайшие даты активных планов."
+              title="Ближайших платежей пока нет"
+              description="Ближайшие даты появятся здесь автоматически."
             />
             <div v-else class="plans-page__list">
               <PlanOccurrenceCard
@@ -253,7 +253,7 @@ function isHighlightedOccurrence(occurrenceId: string) {
           </section>
           <section class="plans-page__section" aria-labelledby="plans-title">
             <div class="plans-page__section-heading">
-              <h2 id="plans-title">Шаблоны планов</h2>
+              <h2 id="plans-title">Все планы</h2>
               <p>Изменения влияют только на будущие возникновения.</p>
             </div>
             <UiEmptyState
@@ -304,7 +304,7 @@ function isHighlightedOccurrence(occurrenceId: string) {
       :description="
         confirmation?.action === 'remove'
           ? 'Будущие возникновения будут отменены.'
-          : 'Данные будут обновлены на сервере.'
+          : 'Изменения вступят в силу сразу.'
       "
       confirm-label="Подтвердить"
       cancel-label="Отмена"

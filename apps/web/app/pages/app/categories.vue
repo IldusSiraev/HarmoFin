@@ -280,10 +280,7 @@ onMounted(() => {
                 class="category-card"
               >
                 <div class="category-card__header">
-                  <div>
-                    <h3>{{ category.name }}</h3>
-                    <p>Порядок: {{ category.displayOrder }}</p>
-                  </div>
+                  <h3>{{ category.name }}</h3>
                   <UiStatus
                     :label="category.archivedAt ? 'В архиве' : 'Активна'"
                     :tone="category.archivedAt ? 'neutral' : 'success'"

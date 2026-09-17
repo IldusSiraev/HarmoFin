@@ -188,6 +188,8 @@ async function saveAllocation(input: {
           v-if="showAllocationForm"
           :proposal="transaction.allocationProposal"
           :remaining-minor="transaction.unallocatedMinor"
+          :currency="transaction.currency"
+          :scale="transaction.scale"
           :accounts="accounts"
           :envelopes="envelopes"
           :pending="mutations.pending.value"

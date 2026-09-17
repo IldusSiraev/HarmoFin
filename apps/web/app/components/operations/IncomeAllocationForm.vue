@@ -3,6 +3,7 @@ import { ref } from 'vue';
 
 import type { AllocationProposal } from '../../composables/useBudgetReferenceData.js';
 import { normalizeDecimal } from '../../composables/useOperationForm.js';
+import FinanceMoney from '../finance/FinanceMoney.vue';
 import FinanceMoneyInput from '../finance/FinanceMoneyInput.vue';
 import UiButton from '../ui/Button.vue';
 import UiSelect from '../ui/Select.vue';
@@ -13,6 +14,8 @@ const props = withDefaults(
   defineProps<{
     proposal: AllocationProposal | null;
     remainingMinor: string;
+    currency: string;
+    scale: number;
     accounts: ReadonlyArray<{ value: string; label: string }>;
     envelopes: ReadonlyArray<{ value: string; label: string }>;
     pending?: boolean;
@@ -55,7 +58,8 @@ function minorToDecimal(value: string): string {
 <template>
   <section class="allocation-form" aria-label="Распределение дохода">
     <p class="allocation-form__lead">
-      Предложить распределение: доступно {{ remainingMinor }} минимальных единиц.
+      Предложить распределение: доступно
+      <FinanceMoney :minor-units="remainingMinor" :currency="currency" :scale="scale" />.
     </p>
     <div v-if="proposal && !editing" class="allocation-form__actions">
       <UiButton

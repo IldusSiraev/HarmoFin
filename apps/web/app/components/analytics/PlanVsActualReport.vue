@@ -33,7 +33,7 @@ function journalHref(row: PlanVsActualRowDto) {
       <table>
         <thead>
           <tr>
-            <th scope="col">План</th>
+            <th scope="col">Название</th>
             <th scope="col">План</th>
             <th scope="col">Факт</th>
             <th scope="col">Отклонение</th>

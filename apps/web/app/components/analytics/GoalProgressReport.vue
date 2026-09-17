@@ -26,7 +26,7 @@ function journalHref(row: GoalProgressRowDto) {
   <section class="goal-progress" aria-labelledby="goal-progress-title">
     <div class="goal-progress__heading">
       <h2 id="goal-progress-title">Цели накоплений</h2>
-      <p>Прогресс рассчитан сервером по подтверждённым операциям.</p>
+      <p>Прогресс считается по подтверждённым операциям.</p>
     </div>
     <p v-if="rows.length === 0" class="goal-progress__empty">Нет активных целей накоплений.</p>
     <div

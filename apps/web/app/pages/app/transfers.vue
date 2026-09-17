@@ -146,7 +146,7 @@ async function confirmAction() {
     if (current.action === 'confirm') await api.confirmTransfer(id, current.transfer.id, key);
     if (current.action === 'cancel') await api.cancelTransfer(id, current.transfer.id, key);
     if (current.action === 'delete') await api.deleteTransfer(id, current.transfer.id, key);
-    statusText.value = 'Данные обновлены на сервере.';
+    statusText.value = 'Изменения сохранены.';
     await load();
   } catch {
     error.value = 'Не удалось выполнить действие. Повторите попытку.';
@@ -180,7 +180,7 @@ function dialogTitle() {
 function dialogDescription() {
   return confirmation.value?.action === 'delete'
     ? 'Перевод останется в истории, но перестанет влиять на балансы.'
-    : 'Действие изменит серверные финансовые данные.';
+    : 'Изменения сразу повлияют на переводы и баланс.';
 }
 </script>
 

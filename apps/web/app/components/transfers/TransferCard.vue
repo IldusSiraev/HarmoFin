@@ -41,7 +41,9 @@ function statusTone(status: TransferDto['status']) {
       :scale="transfer.scale"
     />
     <p v-if="transfer.comment" class="transfer-card__comment">{{ transfer.comment }}</p>
-    <p class="transfer-card__parts">Частей: {{ transfer.parts.length }}</p>
+    <p v-if="transfer.parts.length > 1" class="transfer-card__parts">
+      Затронуто конвертов: {{ transfer.parts.length }}
+    </p>
     <template v-if="$slots.actions" #actions><slot name="actions" /></template>
   </UiCard>
 </template>

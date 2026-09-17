@@ -176,7 +176,7 @@ function activeFilterCount() {
             { value: 'expenses-by-cycle', label: 'Расходы по циклам' },
             { value: 'incomes-by-cycle', label: 'Доходы по циклам' },
             { value: 'savings-reallocation-by-cycle', label: 'Перераспределения накоплений' },
-            { value: 'net-cash-flow', label: 'Чистый денежный поток' },
+            { value: 'net-cash-flow', label: 'Доходы минус расходы' },
             { value: 'account-balances', label: 'Остатки счетов' },
             { value: 'envelope-balances', label: 'Остатки конвертов' },
             { value: 'savings-goals', label: 'Цели накоплений' },
