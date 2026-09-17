@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { navigateTo } from '#imports';
 
 import { useAuth } from '../../composables/useAuth.js';
@@ -8,6 +8,13 @@ defineOptions({ name: 'AppUserMenu' });
 
 const { currentData, logout } = useAuth();
 const menuOpen = ref(false);
+
+// The auth middleware skips the server (it has no session to forward) and
+// resolves on the client before the app mounts, so `currentData` is already
+// populated by the time hydration runs. Reading it straight away would ship
+// an email the server never rendered. Waiting for onMounted keeps the first
+// client render at the server's empty text, then fills it in right after.
+const hydrated = ref(false);
 
 function toggleMenu() {
   menuOpen.value = !menuOpen.value;
@@ -18,8 +25,12 @@ function closeMenu() {
 }
 
 function userEmail() {
-  return currentData.value?.user?.email ?? '';
+  return hydrated.value ? (currentData.value?.user?.email ?? '') : '';
 }
+
+onMounted(() => {
+  hydrated.value = true;
+});
 
 async function handleLogout() {
   closeMenu();
