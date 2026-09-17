@@ -1,13 +1,14 @@
 # HarmoFin
 
-HarmoFin — веб-приложение для личного и семейного бюджета. Этап 1 добавляет PostgreSQL schema, аутентификацию и безопасные границы workspace/budget. Финансовые сущности пока не реализованы.
+HarmoFin — веб-приложение для личного и семейного бюджета. Текущая версия (v1) реализует функциональное ТЗ для одного владельца бюджета: счета, конверты, категории, операции, распределения доходов, переводы, регулярные планы, внутренние уведомления, финансовые циклы, дашборд, аналитику и экспорт поверх аутентификации и серверной изоляции workspace/budget.
 
 ## Стек
 
 - Node.js `24.20.0`, pnpm `11.24.0`;
 - Nuxt 4/Vue 3, NestJS/Fastify, PostgreSQL 18 и Prisma;
 - Argon2id, серверные сессии в PostgreSQL, HttpOnly cookies;
-- Vitest, Playwright и GitHub Actions.
+- Vitest, Playwright и GitHub Actions;
+- Docker, Docker Compose и Caddy для local/staging/production деплоя.
 
 ## Требования
 
@@ -79,6 +80,7 @@ pnpm infra:down
 - Регистрация: http://localhost:3000/register
 - Вход: http://localhost:3000/login
 - Восстановление пароля: http://localhost:3000/forgot-password
+- Приложение (дашборд бюджета): http://localhost:3000/app
 - API live: http://localhost:3001/api/v1/health/live
 - API ready: http://localhost:3001/api/v1/health/ready
 - OpenAPI UI: http://localhost:3001/docs
@@ -117,28 +119,46 @@ pnpm test:integration
 pnpm test:e2e
 ```
 
-## Этап 1: auth и изоляция данных
+## Функциональность v1
 
 Реализованы:
 
-- Prisma schema и первая migration для users, sessions, workspaces, workspace memberships, budgets, recovery tokens и audit events;
+- Prisma schema и миграции для users, sessions, workspaces, workspace memberships, budgets, accounts, envelopes, categories, transactions, income allocations, transfers, recurring plans, notifications, recovery tokens и audit events;
 - регистрация, вход, выход, смена и восстановление пароля;
 - Argon2id и пароль от 10 до 128 символов;
 - opaque server-side sessions: cookie содержит случайный token, PostgreSQL — только HMAC digest;
 - HttpOnly, `SameSite=Lax`, production `Secure` и `__Host-` cookie name;
 - CSRF synchronizer token, Origin validation и rate limit входа/восстановления;
 - просмотр и отзыв активных сессий;
-- `/api/v1/me`, workspace и protected budget endpoints;
+- счета (банк, карта, наличные), начальные балансы, архивирование;
+- конверты, категории доходов/расходов, настраиваемый финансовый цикл;
+- операции «доход/расход/перевод» одной строкой, редактирование, логическое удаление и восстановление;
+- распределение доходов и правило шабашки;
+- переводы между счетами, разбитые на части по конвертам;
+- регулярные планы и подтверждение операции из плана;
+- внутренний центр уведомлений;
+- дашборд, базовая аналитика/отчеты и экспорт отфильтрованных данных;
+- журнал изменений (audit) для финансовых сущностей;
 - server-side membership/role checks и DB-scoped workspace/budget queries;
-- базовый audit auth/workspace/budget events;
-- русскоязычные страницы `/register`, `/login`, `/forgot-password`, `/reset-password` и защищённая `/app`;
-- Mailpit для local/CI recovery mail.
+- русскоязычный интерфейс: `/register`, `/login`, `/forgot-password`, `/reset-password` и защищённая `/app` с разделами бюджета;
+- Mailpit для local/CI recovery mail;
+- production deploy: Docker images, Caddy reverse proxy, staging/production Compose (`infra/compose/`), деплой/rollback/smoke-скрипты (`infra/scripts/`) и CI/CD workflows (`.github/workflows/`).
 
-Роли `OWNER`, `EDITOR` и `VIEWER` существуют в schema и policy layer. Registration создаёт `OWNER`; приглашения и collaborative UI не входят в Этап 1.
+Роли `OWNER`, `EDITOR` и `VIEWER` существуют в schema и policy layer. Registration создаёт `OWNER`; приглашения участников и совместный доступ в интерфейсе не входят в v1.
 
-## Границы этапа
+## Ограничения v1
 
-Отсутствуют счета, категории, конверты, операции, распределения, переводы, планы, уведомления, аналитика, экспорт и production deployment. Email verification enforcement также требует отдельного решения до публичного запуска.
+Не реализованы:
+
+- импорт банковских выписок (CSV/XLSX) и банковские интеграции;
+- Telegram-бот;
+- email- и push-уведомления — только внутренний центр уведомлений в приложении;
+- полноценная мультивалютная конвертация;
+- кредитные счета и учет задолженности;
+- совместный доступ нескольких пользователей в интерфейсе;
+- ИИ-анализ;
+- тарифы, подписки и биллинг SaaS;
+- принудительная проверка email при регистрации (email verification enforcement) — требует отдельного решения до публичного запуска.
 
 ## Безопасность
 
@@ -151,5 +171,5 @@ pnpm test:e2e
 
 - [Функциональное ТЗ](docs/superpowers/specs/2026-08-30-family-budget-app-spec.md)
 - [Спецификация разработки](docs/superpowers/specs/2026-08-30-family-budget-development-spec.md)
-- [Дизайн Этапа 1](docs/superpowers/specs/2026-08-31-stage-1-database-auth-design.md)
-- [Implementation plan Этапа 1](docs/superpowers/plans/2026-08-31-stage-1-database-auth.md)
+
+Дизайн и implementation plan есть по каждому этапу (auth, справочники и счета, операции и распределения, переводы, журнал/циклы/дашборд, планы и уведомления, аналитика и экспорт, production readiness, UI-редизайны) — см. одноимённые файлы в `docs/superpowers/specs/` и `docs/superpowers/plans/`.

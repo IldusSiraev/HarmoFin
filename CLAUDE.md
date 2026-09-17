@@ -4,17 +4,17 @@
 
 - The [functional specification](docs/superpowers/specs/2026-08-30-family-budget-app-spec.md) is authoritative for product behavior, business rules, and acceptance criteria.
 - The [development specification](docs/superpowers/specs/2026-08-30-family-budget-development-spec.md) is authoritative for architecture, implementation, operations, and technical choices.
-- The [initialization design](docs/superpowers/specs/2026-08-30-project-initialization-design.md) defines the repository-only scope of the current initialization work.
-- The [foundation design](docs/superpowers/specs/2026-08-31-project-foundation-design.md) and [foundation plan](docs/superpowers/plans/2026-08-31-project-foundation.md) define the implemented Stage 0 scaffold.
+- The [initialization design](docs/superpowers/specs/2026-08-30-project-initialization-design.md) and [foundation design](docs/superpowers/specs/2026-08-31-project-foundation-design.md)/[foundation plan](docs/superpowers/plans/2026-08-31-project-foundation.md) are historical: they cover only the Stage 0 scaffold and predate the domain implementation below.
+- `docs/superpowers/specs/` and `docs/superpowers/plans/` also hold one design and one implementation plan per later stage (auth, reference data/accounts, operations/allocations, transfers, journal/cycles/dashboard, plans/notifications, analytics/export, production readiness, and later UI redesigns). For how a specific implemented area works, prefer that area's own stage doc over this file.
 - Prefer these sources over copied summaries. When they conflict, use the functional specification for behavior and the development specification for implementation.
 
-## Current scope and planned architecture
+## Current scope and architecture
 
-This repository contains HarmoFin foundation scaffold: a TypeScript monorepo with a Nuxt 4/Vue 3 web app, a NestJS/Fastify API, and a separate worker, plus shared quality configuration and local PostgreSQL Compose. Product domain implementation has not started. The approved target architecture is a modular monolith with clear domain modules, one transactional database, and OpenAPI contracts between web and API. Do not represent planned domain directories, services, or tooling as already present.
+HarmoFin v1 is implemented and released, not a scaffold in progress. The repository is a TypeScript monorepo: Nuxt 4/Vue 3 web app, NestJS/Fastify API, a worker process, PostgreSQL 18 via Prisma, and Compose infra for local (Postgres + Mailpit), staging, and production. The functional domain is implemented: accounts, envelopes, categories, operations, income allocations, transfers, recurring plans, notifications, financial cycles, dashboard, analytics/reports, export, and audit logging, alongside auth (registration, sessions, password reset, CSRF, rate limiting). Production deploy tooling (Docker images, Caddy, deploy/rollback/smoke scripts, CI/CD workflows) exists under `infra/` and `.github/workflows/`. Prisma, authentication, the financial domain, production images, deployment tooling, and Playwright E2E tests all exist in this repository — do not describe them as absent or planned.
 
-The MVP is for one active owner budget, while the data model and authorization boundaries must be ready for multiple budgets and future workspace roles. MVP exclusions remain explicit: bank statement import and bank integrations, Telegram or external notification delivery, full multi-currency conversion, credit/debt accounts, collaborative UI access, AI analysis, and SaaS billing.
+v1 is for one active owner budget, while the data model and authorization boundaries are ready for multiple budgets and future workspace roles. v1 exclusions remain explicit per the functional specification: bank statement import and bank integrations, Telegram or external notification delivery, full multi-currency conversion, credit/debt accounts, collaborative UI access, AI analysis, and SaaS billing. Do not represent these excluded features as already present.
 
-## Foundation commands
+## Commands
 
 Requirements: Node.js 24.20.0, Corepack/pnpm 11.24.0, and Docker Compose. Copy `.env.example` to `.env` before running API or web locally.
 
@@ -29,10 +29,15 @@ Verified root commands:
 - `pnpm typecheck`
 - `pnpm test`
 - `pnpm test:integration`
+- `pnpm test:e2e`
+- `pnpm db:generate`
+- `pnpm db:migrate:dev`
+- `pnpm db:migrate`
+- `pnpm db:seed`
 - `pnpm infra:up`
 - `pnpm infra:down`
 
-`pnpm infra:up` starts only local PostgreSQL 18. The web, API, and worker run through local Node.js processes. Do not claim that Prisma, authentication, financial domain, production images, deployment, or product E2E tests exist.
+`pnpm infra:up` starts local PostgreSQL 18 and Mailpit (`infra/compose/local.yml`). The web, API, and worker run through local Node.js processes started by `pnpm dev`. `db:migrate:dev` is local-development only; never run it, or any destructive rollback/reset, against data that must be preserved. Staging and production Compose files, the deploy/rollback/smoke scripts, and the CI/CD workflows live under `infra/` and `.github/workflows/` — read those files for current behavior rather than assuming.
 
 ## Financial correctness
 
@@ -69,6 +74,6 @@ Never commit secrets or put them in a Dockerfile or client bundle. Obtain secret
 
 ## Working agreement
 
-Read the source documents linked above before making product or architectural assumptions. Keep planned architecture separate from implemented code, preserve budget isolation and server-side financial correctness in every change, and avoid adding future features to MVP acceptance scope.
+Read the source documents linked above before making product or architectural assumptions. Keep roadmap items (functional spec section 18, "После v1") separate from v1 implementation, preserve budget isolation and server-side financial correctness in every change, and avoid adding future features to v1 acceptance scope.
 
 Do not modify or stage the pre-existing untracked file `identity/logo_description.png`.
