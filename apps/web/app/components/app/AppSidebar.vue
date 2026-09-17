@@ -7,20 +7,25 @@ import {
   Bell,
   CalendarClock,
   Home,
+  Moon,
   PiggyBank,
   Receipt,
   Settings,
+  Sun,
   Tag,
   Wallet,
 } from '@lucide/vue';
 
 import { useAuth } from '../../composables/useAuth.js';
+import { useColorScheme } from '../../composables/useColorScheme.js';
+import UiButton from '../ui/Button.vue';
 import AppAddMenu from './AppAddMenu.vue';
 import AppSidebarSection from './AppSidebarSection.vue';
 
 defineOptions({ name: 'AppSidebar' });
 
 const { currentData, logout } = useAuth();
+const { resolved, toggle } = useColorScheme();
 const route = useRoute();
 
 // The auth middleware skips the server (it has no session to forward) and
@@ -55,7 +60,21 @@ async function handleLogout() {
 
 <template>
   <aside class="app-sidebar" aria-label="Основная навигация">
-    <NuxtLink to="/app" class="app-sidebar__wordmark">HarmoFin</NuxtLink>
+    <div class="app-sidebar__top">
+      <NuxtLink to="/app" class="app-sidebar__wordmark">HarmoFin</NuxtLink>
+      <UiButton
+        variant="tertiary"
+        size="sm"
+        class="app-sidebar__theme-toggle"
+        :aria-label="
+          hydrated && resolved() === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'
+        "
+        @click="toggle"
+      >
+        <Sun v-if="hydrated && resolved() === 'dark'" :size="18" aria-hidden="true" />
+        <Moon v-else :size="18" aria-hidden="true" />
+      </UiButton>
+    </div>
     <AppAddMenu class="app-sidebar__add" />
     <nav class="app-sidebar__nav">
       <AppSidebarSection>
@@ -158,6 +177,13 @@ async function handleLogout() {
   background: var(--hf-color-surface);
 }
 
+.app-sidebar__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: var(--hf-space-2);
+}
+
 .app-sidebar__wordmark {
   padding: 0 var(--hf-space-3);
   color: var(--hf-color-text);
@@ -165,6 +191,11 @@ async function handleLogout() {
   font-weight: var(--hf-font-weight-bold);
   letter-spacing: -0.04em;
   text-decoration: none;
+}
+
+.app-sidebar__theme-toggle {
+  min-width: 2.25rem;
+  padding-inline: 0;
 }
 
 .app-sidebar__add {

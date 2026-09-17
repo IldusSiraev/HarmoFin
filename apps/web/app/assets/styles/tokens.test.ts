@@ -85,6 +85,38 @@ describe('design tokens', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('flips text to light and background to dark inside the dark theme block', () => {
+    const darkBlockMatch = tokens.match(/\[data-theme=['"]dark['"]\]\s*\{([\s\S]*?)\}/);
+    expect(darkBlockMatch).not.toBeNull();
+    const darkBlock = darkBlockMatch![1]!;
+
+    function hexOf(name: string): string {
+      const match = darkBlock.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`));
+      expect(
+        match,
+        `expected ${name} to be set to a literal hex colour in the dark block`,
+      ).not.toBeNull();
+      return match![1]!;
+    }
+
+    // Cheap relative-luminance approximation — good enough to tell "clearly
+    // light" from "clearly dark" without pulling in a colour library.
+    function luminance(hex: string): number {
+      const value = Number.parseInt(hex.slice(1), 16);
+      const r = (value >> 16) & 0xff;
+      const g = (value >> 8) & 0xff;
+      const b = value & 0xff;
+      return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    }
+
+    // Regression guard: slate-900 backs --hf-color-text and slate-50 backs
+    // --hf-color-page-background in :root. A previous dark-mode pass set
+    // both to the same dark navy, which rendered every default-coloured
+    // amount as invisible dark-on-dark text.
+    expect(luminance(hexOf('--hf-color-slate-900'))).toBeGreaterThan(0.6);
+    expect(luminance(hexOf('--hf-color-slate-50'))).toBeLessThan(0.2);
+  });
+
   it('has no dangling --hf-color- references left unmapped after the rewrite', () => {
     const definedTokens = new Set(
       Array.from(tokens.matchAll(/(--hf-color-[a-zA-Z0-9-]+)\s*:/g)).map((match) => match[1]),

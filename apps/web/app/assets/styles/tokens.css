@@ -138,3 +138,53 @@
     --hf-control-height-lg: 2.75rem;
   }
 }
+
+/* Dark theme — overrides the raw palette tokens (slate-*) plus every literal
+   (non-var()) value in the semantic section above. Filled button/brand/status
+   colors (teal, green) already read fine on a dark surface and are left
+   alone; text-only uses of blue/red/amber did not, so those three get
+   brighter dark-mode variants. Toggled by `useColorScheme` via
+   `[data-theme]` on <html>; see nuxt.config.ts for the pre-hydration
+   inline script that sets it before first paint. */
+[data-theme='dark'] {
+  /* slate-900 backs --hf-color-text: it must flip to a light value here, not
+     stay dark like slate-50 (the page background) — same token name, opposite
+     job per theme. */
+  --hf-color-slate-900: #eaf0f8;
+  --hf-color-slate-500: #93a2b8;
+  --hf-color-slate-200: rgb(255 255 255 / 10%);
+  --hf-color-slate-50: #0b1524;
+
+  --hf-color-surface: #10203a;
+  --hf-color-surface-translucent: rgb(16 32 58 / 82%);
+  --hf-color-border: rgb(255 255 255 / 10%);
+  --hf-color-border-strong: rgb(255 255 255 / 22%);
+  --hf-color-focus-ring: var(--hf-color-brand-bright);
+  --hf-color-focus-halo: #10203a;
+  --hf-color-action-secondary-hover: rgb(255 255 255 / 6%);
+  --hf-color-overlay: rgb(2 6 12 / 64%);
+
+  /* Brighter so text/icon uses of these three keep AA contrast on a dark
+     surface; the same tokens still back solid buttons, which stay readable
+     (white-on-accent) regardless of theme. */
+  --hf-color-danger-strong: #f0716b;
+  --hf-color-danger-strong-hover: #e2564f;
+  --hf-color-primary-strong: #6fb1e6;
+  --hf-color-primary-strong-hover: #4f97d1;
+  --hf-color-status-warning: #f0a94e;
+
+  --hf-color-brand-soft: rgb(27 163 156 / 18%);
+  --hf-color-primary-soft: rgb(111 177 230 / 16%);
+  --hf-color-danger-soft: rgb(240 113 107 / 16%);
+  --hf-color-warning-soft: rgb(240 169 78 / 16%);
+  --hf-color-status-success-background: rgb(34 160 107 / 18%);
+  --hf-color-status-neutral-background: rgb(255 255 255 / 8%);
+
+  --hf-shadow-xs: 0 1px 2px rgb(0 0 0 / 24%);
+  --hf-shadow-sm: 0 2px 6px rgb(0 0 0 / 28%), 0 1px 2px rgb(0 0 0 / 20%);
+  --hf-shadow-md: 0 8px 24px rgb(0 0 0 / 32%);
+  --hf-shadow-lg: 0 20px 48px rgb(0 0 0 / 40%);
+
+  --hf-tooltip-background: #eaf0f8;
+  --hf-tooltip-color: #0d1b2a;
+}
