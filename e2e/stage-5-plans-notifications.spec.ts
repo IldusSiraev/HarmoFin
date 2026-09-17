@@ -33,7 +33,7 @@ test.describe('Stage 5 plans and notifications (CI-only)', () => {
     const occurrence = await seedOccurrence(email, 'Ипотека Stage 5');
     await page.goto('/app/plans');
     await expect(
-      page.getByLabel('Возникновения').getByRole('heading', { name: 'Ипотека Stage 5' }),
+      page.getByLabel('Ближайшие платежи').getByRole('heading', { name: 'Ипотека Stage 5' }),
     ).toBeVisible();
     await expect(page.getByRole('button', { name: 'Создать черновик' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(

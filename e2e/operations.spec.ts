@@ -42,7 +42,7 @@ test('owner changes and rejects non-binding generic allocation proposals', async
   await page.getByLabel('Распределение дохода').getByRole('button', { name: 'Изменить' }).click();
   await page.getByLabel('Сумма распределения').fill('1 000,00');
   await page.getByRole('button', { name: 'Сохранить распределение' }).click();
-  await expect(page.getByText(/доступно 1100000 минимальных единиц/)).toBeVisible();
+  await expect(page.getByText(/доступно 11.*000.*00/)).toBeVisible();
   await page.getByTestId('drawer-close').click();
 
   await createIncome(page, '2 000,00', 'CONFIRMED', 'Доход второй');

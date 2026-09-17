@@ -40,7 +40,7 @@ test('owner confirms multipart transfer with explicit envelope reallocation', as
 
   await expect(page.getByText('Перевод подтверждён.')).toBeVisible();
   await expect(page.getByText('Подтверждён', { exact: true })).toBeVisible();
-  await expect(page.getByText('Частей: 2')).toBeVisible();
+  await expect(page.getByText('Затронуто конвертов: 2')).toBeVisible();
 });
 
 test('shows mismatch and insufficient-balance errors without duplicate transfer', async ({
