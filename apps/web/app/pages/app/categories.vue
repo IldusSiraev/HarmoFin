@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { definePageMeta } from '#imports';
+import { Archive, Pencil } from '@lucide/vue';
 
+import { categoryIcon } from '../../components/operations/category-icon.js';
 import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
@@ -146,6 +148,30 @@ function categoriesOfType(type: CategoryType) {
   return categories.value.filter((category) => category.categoryType === type);
 }
 
+// A child whose parent isn't in the currently loaded (filtered) list — e.g. an
+// active child under an archived parent while viewing "Активные" — is shown
+// as its own top-level row instead of disappearing.
+function rootCategoriesOfType(type: CategoryType) {
+  const typed = categoriesOfType(type);
+  const ids = new Set(typed.map((category) => category.id));
+  return typed.filter((category) => !category.parentId || !ids.has(category.parentId));
+}
+
+function childrenOf(parentId: string) {
+  return categories.value.filter((category) => category.parentId === parentId);
+}
+
+function treeOfType(type: CategoryType): { category: CategoryDto; depth: 0 | 1 }[] {
+  const rows: { category: CategoryDto; depth: 0 | 1 }[] = [];
+  for (const root of rootCategoriesOfType(type)) {
+    rows.push({ category: root, depth: 0 });
+    for (const child of childrenOf(root.id)) {
+      rows.push({ category: child, depth: 1 });
+    }
+  }
+  return rows;
+}
+
 function optionalText(value: string) {
   return value.trim() || null;
 }
@@ -258,11 +284,11 @@ onMounted(() => {
       </template>
       <template #content>
         <UiStatus v-if="summary" :label="summary" tone="info" aria-live="polite" />
-        <div class="category-sections">
+        <div class="category-columns">
           <section
             v-for="type in ['INCOME', 'EXPENSE'] as const"
             :key="type"
-            class="category-section"
+            class="category-column"
             :aria-labelledby="`${type.toLowerCase()}-categories-title`"
           >
             <h2 :id="`${type.toLowerCase()}-categories-title`">
@@ -273,37 +299,56 @@ onMounted(() => {
               :title="type === 'INCOME' ? 'Доходов пока нет' : 'Расходов пока нет'"
               description="Добавьте категорию, чтобы она появилась в списке."
             />
-            <div v-else class="category-grid">
-              <article
-                v-for="category in categoriesOfType(type)"
-                :key="category.id"
-                class="category-card"
+            <ul
+              v-else
+              class="category-list"
+              :aria-label="type === 'INCOME' ? 'Категории доходов' : 'Категории расходов'"
+            >
+              <li
+                v-for="entry in treeOfType(type)"
+                :key="entry.category.id"
+                class="category-row"
+                :class="{ 'category-row--child': entry.depth > 0 }"
               >
-                <div class="category-card__header">
-                  <h3>{{ category.name }}</h3>
-                  <UiStatus
-                    :label="category.archivedAt ? 'В архиве' : 'Активна'"
-                    :tone="category.archivedAt ? 'neutral' : 'success'"
+                <span v-if="entry.depth > 0" class="category-row__icon">
+                  <component
+                    :is="categoryIcon(entry.category.templateKey, entry.category.categoryType)"
+                    :size="16"
+                    aria-hidden="true"
                   />
+                </span>
+                <div class="category-row__text">
+                  <span class="category-row__name">{{ entry.category.name }}</span>
+                  <p v-if="entry.category.comment" class="category-row__comment">
+                    {{ entry.category.comment }}
+                  </p>
                 </div>
-                <p v-if="category.comment" class="category-card__comment">{{ category.comment }}</p>
-                <div class="category-card__actions">
+                <UiStatus v-if="entry.category.archivedAt" label="В архиве" tone="neutral" />
+                <div class="category-row__actions">
                   <UiButton
-                    variant="secondary"
+                    class="category-row__icon-btn"
+                    variant="tertiary"
+                    size="sm"
+                    :aria-label="`Изменить категорию «${entry.category.name}»`"
                     data-action="edit-category"
-                    @click="startEdit(category)"
-                    >Изменить</UiButton
+                    @click="startEdit(entry.category)"
                   >
+                    <Pencil :size="16" aria-hidden="true" />
+                  </UiButton>
                   <UiButton
-                    v-if="!category.archivedAt"
-                    variant="danger"
+                    v-if="!entry.category.archivedAt"
+                    class="category-row__icon-btn"
+                    variant="tertiary"
+                    size="sm"
+                    :aria-label="`Переместить категорию «${entry.category.name}» в архив`"
                     data-action="archive-category"
-                    @click="requestArchive(category)"
-                    >Переместить в архив</UiButton
+                    @click="requestArchive(entry.category)"
                   >
+                    <Archive :size="16" aria-hidden="true" />
+                  </UiButton>
                 </div>
-              </article>
-            </div>
+              </li>
+            </ul>
           </section>
         </div>
       </template>
@@ -404,8 +449,7 @@ form[data-category-form] {
   color: var(--hf-color-text-danger);
   font-weight: var(--hf-font-weight-regular);
 }
-.reference-form__actions,
-.category-card__actions {
+.reference-form__actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--hf-space-3);
@@ -413,47 +457,102 @@ form[data-category-form] {
 .reference-status-filter {
   max-width: 18rem;
 }
-.category-sections {
+.category-columns {
   display: grid;
-  gap: var(--hf-space-8);
+  grid-template-columns: 1fr;
+  gap: var(--hf-space-6);
 }
-.category-section {
+
+@media (min-width: 768px) {
+  .category-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+.category-column {
   display: grid;
   gap: var(--hf-space-4);
+  min-width: 0;
 }
-.category-grid {
+
+.category-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
-  gap: var(--hf-space-5);
-}
-.category-card {
-  display: grid;
-  gap: var(--hf-space-4);
-  padding: var(--hf-space-5);
-  border: 1px solid var(--hf-color-border);
-  border-radius: var(--hf-card-radius);
-  background: var(--hf-color-surface);
-  box-shadow: var(--hf-shadow-card);
-}
-.category-card__header {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: var(--hf-space-4);
-}
-.category-card h3,
-.category-card p {
+  min-width: 0;
   margin: 0;
+  padding: 0;
+  border: 1px solid var(--hf-color-border);
+  border-radius: var(--hf-radius-lg);
+  background: var(--hf-color-surface);
+  box-shadow: var(--hf-shadow-xs);
+  list-style: none;
 }
-.category-card h3 {
-  font-size: 1.125rem;
+
+.category-row {
+  display: flex;
+  align-items: center;
+  gap: var(--hf-space-3);
+  padding: var(--hf-space-3) var(--hf-space-4);
 }
-.category-card__header p,
-.category-card__comment {
+
+.category-row + .category-row {
+  border-top: 1px solid var(--hf-color-border);
+}
+
+/* Visual indent plus a small icon avatar is enough to read as "child of the
+   row above" for the one level of nesting the model currently supports. */
+.category-row--child {
+  padding-left: var(--hf-space-10);
+}
+
+.category-row__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--hf-radius-md);
+  background: var(--hf-color-surface-subtle);
   color: var(--hf-color-text-muted);
 }
-.category-card__header p {
-  margin-top: var(--hf-space-1);
-  font-size: 0.875rem;
+
+.category-row__text {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 0.125rem;
+}
+
+.category-row__name {
+  overflow: hidden;
+  font-weight: var(--hf-font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-row--child .category-row__name {
+  font-weight: var(--hf-font-weight-regular);
+}
+
+.category-row__comment {
+  overflow: hidden;
+  margin: 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-row__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--hf-space-1);
+  margin-left: auto;
+}
+
+.category-row__icon-btn {
+  min-width: 2.25rem;
+  padding-inline: 0;
 }
 </style>

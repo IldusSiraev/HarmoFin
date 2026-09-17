@@ -84,12 +84,12 @@ describe('OperationForm — create mode (stepped)', () => {
     await wrapper.get('[name="amount"]').setValue('123.45');
     await next();
     expect(wrapper.text()).toContain('Шаг 2 из 4');
-    expect(wrapper.get('[name="accountId"]').exists()).toBe(true);
+    expect(wrapper.find('[name="accountId"]').exists()).toBe(true);
 
     await wrapper.get('[name="accountId"]').setValue('account-id');
     await next();
     expect(wrapper.text()).toContain('Шаг 3 из 4');
-    expect(wrapper.get('[name="categoryId"]').exists()).toBe(true);
+    expect(wrapper.find('[name="categoryId"]').exists()).toBe(true);
 
     await wrapper.get('[name="categoryId"]').setValue('expense-category');
     await next();
@@ -148,8 +148,8 @@ describe('OperationForm — edit mode (single screen)', () => {
     expect(wrapper.text()).not.toContain('Шаг');
     expect(wrapper.find('button').exists()).toBe(true);
     expect(wrapper.text()).not.toContain('Далее');
-    expect(wrapper.get('[name="accountId"]').exists()).toBe(true);
-    expect(wrapper.get('[name="categoryId"]').exists()).toBe(true);
+    expect(wrapper.find('[name="accountId"]').exists()).toBe(true);
+    expect(wrapper.find('[name="categoryId"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('Конверт');
     expect(wrapper.text()).toContain('Сохранить изменения');
   });
