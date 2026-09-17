@@ -6,6 +6,7 @@ import { RefreshCw } from '@lucide/vue';
 import AvailableBudgetCard from '../../components/dashboard/AvailableBudgetCard.vue';
 import BalanceList from '../../components/dashboard/BalanceList.vue';
 import DashboardWarnings from '../../components/dashboard/DashboardWarnings.vue';
+import FinancialMonthTimeline from '../../components/dashboard/FinancialMonthTimeline.vue';
 import RecentOperations from '../../components/dashboard/RecentOperations.vue';
 import UpcomingObligations from '../../components/dashboard/UpcomingObligations.vue';
 import UiButton from '../../components/ui/Button.vue';
@@ -36,17 +37,6 @@ const activeBudget = computed(() => currentData.value?.workspaces[0]?.budgets[0]
 function workspaceName() {
   return currentData.value?.workspaces[0]?.name ?? 'Бюджет';
 }
-
-function formatDay(iso: string): string {
-  const [, month, day] = iso.split('-');
-  return `${day}.${month}`;
-}
-
-const cycleLabel = computed(() => {
-  const cycle = summary.value?.cycle;
-  if (!cycle) return '';
-  return `${formatDay(cycle.start)} – ${formatDay(cycle.end)}`;
-});
 
 // The dialogs live in the layout now, so the page reloads its summary whenever
 // one of them closes instead of owning their state.
@@ -133,7 +123,6 @@ async function loadDashboard() {
         <div>
           <p class="dashboard-kicker">{{ workspaceName() }}</p>
           <h1 class="dashboard-title">{{ activeBudget.name }}</h1>
-          <p class="dashboard-cycle">Цикл {{ cycleLabel }}</p>
         </div>
         <UiButton
           variant="tertiary"
@@ -144,6 +133,12 @@ async function loadDashboard() {
           <RefreshCw :size="18" aria-hidden="true" />
         </UiButton>
       </div>
+
+      <FinancialMonthTimeline
+        class="dashboard-timeline"
+        :cycle="summary.cycle"
+        :period="summary.period"
+      />
 
       <section class="dashboard-grid" aria-label="Сводка бюджета">
         <AvailableBudgetCard
@@ -234,11 +229,9 @@ async function loadDashboard() {
   line-height: 1.1;
 }
 
-.dashboard-cycle {
-  margin: var(--hf-space-2) 0 0;
-  color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-small);
-  line-height: var(--hf-line-height-small);
+.dashboard-timeline {
+  max-width: 28rem;
+  margin-bottom: var(--hf-space-6);
 }
 
 .dashboard-grid {
