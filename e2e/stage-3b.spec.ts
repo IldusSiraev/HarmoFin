@@ -66,7 +66,9 @@ test('journal filters, sort, reset, direct links, and dashboard use server data'
   await page.goto('/app');
   await expect(page.getByRole('heading', { name: 'Можно потратить' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Счета' })).toBeVisible();
-  await expect(page.getByText('Карта Stage 3b')).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: 'Счета' }).getByText('Карта Stage 3b'),
+  ).toBeVisible();
 
   await page.goto('/app/accounts');
   await page
