@@ -120,6 +120,13 @@ describe('envelopes page', () => {
     }
   });
 
+  it('marks the page ready after client hydration', async () => {
+    wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.get('[data-hydrated]').attributes('data-hydrated')).toBe('true');
+  });
+
   it('creates envelope while preserving decimal text as normalized string', async () => {
     mocks.api.createEnvelope.mockResolvedValue(envelope);
     mocks.api.listEnvelopes.mockResolvedValueOnce([]).mockResolvedValueOnce([envelope]);

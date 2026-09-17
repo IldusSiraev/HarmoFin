@@ -98,6 +98,13 @@ describe('accounts page', () => {
     }
   });
 
+  it('marks the page ready after client hydration', async () => {
+    wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.get('[data-hydrated]').attributes('data-hydrated')).toBe('true');
+  });
+
   it('creates account from decimal text and refreshes server-confirmed card', async () => {
     mocks.api.createAccount.mockResolvedValue(account);
     mocks.api.listAccounts.mockResolvedValueOnce([]).mockResolvedValueOnce([account]);

@@ -6,7 +6,15 @@ test('owner confirms multipart transfer with explicit envelope reallocation', as
   const references = await registerInitializeAndCreateTransferReferences(page, 'multipart');
 
   await page.goto('/app/accounts');
-  await page.getByRole('link', { name: 'Перевести со счёта' }).first().click();
+  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
+  // The transfer link now lives behind the row's action menu instead of being
+  // a card-level link, so the menu has to be opened first.
+  await page
+    .locator('li')
+    .filter({ hasText: references.sourceAccount })
+    .getByRole('button', { name: 'Действия над счётом' })
+    .click();
+  await page.getByTestId('row-transfer').click();
   await expect(page).toHaveURL(/\/app\/transfers\?sourceAccountId=/);
   await waitForHydration(page);
   await expect(page.getByRole('button', { name: 'Новый перевод' })).toBeEnabled();
@@ -196,6 +204,7 @@ async function initializeTemplate(page: Page): Promise<void> {
 
 async function createAccount(page: Page, name: string, balance: string): Promise<void> {
   await page.goto('/app/accounts');
+  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
   await page.getByRole('button', { name: 'Создать счёт' }).first().click();
   await page.getByLabel('Название счёта').fill(name);
   await page.getByLabel('Начальный баланс').fill(balance);
@@ -211,6 +220,7 @@ async function createEnvelope(
   displayOrder: string,
 ): Promise<void> {
   await page.goto('/app/envelopes');
+  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
   await page.getByRole('button', { name: 'Создать конверт' }).first().click();
   await page.getByLabel('Название конверта').fill(name);
   await page.getByLabel('Начальный баланс').fill(balance);

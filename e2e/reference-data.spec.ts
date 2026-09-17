@@ -21,6 +21,7 @@ test('owner initializes template and manages account through server-confirmed da
   await expect(page.getByText('Зарплата')).toHaveCount(1);
 
   await page.goto('/app/accounts');
+  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
   await page.getByRole('button', { name: 'Создать счёт' }).first().click();
   await page.getByLabel('Название счёта').fill('Основной счёт');
   await page.getByLabel('Начальный баланс').fill('1 234,50');
@@ -85,6 +86,7 @@ test('owner creates typed categories and envelope without client balance arithme
   await expect(page.getByRole('heading', { name: 'Продукты' })).toBeVisible();
 
   await page.goto('/app/envelopes');
+  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
   await page.getByRole('button', { name: 'Создать конверт' }).first().click();
   await page.getByLabel('Название конверта').fill('Накопления');
   await page.getByLabel('Тип конверта').selectOption('SAVINGS_GOAL');
@@ -98,6 +100,7 @@ test('owner creates typed categories and envelope without client balance arithme
 test('shows server validation beside invalid money input', async ({ page }) => {
   await registerAndReachApp(page);
   await page.goto('/app/accounts');
+  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
   await page.getByRole('button', { name: 'Создать счёт' }).first().click();
   await page.getByLabel('Название счёта').fill('Некорректный счёт');
   await page.getByLabel('Начальный баланс').fill('1.234');

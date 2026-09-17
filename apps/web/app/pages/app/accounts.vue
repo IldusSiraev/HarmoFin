@@ -61,6 +61,7 @@ const formVisible = ref(false);
 const editingId = ref<string | null>(null);
 const editingAccount = ref<AccountDto | null>(null);
 const archiveTarget = ref<AccountDto | null>(null);
+const hydrated = ref(false);
 // The archive filter lives in the URL so the view survives a reload and can be shared.
 const status = ref<ReferenceStatus>(route.query.status === 'archived' ? 'archived' : 'active');
 const fieldErrors = ref<Partial<Record<(typeof accountFields)[number], string>>>({});
@@ -262,12 +263,13 @@ async function confirmArchive() {
 }
 
 onMounted(() => {
+  hydrated.value = true;
   void loadPage();
 });
 </script>
 
 <template>
-  <div class="reference-page">
+  <div v-if="hydrated" class="reference-page" data-hydrated="true">
     <template v-if="loadError">
       <UiEmptyState title="Счета недоступны" :description="loadError">
         <template #action><UiButton @click="loadPage">Повторить</UiButton></template>
