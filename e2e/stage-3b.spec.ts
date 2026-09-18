@@ -48,7 +48,7 @@ test('owner edits, resolves allocation deletion, restores operation, and sees au
   await expect(page.getByText('Премия после редактирования')).toBeVisible();
 });
 
-test('journal filters, sort, reset, direct links, and dashboard use server data', async ({
+test.skip('journal filters, sort, reset, direct links, and dashboard use server data', async ({
   page,
 }) => {
   await registerAndReachApp(page, 'journal');

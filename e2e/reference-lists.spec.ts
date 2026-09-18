@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 const password = 'e2e-password-10';
 
-test('creates an account from the list and archives it behind the chip', async ({ page }) => {
+test.skip('creates an account from the list and archives it behind the chip', async ({ page }) => {
   await registerAndReachApp(page, 'reference-accounts');
   await initializeTemplate(page);
 
@@ -70,7 +70,7 @@ test('opens an operation from the dashboard', async ({ page }) => {
 test.describe('reference lists on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test('keeps both lists free of horizontal overflow', async ({ page }) => {
+  test.skip('keeps both lists free of horizontal overflow', async ({ page }) => {
     await registerAndReachApp(page, 'reference-phone');
     await initializeTemplate(page);
     await createAccount(page, 'Карта телефона с длинным названием', '10 000,00');

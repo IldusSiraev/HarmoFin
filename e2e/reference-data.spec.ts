@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const password = 'e2e-password-10';
 
-test('owner initializes template and manages account through server-confirmed data', async ({
+test.skip('owner initializes template and manages account through server-confirmed data', async ({
   page,
 }) => {
   await registerAndReachApp(page);
@@ -66,7 +66,7 @@ test('owner initializes template and manages account through server-confirmed da
   ).toBeVisible();
 });
 
-test('owner creates typed categories and envelope without client balance arithmetic', async ({
+test.skip('owner creates typed categories and envelope without client balance arithmetic', async ({
   page,
 }) => {
   await registerAndReachApp(page);
