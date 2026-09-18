@@ -8,6 +8,22 @@ export default defineNuxtConfig({
     head: {
       htmlAttrs: { lang: 'ru' },
       link: [{ rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
+      script: [
+        {
+          // Runs before hydration so the page paints in the right theme the
+          // first time — waiting for a Vue composable to mount would flash
+          // light mode for a frame on every dark-mode visit.
+          innerHTML: `(function () {
+            try {
+              var stored = localStorage.getItem('harmofin-theme');
+              var wantsDark = stored === 'dark' || (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+              document.documentElement.setAttribute('data-theme', wantsDark ? 'dark' : 'light');
+            } catch (error) {
+              /* localStorage or matchMedia unavailable — keep the default light theme. */
+            }
+          })();`,
+        },
+      ],
     },
   },
   devServer: {

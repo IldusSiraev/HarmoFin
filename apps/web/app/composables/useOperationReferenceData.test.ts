@@ -32,11 +32,15 @@ beforeEach(() => {
     workspaces: [{ name: 'Семья', budgets: [{ id: 'budget-id', name: 'Бюджет' }] }],
   };
   useOperationReferenceData().invalidate();
-  api.listAccounts.mockResolvedValue([{ id: 'account-id', name: 'Основная карта' }]);
+  api.listAccounts.mockResolvedValue([
+    { id: 'account-id', name: 'Основная карта', accountType: 'BANK_CARD' },
+  ]);
   api.listCategories.mockResolvedValue([
     { id: 'category-id', name: 'Продукты', categoryType: 'EXPENSE', templateKey: null },
   ]);
-  api.listEnvelopes.mockResolvedValue([{ id: 'envelope-id', name: 'Текущие' }]);
+  api.listEnvelopes.mockResolvedValue([
+    { id: 'envelope-id', name: 'Текущие', envelopeType: 'CURRENT_EXPENSES' },
+  ]);
 });
 
 describe('useOperationReferenceData', () => {
@@ -49,6 +53,19 @@ describe('useOperationReferenceData', () => {
     expect(accounts.value).toEqual([{ value: 'account-id', label: 'Основная карта' }]);
     expect(envelopes.value).toEqual([{ value: 'envelope-id', label: 'Текущие' }]);
     expect(categories.value).toHaveLength(1);
+  });
+
+  it('also keeps the full account and envelope records for callers that need more than name', async () => {
+    const { load, accountDetails, envelopeDetails } = useOperationReferenceData();
+
+    await load();
+
+    expect(accountDetails.value).toEqual([
+      { id: 'account-id', name: 'Основная карта', accountType: 'BANK_CARD' },
+    ]);
+    expect(envelopeDetails.value).toEqual([
+      { id: 'envelope-id', name: 'Текущие', envelopeType: 'CURRENT_EXPENSES' },
+    ]);
   });
 
   it('does not refetch what it already has', async () => {

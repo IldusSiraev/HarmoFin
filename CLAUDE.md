@@ -6,6 +6,7 @@
 - The [development specification](docs/superpowers/specs/2026-08-30-family-budget-development-spec.md) is authoritative for architecture, implementation, operations, and technical choices.
 - The [initialization design](docs/superpowers/specs/2026-08-30-project-initialization-design.md) and [foundation design](docs/superpowers/specs/2026-08-31-project-foundation-design.md)/[foundation plan](docs/superpowers/plans/2026-08-31-project-foundation.md) are historical: they cover only the Stage 0 scaffold and predate the domain implementation below.
 - `docs/superpowers/specs/` and `docs/superpowers/plans/` also hold one design and one implementation plan per later stage (auth, reference data/accounts, operations/allocations, transfers, journal/cycles/dashboard, plans/notifications, analytics/export, production readiness, and later UI redesigns). For how a specific implemented area works, prefer that area's own stage doc over this file.
+- The [Calm Fintech visual guidelines](docs/superpowers/specs/2026-09-17-calm-fintech-visual-guidelines.md) are authoritative for `apps/web` UI/UX decisions: palette, when to use icon-only vs full-width buttons, icon library, list/hierarchy layout, card treatment, and light/dark theme rules. Read it before any visual change to the web app, not just before a full redesign.
 - Prefer these sources over copied summaries. When they conflict, use the functional specification for behavior and the development specification for implementation.
 
 ## Current scope and architecture

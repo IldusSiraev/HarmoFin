@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { definePageMeta, useRoute } from '#imports';
+import { Download } from '@lucide/vue';
 
 import OperationDrawer from '../../components/operations/OperationDrawer.vue';
 import OperationForm from '../../components/operations/OperationForm.vue';
@@ -456,10 +457,14 @@ async function downloadCsv() {
           v-if="isOwner"
           data-action="download-csv"
           variant="secondary"
+          class="operations-page__export"
+          :loading="exportPending"
           :disabled="exportPending"
+          :aria-label="exportPending ? 'Подготовка CSV…' : 'Экспорт CSV'"
+          tooltip="Экспорт CSV"
           @click="downloadCsv"
         >
-          {{ exportPending ? 'Подготовка CSV…' : 'Экспорт CSV' }}
+          <Download :size="18" aria-hidden="true" />
         </UiButton>
         <UiButton data-action="create-operation" @click="openCreate">Добавить операцию</UiButton>
       </template>
@@ -699,5 +704,9 @@ async function downloadCsv() {
   gap: var(--hf-space-2);
   margin-bottom: var(--hf-space-4);
   color: var(--hf-color-text-danger);
+}
+
+.operations-page__export {
+  padding-inline: 0;
 }
 </style>

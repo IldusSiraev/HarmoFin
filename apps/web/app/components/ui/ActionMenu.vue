@@ -2,6 +2,8 @@
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { EllipsisVertical } from '@lucide/vue';
 
+import UiTooltip from './Tooltip.vue';
+
 defineOptions({ name: 'UiActionMenu' });
 
 withDefaults(
@@ -10,8 +12,16 @@ withDefaults(
     align?: 'start' | 'end';
     triggerTestId?: string | undefined;
     listId?: string | undefined;
+    tooltip?: string | undefined;
+    tooltipPlacement?: 'top' | 'bottom';
   }>(),
-  { align: 'end', triggerTestId: undefined, listId: undefined },
+  {
+    align: 'end',
+    triggerTestId: undefined,
+    listId: undefined,
+    tooltip: undefined,
+    tooltipPlacement: 'top',
+  },
 );
 
 const open = ref(false);
@@ -88,18 +98,21 @@ defineExpose({ openAndFocusFirst });
 
 <template>
   <div ref="root" class="ui-action-menu">
-    <button
-      type="button"
-      class="ui-action-menu__trigger"
-      :data-testid="triggerTestId ?? 'action-menu-trigger'"
-      :aria-label="label"
-      aria-haspopup="menu"
-      :aria-controls="listId"
-      :aria-expanded="open ? 'true' : 'false'"
-      @click="toggle"
-    >
-      <slot name="trigger"><EllipsisVertical :size="18" aria-hidden="true" /></slot>
-    </button>
+    <UiTooltip v-slot="{ describedby }" :text="tooltip" :placement="tooltipPlacement">
+      <button
+        type="button"
+        class="ui-action-menu__trigger"
+        :data-testid="triggerTestId ?? 'action-menu-trigger'"
+        :aria-label="label"
+        aria-haspopup="menu"
+        :aria-controls="listId"
+        :aria-expanded="open ? 'true' : 'false'"
+        :aria-describedby="describedby"
+        @click="toggle"
+      >
+        <slot name="trigger"><EllipsisVertical :size="18" aria-hidden="true" /></slot>
+      </button>
+    </UiTooltip>
 
     <div
       v-if="open"

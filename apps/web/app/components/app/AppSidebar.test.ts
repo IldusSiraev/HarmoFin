@@ -22,10 +22,24 @@ function mountSidebar() {
   });
 }
 
+function mockMatchMedia(prefersDark: boolean) {
+  window.matchMedia = ((query: string) => ({
+    matches: prefersDark && query.includes('prefers-color-scheme: dark'),
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
+}
+
 describe('AppSidebar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.auth.currentData.value = { user: { email: 'owner@example.test' } };
+    window.localStorage.clear();
+    document.documentElement.removeAttribute('data-theme');
+    mockMatchMedia(false);
   });
 
   it('links to every app section including Переводы', () => {
@@ -64,6 +78,21 @@ describe('AppSidebar', () => {
 
     await wrapper.get('.app-sidebar__logout').trigger('click');
     expect(mocks.auth.logout).toHaveBeenCalledTimes(1);
+  });
+
+  it('toggles the colour theme from a single icon button', async () => {
+    const wrapper = mountSidebar();
+    await flushPromises();
+
+    const toggle = wrapper.get('.app-sidebar__theme-toggle');
+    expect(toggle.attributes('aria-label')).toBe('Включить тёмную тему');
+
+    await toggle.trigger('click');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(toggle.attributes('aria-label')).toBe('Включить светлую тему');
+
+    await toggle.trigger('click');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
   });
 
   it('hydrates without a mismatch when the session resolves before mount', async () => {

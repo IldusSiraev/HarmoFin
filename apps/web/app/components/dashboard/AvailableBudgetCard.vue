@@ -41,22 +41,23 @@ const stateLabel = computed(() => {
   return 'В пределах лимита';
 });
 
-function formatDay(iso: string): string {
-  const [, month, day] = iso.split('-');
-  return `${day}.${month}`;
+const monthFormatter = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
+
+function formatUntil(iso: string): string {
+  const [year, month, day] = iso.split('-').map(Number);
+  if (!year || !month || !day) return iso;
+  return `до ${monthFormatter.format(new Date(year, month - 1, day))}`;
 }
 
-const periodLabel = computed(
-  () => `${formatDay(props.period.start)} – ${formatDay(props.period.end)}`,
-);
+const untilLabel = computed(() => formatUntil(props.period.end));
 
 const daysLabel = computed(() => {
   const days = details.value?.daysUntilBoundary ?? 0;
   const tail = days % 10;
   const teen = days % 100;
-  if (tail === 1 && teen !== 11) return `Осталось ${days} день`;
-  if (tail >= 2 && tail <= 4 && (teen < 12 || teen > 14)) return `Осталось ${days} дня`;
-  return `Осталось ${days} дней`;
+  if (tail === 1 && teen !== 11) return `осталось ${days} день`;
+  if (tail >= 2 && tail <= 4 && (teen < 12 || teen > 14)) return `осталось ${days} дня`;
+  return `осталось ${days} дней`;
 });
 
 const progressLabel = computed(() => {
@@ -74,7 +75,6 @@ const progressLabel = computed(() => {
     :class="`available-budget--${state}`"
     aria-labelledby="available-budget-title"
   >
-    <p class="available-budget__period">Период {{ periodLabel }}</p>
     <h2 id="available-budget-title" class="available-budget__label">Можно потратить</h2>
 
     <template v-if="details">
@@ -82,32 +82,32 @@ const progressLabel = computed(() => {
         <FinanceMoney :minor-units="details.remainingMinor" currency="RUB" :scale="2" />
       </p>
 
+      <p class="available-budget__caption">{{ untilLabel }} · {{ daysLabel }}</p>
+
       <UiProgress :value="details.spentMinor" :max="details.limitMinor" :label="progressLabel" />
 
       <p class="available-budget__state">{{ stateLabel }}</p>
 
-      <dl class="available-budget__rows">
-        <div class="available-budget__row">
-          <dt>Потрачено</dt>
-          <dd><FinanceMoney :minor-units="details.spentMinor" currency="RUB" :scale="2" /></dd>
+      <div class="available-budget__footer">
+        <div class="available-budget__stat">
+          <span class="available-budget__stat-label">Потрачено</span>
+          <FinanceMoney :minor-units="details.spentMinor" currency="RUB" :scale="2" />
         </div>
-        <div class="available-budget__row">
-          <dt>Лимит</dt>
-          <dd><FinanceMoney :minor-units="details.limitMinor" currency="RUB" :scale="2" /></dd>
+        <div class="available-budget__stat">
+          <span class="available-budget__stat-label">Было доступно</span>
+          <FinanceMoney :minor-units="details.limitMinor" currency="RUB" :scale="2" />
         </div>
-        <div class="available-budget__row">
-          <dt>{{ daysLabel }}</dt>
-          <dd>
-            ≈
+        <div class="available-budget__stat available-budget__stat--end">
+          <span class="available-budget__stat-label">В среднем в день</span>
+          <span
+            >≈
             <FinanceMoney
               :minor-units="details.averageRemainingDailyLimitMinor"
               currency="RUB"
               :scale="2"
-            />
-            / день
-          </dd>
+          /></span>
         </div>
-      </dl>
+      </div>
     </template>
 
     <p v-else class="available-budget__empty">
@@ -126,13 +126,6 @@ const progressLabel = computed(() => {
   border-radius: var(--hf-radius-lg);
   background: var(--hf-color-surface);
   box-shadow: var(--hf-shadow-sm);
-}
-
-.available-budget__period {
-  margin: 0;
-  color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-caption);
-  line-height: var(--hf-line-height-caption);
 }
 
 .available-budget__label {
@@ -157,6 +150,13 @@ const progressLabel = computed(() => {
   color: var(--hf-color-status-danger);
 }
 
+.available-budget__caption {
+  margin: 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+  line-height: var(--hf-line-height-small);
+}
+
 .available-budget__state {
   margin: 0;
   font-size: var(--hf-font-size-small);
@@ -173,32 +173,28 @@ const progressLabel = computed(() => {
   color: var(--hf-color-status-danger);
 }
 
-.available-budget__rows {
+.available-budget__footer {
   display: grid;
-  gap: var(--hf-space-2);
-  margin: 0;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: var(--hf-space-4);
+  padding-top: var(--hf-space-3);
+  border-top: 1px solid var(--hf-color-border);
 }
 
-.available-budget__row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--hf-space-2);
-  align-items: baseline;
-  justify-content: space-between;
+.available-budget__stat {
+  display: grid;
+  gap: var(--hf-space-1);
+  font-weight: var(--hf-font-weight-medium);
 }
 
-.available-budget__row dt {
+.available-budget__stat--end {
+  text-align: right;
+}
+
+.available-budget__stat-label {
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-small);
-  line-height: var(--hf-line-height-small);
-}
-
-.available-budget__row dd {
-  display: flex;
-  gap: 0.25rem;
-  align-items: baseline;
-  margin: 0;
-  font-weight: var(--hf-font-weight-medium);
+  font-weight: var(--hf-font-weight-regular);
 }
 
 .available-budget__empty {

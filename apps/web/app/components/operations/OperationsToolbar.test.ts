@@ -58,6 +58,26 @@ describe('OperationsToolbar', () => {
     expect(wrapper.emitted('search')).toEqual([['кафе']]);
   });
 
+  it('selects a transaction type from the tabs', async () => {
+    const wrapper = mountToolbar();
+
+    await wrapper.get('[data-testid="type-tab-INCOME"]').trigger('click');
+
+    expect(wrapper.emitted('change')).toEqual([['type', 'INCOME']]);
+  });
+
+  it('marks the tab matching the active type filter, defaulting to "Все"', () => {
+    expect(mountToolbar().get('[data-testid="type-tab-all"]').attributes('aria-selected')).toBe(
+      'true',
+    );
+
+    const wrapper = mountToolbar({ type: 'EXPENSE' });
+    expect(wrapper.get('[data-testid="type-tab-EXPENSE"]').attributes('aria-selected')).toBe(
+      'true',
+    );
+    expect(wrapper.get('[data-testid="type-tab-all"]').attributes('aria-selected')).toBe('false');
+  });
+
   it('shows the chosen account inside its chip', () => {
     const wrapper = mountToolbar({ accountId: 'account-id' });
 
