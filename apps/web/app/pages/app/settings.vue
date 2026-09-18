@@ -179,6 +179,9 @@ onMounted(() => {
 <template>
   <div class="settings-page">
     <section class="settings-page__content">
+      <p class="settings-page__help-link">
+        <NuxtLink to="/app/help">Как пользоваться HarmoFin</NuxtLink>
+      </p>
       <template v-if="loading">
         <UiStatus label="Загрузка настроек…" tone="info" aria-live="polite" />
       </template>
@@ -226,7 +229,8 @@ onMounted(() => {
           <UiInput
             v-model="form.cycleStartDay"
             name="cycleStartDay"
-            label="День начала цикла"
+            label="Начало финансового месяца (число)"
+            tooltip="Финансовый месяц — это ваш период планирования денег между двумя поступлениями. Не обязательно начинается 1-го числа: укажите день, который соответствует вашему графику доходов."
             inputmode="numeric"
             :error="getFieldError('cycleStartDay')"
             required
@@ -234,7 +238,8 @@ onMounted(() => {
           <UiInput
             v-model="form.periodBoundaryOffset"
             name="periodBoundaryOffset"
-            label="Граница периода"
+            label="Граница периода (дней от начала месяца)"
+            tooltip="Финансовый месяц делится на два периода — например, от аванса до зарплаты и от зарплаты до аванса. Здесь указывается, через сколько дней после начала месяца заканчивается первый период."
             inputmode="numeric"
             :error="getFieldError('periodBoundaryOffset')"
             required
@@ -244,8 +249,12 @@ onMounted(() => {
             <legend>Баланс и распределение</legend>
             <label class="settings-form__checkbox">
               <input v-model="form.allowNegativeBalance" type="checkbox" />
-              <span>Разрешить отрицательный баланс</span>
+              <span>Разрешить уходить в минус</span>
             </label>
+            <p class="settings-form__hint">
+              Если выключено, HarmoFin не даст сохранить расход, который уведёт счёт или конверт в
+              минус.
+            </p>
             <label class="settings-form__checkbox">
               <input v-model="form.incomeAllocationRuleEnabled" type="checkbox" />
               <span>Настроить автоматическое распределение дохода</span>
@@ -307,6 +316,11 @@ onMounted(() => {
   max-width: 44rem;
   margin: var(--hf-space-8) auto 0;
   padding: var(--hf-space-8);
+}
+
+.settings-page__help-link {
+  margin: 0 0 var(--hf-space-5);
+  font-size: var(--hf-font-size-small);
 }
 
 .settings-page__kicker {
@@ -373,6 +387,12 @@ onMounted(() => {
 .settings-form__checkbox input {
   width: 1.25rem;
   height: 1.25rem;
+}
+
+.settings-form__hint {
+  margin: calc(var(--hf-space-2) * -1) 0 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
 }
 
 .settings-template {
