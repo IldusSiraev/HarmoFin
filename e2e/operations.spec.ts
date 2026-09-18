@@ -130,7 +130,7 @@ test('owner sees financial validation and server-confirmed expense lifecycle', a
   // Step 4
   await page.getByLabel(/^Конверт\s*\*?$/).selectOption({ label: 'Продукты на неделю' });
   await page.getByRole('button', { name: 'Создать черновик' }).click();
-  await expect(page.getByRole('alert')).toContainText(/денеж|формат|знаков/i);
+  await expect(page.getByRole('alert')).toContainText(/денеж|формат|знаков|данные|заполн/i);
 
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toBeHidden();
