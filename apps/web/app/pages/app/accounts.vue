@@ -6,7 +6,6 @@ import AccountDrawer from '../../components/accounts/AccountDrawer.vue';
 import AccountRow from '../../components/accounts/AccountRow.vue';
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
-import UiActionMenu from '../../components/ui/ActionMenu.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiChip from '../../components/ui/Chip.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
@@ -329,56 +328,11 @@ onMounted(() => {
             <template #action><UiButton @click="startCreate">Создать счёт</UiButton></template>
           </UiEmptyState>
 
-          <div v-else class="accounts-page__panel">
-            <ul class="accounts-page__list" aria-label="Список счетов">
-              <li v-for="account in accounts" :key="account.id" class="accounts-page__list-item">
-                <AccountRow :account="account" @select="detailed = account">
-                  <template #actions>
-                    <UiActionMenu
-                      label="Действия над счётом"
-                      :trigger-test-id="`row-actions-${account.id}`"
-                    >
-                      <button
-                        type="button"
-                        role="menuitem"
-                        data-testid="row-edit"
-                        data-action="edit-account"
-                        @click="startEdit(account)"
-                      >
-                        Изменить
-                      </button>
-                      <NuxtLink
-                        role="menuitem"
-                        data-testid="row-operations"
-                        :to="`/app/operations?accountId=${encodeURIComponent(account.id)}`"
-                      >
-                        Операции счёта
-                      </NuxtLink>
-                      <NuxtLink
-                        v-if="!account.archivedAt"
-                        role="menuitem"
-                        data-testid="row-transfer"
-                        data-action="transfer-from-account"
-                        :to="`/app/transfers?sourceAccountId=${encodeURIComponent(account.id)}`"
-                      >
-                        Перевести со счёта
-                      </NuxtLink>
-                      <button
-                        v-if="!account.archivedAt"
-                        type="button"
-                        role="menuitem"
-                        data-testid="row-archive"
-                        data-action="archive-account"
-                        @click="requestArchive(account)"
-                      >
-                        Переместить в архив
-                      </button>
-                    </UiActionMenu>
-                  </template>
-                </AccountRow>
-              </li>
-            </ul>
-          </div>
+          <ul v-else class="accounts-page__grid" aria-label="Список счетов">
+            <li v-for="account in accounts" :key="account.id">
+              <AccountRow :account="account" @select="detailed = account" />
+            </li>
+          </ul>
         </template>
       </template>
     </ReferencePageLayout>
@@ -512,22 +466,20 @@ form[data-account-form] {
   font-size: var(--hf-font-size-h3);
   font-weight: var(--hf-font-weight-semibold);
 }
-.accounts-page__panel {
-  padding: var(--hf-space-2);
-  border-radius: var(--hf-card-radius);
-  background: var(--hf-color-surface);
-  box-shadow: var(--hf-shadow-card);
-}
-.accounts-page__list {
+.accounts-page__grid {
   display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--hf-space-4);
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.accounts-page__list-item {
+.accounts-page__grid > li {
   min-width: 0;
 }
-.accounts-page__list-item + .accounts-page__list-item {
-  border-top: 1px solid var(--hf-color-border);
+@media (min-width: 640px) {
+  .accounts-page__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>
