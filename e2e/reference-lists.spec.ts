@@ -142,13 +142,13 @@ async function createDraftExpense(
   await page.getByLabel('Сумма').fill(amount);
   await page.getByRole('button', { name: 'Далее' }).click();
   // Step 2
-  await page.getByLabel('Счёт').selectOption({ label: account });
+  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: account });
   await page.getByRole('button', { name: 'Далее' }).click();
   // Step 3
-  await page.getByLabel('Категория').selectOption({ label: 'Продукты' });
+  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Продукты' });
   await page.getByRole('button', { name: 'Далее' }).click();
   // Step 4
-  await page.getByLabel('Конверт').selectOption({ label: envelope });
+  await page.getByLabel(/^Конверт\s*\*?$/).selectOption({ label: envelope });
   await page.getByLabel('Получатель или магазин').fill(merchant);
   await page.getByRole('button', { name: 'Создать черновик' }).click();
   await expect(page.getByText('Черновик', { exact: true })).toBeVisible();

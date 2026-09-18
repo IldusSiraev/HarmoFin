@@ -66,10 +66,10 @@ test('browser retry with same idempotency key creates one income', async ({ page
   await page.getByLabel('Сумма').fill('10,00');
   await page.getByRole('button', { name: 'Далее' }).click();
   // Step 2
-  await page.getByLabel('Счёт').selectOption({ label: 'Основная карта' });
+  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная карта' });
   await page.getByRole('button', { name: 'Далее' }).click();
   // Step 3
-  await page.getByLabel('Категория').selectOption({ label: 'Шабашка' });
+  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Шабашка' });
   await page.getByRole('button', { name: 'Далее' }).click();
   // Step 4
   const requestPromise = page.waitForRequest(
@@ -122,15 +122,15 @@ test('owner sees financial validation and server-confirmed expense lifecycle', a
   await page.getByLabel('Сумма').fill('1.234');
   await page.getByRole('button', { name: 'Далее' }).click();
   // Step 2
-  await page.getByLabel('Счёт').selectOption({ label: 'Основная карта' });
+  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная карта' });
   await page.getByRole('button', { name: 'Далее' }).click();
   // Step 3
   await page.getByLabel('Категория').selectOption({ label: 'Продукты' });
   await page.getByRole('button', { name: 'Далее' }).click();
   // Step 4
-  await page.getByLabel('Конверт').selectOption({ label: 'Продукты на неделю' });
+  await page.getByLabel(/^Конверт\s*\*?$/).selectOption({ label: 'Продукты на неделю' });
   await page.getByRole('button', { name: 'Создать черновик' }).click();
-  await expect(page.getByLabel('Сумма')).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByRole('alert')).toContainText(/денеж|формат|знаков/i);
 
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toBeHidden();

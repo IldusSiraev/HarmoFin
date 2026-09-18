@@ -66,10 +66,10 @@ test('creates an operation with the global button from another screen', async ({
   await page.getByLabel('Сумма').fill('500,00');
   await page.getByRole('button', { name: 'Далее' }).click();
   // Step 2
-  await page.getByLabel('Счёт').selectOption({ label: 'Карта из оболочки' });
+  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Карта из оболочки' });
   await page.getByRole('button', { name: 'Далее' }).click();
   // Step 3
-  await page.getByLabel('Категория').selectOption({ label: 'Шабашка' });
+  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Шабашка' });
   await page.getByRole('button', { name: 'Далее' }).click();
   // Step 4
   await page.getByLabel('Источник дохода').fill('Доход из оболочки');
@@ -171,10 +171,10 @@ async function createDraftExpense(
   await page.getByLabel('Счёт').selectOption({ label: account });
   await page.getByRole('button', { name: 'Далее' }).click();
   // Step 3
-  await page.getByLabel('Категория').selectOption({ label: 'Продукты' });
+  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Продукты' });
   await page.getByRole('button', { name: 'Далее' }).click();
   // Step 4
-  await page.getByLabel('Конверт').selectOption({ label: envelope });
+  await page.getByLabel(/^Конверт\s*\*?$/).selectOption({ label: envelope });
   await page.getByLabel('Получатель или магазин').fill(merchant);
   await page.getByRole('button', { name: 'Создать черновик' }).click();
   await expect(page.getByText('Черновик', { exact: true })).toBeVisible();
