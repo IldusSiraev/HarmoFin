@@ -72,6 +72,7 @@ function hasWarning(id: string): boolean {
 <style scoped>
 .balance-list {
   display: grid;
+  align-content: start;
   gap: var(--hf-space-4);
   padding: var(--hf-card-padding);
   border: 1px solid var(--hf-color-border);

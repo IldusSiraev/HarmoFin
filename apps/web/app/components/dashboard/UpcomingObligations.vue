@@ -18,7 +18,7 @@ function formatScheduledOn(iso: string): string {
 
 <template>
   <section class="upcoming-obligations" aria-labelledby="upcoming-obligations-title">
-    <h2 id="upcoming-obligations-title">Ближайшие обязательства</h2>
+    <h2 id="upcoming-obligations-title" class="upcoming-obligations__title">Обязательства</h2>
     <p v-if="items.length === 0" class="upcoming-obligations__empty">Ближайших обязательств нет.</p>
     <ul v-else>
       <li v-for="item in items" :key="item.occurrenceId">
@@ -37,6 +37,9 @@ function formatScheduledOn(iso: string): string {
 
 <style scoped>
 .upcoming-obligations {
+  display: grid;
+  align-content: start;
+  gap: var(--hf-space-4);
   padding: var(--hf-card-padding);
   border: 1px solid var(--hf-color-border);
   border-radius: var(--hf-radius-lg);
@@ -47,6 +50,13 @@ function formatScheduledOn(iso: string): string {
 .upcoming-obligations p,
 .upcoming-obligations ul {
   margin: 0;
+}
+.upcoming-obligations__title {
+  color: var(--hf-color-text-muted);
+  font-size: 0.75rem;
+  font-weight: var(--hf-font-weight-semibold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 .upcoming-obligations ul {
   display: grid;

@@ -202,12 +202,7 @@ describe('dashboard page', () => {
     await flushPromises();
 
     const headings = wrapper.findAll('h2').map((heading) => heading.text());
-    expect(headings.slice(0, 4)).toEqual([
-      'Можно потратить',
-      'Ближайшие обязательства',
-      'Счета',
-      'Конверты',
-    ]);
+    expect(headings.slice(0, 4)).toEqual(['Можно потратить', 'Обязательства', 'Счета', 'Конверты']);
     expect(headings[4]).toBe('Последние операции');
   });
 
