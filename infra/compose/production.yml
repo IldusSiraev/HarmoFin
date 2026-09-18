@@ -96,6 +96,9 @@ services:
       - '3001'
     networks:
       - private
+    depends_on:
+      postgres:
+        condition: service_healthy
     read_only: true
     tmpfs:
       - /tmp
@@ -141,6 +144,9 @@ services:
       - '3002'
     networks:
       - private
+    depends_on:
+      postgres:
+        condition: service_healthy
     read_only: true
     tmpfs:
       - /tmp
@@ -176,6 +182,9 @@ services:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
     networks:
       - private
+    depends_on:
+      postgres:
+        condition: service_healthy
     read_only: true
     tmpfs:
       - /tmp
@@ -189,11 +198,37 @@ services:
           cpus: '0.50'
           memory: 256M
 
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    init: true
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    networks:
+      - private
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '1.00'
+          memory: 512M
+
 networks:
   public:
   private:
-    internal: true
 
 volumes:
   caddy-data:
   caddy-config:
+  postgres-data:

@@ -45,12 +45,12 @@ test('production runtime targets copy the generated Prisma client', async () => 
   );
 });
 
-test('production Compose exposes ports only through Caddy and has no database service', async () => {
+test('production Compose exposes ports only through Caddy; Postgres stays internal-only', async () => {
   const compose = await readProjectFile('infra/compose/production.yml');
 
   assert.match(compose, /^\s*caddy:\s*$/m);
-  assert.doesNotMatch(compose, /^\s*postgres:\s*$/m);
-  assert.doesNotMatch(compose, /^\s*(web|api|worker|migrate):[\s\S]*?^\s*ports:\s*$/m);
+  assert.match(compose, /^\s*postgres:\s*$/m);
+  assert.doesNotMatch(compose, /^\s*(web|api|worker|migrate|postgres):[\s\S]*?^\s*ports:\s*$/m);
 });
 
 test('Docker build context excludes local secrets and artifacts', async () => {

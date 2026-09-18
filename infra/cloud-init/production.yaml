@@ -1,0 +1,60 @@
+#cloud-config
+# Timeweb Cloud (or any Ubuntu 22.04+/24.04 host) bootstrap for HarmoFin
+# production deploys via GitHub Actions (deploy-production.yml).
+#
+# Usage: paste this file into the Timeweb Cloud server creation form
+# ("Cloud-init" / "Пользовательские данные") before first boot.
+#
+# Before using, replace REPLACE_WITH_DEPLOY_PUBLIC_KEY below with the
+# contents of harmofin_deploy_key.pub generated via:
+#   ssh-keygen -t ed25519 -f ./harmofin_deploy_key -C "harmofin-deploy" -N ""
+
+users:
+  - name: deploy
+    groups: [docker]
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - REPLACE_WITH_DEPLOY_PUBLIC_KEY
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - ufw
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/99-harmofin.conf
+    content: |
+      PasswordAuthentication no
+      PermitRootLogin no
+
+runcmd:
+  # Docker Engine + Compose plugin from the official Docker apt repo
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - >
+    echo "deb [arch=$(dpkg --print-architecture)
+    signed-by=/etc/apt/keyrings/docker.asc]
+    https://download.docker.com/linux/ubuntu
+    $(. /etc/os-release && echo "$VERSION_CODENAME") stable"
+    | tee /etc/apt/sources.list.d/docker.list > /dev/null
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+  - usermod -aG docker deploy
+
+  # App directory that PRODUCTION_APP_DIR / deploy-production.yml uploads into
+  - mkdir -p /home/deploy/harmofin
+  - chown deploy:deploy /home/deploy/harmofin
+
+  # Firewall: SSH + HTTP/HTTPS only
+  - ufw allow OpenSSH
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw --force enable
+
+  - systemctl restart ssh
