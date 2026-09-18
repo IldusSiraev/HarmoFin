@@ -113,11 +113,11 @@
 
 где:
 
-* `21 800` — 40–48 px;
-* `₽` — немного меньше;
-* label — 13–14 px;
-* период — 14–16 px;
-* вторичные цифры — 14 px.
+- `21 800` — 40–48 px;
+- `₽` — немного меньше;
+- label — 13–14 px;
+- период — 14–16 px;
+- вторичные цифры — 14 px.
 
 Получается почти editorial-стиль.
 
@@ -616,14 +616,10 @@ Dark:
 
 Если собрать всё вместе, я вижу HarmoFin примерно так:
 
-**Apple-like clarity**
-+
-**Linear-like аккуратность**
-+
-**современный fintech**
-+
-**немного editorial design**
-+
+**Apple-like clarity** +
+**Linear-like аккуратность** +
+**современный fintech** +
+**немного editorial design** +
 **очень спокойная цветовая система**
 
 Но без копирования конкретных продуктов.
@@ -693,7 +689,7 @@ Human
 
 То есть уже **реальный визуальный референс, который можно отдать frontend-агенту и сказать: «Вот так должен выглядеть HarmoFin»**.
 
-[1]: https://foundey.com/blog/fintech-dashboard-design-2026?utm_source=chatgpt.com "Fintech Dashboard Design 2026 | Foundey | Foundey"
-[2]: https://www.wandr.studio/blog/fintech-dashboard-design-patterns?utm_source=chatgpt.com "Fintech Dashboard Design Patterns | WANDR | WANDR"
-[3]: https://www.kindgeek.com/blog/fintech-ux-design-trends?utm_source=chatgpt.com "Fintech UX Design Trends 2026: 12 UI & Product Patterns | Kindgeek"
-[4]: https://merge.rocks/blog/fintech-ux-anti-trends-of-2026?utm_source=chatgpt.com "Fintech UX anti-trends of 2026"
+[1]: https://foundey.com/blog/fintech-dashboard-design-2026?utm_source=chatgpt.com 'Fintech Dashboard Design 2026 | Foundey | Foundey'
+[2]: https://www.wandr.studio/blog/fintech-dashboard-design-patterns?utm_source=chatgpt.com 'Fintech Dashboard Design Patterns | WANDR | WANDR'
+[3]: https://www.kindgeek.com/blog/fintech-ux-design-trends?utm_source=chatgpt.com 'Fintech UX Design Trends 2026: 12 UI & Product Patterns | Kindgeek'
+[4]: https://merge.rocks/blog/fintech-ux-anti-trends-of-2026?utm_source=chatgpt.com 'Fintech UX anti-trends of 2026'
