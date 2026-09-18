@@ -351,6 +351,13 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
+/* Match the weight of the type tabs above so the two rows read as one
+   consistent set of filters rather than the chips looking like an
+   afterthought next to them. */
+.operations-toolbar__chips :deep(.ui-chip) {
+  font-weight: var(--hf-font-weight-medium);
+}
+
 .operations-toolbar__options {
   position: absolute;
   top: 100%;

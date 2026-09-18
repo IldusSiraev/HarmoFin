@@ -80,6 +80,11 @@ const cardLabel = computed(() => {
 
 <style scoped>
 .account-card {
+  /* A <button> doesn't stretch to fill its grid cell just from display:grid
+     the way a <div> would — form controls size to their content by default
+     in some browsers regardless of display, so this needs to be explicit or
+     two cards with different text lengths render at different widths. */
+  width: 100%;
   display: grid;
   gap: var(--hf-space-4);
   padding: var(--hf-card-padding);
