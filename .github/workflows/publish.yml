@@ -24,12 +24,17 @@ jobs:
     env:
       RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
       REGISTRY: ghcr.io
-      IMAGE_REPOSITORY: ghcr.io/${{ github.repository_owner }}/harmofin-${{ matrix.target }}
     steps:
       - name: Check out tested revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Set lowercase image repository
+        run: |
+          echo "IMAGE_REPOSITORY=ghcr.io/${OWNER,,}/harmofin-${{ matrix.target }}" >> "$GITHUB_ENV"
+        env:
+          OWNER: ${{ github.repository_owner }}
 
       - name: Log in to GitHub Container Registry
         run: |
