@@ -202,11 +202,20 @@ async function configureIncomeAllocationRule(page: Page): Promise<void> {
 async function createIncome(page: Page, source: string, amount: string): Promise<void> {
   await page.goto('/app/operations');
   await page.locator('[data-action="create-operation"]').click();
+  // Step 1
   await page.getByLabel('Тип операции').selectOption('INCOME');
-  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная Stage 3b' });
-  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Шабашка' });
-  await page.getByLabel('Источник дохода').fill(source);
+  const today = new Date().toISOString().split('T')[0];
+  await page.getByLabel('Дата операции').fill(today);
   await page.getByLabel('Сумма').fill(amount);
+  await page.getByRole('button', { name: 'Далее' }).click();
+  // Step 2
+  await page.getByLabel('Счёт').selectOption({ label: 'Основная Stage 3b' });
+  await page.getByRole('button', { name: 'Далее' }).click();
+  // Step 3
+  await page.getByLabel('Категория').selectOption({ label: 'Шабашка' });
+  await page.getByRole('button', { name: 'Далее' }).click();
+  // Step 4
+  await page.getByLabel('Источник дохода').fill(source);
   await page.getByRole('button', { name: 'Подтвердить операцию' }).click();
   await confirmDialog(page);
   await expect(page.getByTestId('toast-stack')).toContainText('Операция подтверждена');
@@ -236,11 +245,20 @@ async function createExpense(
 ): Promise<void> {
   await page.goto('/app/operations');
   await page.locator('[data-action="create-operation"]').click();
-  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: account });
-  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Продукты' });
-  await page.getByLabel(/^Конверт\s*\*?$/).selectOption({ label: envelope });
-  await page.getByLabel('Получатель или магазин').fill(merchant);
+  // Step 1
+  const today = new Date().toISOString().split('T')[0];
+  await page.getByLabel('Дата операции').fill(today);
   await page.getByLabel('Сумма').fill(amount);
+  await page.getByRole('button', { name: 'Далее' }).click();
+  // Step 2
+  await page.getByLabel('Счёт').selectOption({ label: account });
+  await page.getByRole('button', { name: 'Далее' }).click();
+  // Step 3
+  await page.getByLabel('Категория').selectOption({ label: 'Продукты' });
+  await page.getByRole('button', { name: 'Далее' }).click();
+  // Step 4
+  await page.getByLabel('Конверт').selectOption({ label: envelope });
+  await page.getByLabel('Получатель или магазин').fill(merchant);
   await page.getByRole('button', { name: 'Подтвердить операцию' }).click();
   await confirmDialog(page);
   await expect(page.getByTestId('toast-stack')).toContainText('Операция подтверждена');

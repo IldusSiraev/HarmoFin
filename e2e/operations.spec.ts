@@ -59,10 +59,19 @@ test('browser retry with same idempotency key creates one income', async ({ page
 
   await page.goto('/app/operations');
   await page.locator('[data-action="create-operation"]').click();
+  // Step 1
   await page.getByLabel('Тип операции').selectOption('INCOME');
-  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная карта' });
-  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Шабашка' });
+  const today = new Date().toISOString().split('T')[0];
+  await page.getByLabel('Дата операции').fill(today);
   await page.getByLabel('Сумма').fill('10,00');
+  await page.getByRole('button', { name: 'Далее' }).click();
+  // Step 2
+  await page.getByLabel('Счёт').selectOption({ label: 'Основная карта' });
+  await page.getByRole('button', { name: 'Далее' }).click();
+  // Step 3
+  await page.getByLabel('Категория').selectOption({ label: 'Шабашка' });
+  await page.getByRole('button', { name: 'Далее' }).click();
+  // Step 4
   const requestPromise = page.waitForRequest(
     (request) => request.method() === 'POST' && /\/transactions$/.test(request.url()),
   );
@@ -107,10 +116,19 @@ test('owner sees financial validation and server-confirmed expense lifecycle', a
 
   await page.goto('/app/operations');
   await page.locator('[data-action="create-operation"]').click();
-  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная карта' });
-  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Продукты' });
-  await page.getByLabel(/^Конверт\s*\*?$/).selectOption({ label: 'Продукты на неделю' });
+  // Step 1
+  const today = new Date().toISOString().split('T')[0];
+  await page.getByLabel('Дата операции').fill(today);
   await page.getByLabel('Сумма').fill('1.234');
+  await page.getByRole('button', { name: 'Далее' }).click();
+  // Step 2
+  await page.getByLabel('Счёт').selectOption({ label: 'Основная карта' });
+  await page.getByRole('button', { name: 'Далее' }).click();
+  // Step 3
+  await page.getByLabel('Категория').selectOption({ label: 'Продукты' });
+  await page.getByRole('button', { name: 'Далее' }).click();
+  // Step 4
+  await page.getByLabel('Конверт').selectOption({ label: 'Продукты на неделю' });
   await page.getByRole('button', { name: 'Создать черновик' }).click();
   await expect(page.getByLabel('Сумма')).toHaveAttribute('aria-invalid', 'true');
 
@@ -244,11 +262,20 @@ async function createIncome(
 ): Promise<void> {
   await page.goto('/app/operations');
   await page.locator('[data-action="create-operation"]').click();
+  // Step 1: operation type, date, amount
   await page.getByLabel('Тип операции').selectOption('INCOME');
-  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная карта' });
-  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Шабашка' });
-  if (source !== undefined) await page.getByLabel('Источник дохода').fill(source);
+  const today = new Date().toISOString().split('T')[0];
+  await page.getByLabel('Дата операции').fill(today);
   await page.getByLabel('Сумма').fill(amount);
+  await page.getByRole('button', { name: 'Далее' }).click();
+  // Step 2: account
+  await page.getByLabel('Счёт').selectOption({ label: 'Основная карта' });
+  await page.getByRole('button', { name: 'Далее' }).click();
+  // Step 3: category
+  await page.getByLabel('Категория').selectOption({ label: 'Шабашка' });
+  await page.getByRole('button', { name: 'Далее' }).click();
+  // Step 4: details
+  if (source !== undefined) await page.getByLabel('Источник дохода').fill(source);
   await page
     .getByRole('button', { name: status === 'DRAFT' ? 'Создать черновик' : 'Подтвердить операцию' })
     .click();
@@ -266,10 +293,19 @@ async function createExpense(
   status: 'DRAFT' | 'CONFIRMED',
 ): Promise<void> {
   await page.locator('[data-action="create-operation"]').click();
-  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная карта' });
-  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Продукты' });
-  await page.getByLabel(/^Конверт\s*\*?$/).selectOption({ label: 'Продукты на неделю' });
+  // Step 1: operation type, date, amount
+  const today = new Date().toISOString().split('T')[0];
+  await page.getByLabel('Дата операции').fill(today);
   await page.getByLabel('Сумма').fill(amount);
+  await page.getByRole('button', { name: 'Далее' }).click();
+  // Step 2: account
+  await page.getByLabel('Счёт').selectOption({ label: 'Основная карта' });
+  await page.getByRole('button', { name: 'Далее' }).click();
+  // Step 3: category
+  await page.getByLabel('Категория').selectOption({ label: 'Продукты' });
+  await page.getByRole('button', { name: 'Далее' }).click();
+  // Step 4: envelope and merchant
+  await page.getByLabel('Конверт').selectOption({ label: 'Продукты на неделю' });
   await page
     .getByRole('button', { name: status === 'DRAFT' ? 'Создать черновик' : 'Подтвердить операцию' })
     .click();
