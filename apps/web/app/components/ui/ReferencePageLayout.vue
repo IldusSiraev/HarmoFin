@@ -39,6 +39,13 @@ defineOptions({ name: 'ReferencePageLayout' });
   gap: var(--hf-space-6);
 }
 
+.reference-page-layout__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--hf-space-3);
+  align-items: center;
+}
+
 .reference-page-layout__kicker {
   margin: 0 0 var(--hf-space-2);
   color: var(--hf-color-action-primary-hover);
