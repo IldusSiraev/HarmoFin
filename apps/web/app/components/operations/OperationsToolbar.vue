@@ -306,7 +306,7 @@ onBeforeUnmount(() => {
 }
 
 .operations-toolbar__tab {
-  min-height: 2.75rem;
+  min-height: var(--hf-control-height-md);
   padding: 0 var(--hf-space-4);
   border: 1px solid var(--hf-color-border-strong);
   border-radius: var(--hf-radius-xl);

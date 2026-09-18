@@ -74,7 +74,10 @@ function handleInput(event: Event) {
 
 <template>
   <div class="ui-field">
-    <div class="ui-field__label-row">
+    <div
+      class="ui-field__label-row"
+      :class="{ 'ui-field__label-row--empty': hideLabel && !tooltip }"
+    >
       <label
         class="ui-field__label"
         :class="{ 'ui-field__label--visually-hidden': hideLabel }"
@@ -175,6 +178,16 @@ function handleInput(event: Event) {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* The visually-hidden label still leaves its row as a grid track, adding a
+   phantom row-gap above the control that throws off vertical alignment next
+   to sibling controls. display:contents drops this wrapper's own box (and
+   the grid track it would occupy) without hiding the label itself — the
+   label, positioned absolutely by --visually-hidden above, stays in the
+   accessibility tree either way. */
+.ui-field__label-row--empty {
+  display: contents;
 }
 
 .ui-field__tooltip-trigger {
