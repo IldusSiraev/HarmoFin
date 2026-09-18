@@ -30,7 +30,7 @@ defineEmits<{ click: [] }>();
   display: inline-flex;
   gap: var(--hf-space-1);
   align-items: center;
-  min-height: 2.75rem;
+  min-height: var(--hf-control-height-md);
   padding: 0 var(--hf-space-3);
   border: 1px solid var(--hf-color-border-strong);
   border-radius: var(--hf-radius-xl);

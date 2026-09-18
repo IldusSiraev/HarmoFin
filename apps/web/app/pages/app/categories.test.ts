@@ -115,6 +115,27 @@ describe('categories page', () => {
     );
   });
 
+  it('nests a child category under its parent as an indented row in the same column', async () => {
+    const child = {
+      ...expense,
+      id: 'child-id',
+      name: 'Кафе',
+      parentId: 'expense-id',
+    };
+    mocks.api.listCategories.mockResolvedValue([income, expense, child]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    const rows = document.querySelectorAll('.category-row');
+    const parentRow = Array.from(rows).find((row) => row.textContent?.includes('Продукты'));
+    const childRow = Array.from(rows).find((row) => row.textContent?.includes('Кафе'));
+
+    expect(parentRow?.classList.contains('category-row--child')).toBe(false);
+    expect(childRow?.classList.contains('category-row--child')).toBe(true);
+    // The child renders right after its parent, inside the same "Расходы" list.
+    expect(Array.from(rows).indexOf(childRow!)).toBe(Array.from(rows).indexOf(parentRow!) + 1);
+  });
+
   it('requires explicit archive confirmation', async () => {
     mocks.api.archiveCategory.mockResolvedValue({
       ...income,

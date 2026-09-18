@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { navigateTo } from '#imports';
 
 import OperationRow from '../operations/OperationRow.vue';
+import UiMoreLink from '../ui/MoreLink.vue';
 import type { CategoryDto, TransactionDto } from '../../composables/useBudgetReferenceData.js';
 
 defineOptions({ name: 'RecentOperations' });
@@ -57,7 +58,7 @@ function openOperation(transactionId: string): void {
   <section class="recent-operations" aria-label="Последние операции">
     <header class="recent-operations__header">
       <h2>Последние операции</h2>
-      <NuxtLink to="/app/operations">Все операции</NuxtLink>
+      <UiMoreLink to="/app/operations">Все операции</UiMoreLink>
     </header>
 
     <p v-if="transactions.length === 0" class="recent-operations__empty">Операций пока нет.</p>

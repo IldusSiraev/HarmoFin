@@ -1,7 +1,12 @@
 import { ref, type Ref } from 'vue';
 
 import { useAuth } from './useAuth.js';
-import { useBudgetReferenceData, type CategoryDto } from './useBudgetReferenceData.js';
+import {
+  useBudgetReferenceData,
+  type AccountDto,
+  type CategoryDto,
+  type EnvelopeDto,
+} from './useBudgetReferenceData.js';
 
 export interface ReferenceOption {
   value: string;
@@ -11,8 +16,10 @@ export interface ReferenceOption {
 // Module-level cache: the dialogs open from every screen, and re-reading the
 // same three reference lists on each open is pure latency.
 const accounts = ref<ReferenceOption[]>([]);
+const accountDetails = ref<AccountDto[]>([]);
 const categories = ref<CategoryDto[]>([]);
 const envelopes = ref<ReferenceOption[]>([]);
+const envelopeDetails = ref<EnvelopeDto[]>([]);
 const budgetId = ref<string | null>(null);
 // Which budget the cached lists belong to: a different budget — or a different
 // signed-in user — must never read another one's reference data.
@@ -20,8 +27,10 @@ let loadedFor: string | null = null;
 
 export function useOperationReferenceData(): {
   accounts: Ref<ReferenceOption[]>;
+  accountDetails: Ref<AccountDto[]>;
   categories: Ref<CategoryDto[]>;
   envelopes: Ref<ReferenceOption[]>;
+  envelopeDetails: Ref<EnvelopeDto[]>;
   budgetId: Ref<string | null>;
   load: () => Promise<void>;
   invalidate: () => void;
@@ -47,18 +56,22 @@ export function useOperationReferenceData(): {
     ]);
 
     accounts.value = accountList.map((account) => ({ value: account.id, label: account.name }));
+    accountDetails.value = accountList;
     categories.value = categoryList;
     envelopes.value = envelopeList.map((envelope) => ({
       value: envelope.id,
       label: envelope.name,
     }));
+    envelopeDetails.value = envelopeList;
     loadedFor = id;
   }
 
   function forget(): void {
     accounts.value = [];
+    accountDetails.value = [];
     categories.value = [];
     envelopes.value = [];
+    envelopeDetails.value = [];
     loadedFor = null;
   }
 
@@ -68,5 +81,14 @@ export function useOperationReferenceData(): {
     loadedFor = null;
   }
 
-  return { accounts, categories, envelopes, budgetId, load, invalidate };
+  return {
+    accounts,
+    accountDetails,
+    categories,
+    envelopes,
+    envelopeDetails,
+    budgetId,
+    load,
+    invalidate,
+  };
 }

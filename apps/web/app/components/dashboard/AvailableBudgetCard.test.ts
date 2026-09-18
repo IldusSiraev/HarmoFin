@@ -24,10 +24,12 @@ describe('AvailableBudgetCard', () => {
 
     expect(text).toContain('Можно потратить');
     expect(text).toContain('21 800,00 ₽');
-    expect(text).toContain('Осталось 7 дней');
+    expect(text).toContain('до 9 октября');
+    expect(text).toContain('осталось 7 дней');
+    expect(text).toContain('Было доступно');
+    expect(text).toContain('63 000,00 ₽');
+    expect(text).toContain('В среднем в день');
     expect(text).toContain('3 114,00 ₽');
-    expect(text).toContain('25.09');
-    expect(text).toContain('09.10');
   });
 
   it('exposes spending progress to assistive technology', () => {

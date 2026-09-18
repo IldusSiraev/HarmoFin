@@ -188,10 +188,10 @@ describe('accounts page', () => {
     wrapper = mountPage();
 
     await flushPromises();
-    // The archive action now lives behind the row's action menu instead of
-    // being a card-level button, so the menu has to be opened first.
-    await wrapper.get('[data-testid="row-actions-account-id"]').trigger('click');
-    await wrapper.get('[data-action="archive-account"]').trigger('click');
+    // The archive action lives in the account drawer now, not on the card
+    // itself, so the card has to be opened first.
+    await wrapper.get('[data-testid="account-card-select"]').trigger('click');
+    await wrapper.get('[data-testid="account-drawer-archive"]').trigger('click');
     expect(mocks.api.archiveAccount).not.toHaveBeenCalled();
     await wrapper.get('[data-confirm="archive-account"]').trigger('click');
     await flushPromises();
@@ -203,28 +203,28 @@ describe('accounts page', () => {
     wrapper = mountPage();
 
     await flushPromises();
-    await wrapper.get('[data-testid="row-actions-account-id"]').trigger('click');
-    const link = wrapper.get('[data-action="transfer-from-account"]');
+    await wrapper.get('[data-testid="account-card-select"]').trigger('click');
+    const link = wrapper.get('[data-testid="account-drawer-transfer"]');
     expect(link.text()).toContain('Перевести со счёта');
     expect(link.attributes('to')).toContain('sourceAccountId=account-id');
   });
 
-  it('lists accounts as rows with the server total above them', async () => {
+  it('lists accounts as cards with the server total above them', async () => {
     mocks.api.listAccounts.mockResolvedValue([account]);
     wrapper = mountPage();
     await flushPromises();
 
-    expect(wrapper.findAll('[data-testid="list-row-select"]').length).toBeGreaterThan(0);
+    expect(wrapper.findAll('[data-testid="account-card-select"]').length).toBeGreaterThan(0);
     expect(normalize(wrapper.get('[data-testid="accounts-total"]').text())).toContain('1 500,00 ₽');
     expect(mocks.api.getAccountsSummary).toHaveBeenCalledWith('budget-id', 'active');
   });
 
-  it('opens the drawer from a row', async () => {
+  it('opens the drawer from a card', async () => {
     mocks.api.listAccounts.mockResolvedValue([account]);
     wrapper = mountPage();
     await flushPromises();
 
-    await wrapper.get('[data-testid="list-row-select"]').trigger('click');
+    await wrapper.get('[data-testid="account-card-select"]').trigger('click');
 
     expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(true);
   });

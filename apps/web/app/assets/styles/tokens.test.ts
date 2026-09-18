@@ -14,20 +14,18 @@ const appDir = join(currentDir, '../../');
 const tokens = readFileSync(tokensPath, 'utf8');
 
 const requiredTokens = [
-  ['--hf-color-brand', '#0a7f60'],
-  ['--hf-color-brand-hover', '#086b51'],
-  ['--hf-color-brand-bright', '#10b991'],
-  ['--hf-color-brand-soft', '#e7f7f2'],
-  ['--hf-color-action-primary', '#1d6fd6'],
-  ['--hf-color-primary-bright', '#4f9cf9'],
-  ['--hf-color-primary-soft', '#e6f2ff'],
-  ['--hf-color-action-danger', '#dc2626'],
-  ['--hf-color-status-danger-bright', '#ef4444'],
-  ['--hf-color-status-warning-bright', '#f59e0b'],
-  ['--hf-color-text', '#0f172a'],
-  ['--hf-color-text-muted', '#64748b'],
-  ['--hf-color-border', '#e2e8f0'],
-  ['--hf-color-page-background', '#f8fafc'],
+  ['--hf-color-brand', '#1ba39c'],
+  ['--hf-color-brand-hover', '#168f89'],
+  ['--hf-color-brand-bright', '#3fc2ba'],
+  ['--hf-color-brand-soft', '#e3f5f3'],
+  ['--hf-color-primary-bright', '#73c6b6'],
+  ['--hf-color-primary-strong', '#2c5b8a'],
+  ['--hf-color-danger-strong', '#d14343'],
+  ['--hf-color-status-danger-bright', '#e15c5c'],
+  ['--hf-color-status-warning-bright', '#f5a524'],
+  ['--hf-color-slate-900', '#0d1b2a'],
+  ['--hf-color-slate-500', '#5b6b78'],
+  ['--hf-color-slate-50', '#f7f9fa'],
   ['--hf-color-surface', '#ffffff'],
 ];
 
@@ -56,10 +54,10 @@ describe('design tokens', () => {
   });
 
   it('defines the kit radius scale', () => {
-    expect(tokens).toContain('--hf-radius-sm: 0.25rem;');
-    expect(tokens).toContain('--hf-radius-md: 0.5rem;');
-    expect(tokens).toContain('--hf-radius-lg: 0.75rem;');
-    expect(tokens).toContain('--hf-radius-xl: 1rem;');
+    expect(tokens).toContain('--hf-radius-sm: 0.375rem;');
+    expect(tokens).toContain('--hf-radius-md: 0.625rem;');
+    expect(tokens).toContain('--hf-radius-lg: 1rem;');
+    expect(tokens).toContain('--hf-radius-xl: 1.25rem;');
   });
 
   it('defines the kit shadow scale and keeps the card alias', () => {
@@ -85,6 +83,38 @@ describe('design tokens', () => {
     });
 
     expect(offenders).toEqual([]);
+  });
+
+  it('flips text to light and background to dark inside the dark theme block', () => {
+    const darkBlockMatch = tokens.match(/\[data-theme=['"]dark['"]\]\s*\{([\s\S]*?)\}/);
+    expect(darkBlockMatch).not.toBeNull();
+    const darkBlock = darkBlockMatch![1]!;
+
+    function hexOf(name: string): string {
+      const match = darkBlock.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`));
+      expect(
+        match,
+        `expected ${name} to be set to a literal hex colour in the dark block`,
+      ).not.toBeNull();
+      return match![1]!;
+    }
+
+    // Cheap relative-luminance approximation — good enough to tell "clearly
+    // light" from "clearly dark" without pulling in a colour library.
+    function luminance(hex: string): number {
+      const value = Number.parseInt(hex.slice(1), 16);
+      const r = (value >> 16) & 0xff;
+      const g = (value >> 8) & 0xff;
+      const b = value & 0xff;
+      return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    }
+
+    // Regression guard: slate-900 backs --hf-color-text and slate-50 backs
+    // --hf-color-page-background in :root. A previous dark-mode pass set
+    // both to the same dark navy, which rendered every default-coloured
+    // amount as invisible dark-on-dark text.
+    expect(luminance(hexOf('--hf-color-slate-900'))).toBeGreaterThan(0.6);
+    expect(luminance(hexOf('--hf-color-slate-50'))).toBeLessThan(0.2);
   });
 
   it('has no dangling --hf-color- references left unmapped after the rewrite', () => {

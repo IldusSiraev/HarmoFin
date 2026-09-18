@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useId } from 'vue';
 import { ArrowLeftRight, Minus, Plus } from '@lucide/vue';
 
 import UiActionMenu from '../ui/ActionMenu.vue';
@@ -6,19 +7,32 @@ import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 
 defineOptions({ name: 'AppAddMenu' });
 
+withDefaults(
+  defineProps<{
+    align?: 'start' | 'end';
+    tooltipPlacement?: 'top' | 'bottom';
+  }>(),
+  { align: 'end', tooltipPlacement: 'top' },
+);
+
 const { openOperation, openTransfer } = useOperationDialogs();
+// This component renders in the sidebar and in a page header at the same
+// time, so a hardcoded list id would duplicate an `id` attribute in the DOM.
+const listId = `app-add-menu-${useId()}`;
 </script>
 
 <template>
   <UiActionMenu
     class="app-add-menu"
     label="Добавить операцию или перевод"
+    tooltip="Добавить операцию или перевод"
+    :tooltip-placement="tooltipPlacement"
+    :align="align"
     trigger-test-id="add-menu-trigger"
-    list-id="app-add-menu"
+    :list-id="listId"
   >
     <template #trigger>
       <Plus :size="18" aria-hidden="true" />
-      Добавить
     </template>
 
     <button
@@ -48,19 +62,12 @@ const { openOperation, openTransfer } = useOperationDialogs();
 
 <style scoped>
 .app-add-menu :deep(.ui-action-menu__trigger) {
-  gap: var(--hf-space-2);
-  width: auto;
-  min-width: 2.75rem;
-  padding: 0 var(--hf-button-padding-inline);
-  border: 1px solid var(--hf-color-action-brand);
   border-radius: var(--hf-button-radius);
   background: var(--hf-color-action-brand);
   color: var(--hf-color-white);
-  font-weight: var(--hf-button-font-weight);
 }
 
 .app-add-menu :deep(.ui-action-menu__trigger:hover) {
-  border-color: var(--hf-color-action-brand-hover);
   background: var(--hf-color-action-brand-hover);
   color: var(--hf-color-white);
 }

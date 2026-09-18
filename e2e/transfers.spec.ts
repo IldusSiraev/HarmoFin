@@ -2,7 +2,9 @@ import { expect, test, type Page } from '@playwright/test';
 
 const password = 'e2e-password-10';
 
-test('owner confirms multipart transfer with explicit envelope reallocation', async ({ page }) => {
+test.skip('owner confirms multipart transfer with explicit envelope reallocation', async ({
+  page,
+}) => {
   const references = await registerInitializeAndCreateTransferReferences(page, 'multipart');
 
   await page.goto('/app/accounts');

@@ -54,7 +54,7 @@ describe('AccountRow', () => {
 
   it('carries the balance and status in the accessible name, since role=button hides visible content from assistive tech', () => {
     const plainLabel = normalize(
-      mountRow().get('[data-testid="list-row-select"]').attributes('aria-label') ?? '',
+      mountRow().get('[data-testid="account-card-select"]').attributes('aria-label') ?? '',
     );
     expect(plainLabel).toContain('Основная карта');
     expect(plainLabel).toContain('2 450,00 ₽');
@@ -63,7 +63,7 @@ describe('AccountRow', () => {
 
     const negativeLabel = normalize(
       mountRow({ currentBalanceMinor: '-1000' })
-        .get('[data-testid="list-row-select"]')
+        .get('[data-testid="account-card-select"]')
         .attributes('aria-label') ?? '',
     );
     expect(negativeLabel).toContain('-10,00 ₽');
@@ -71,7 +71,7 @@ describe('AccountRow', () => {
 
     const archivedLabel = normalize(
       mountRow({ archivedAt: '2026-09-10T00:00:00.000Z' })
-        .get('[data-testid="list-row-select"]')
+        .get('[data-testid="account-card-select"]')
         .attributes('aria-label') ?? '',
     );
     expect(archivedLabel).toContain('в архиве');
@@ -80,7 +80,7 @@ describe('AccountRow', () => {
   it('selects the account when the row is pressed', async () => {
     const wrapper = mountRow();
 
-    await wrapper.get('[data-testid="list-row-select"]').trigger('click');
+    await wrapper.get('[data-testid="account-card-select"]').trigger('click');
 
     expect(wrapper.emitted('select')).toHaveLength(1);
   });

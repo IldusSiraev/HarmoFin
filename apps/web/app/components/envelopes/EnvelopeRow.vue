@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Landmark, PiggyBank, ShieldCheck, ShoppingCart, Sparkles, Wallet } from '@lucide/vue';
 
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import { formatMinorUnits } from '../finance/money-format.js';
@@ -8,6 +7,7 @@ import UiListRow from '../ui/ListRow.vue';
 import UiProgress from '../ui/Progress.vue';
 import UiStatus from '../ui/Status.vue';
 import type { EnvelopeDto } from '../../composables/useBudgetReferenceData.js';
+import { ENVELOPE_TYPE_ICONS, envelopeSubtitle } from './envelope-type.js';
 
 defineOptions({ name: 'EnvelopeRow' });
 
@@ -15,35 +15,8 @@ const props = defineProps<{ envelope: EnvelopeDto }>();
 
 defineEmits<{ select: [] }>();
 
-const TYPE_LABELS = {
-  CURRENT_EXPENSES: 'Текущие расходы',
-  MANDATORY_EXPENSES: 'Обязательные расходы',
-  SAVINGS_GOAL: 'Цели накоплений',
-  RESERVE: 'Резерв',
-  FREE_MONEY: 'Свободные деньги',
-  CUSTOM: 'Другое',
-} as const;
-
-const TYPE_ICONS = {
-  CURRENT_EXPENSES: ShoppingCart,
-  MANDATORY_EXPENSES: Landmark,
-  SAVINGS_GOAL: PiggyBank,
-  RESERVE: ShieldCheck,
-  FREE_MONEY: Wallet,
-  CUSTOM: Sparkles,
-} as const;
-
-const PERIOD_LABELS = { FIRST: 'Первая половина', SECOND: 'Вторая половина' } as const;
-
-const icon = computed(() => TYPE_ICONS[props.envelope.envelopeType]);
-
-const subtitle = computed(() => {
-  const parts: (string | null)[] = [
-    TYPE_LABELS[props.envelope.envelopeType],
-    props.envelope.periodSlot === null ? null : PERIOD_LABELS[props.envelope.periodSlot],
-  ];
-  return parts.filter((part): part is string => Boolean(part)).join(' · ');
-});
+const icon = computed(() => ENVELOPE_TYPE_ICONS[props.envelope.envelopeType]);
+const subtitle = computed(() => envelopeSubtitle(props.envelope));
 
 const goalTarget = computed(() => props.envelope.targetAmountMinor);
 

@@ -3,9 +3,13 @@ import { ref, useId } from 'vue';
 
 defineOptions({ name: 'UiTooltip' });
 
-const props = defineProps<{
-  text?: string | undefined;
-}>();
+const props = withDefaults(
+  defineProps<{
+    text?: string | undefined;
+    placement?: 'top' | 'bottom';
+  }>(),
+  { text: undefined, placement: 'top' },
+);
 
 defineSlots<{
   default(props: { describedby?: string | undefined }): void;
@@ -42,9 +46,14 @@ function getBubbleId() {
     @keydown="handleKeydown"
   >
     <slot :describedby="getBubbleId()" />
-    <span v-if="open" :id="getBubbleId()" role="tooltip" class="ui-tooltip__bubble">{{
-      text
-    }}</span>
+    <span
+      v-if="open"
+      :id="getBubbleId()"
+      role="tooltip"
+      class="ui-tooltip__bubble"
+      :class="`ui-tooltip__bubble--${placement}`"
+      >{{ text }}</span
+    >
   </span>
   <slot v-else />
 </template>
@@ -61,7 +70,6 @@ function getBubbleId() {
 
 .ui-tooltip__bubble {
   position: absolute;
-  bottom: calc(100% + var(--hf-space-2));
   left: 50%;
   z-index: var(--hf-z-index-tooltip);
   width: max-content;
@@ -75,5 +83,13 @@ function getBubbleId() {
   line-height: 1.4;
   transform: translateX(-50%);
   pointer-events: none;
+}
+
+.ui-tooltip__bubble--top {
+  bottom: calc(100% + var(--hf-space-2));
+}
+
+.ui-tooltip__bubble--bottom {
+  top: calc(100% + var(--hf-space-2));
 }
 </style>

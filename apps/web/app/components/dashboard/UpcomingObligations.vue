@@ -1,27 +1,35 @@
 <script setup lang="ts">
 import type { DashboardSummaryDto } from '../../composables/useBudgetReferenceData.js';
 import FinanceMoney from '../finance/FinanceMoney.vue';
+import UiMoreLink from '../ui/MoreLink.vue';
 
 defineProps<{
   items: DashboardSummaryDto['upcomingObligations'];
 }>();
+
+const dateFormatter = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
+
+function formatScheduledOn(iso: string): string {
+  const [year, month, day] = iso.split('-').map(Number);
+  if (!year || !month || !day) return iso;
+  return dateFormatter.format(new Date(year, month - 1, day));
+}
 </script>
 
 <template>
   <section class="upcoming-obligations" aria-labelledby="upcoming-obligations-title">
-    <h2 id="upcoming-obligations-title">Ближайшие обязательства</h2>
+    <h2 id="upcoming-obligations-title" class="upcoming-obligations__title">Обязательства</h2>
     <p v-if="items.length === 0" class="upcoming-obligations__empty">Ближайших обязательств нет.</p>
     <ul v-else>
       <li v-for="item in items" :key="item.occurrenceId">
-        <div>
-          <strong>{{ item.planName }}</strong>
-          <span>{{ item.scheduledOn }}</span>
+        <p class="upcoming-obligations__date">{{ formatScheduledOn(item.scheduledOn) }}</p>
+        <div class="upcoming-obligations__row">
+          <span class="upcoming-obligations__name">{{ item.planName }}</span>
+          <FinanceMoney :minor-units="item.amountMinor" currency="RUB" :scale="2" />
         </div>
-        <FinanceMoney :minor-units="item.amountMinor" currency="RUB" :scale="2" />
-        <span class="upcoming-obligations__status">{{
-          item.status === 'DUE' ? 'Сегодня' : 'Предстоящее'
-        }}</span>
-        <NuxtLink :to="item.actionPath">Открыть план</NuxtLink>
+        <UiMoreLink class="upcoming-obligations__link" :to="item.actionPath"
+          >Открыть план</UiMoreLink
+        >
       </li>
     </ul>
   </section>
@@ -29,7 +37,12 @@ defineProps<{
 
 <style scoped>
 .upcoming-obligations {
+  display: grid;
+  align-content: start;
+  gap: var(--hf-space-4);
   padding: var(--hf-card-padding);
+  border: 1px solid var(--hf-color-border);
+  border-radius: var(--hf-radius-lg);
   background: var(--hf-color-surface);
   box-shadow: var(--hf-shadow-card);
 }
@@ -37,6 +50,13 @@ defineProps<{
 .upcoming-obligations p,
 .upcoming-obligations ul {
   margin: 0;
+}
+.upcoming-obligations__title {
+  color: var(--hf-color-text-muted);
+  font-size: 0.75rem;
+  font-weight: var(--hf-font-weight-semibold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 .upcoming-obligations ul {
   display: grid;
@@ -46,35 +66,29 @@ defineProps<{
 }
 .upcoming-obligations li {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
-  gap: var(--hf-space-3);
-  align-items: center;
+  gap: var(--hf-space-1);
   padding-top: var(--hf-space-3);
   border-top: 1px solid var(--hf-color-border);
 }
-.upcoming-obligations li div {
-  display: grid;
-  gap: var(--hf-space-1);
-}
-.upcoming-obligations li div span,
+.upcoming-obligations__date,
 .upcoming-obligations__empty {
   color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-caption);
+  line-height: var(--hf-line-height-caption);
 }
-.upcoming-obligations__status {
-  color: var(--hf-color-text-danger);
-  font-weight: var(--hf-font-weight-bold);
+.upcoming-obligations__row {
+  display: flex;
+  gap: var(--hf-space-3);
+  align-items: baseline;
+  justify-content: space-between;
 }
-.upcoming-obligations a {
-  color: var(--hf-color-action-primary-hover);
-  font-weight: var(--hf-font-weight-bold);
+.upcoming-obligations__name {
+  overflow: hidden;
+  font-weight: var(--hf-font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-@media (max-width: 47.9375rem) {
-  .upcoming-obligations li {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-  .upcoming-obligations__status,
-  .upcoming-obligations a {
-    grid-column: 1 / -1;
-  }
+.upcoming-obligations__link {
+  justify-self: start;
 }
 </style>

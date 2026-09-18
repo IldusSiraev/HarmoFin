@@ -130,8 +130,11 @@ describe('operations page', () => {
     });
     await wrapper!.get('[data-action="create-operation"]').trigger('click');
     await flushPromises();
-    expect(document.body.textContent).toContain('Создать черновик');
-    expect(document.body.textContent).toContain('Подтвердить операцию');
+    // The create form is stepped (one decision at a time), so the submit
+    // buttons only render once the user reaches the last step — see
+    // OperationForm.test.ts for that flow. Here we only need proof the
+    // create form opened.
+    expect(document.body.textContent).toContain('Шаг 1 из 4');
   });
 
   it('lets owner download CSV with current journal filters', async () => {
@@ -512,8 +515,7 @@ describe('operations page', () => {
     await flushPromises();
     expect(wrapper!.text()).toContain('Операций пока нет');
 
-    await wrapper!.get('[data-testid="chip-type"]').trigger('click');
-    await wrapper!.get('[data-testid="chip-option-type-EXPENSE"]').trigger('click');
+    await wrapper!.get('[data-testid="type-tab-EXPENSE"]').trigger('click');
     await flushPromises();
 
     expect(wrapper!.text()).toContain('Ничего не найдено');

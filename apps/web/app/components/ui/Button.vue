@@ -15,6 +15,7 @@ withDefaults(
     fullWidth?: boolean;
     ariaLabel?: string | undefined;
     tooltip?: string | undefined;
+    tooltipPlacement?: 'top' | 'bottom';
     to?: string | undefined;
   }>(),
   {
@@ -26,6 +27,7 @@ withDefaults(
     fullWidth: false,
     ariaLabel: undefined,
     tooltip: undefined,
+    tooltipPlacement: 'top',
     to: undefined,
   },
 );
@@ -45,6 +47,7 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
   <UiTooltip
     v-slot="{ describedby }"
     :text="tooltip"
+    :placement="tooltipPlacement"
     :class="tooltip ? { 'ui-tooltip--full-width': fullWidth } : {}"
   >
     <component

@@ -14,8 +14,8 @@ describe('AppAddMenu', () => {
     const trigger = wrapper.get('[data-testid="add-menu-trigger"]');
 
     expect(trigger.attributes('aria-expanded')).toBe('false');
-    expect(trigger.attributes('aria-controls')).toBe('app-add-menu');
-    expect(wrapper.find('#app-add-menu').exists()).toBe(false);
+    expect(trigger.attributes('aria-controls')).toMatch(/^app-add-menu-/);
+    expect(wrapper.find('[data-testid="action-menu-list"]').exists()).toBe(false);
   });
 
   it('opens the operation dialog from the expense item', async () => {
@@ -25,7 +25,7 @@ describe('AppAddMenu', () => {
     await wrapper.get('[data-testid="add-menu-expense"]').trigger('click');
 
     expect(useOperationDialogs().openDialog.value).toBe('operation');
-    expect(wrapper.find('#app-add-menu').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="action-menu-list"]').exists()).toBe(false);
   });
 
   it('opens the transfer dialog from the transfer item', async () => {
@@ -53,12 +53,12 @@ describe('AppAddMenu', () => {
   it('closes when a click lands outside the menu', async () => {
     const wrapper = mount(AppAddMenu, { attachTo: document.body });
     await wrapper.get('[data-testid="add-menu-trigger"]').trigger('click');
-    expect(wrapper.find('#app-add-menu').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="action-menu-list"]').exists()).toBe(true);
 
     document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.find('#app-add-menu').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="action-menu-list"]').exists()).toBe(false);
     wrapper.unmount();
   });
 });

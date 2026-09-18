@@ -1,14 +1,31 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { navigateTo, useRoute } from '#imports';
+import {
+  ArrowLeftRight,
+  BarChart3,
+  Bell,
+  CalendarClock,
+  Home,
+  Moon,
+  PiggyBank,
+  Receipt,
+  Settings,
+  Sun,
+  Tag,
+  Wallet,
+} from '@lucide/vue';
 
 import { useAuth } from '../../composables/useAuth.js';
+import { useColorScheme } from '../../composables/useColorScheme.js';
+import UiButton from '../ui/Button.vue';
 import AppAddMenu from './AppAddMenu.vue';
 import AppSidebarSection from './AppSidebarSection.vue';
 
 defineOptions({ name: 'AppSidebar' });
 
 const { currentData, logout } = useAuth();
+const { resolved, toggle } = useColorScheme();
 const route = useRoute();
 
 // The auth middleware skips the server (it has no session to forward) and
@@ -43,8 +60,26 @@ async function handleLogout() {
 
 <template>
   <aside class="app-sidebar" aria-label="Основная навигация">
-    <NuxtLink to="/app" class="app-sidebar__wordmark">HarmoFin</NuxtLink>
-    <AppAddMenu class="app-sidebar__add" />
+    <div class="app-sidebar__top">
+      <NuxtLink to="/app" class="app-sidebar__wordmark">HarmoFin</NuxtLink>
+      <div class="app-sidebar__top-actions">
+        <AppAddMenu class="app-sidebar__add" align="start" tooltip-placement="bottom" />
+        <UiButton
+          variant="tertiary"
+          size="sm"
+          class="app-sidebar__theme-toggle"
+          tooltip="Сменить тему"
+          tooltip-placement="bottom"
+          :aria-label="
+            hydrated && resolved() === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'
+          "
+          @click="toggle"
+        >
+          <Sun v-if="hydrated && resolved() === 'dark'" :size="18" aria-hidden="true" />
+          <Moon v-else :size="18" aria-hidden="true" />
+        </UiButton>
+      </div>
+    </div>
     <nav class="app-sidebar__nav">
       <AppSidebarSection>
         <NuxtLink
@@ -52,7 +87,7 @@ async function handleLogout() {
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app')"
-          >Главная</NuxtLink
+          ><Home :size="18" aria-hidden="true" />Главная</NuxtLink
         >
       </AppSidebarSection>
       <AppSidebarSection label="Учёт">
@@ -61,21 +96,21 @@ async function handleLogout() {
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app/operations')"
-          >Операции</NuxtLink
+          ><Receipt :size="18" aria-hidden="true" />Операции</NuxtLink
         >
         <NuxtLink
           to="/app/transfers"
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app/transfers')"
-          >Переводы</NuxtLink
+          ><ArrowLeftRight :size="18" aria-hidden="true" />Переводы</NuxtLink
         >
         <NuxtLink
           to="/app/plans"
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app/plans')"
-          >Планы</NuxtLink
+          ><CalendarClock :size="18" aria-hidden="true" />Планы</NuxtLink
         >
       </AppSidebarSection>
       <AppSidebarSection label="Справочники">
@@ -84,21 +119,21 @@ async function handleLogout() {
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app/accounts')"
-          >Счета</NuxtLink
+          ><Wallet :size="18" aria-hidden="true" />Счета</NuxtLink
         >
         <NuxtLink
           to="/app/envelopes"
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app/envelopes')"
-          >Конверты</NuxtLink
+          ><PiggyBank :size="18" aria-hidden="true" />Конверты</NuxtLink
         >
         <NuxtLink
           to="/app/categories"
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app/categories')"
-          >Категории</NuxtLink
+          ><Tag :size="18" aria-hidden="true" />Категории</NuxtLink
         >
       </AppSidebarSection>
       <AppSidebarSection>
@@ -107,14 +142,14 @@ async function handleLogout() {
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app/analytics')"
-          >Аналитика</NuxtLink
+          ><BarChart3 :size="18" aria-hidden="true" />Аналитика</NuxtLink
         >
         <NuxtLink
           to="/app/notifications"
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app/notifications')"
-          >Уведомления</NuxtLink
+          ><Bell :size="18" aria-hidden="true" />Уведомления</NuxtLink
         >
       </AppSidebarSection>
     </nav>
@@ -124,7 +159,7 @@ async function handleLogout() {
         class="app-sidebar__link"
         active-class="app-sidebar__link--active"
         :aria-current="currentPage('/app/settings')"
-        >Настройки</NuxtLink
+        ><Settings :size="18" aria-hidden="true" />Настройки</NuxtLink
       >
       <div class="app-sidebar__user">
         <span class="app-sidebar__email">{{ userEmail() }}</span>
@@ -146,6 +181,13 @@ async function handleLogout() {
   background: var(--hf-color-surface);
 }
 
+.app-sidebar__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: var(--hf-space-2);
+}
+
 .app-sidebar__wordmark {
   padding: 0 var(--hf-space-3);
   color: var(--hf-color-text);
@@ -155,8 +197,20 @@ async function handleLogout() {
   text-decoration: none;
 }
 
-.app-sidebar__add {
-  padding: 0 var(--hf-space-3);
+.app-sidebar__top-actions {
+  display: flex;
+  gap: var(--hf-space-1);
+  align-items: center;
+}
+
+.app-sidebar__theme-toggle {
+  min-width: 2.25rem;
+  padding-inline: 0;
+}
+
+.app-sidebar__add :deep(.ui-action-menu__trigger) {
+  width: 2.25rem;
+  height: 2.25rem;
 }
 
 .app-sidebar__nav {
@@ -167,14 +221,21 @@ async function handleLogout() {
 
 .app-sidebar__link {
   display: flex;
+  gap: var(--hf-space-3);
   align-items: center;
   min-height: 2.75rem;
   padding: var(--hf-space-2) var(--hf-space-3);
   border-radius: var(--hf-radius-md);
-  color: var(--hf-color-text);
+  color: var(--hf-color-text-muted);
   font-weight: var(--hf-font-weight-medium);
   text-decoration: none;
-  transition: background var(--hf-transition-fast);
+  transition:
+    background var(--hf-transition-fast),
+    color var(--hf-transition-fast);
+}
+
+.app-sidebar__link svg {
+  flex-shrink: 0;
 }
 
 .app-sidebar__link:hover {
