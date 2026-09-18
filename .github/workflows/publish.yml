@@ -55,8 +55,8 @@ jobs:
           labels: |
             org.opencontainers.image.revision=${{ env.RELEASE_SHA }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
-          cache-from: type=gha,scope=publish-${{ matrix.target }}
-          cache-to: type=gha,mode=max,scope=publish-${{ matrix.target }}
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}
 
       - name: Publish release metadata
         run: |
