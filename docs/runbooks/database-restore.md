@@ -1,220 +1,220 @@
-# Database Restore Runbook
+# Регламент восстановления базы данных
 
-**Trigger**: Database corruption, data loss, catastrophic failure, or unrecoverable application state requiring database recovery
+**Триггер**: повреждение базы данных, потеря данных, катастрофический сбой или невосстановимое состояние приложения, требующее восстановления базы данных
 
-**Prerequisites**:
+**Предусловия**:
 
-- Current backup evidence and restore drill completed
-- Isolated restore target available
-- Incident commander assigned
-- User communication plan prepared
+- Актуальный backup и завершённая restore-тренировка
+- Доступна изолированная цель для восстановления
+- Назначен incident commander
+- Подготовлен план коммуникации с пользователями
 
-**Estimated duration**: 2-4 hours (RTO target: ≤ 4 hours)
+**Ориентировочная длительность**: 2-4 часа (цель RTO: ≤ 4 часов)
 
-**⚠️ WARNING**: Database restore is a destructive operation. Do not proceed without explicit authorization and verified backup.
-
----
-
-## Restore decision gate
-
-**STOP**: Database restore is the last resort. Verify that image rollback and application-level recovery cannot resolve the issue.
-
-### Pre-restore checklist
-
-- [ ] Image rollback attempted and failed (or not applicable)
-- [ ] Root cause identified as database-level issue
-- [ ] User impact assessed and communicated
-- [ ] Incident commander assigned: `[name]`
-- [ ] Database administrator available: `[name]`
-- [ ] Backup verified within RPO window (≤1 hour): `[backup reference]`
-- [ ] Recent restore drill evidence exists: `[restore drill record reference]`
-- [ ] Data loss window calculated: `[minutes between last backup and incident]`
-- [ ] Authorization obtained from: `[technical lead and incident commander]`
-
-**Incident ID**: `[unique identifier]`  
-**Authorization timestamp**: `[YYYY-MM-DD HH:MM UTC]`
+**⚠️ ВНИМАНИЕ**: восстановление базы данных — деструктивная операция. Не продолжать без явной авторизации и проверенного backup.
 
 ---
 
-## Pre-restore
+## Гейт решения о восстановлении
 
-### 1. Stop application services
+**СТОП**: восстановление базы данных — крайняя мера. Убедиться, что откат образа и восстановление на уровне приложения не могут решить проблему.
 
-**Purpose**: Prevent application writes during restore
+### Чеклист перед восстановлением
+
+- [ ] Откат образа предпринят и не удался (или неприменим)
+- [ ] Первопричина определена как проблема на уровне базы данных
+- [ ] Влияние на пользователей оценено и сообщено
+- [ ] Назначен incident commander: `[имя]`
+- [ ] Администратор базы данных доступен: `[имя]`
+- [ ] Backup проверен в пределах окна RPO (≤1 час): `[ссылка на backup]`
+- [ ] Существует свежая restore-тренировка: `[ссылка на запись тренировки]`
+- [ ] Рассчитано окно потери данных: `[минуты между последним backup и инцидентом]`
+- [ ] Получена авторизация от: `[технический лид и incident commander]`
+
+**ID инцидента**: `[уникальный идентификатор]`  
+**Время авторизации**: `[YYYY-MM-DD HH:MM UTC]`
+
+---
+
+## Перед восстановлением
+
+### 1. Остановить сервисы приложения
+
+**Цель**: предотвратить записи приложения во время восстановления
 
 ```bash
-# SSH to production host
+# SSH на production-хост
 ssh -i ~/.ssh/production_key production-user@production-host
 
-# Stop application services (leave database running for snapshot)
+# Остановить сервисы приложения (базу данных оставить работающей для снапшота)
 cd /app/production
 docker compose -f infra/compose/production.yml stop web api worker
 ```
 
-- [ ] Web service stopped
-- [ ] API service stopped
-- [ ] Worker service stopped
-- [ ] Database still running (do not stop)
+- [ ] Сервис web остановлен
+- [ ] Сервис API остановлен
+- [ ] Сервис worker остановлен
+- [ ] База данных всё ещё работает (не останавливать)
 
-### 2. Create snapshot of current database state
+### 2. Создать снапшот текущего состояния базы данных
 
-**Purpose**: Preserve forensic evidence and enable point-in-time analysis
+**Цель**: сохранить криминалистические доказательства и обеспечить возможность анализа на момент времени
 
 ```bash
-# Trigger backup via provider console or CLI
-# Record backup reference for post-incident analysis
+# Запустить backup через консоль провайдера или CLI
+# Зафиксировать ссылку на backup для post-incident анализа
 ```
 
-**Forensic backup reference**: `[backup reference - do not commit to Git]`  
-**Forensic backup timestamp**: `[YYYY-MM-DD HH:MM UTC]`
+**Ссылка на криминалистический backup**: `[ссылка на backup — не коммитить в Git]`  
+**Время криминалистического backup**: `[YYYY-MM-DD HH:MM UTC]`
 
-- [ ] Forensic snapshot created
-- [ ] Forensic snapshot reference recorded
-- [ ] Forensic snapshot will be retained for post-incident review
+- [ ] Криминалистический снапшот создан
+- [ ] Ссылка на криминалистический снапшот зафиксирована
+- [ ] Криминалистический снапшот будет сохранён для post-incident review
 
-### 3. Identify restore target point
+### 3. Определить точку восстановления
 
-**Source backup**: `[backup reference - most recent before incident]`  
-**Backup timestamp**: `[YYYY-MM-DD HH:MM UTC]`  
-**Data loss window (RPO)**: `[minutes from backup to incident]`
+**Исходный backup**: `[ссылка на backup — самый свежий до инцидента]`  
+**Время backup**: `[YYYY-MM-DD HH:MM UTC]`  
+**Окно потери данных (RPO)**: `[минуты от backup до инцидента]`
 
-- [ ] Restore point identified
-- [ ] Data loss window calculated and communicated to stakeholders
-- [ ] PITR target timestamp (if applicable): `[YYYY-MM-DD HH:MM UTC]`
+- [ ] Точка восстановления определена
+- [ ] Окно потери данных рассчитано и сообщено заинтересованным сторонам
+- [ ] Целевое время PITR (если применимо): `[YYYY-MM-DD HH:MM UTC]`
 
 ---
 
-## Restore execution
+## Выполнение восстановления
 
-### 4. Initiate database restore
+### 4. Инициировать восстановление базы данных
 
-**⚠️ DESTRUCTIVE OPERATION**: This will replace production database with backup
+**⚠️ ДЕСТРУКТИВНАЯ ОПЕРАЦИЯ**: это заменит production-базу данных на backup
 
-**Restore method**: `[provider-specific restore procedure]`
-
-```bash
-# Provider-specific restore command or console procedure
-# DO NOT include actual commands with credentials in Git
-# Refer to provider documentation for exact procedure
-
-# Example provider-neutral steps:
-# 1. Navigate to provider database console
-# 2. Select production database instance
-# 3. Choose "Restore" from backup
-# 4. Select backup reference: [backup reference]
-# 5. Confirm destructive restore operation
-# 6. Wait for restore completion
-```
-
-**Restore initiated**: `[YYYY-MM-DD HH:MM UTC]`
-
-### 5. Monitor restore progress
+**Метод восстановления**: `[процедура восстановления, специфичная для провайдера]`
 
 ```bash
-# Monitor restore progress via provider console or CLI
-# Track estimated completion time
+# Команда восстановления или процедура в консоли, специфичная для провайдера
+# НЕ включать в Git реальные команды с credentials
+# Точную процедуру смотреть в документации провайдера
+
+# Пример нейтральных шагов:
+# 1. Перейти в консоль базы данных провайдера
+# 2. Выбрать production-инстанс базы данных
+# 3. Выбрать «Restore» из backup
+# 4. Указать ссылку на backup: [ссылка на backup]
+# 5. Подтвердить деструктивную операцию восстановления
+# 6. Дождаться завершения восстановления
 ```
 
-**Estimated completion**: `[YYYY-MM-DD HH:MM UTC]`
+**Восстановление начато**: `[YYYY-MM-DD HH:MM UTC]`
 
-- [ ] Restore in progress
-- [ ] Monitoring provider console for completion
-- [ ] No restore errors reported
+### 5. Мониторинг хода восстановления
 
-**Restore completed**: `[YYYY-MM-DD HH:MM UTC]`  
-**Actual RTO**: `[minutes from incident to restore completion]`
+```bash
+# Следить за ходом восстановления через консоль провайдера или CLI
+# Отслеживать ориентировочное время завершения
+```
+
+**Ориентировочное завершение**: `[YYYY-MM-DD HH:MM UTC]`
+
+- [ ] Восстановление в процессе
+- [ ] Мониторинг консоли провайдера на завершение
+- [ ] Ошибок восстановления не зафиксировано
+
+**Восстановление завершено**: `[YYYY-MM-DD HH:MM UTC]`  
+**Фактический RTO**: `[минуты от инцидента до завершения восстановления]`
 
 ---
 
-## Post-restore verification
+## Проверка после восстановления
 
-### 6. Verify database accessibility
+### 6. Проверить доступность базы данных
 
 ```bash
-# Test database connection from application host
-# Use production DATABASE_URL (credentials unchanged if restoring to same instance)
+# Проверить соединение с базой данных с хоста приложения
+# Использовать production DATABASE_URL (credentials не меняются при восстановлении в тот же инстанс)
 
-# Basic connectivity test (do not commit actual DATABASE_URL)
+# Базовая проверка связности (не коммитить реальный DATABASE_URL)
 psql "$DATABASE_URL" -c "SELECT version();"
 ```
 
-- [ ] Database accessible
-- [ ] PostgreSQL version correct
-- [ ] Connection pool can connect
+- [ ] База данных доступна
+- [ ] Версия PostgreSQL корректна
+- [ ] Пул соединений может подключиться
 
-### 7. Verify schema integrity
+### 7. Проверить целостность схемы
 
 ```bash
-# Check Prisma migration history
+# Проверить историю миграций Prisma
 psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM _prisma_migrations;"
 psql "$DATABASE_URL" -c "SELECT migration_name FROM _prisma_migrations ORDER BY finished_at DESC LIMIT 5;"
 
-# Verify expected tables exist
+# Проверить наличие ожидаемых таблиц
 psql "$DATABASE_URL" -c "\dt"
 ```
 
-**Schema verification**:
+**Проверка схемы**:
 
-- [ ] Migration history table exists
-- [ ] Expected migration version present: `[migration name]`
-- [ ] All expected tables present
-- [ ] No missing tables
+- [ ] Таблица истории миграций существует
+- [ ] Присутствует ожидаемая версия миграции: `[имя миграции]`
+- [ ] Все ожидаемые таблицы присутствуют
+- [ ] Нет отсутствующих таблиц
 
-### 8. Verify data integrity
+### 8. Проверить целостность данных
 
 ```bash
-# Run integrity checks
+# Запустить проверки целостности
 psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM \"User\";"
 psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM \"Workspace\";"
 psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM \"Budget\";"
 psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM \"Operation\";"
 
-# Check foreign key constraints
-# Check for orphaned records
+# Проверить ограничения внешних ключей
+# Проверить наличие осиротевших записей
 ```
 
-**Data integrity**:
+**Целостность данных**:
 
-- [ ] Row counts within expected ranges
-- [ ] Foreign key constraints valid
-- [ ] No obvious data corruption
-- [ ] Sample queries return expected results
+- [ ] Количество строк в ожидаемых диапазонах
+- [ ] Ограничения внешних ключей корректны
+- [ ] Явного повреждения данных не обнаружено
+- [ ] Проверочные запросы возвращают ожидаемые результаты
 
-### 9. Verify restore point accuracy
+### 9. Проверить точность точки восстановления
 
 ```bash
-# Query most recent operation timestamp
+# Запросить время самой последней операции
 psql "$DATABASE_URL" -c "SELECT MAX(created_at) FROM \"Operation\";"
 
-# Verify restore point matches expected backup timestamp
+# Убедиться, что точка восстановления соответствует ожидаемому времени backup
 ```
 
-**Latest operation timestamp**: `[YYYY-MM-DD HH:MM UTC]`  
-**Expected data loss**: `[minutes]`  
-**Actual data loss**: `[minutes - from latest operation to incident]`
+**Время последней операции**: `[YYYY-MM-DD HH:MM UTC]`  
+**Ожидаемая потеря данных**: `[минуты]`  
+**Фактическая потеря данных**: `[минуты — от последней операции до инцидента]`
 
-- [ ] Restore point matches expected backup timestamp
-- [ ] Data loss within communicated RPO window
+- [ ] Точка восстановления соответствует ожидаемому времени backup
+- [ ] Потеря данных в пределах сообщённого окна RPO
 
 ---
 
-## Application restart
+## Перезапуск приложения
 
-### 10. Restart application services
+### 10. Перезапустить сервисы приложения
 
 ```bash
-# SSH to production host
+# SSH на production-хост
 cd /app/production
 
-# Start services with restored database
+# Запустить сервисы с восстановленной базой данных
 docker compose -f infra/compose/production.yml up -d web api worker caddy
 ```
 
-- [ ] Services started
-- [ ] Health checks passing
-- [ ] No database connection errors in logs
+- [ ] Сервисы запущены
+- [ ] Health-проверки проходят
+- [ ] Нет ошибок соединения с базой данных в логах
 
-### 11. Verify application health
+### 11. Проверить health приложения
 
 ```bash
 curl -f https://production-domain/
@@ -222,106 +222,106 @@ curl -f https://production-domain/api/v1/health/live
 curl -f https://production-domain/api/v1/health/ready
 ```
 
-- [ ] Web responds with 200
-- [ ] API health probes respond with 200
-- [ ] Worker health probes respond with 200
+- [ ] Web отвечает 200
+- [ ] Health-пробы API отвечают 200
+- [ ] Health-пробы worker отвечают 200
 
-### 12. Test critical authenticated journey
+### 12. Проверить критичный аутентифицированный сценарий
 
-- [ ] Sign-in works
-- [ ] Budget list loads
-- [ ] Journal query works with restored data
-- [ ] Recent operations visible (within restored timeframe)
-- [ ] No authentication errors
+- [ ] Вход работает
+- [ ] Список бюджетов загружается
+- [ ] Запрос журнала работает с восстановленными данными
+- [ ] Недавние операции видны (в пределах восстановленного периода)
+- [ ] Нет ошибок аутентификации
 
-### 13. Verify observability
+### 13. Проверить observability
 
-- [ ] Logs appearing in log backend
-- [ ] Metrics updating
-- [ ] No error rate spike
-- [ ] Worker processing jobs
+- [ ] Логи появляются в log-бэкенде
+- [ ] Метрики обновляются
+- [ ] Нет всплеска error rate
+- [ ] Worker обрабатывает задачи
 
 ---
 
-## Post-restore actions
+## Действия после восстановления
 
-### 14. Notify stakeholders of restoration
+### 14. Уведомить заинтересованные стороны о восстановлении
 
-**User communication**:
+**Коммуникация с пользователями**:
 
 ```
-[Template user communication about data loss window and service restoration]
+[Шаблон коммуникации с пользователями об окне потери данных и восстановлении сервиса]
 
-Example:
-"Service has been restored. Operations created between [backup timestamp] and
-[incident timestamp] were not recoverable and have been lost. We apologize for
-the inconvenience. All other data has been verified intact."
+Пример:
+«Сервис восстановлен. Операции, созданные между [время backup] и
+[время инцидента], не подлежали восстановлению и были утеряны. Приносим
+извинения за неудобства. Все остальные данные проверены и целы».
 ```
 
-- [ ] Team notified of restore completion
-- [ ] Users notified of data loss window (if applicable)
-- [ ] Incident tracking system updated
+- [ ] Команда уведомлена о завершении восстановления
+- [ ] Пользователи уведомлены об окне потери данных (если применимо)
+- [ ] Система отслеживания инцидентов обновлена
 
-### 15. Record restore evidence
+### 15. Зафиксировать evidence восстановления
 
-Update `docs/operations/backup-restore-record.md` with:
+Обновить `docs/operations/backup-restore-record.md`:
 
-- Incident ID and trigger
-- Backup source and restore target
-- Actual RTO and RPO
-- Verification results
-- Data loss assessment
+- ID инцидента и триггер
+- Источник backup и цель восстановления
+- Фактические RTO и RPO
+- Результаты проверки
+- Оценка потери данных
 
-### 16. Preserve forensic evidence
+### 16. Сохранить криминалистические доказательства
 
-- [ ] Forensic backup reference recorded: `[reference]`
-- [ ] Forensic backup will be retained for: `[retention period]`
-- [ ] Post-incident analysis scheduled
-- [ ] Root cause investigation assigned
+- [ ] Ссылка на криминалистический backup зафиксирована: `[ссылка]`
+- [ ] Криминалистический backup будет храниться: `[срок хранения]`
+- [ ] Post-incident анализ запланирован
+- [ ] Назначено расследование первопричины
 
 ---
 
 ## Post-incident review
 
-**Mandatory post-incident actions**:
+**Обязательные действия после инцидента**:
 
-1. **Root cause analysis**
-   - [ ] Identify what caused database corruption or failure
-   - [ ] Document timeline of events
-   - [ ] Identify missed detection opportunities
+1. **Анализ первопричины**
+   - [ ] Определить, что вызвало повреждение или сбой базы данных
+   - [ ] Задокументировать хронологию событий
+   - [ ] Определить упущенные возможности обнаружения
 
-2. **Prevention measures**
-   - [ ] Add monitoring/alerting to detect this failure mode earlier
-   - [ ] Review backup frequency (currently targeting RPO ≤1 hour)
-   - [ ] Review restore procedure for improvements
-   - [ ] Update restore drill to cover this scenario
+2. **Меры профилактики**
+   - [ ] Добавить мониторинг/алертинг для более раннего обнаружения этого сценария
+   - [ ] Пересмотреть частоту backup (текущая цель RPO ≤1 час)
+   - [ ] Пересмотреть процедуру восстановления на предмет улучшений
+   - [ ] Обновить restore-тренировку для покрытия этого сценария
 
-3. **Process improvements**
-   - [ ] Update this runbook with lessons learned
-   - [ ] Schedule next restore drill
-   - [ ] Review communication templates
-   - [ ] Assess RTO/RPO targets (currently 4 hours/1 hour)
-
----
-
-## Emergency contacts
-
-- **Incident commander**: `[contact]`
-- **Database administrator**: `[contact]`
-- **Provider support**: `[support contact with SLA details]`
-- **On-call engineer**: `[contact]`
+3. **Улучшения процесса**
+   - [ ] Обновить этот регламент с учётом выводов
+   - [ ] Запланировать следующую restore-тренировку
+   - [ ] Пересмотреть шаблоны коммуникации
+   - [ ] Оценить цели RTO/RPO (сейчас 4 часа/1 час)
 
 ---
 
-## Related runbooks
+## Экстренные контакты
 
-- `docs/runbooks/deploy.md` - Production deployment procedure
-- `docs/runbooks/image-rollback.md` - Application rollback procedure
-- `docs/runbooks/postgres-outage.md` - PostgreSQL connectivity issues
-- `docs/runbooks/incident-escalation.md` - Incident response escalation
+- **Incident commander**: `[контакт]`
+- **Администратор базы данных**: `[контакт]`
+- **Поддержка провайдера**: `[контакт поддержки с деталями SLA]`
+- **Дежурный инженер**: `[контакт]`
 
 ---
 
-**Runbook version**: 2026-09-09  
-**Last tested**: `[date from most recent restore drill]`  
-**Next review**: `[date]`
+## Связанные регламенты
+
+- `docs/runbooks/deploy.md` — процедура production-деплоя
+- `docs/runbooks/image-rollback.md` — процедура отката приложения
+- `docs/runbooks/postgres-outage.md` — проблемы связности с PostgreSQL
+- `docs/runbooks/incident-escalation.md` — эскалация реагирования на инцидент
+
+---
+
+**Версия регламента**: 2026-09-09  
+**Последняя проверка**: `[дата последней restore-тренировки]`  
+**Следующая проверка**: `[дата]`

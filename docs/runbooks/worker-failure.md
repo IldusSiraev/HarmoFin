@@ -1,191 +1,191 @@
-# Worker Failure Runbook
+# Регламент сбоя worker
 
-**Trigger**: Worker stopped processing jobs, high job failure rate, worker backlog growing, worker health checks failing
+**Триггер**: worker прекратил обработку задач, высокий процент сбоев задач, растущая очередь worker, health-проверки worker падают
 
-**Prerequisites**:
+**Предусловия**:
 
-- Worker monitoring and alerts configured
-- Database connectivity verified
-- Recent deployment information available
+- Настроен мониторинг и алерты worker
+- Связность с базой данных подтверждена
+- Доступна информация о недавнем деплое
 
-**Estimated duration**: 15-30 minutes for common issues
-
----
-
-## Symptoms
-
-Common indicators of worker failure or degradation:
-
-- Worker `/internal/health/ready` endpoint failing
-- Jobs stuck in "processing" state beyond lease timeout
-- Job backlog growing continuously
-- High job failure rate in metrics
-- No job completion logs in recent time window
-- Email/export notifications not being sent
+**Ориентировочная длительность**: 15-30 минут для типичных проблем
 
 ---
 
-## Initial assessment
+## Симптомы
 
-### 1. Check worker health
+Типичные признаки сбоя или деградации worker:
+
+- Endpoint worker `/internal/health/ready` падает
+- Задачи застряли в состоянии «processing» дольше таймаута аренды (lease)
+- Очередь задач непрерывно растёт
+- Высокий процент сбоев задач в метриках
+- Нет логов завершения задач за недавний период
+- Уведомления по email/экспорту не отправляются
+
+---
+
+## Первичная оценка
+
+### 1. Проверить health worker
 
 ```bash
-# Check worker health endpoint (internal only)
+# Проверить health endpoint worker (доступен только внутри сети)
 ssh production-user@production-host
 docker compose -f infra/compose/production.yml exec worker curl -f http://localhost:3003/internal/health/ready
 
-# Or check container status
+# Или проверить статус контейнера
 docker compose -f infra/compose/production.yml ps worker
 ```
 
-**Worker status**:
+**Статус worker**:
 
-- Health check: `[pass/fail/unreachable]`
-- Container state: `[running/stopped/restarting]`
-- Error message: `[description]`
+- Health-проверка: `[pass/fail/unreachable]`
+- Состояние контейнера: `[running/stopped/restarting]`
+- Сообщение об ошибке: `[описание]`
 
-### 2. Check worker logs
+### 2. Проверить логи worker
 
 ```bash
-# View recent worker logs
+# Посмотреть недавние логи worker
 docker compose -f infra/compose/production.yml logs --tail=100 worker
 
-# Look for:
-# - Database connection errors
-# - Job processing errors
-# - Unhandled exceptions
-# - Memory/resource errors
-# - Graceful shutdown logs (if restarting)
+# Искать:
+# - Ошибки соединения с базой данных
+# - Ошибки обработки задач
+# - Необработанные исключения
+# - Ошибки памяти/ресурсов
+# - Логи graceful shutdown (если идёт рестарт)
 ```
 
-**Log evidence**: `[recent error messages or patterns]`
+**Evidence из логов**: `[недавние сообщения об ошибках или паттерны]`
 
-### 3. Check job queue metrics
+### 3. Проверить метрики очереди задач
 
 ```bash
-# Check worker metrics endpoint or dashboard
-# Look for:
-# - Job backlog depth
-# - Job failure rate
-# - Poll frequency
-# - Lease acquisition rate
+# Проверить endpoint метрик worker или dashboard
+# Искать:
+# - Глубину очереди
+# - Процент сбоев задач
+# - Частоту опроса
+# - Частоту получения lease
 ```
 
-**Metrics snapshot**:
+**Снимок метрик**:
 
-- Backlog depth: `[count]`
-- Recent failures: `[count/rate]`
-- Last successful job: `[timestamp]`
-- Worker uptime: `[duration]`
+- Глубина очереди: `[число]`
+- Недавние сбои: `[число/частота]`
+- Последняя успешная задача: `[timestamp]`
+- Аптайм worker: `[длительность]`
 
-### 4. Verify database connectivity
+### 4. Проверить связность с базой данных
 
 ```bash
-# Worker health check includes database connectivity
-# If health check failing, test database separately
+# Health-проверка worker включает связность с базой данных
+# Если health-проверка не проходит, протестировать базу данных отдельно
 docker compose -f infra/compose/production.yml exec worker sh -c 'apk add postgresql-client && psql "$DATABASE_URL" -c "SELECT 1;"'
 ```
 
-**Database connectivity**: `[pass/fail]`
+**Связность с базой данных**: `[pass/fail]`
 
 ---
 
-## Common causes and resolutions
+## Типичные причины и решения
 
-### Worker container stopped or crashed
+### Контейнер worker остановлен или упал
 
-**Symptoms**: Container not running, exit code non-zero, restart loop
+**Симптомы**: контейнер не запущен, ненулевой exit code, цикл рестартов
 
-**Diagnosis**:
+**Диагностика**:
 
 ```bash
-# Check container status and restart count
+# Проверить статус контейнера и число рестартов
 docker compose -f infra/compose/production.yml ps worker
 docker compose -f infra/compose/production.yml logs worker | grep -i "exit\|error\|fatal"
 
-# Check exit code
+# Проверить exit code
 docker inspect production-worker-1 | grep -A 5 ExitCode
 ```
 
-**Resolution**:
+**Решение**:
 
 ```bash
-# Restart worker container
+# Перезапустить контейнер worker
 docker compose -f infra/compose/production.yml restart worker
 
-# If restart loop: Check logs for startup error
-# If memory issue: Review resource limits in production.yml
-# If database connectivity: Follow postgres-outage.md runbook
+# Если цикл рестартов: проверить логи на ошибку запуска
+# Если проблема памяти: пересмотреть лимиты ресурсов в production.yml
+# Если связность с базой данных: следовать регламенту postgres-outage.md
 ```
 
-- [ ] Root cause identified
-- [ ] Worker restarted
-- [ ] Health check passing
-- [ ] Jobs resuming processing
+- [ ] Первопричина определена
+- [ ] Worker перезапущен
+- [ ] Health-проверка проходит
+- [ ] Обработка задач возобновилась
 
-### Database connectivity failure
+### Сбой связности с базой данных
 
-**Symptoms**: Worker logs show database connection errors, health check fails with database error
+**Симптомы**: логи worker показывают ошибки соединения с базой данных, health-проверка падает с ошибкой базы данных
 
-**Diagnosis**:
+**Диагностика**:
 
 ```bash
-# Worker health includes database connectivity check
-# Review worker logs for connection errors
+# Health worker включает проверку связности с базой данных
+# Просмотреть логи worker на ошибки соединения
 docker compose -f infra/compose/production.yml logs worker | grep -i "database\|connection"
 ```
 
-**Resolution**:
+**Решение**:
 
 ```bash
-# Follow postgres-outage.md runbook
-# After database restored, restart worker
+# Следовать регламенту postgres-outage.md
+# После восстановления базы данных перезапустить worker
 docker compose -f infra/compose/production.yml restart worker
 ```
 
-- [ ] Database connectivity restored (see postgres-outage.md)
-- [ ] Worker restarted
-- [ ] Health check passing
+- [ ] Связность с базой данных восстановлена (см. postgres-outage.md)
+- [ ] Worker перезапущен
+- [ ] Health-проверка проходит
 
-### Job processing errors (code bug)
+### Ошибки обработки задач (баг в коде)
 
-**Symptoms**: Jobs failing consistently, specific job type failing, error logs show unhandled exception
+**Симптомы**: задачи стабильно падают, падает конкретный тип задачи, логи ошибок показывают необработанное исключение
 
-**Diagnosis**:
+**Диагностика**:
 
 ```bash
-# Review worker logs for job processing errors
+# Просмотреть логи worker на ошибки обработки задач
 docker compose -f infra/compose/production.yml logs worker | grep -i "job.*fail\|unhandled\|error"
 
-# Identify failing job type
-# Identify error pattern (all jobs vs specific type)
+# Определить падающий тип задачи
+# Определить паттерн ошибки (все задачи или конкретный тип)
 ```
 
-**Resolution**:
+**Решение**:
 
 ```bash
-# Short-term: If specific job type failing, may need to skip/cancel failing jobs
-# Check if recent deployment introduced regression
+# Краткосрочно: если падает конкретный тип задачи, может потребоваться пропустить/отменить падающие задачи
+# Проверить, не внёс ли регрессию недавний деплой
 
-# Long-term:
-# - Identify bug in job processing code
-# - Deploy fix through normal release process
-# - Add test coverage for failing scenario
+# Долгосрочно:
+# - Найти баг в коде обработки задачи
+# - Задеплоить исправление через обычный релизный процесс
+# - Добавить тестовое покрытие для падающего сценария
 ```
 
-- [ ] Failing job type identified
-- [ ] Bug identified in code
-- [ ] Fix developed and tested
-- [ ] Hotfix deployed (if critical) or scheduled for next release
+- [ ] Падающий тип задачи определён
+- [ ] Баг в коде найден
+- [ ] Исправление разработано и протестировано
+- [ ] Hotfix задеплоен (если критично) или запланирован на следующий релиз
 
-### Job stuck in processing state (lease not released)
+### Задача застряла в состоянии processing (lease не освобождён)
 
-**Symptoms**: Jobs stuck in "processing" beyond lease timeout, worker not picking up new jobs
+**Симптомы**: задачи застряли в «processing» дольше таймаута lease, worker не берёт новые задачи
 
-**Diagnosis**:
+**Диагностика**:
 
 ```bash
-# Check database for jobs stuck in processing state
+# Проверить в базе данных задачи, застрявшие в состоянии processing
 ssh production-user@production-host
 psql "$DATABASE_URL" -c "
 SELECT id, type, status, created_at, started_at,
@@ -196,14 +196,14 @@ AND started_at < NOW() - INTERVAL '10 minutes';
 "
 ```
 
-**Resolution**:
+**Решение**:
 
 ```bash
-# If lease expired but job still marked processing:
-# - Job may have crashed without releasing lease
-# - Worker may have been killed mid-processing
+# Если lease истёк, но задача всё ещё помечена processing:
+# - Задача могла упасть без освобождения lease
+# - Worker мог быть убит в процессе обработки
 
-# Reset stuck jobs to pending (careful: may cause duplicate processing)
+# Сбросить застрявшие задачи в pending (осторожно: возможна дублирующая обработка)
 psql "$DATABASE_URL" -c "
 UPDATE \"Job\"
 SET status = 'pending', started_at = NULL, attempts = attempts
@@ -211,82 +211,82 @@ WHERE status = 'processing'
 AND started_at < NOW() - INTERVAL '15 minutes';
 "
 
-# Restart worker to pick up reset jobs
+# Перезапустить worker, чтобы подхватил сброшенные задачи
 docker compose -f infra/compose/production.yml restart worker
 ```
 
-- [ ] Stuck jobs identified
-- [ ] Jobs reset to pending (with caution)
-- [ ] Worker restarted
-- [ ] Jobs being processed
+- [ ] Застрявшие задачи определены
+- [ ] Задачи сброшены в pending (с осторожностью)
+- [ ] Worker перезапущен
+- [ ] Задачи обрабатываются
 
-### Worker concurrency exhausted
+### Исчерпана параллельность worker
 
-**Symptoms**: Backlog growing but worker healthy, all worker threads busy
+**Симптомы**: очередь растёт, но worker здоров, все потоки worker заняты
 
-**Diagnosis**:
+**Диагностика**:
 
 ```bash
-# Check worker configuration for concurrency setting
-# Review metrics for concurrent job count
-# Assess if job volume exceeds worker capacity
+# Проверить конфигурацию worker на настройку параллельности
+# Просмотреть метрики числа одновременных задач
+# Оценить, превышает ли объём задач мощность worker
 ```
 
-**Resolution**:
+**Решение**:
 
 ```bash
-# Short-term: Increase worker concurrency in .env.production
-# Update WORKER_CONCURRENCY value
+# Краткосрочно: увеличить параллельность worker в .env.production
+# Обновить значение WORKER_CONCURRENCY
 docker compose -f infra/compose/production.yml restart worker
 
-# Long-term:
-# - Add second worker instance if single worker insufficient
-# - Optimize slow job processing
-# - Review job scheduling strategy
+# Долгосрочно:
+# - Добавить второй инстанс worker, если одного недостаточно
+# - Оптимизировать медленную обработку задач
+# - Пересмотреть стратегию планирования задач
 ```
 
-- [ ] Concurrency increased
-- [ ] Worker restarted with new concurrency
-- [ ] Backlog decreasing
+- [ ] Параллельность увеличена
+- [ ] Worker перезапущен с новой параллельностью
+- [ ] Очередь уменьшается
 
-### Job queue backlog from traffic spike
+### Очередь задач растёт из-за всплеска трафика
 
-**Symptoms**: Large backlog but worker processing normally, recent traffic spike
+**Симптомы**: большая очередь, но worker обрабатывает нормально, недавний всплеск трафика
 
-**Diagnosis**:
+**Диагностика**:
 
 ```bash
-# Check job creation rate vs processing rate
-# Review recent user activity or bulk operations
-# Assess if backlog temporary or sustained
+# Сравнить частоту создания задач с частотой обработки
+# Просмотреть недавнюю активность пользователей или массовые операции
+# Оценить, временная очередь или устойчивая
 ```
 
-**Resolution**:
+**Решение**:
 
 ```bash
-# If temporary spike: Worker will catch up naturally
-# Monitor backlog depth and processing rate
-# Estimate time to clear backlog
+# Если временный всплеск: worker естественным образом нагонит очередь
+# Следить за глубиной очереди и частотой обработки
+# Оценить время до разбора очереди
 
-# If sustained: May need additional worker capacity
-# Consider scaling worker concurrency or adding worker instances
+# Если устойчиво: может потребоваться дополнительная мощность worker
+# Рассмотреть масштабирование параллельности или добавление инстансов worker
 ```
 
-- [ ] Traffic spike identified
-- [ ] Backlog processing rate assessed
-- [ ] Estimated time to clear: `[duration]`
-- [ ] Scaling decision made if needed
+- [ ] Всплеск трафика определён
+- [ ] Частота обработки очереди оценена
+- [ ] Ориентировочное время до разбора: `[длительность]`
+- [ ] При необходимости принято решение о масштабировании
 
 ---
 
-## Manual job management
+## Ручное управление задачами
 
-### Cancel specific failing job
+### Отменить конкретную падающую задачу
 
-**Use with caution**: Only for jobs that cannot be processed and are blocking queue
+**Использовать осторожно**: только для задач, которые не могут быть обработаны и блокируют очередь
 
 ```bash
-# Mark job as failed manually
+# Вручную пометить задачу как failed
 ssh production-user@production-host
 psql "$DATABASE_URL" -c "
 UPDATE \"Job\"
@@ -295,10 +295,10 @@ WHERE id = '[job-id]';
 "
 ```
 
-### Requeue failed job for retry
+### Поставить упавшую задачу в очередь повторно
 
 ```bash
-# Reset job to pending for retry
+# Сбросить задачу в pending для повтора
 psql "$DATABASE_URL" -c "
 UPDATE \"Job\"
 SET status = 'pending', started_at = NULL
@@ -307,18 +307,18 @@ AND status = 'failed';
 "
 ```
 
-### Clear all failed jobs (emergency only)
+### Очистить все упавшие задачи (только экстренный случай)
 
-**⚠️ WARNING**: This discards all failed jobs. Only use in extreme backlog situation.
+**⚠️ ВНИМАНИЕ**: это отбросит все упавшие задачи. Использовать только при экстремальной ситуации с очередью.
 
 ```bash
-# Archive failed jobs before clearing (optional)
+# Архивировать упавшие задачи перед очисткой (опционально)
 psql "$DATABASE_URL" -c "
 CREATE TABLE IF NOT EXISTS \"Job_Archive\" AS TABLE \"Job\" WITH NO DATA;
 INSERT INTO \"Job_Archive\" SELECT * FROM \"Job\" WHERE status = 'failed';
 "
 
-# Delete failed jobs
+# Удалить упавшие задачи
 psql "$DATABASE_URL" -c "
 DELETE FROM \"Job\" WHERE status = 'failed';
 "
@@ -326,74 +326,74 @@ DELETE FROM \"Job\" WHERE status = 'failed';
 
 ---
 
-## Escalation
+## Эскалация
 
-### When to escalate
+### Когда эскалировать
 
-- Worker repeatedly crashing with no obvious cause
-- Database connectivity issue (escalate to postgres-outage.md)
-- Job processing bug requiring urgent hotfix
-- Backlog growing to unacceptable levels (SLA risk)
-- Resource exhaustion requiring infrastructure scaling
+- Worker многократно падает без очевидной причины
+- Проблема связности с базой данных (эскалировать в postgres-outage.md)
+- Баг обработки задач требует срочного hotfix
+- Очередь растёт до неприемлемого уровня (риск для SLA)
+- Исчерпание ресурсов требует масштабирования инфраструктуры
 
-### Emergency contacts
+### Экстренные контакты
 
-- **Incident commander**: `[contact]`
-- **On-call engineer**: `[contact]`
-- **Database administrator**: `[contact if database issue]`
+- **Incident commander**: `[контакт]`
+- **Дежурный инженер**: `[контакт]`
+- **Администратор базы данных**: `[контакт, если проблема с базой данных]`
 
 ---
 
-## Post-incident actions
+## Действия после инцидента
 
-### 1. Record incident evidence
+### 1. Зафиксировать evidence инцидента
 
-- **Incident ID**: `[unique identifier]`
-- **Trigger timestamp**: `[YYYY-MM-DD HH:MM UTC]`
-- **Resolution timestamp**: `[YYYY-MM-DD HH:MM UTC]`
-- **Duration**: `[minutes]`
-- **Root cause**: `[description]`
-- **Jobs affected**: `[count and types]`
+- **ID инцидента**: `[уникальный идентификатор]`
+- **Время начала**: `[YYYY-MM-DD HH:MM UTC]`
+- **Время решения**: `[YYYY-MM-DD HH:MM UTC]`
+- **Длительность**: `[минуты]`
+- **Первопричина**: `[описание]`
+- **Затронутые задачи**: `[число и типы]`
 
-### 2. Prevention measures
+### 2. Меры профилактики
 
-- [ ] Add monitoring/alerting to detect earlier
-- [ ] Review worker concurrency and capacity
-- [ ] Add test coverage for failure scenario
-- [ ] Review job retry strategy
-- [ ] Consider dead-letter queue for permanently failing jobs
+- [ ] Добавить мониторинг/алертинг для более раннего обнаружения
+- [ ] Пересмотреть параллельность и мощность worker
+- [ ] Добавить тестовое покрытие для сценария сбоя
+- [ ] Пересмотреть стратегию повторов задач
+- [ ] Рассмотреть dead-letter очередь для постоянно падающих задач
 
-### 3. Verify no duplicate processing
+### 3. Проверить отсутствие дублирующей обработки
 
 ```bash
-# If jobs were reset from processing to pending, verify no duplicates
-# Check application logic for idempotency
-# Review affected user accounts for duplicate actions
+# Если задачи были сброшены из processing в pending, проверить отсутствие дублей
+# Проверить идемпотентность логики приложения
+# Просмотреть затронутые аккаунты пользователей на дублирующие действия
 ```
 
 ---
 
-## Monitoring and alerts
+## Мониторинг и алерты
 
-**Recommended alerts**:
+**Рекомендуемые алерты**:
 
-- Worker health check failing
-- Job backlog depth > threshold (e.g., 100)
-- Job failure rate > threshold (e.g., 10% over 5 minutes)
-- No job completions in last 10 minutes (when queue not empty)
-- Worker container restart loop
-
----
-
-## Related runbooks
-
-- `docs/runbooks/postgres-outage.md` - Database connectivity issues
-- `docs/runbooks/api-error-spike.md` - Related if API jobs failing
-- `docs/runbooks/deploy.md` - Deployment procedure
-- `docs/runbooks/incident-escalation.md` - Incident response escalation
+- Health-проверка worker падает
+- Глубина очереди задач > порога (например, 100)
+- Процент сбоев задач > порога (например, 10% за 5 минут)
+- Нет завершённых задач за последние 10 минут (при непустой очереди)
+- Цикл рестартов контейнера worker
 
 ---
 
-**Runbook version**: 2026-09-09  
-**Last incident**: `[date]`  
-**Next review**: `[date]`
+## Связанные регламенты
+
+- `docs/runbooks/postgres-outage.md` — проблемы связности с базой данных
+- `docs/runbooks/api-error-spike.md` — связано, если падают задачи API
+- `docs/runbooks/deploy.md` — процедура деплоя
+- `docs/runbooks/incident-escalation.md` — эскалация реагирования на инцидент
+
+---
+
+**Версия регламента**: 2026-09-09  
+**Последний инцидент**: `[дата]`  
+**Следующая проверка**: `[дата]`

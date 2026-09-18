@@ -1,450 +1,450 @@
-# Incident Escalation Runbook
+# Регламент эскалации инцидентов
 
-**Purpose**: Define escalation paths, decision gates, and communication protocols for production incidents
+**Цель**: определить пути эскалации, гейты решений и протоколы коммуникации для production-инцидентов
 
-**Scope**: All production incidents requiring coordination beyond single on-call engineer
-
----
-
-## Incident severity levels
-
-### SEV-1: Critical
-
-**Definition**: Complete service outage or critical security breach
-
-**Examples**:
-
-- Production completely unavailable (all users affected)
-- Database destroyed or corrupted beyond immediate recovery
-- Confirmed data breach or unauthorized access to production data
-- Financial data integrity compromise
-- Security vulnerability actively exploited
-
-**Response**:
-
-- Immediate incident commander assignment
-- All hands on deck
-- Executive notification within 15 minutes
-- Hourly status updates to stakeholders
-- Post-incident review mandatory
-
-**Target resolution**: 1-4 hours
-
-### SEV-2: Major
-
-**Definition**: Significant service degradation or data integrity risk
-
-**Examples**:
-
-- Core functionality unavailable (authentication, budget access, operations)
-- Database connectivity failure affecting all services
-- Elevated error rate (>5%) affecting majority of users
-- Deployment failure requiring rollback
-- Security incident requiring immediate containment
-
-**Response**:
-
-- Incident commander assignment
-- On-call engineer plus specialists as needed
-- Stakeholder notification within 30 minutes
-- Status updates every 2 hours
-- Post-incident review recommended
-
-**Target resolution**: 4-8 hours
-
-### SEV-3: Minor
-
-**Definition**: Limited service degradation or isolated failures
-
-**Examples**:
-
-- Single feature unavailable (notifications, exports)
-- Elevated error rate affecting specific endpoint
-- Worker backlog growing but not critical
-- Performance degradation within acceptable range
-- Non-critical external service failure
-
-**Response**:
-
-- On-call engineer handles
-- Incident commander optional
-- Stakeholder notification within 2 hours if user-facing
-- Status update on resolution
-- Post-incident review optional
-
-**Target resolution**: 8-24 hours
-
-### SEV-4: Monitoring/Investigation
-
-**Definition**: Anomaly detected but no confirmed user impact
-
-**Examples**:
-
-- Alert triggered but services healthy
-- Anomalous traffic pattern under investigation
-- Potential security concern requiring investigation
-- Monitoring gap identified
-
-**Response**:
-
-- On-call engineer investigates
-- No immediate escalation unless confirmed issue
-- Document findings
-- No post-incident review required
-
-**Target resolution**: Best effort
+**Область применения**: все production-инциденты, требующие координации сверх одного дежурного инженера
 
 ---
 
-## Escalation paths
+## Уровни серьёзности инцидента
 
-### Primary escalation chain
+### SEV-1: Критический
+
+**Определение**: полная недоступность сервиса или критичное нарушение безопасности
+
+**Примеры**:
+
+- Production полностью недоступен (затронуты все пользователи)
+- База данных уничтожена или повреждена без возможности немедленного восстановления
+- Подтверждённая утечка данных или несанкционированный доступ к production-данным
+- Компрометация целостности финансовых данных
+- Активно эксплуатируется уязвимость безопасности
+
+**Реакция**:
+
+- Немедленное назначение incident commander
+- Все доступные силы задействованы
+- Уведомление руководства в течение 15 минут
+- Ежечасные статус-обновления заинтересованным сторонам
+- Post-incident review обязателен
+
+**Целевое время решения**: 1-4 часа
+
+### SEV-2: Значительный
+
+**Определение**: существенная деградация сервиса или риск целостности данных
+
+**Примеры**:
+
+- Основной функционал недоступен (аутентификация, доступ к бюджету, операции)
+- Сбой связности с базой данных, затрагивающий все сервисы
+- Повышенный error rate (>5%), затрагивающий большинство пользователей
+- Сбой деплоя, требующий отката
+- Инцидент безопасности, требующий немедленного сдерживания
+
+**Реакция**:
+
+- Назначение incident commander
+- Дежурный инженер плюс специалисты по необходимости
+- Уведомление заинтересованных сторон в течение 30 минут
+- Статус-обновления каждые 2 часа
+- Post-incident review рекомендован
+
+**Целевое время решения**: 4-8 часов
+
+### SEV-3: Незначительный
+
+**Определение**: ограниченная деградация сервиса или изолированные сбои
+
+**Примеры**:
+
+- Одна функция недоступна (уведомления, экспорт)
+- Повышенный error rate, затрагивающий конкретный endpoint
+- Очередь worker растёт, но не критично
+- Деградация производительности в допустимых пределах
+- Некритичный сбой внешнего сервиса
+
+**Реакция**:
+
+- Обрабатывает дежурный инженер
+- Incident commander опционален
+- Уведомление заинтересованных сторон в течение 2 часов, если влияет на пользователей
+- Статус-обновление по решению
+- Post-incident review опционален
+
+**Целевое время решения**: 8-24 часа
+
+### SEV-4: Мониторинг/расследование
+
+**Определение**: обнаружена аномалия, но подтверждённого влияния на пользователей нет
+
+**Примеры**:
+
+- Сработал алерт, но сервисы здоровы
+- Аномальный паттерн трафика расследуется
+- Потенциальная проблема безопасности требует расследования
+- Обнаружен пробел в мониторинге
+
+**Реакция**:
+
+- Дежурный инженер расследует
+- Немедленная эскалация не нужна, если проблема не подтверждена
+- Задокументировать выводы
+- Post-incident review не требуется
+
+**Целевое время решения**: по возможности
+
+---
+
+## Пути эскалации
+
+### Основная цепочка эскалации
 
 ```
-On-call Engineer
-  ↓ (if cannot resolve in 30 min for SEV-1, 1 hour for SEV-2)
+Дежурный инженер
+  ↓ (если не может решить за 30 мин для SEV-1, за 1 час для SEV-2)
 Incident Commander
-  ↓ (if requires specialist or cross-team coordination)
-Technical Lead / Domain Specialist
-  ↓ (if SEV-1 or major data/security issue)
-Executive Leadership
+  ↓ (если требуется специалист или координация между командами)
+Технический лид / доменный специалист
+  ↓ (если SEV-1 или серьёзная проблема данных/безопасности)
+Руководство
 ```
 
-### Specialist escalation
+### Эскалация специалистам
 
-**Database issues**: Database Administrator + Provider Support  
-**Security incidents**: Security Team + Legal/Compliance  
-**Infrastructure**: Provider Support + Operations Team  
-**Application bugs**: Backend Team Lead + QA  
-**Financial data integrity**: Product Owner + Database Administrator
+**Проблемы базы данных**: администратор базы данных + поддержка провайдера  
+**Инциденты безопасности**: команда безопасности + юридический отдел/compliance  
+**Инфраструктура**: поддержка провайдера + операционная команда  
+**Баги приложения**: тимлид backend + QA  
+**Целостность финансовых данных**: владелец продукта + администратор базы данных
 
-### External escalation
+### Внешняя эскалация
 
-**Provider outage**: Open support ticket, escalate to TAM if available  
-**Security breach**: Security incident response team, legal, compliance  
-**Regulatory impact**: Legal, compliance, data protection officer  
-**User communication**: Support team lead, communications
+**Сбой провайдера**: открыть тикет поддержки, эскалировать на TAM, если доступен  
+**Утечка безопасности**: команда реагирования на инциденты безопасности, юридический отдел, compliance  
+**Регуляторное влияние**: юридический отдел, compliance, data protection officer  
+**Коммуникация с пользователями**: тимлид поддержки, коммуникации
 
 ---
 
-## Incident commander role
+## Роль incident commander
 
-### When to assign incident commander
+### Когда назначать incident commander
 
-- Any SEV-1 incident
-- SEV-2 incident requiring coordination across multiple responders
-- Any incident lasting >1 hour with active troubleshooting
-- Security incidents requiring containment decisions
-- Any incident where on-call engineer requests coordination support
+- Любой инцидент SEV-1
+- Инцидент SEV-2, требующий координации между несколькими исполнителями
+- Любой инцидент длительностью >1 часа с активным устранением
+- Инциденты безопасности, требующие решений по сдерживанию
+- Любой инцидент, где дежурный инженер запрашивает поддержку координации
 
-### Incident commander responsibilities
+### Обязанности incident commander
 
-1. **Coordination**: Organize responders, assign tasks, track progress
-2. **Communication**: Status updates to stakeholders, user communication decisions
-3. **Decision-making**: Rollback decisions, escalation decisions, resource allocation
-4. **Documentation**: Ensure timeline and actions documented
-5. **Post-incident**: Schedule and facilitate post-incident review
+1. **Координация**: организовать исполнителей, распределить задачи, отслеживать прогресс
+2. **Коммуникация**: статус-обновления заинтересованным сторонам, решения о коммуникации с пользователями
+3. **Принятие решений**: решения об откате, эскалации, распределении ресурсов
+4. **Документирование**: обеспечить документирование хронологии и действий
+5. **После инцидента**: запланировать и провести post-incident review
 
-### Incident commander does NOT
+### Incident commander НЕ должен
 
-- Perform technical troubleshooting (delegates to specialists)
-- Override specialist technical decisions without consultation
-- Skip established safety procedures (backup verification, rollback gates)
-
----
-
-## Communication protocols
-
-### Internal communication
-
-**Primary channel**: `[Slack/Teams channel or incident chat room]`
-
-**Communication frequency**:
-
-- SEV-1: Every 30 minutes or on significant status change
-- SEV-2: Every 1-2 hours or on significant status change
-- SEV-3: On resolution or daily if multi-day
-
-**Status update template**:
-
-```
-Incident: [ID and brief description]
-Severity: SEV-[1/2/3]
-Status: [investigating | mitigating | resolved]
-Impact: [user impact description]
-ETA: [estimated resolution time or "investigating"]
-Next update: [timestamp]
-```
-
-### External communication (users)
-
-**Decision gate**: Incident commander approves user communication
-
-**When to communicate**:
-
-- SEV-1: Immediately (within 15 minutes of confirmation)
-- SEV-2: Within 30 minutes if user-facing impact
-- SEV-3: On resolution if degradation noticed by users
-- SEV-4: No user communication unless evolves to higher severity
-
-**Communication channels**:
-
-- Status page update (if available)
-- In-app notification (if available)
-- Email to affected users (if targeted)
-- Social media (if widespread and public-facing)
-
-**User communication template**:
-
-```
-Subject: [Service incident | Service restored]
-
-Status: [investigating | mitigating | monitoring | resolved]
-
-Impact: [Brief description of what users are experiencing]
-
-We are [investigating the issue | implementing a fix | monitoring recovery].
-
-[Optional: Workaround or recommended user actions]
-
-Next update: [timeframe]
-
-We apologize for the inconvenience.
-```
-
-### Executive notification
-
-**Trigger**:
-
-- Any SEV-1 incident
-- SEV-2 incident with potential legal/regulatory/PR impact
-- Security breach or data integrity issue
-- Incident approaching SLA breach
-
-**Notification includes**:
-
-- Incident severity and user impact
-- Root cause (if known)
-- Current status and ETA
-- Potential legal/regulatory/PR implications
-- Resources committed
+- Выполнять техническое устранение неполадок (делегирует специалистам)
+- Отменять технические решения специалистов без консультации
+- Пропускать установленные процедуры безопасности (проверка backup, гейты отката)
 
 ---
 
-## Escalation decision trees
+## Протоколы коммуникации
 
-### Should I escalate to incident commander?
+### Внутренняя коммуникация
 
-```
-Is this SEV-1? → YES → Assign incident commander immediately
-  ↓ NO
-Can I resolve alone in <30 min? → YES → Continue, reassess in 30 min
-  ↓ NO
-Do I need specialist help? → YES → Assign incident commander to coordinate
-  ↓ NO
-Escalate to incident commander
-```
+**Основной канал**: `[канал Slack/Teams или чат инцидентов]`
 
-### Should I rollback?
+**Частота коммуникации**:
+
+- SEV-1: каждые 30 минут или при существенном изменении статуса
+- SEV-2: каждые 1-2 часа или при существенном изменении статуса
+- SEV-3: по решению или ежедневно, если растянуто на несколько дней
+
+**Шаблон статус-обновления**:
 
 ```
-Is service completely broken? → YES → Rollback (follow image-rollback.md)
-  ↓ NO
-Is error rate >10%? → YES → Rollback
-  ↓ NO
-Is migration backward-compatible? → NO → Cannot rollback (forward-fix only)
-  ↓ YES
-Is forward-fix available in <30 min? → YES → Consider forward-fix
-  ↓ NO
-Rollback (follow image-rollback.md)
+Инцидент: [ID и краткое описание]
+Серьёзность: SEV-[1/2/3]
+Статус: [расследуется | смягчается | решён]
+Влияние: [описание влияния на пользователей]
+ETA: [ориентировочное время решения или «расследуется»]
+Следующее обновление: [timestamp]
 ```
 
-### Should I restore database?
+### Внешняя коммуникация (пользователи)
+
+**Гейт решения**: коммуникацию с пользователями одобряет incident commander
+
+**Когда сообщать**:
+
+- SEV-1: немедленно (в течение 15 минут после подтверждения)
+- SEV-2: в течение 30 минут, если есть влияние на пользователей
+- SEV-3: по решению, если пользователи заметили деградацию
+- SEV-4: коммуникация с пользователями не нужна, если не перерастёт в более высокую серьёзность
+
+**Каналы коммуникации**:
+
+- Обновление status page (если есть)
+- Уведомление в приложении (если есть)
+- Email затронутым пользователям (если целенаправленно)
+- Соцсети (если широкомасштабно и публично)
+
+**Шаблон коммуникации с пользователями**:
 
 ```
-Is database corrupted? → NO → Do not restore
-  ↓ YES
-Can app rollback resolve? → YES → Try rollback first
-  ↓ NO
-Is data loss acceptable? → NO → Escalate to exec + legal
-  ↓ YES
-Do we have verified backup? → NO → Escalate to exec + DBA
-  ↓ YES
-Follow database-restore.md with incident commander + DBA
+Тема: [Инцидент сервиса | Сервис восстановлен]
+
+Статус: [расследуется | устраняется | наблюдается | решён]
+
+Влияние: [краткое описание того, что испытывают пользователи]
+
+Мы [расследуем проблему | внедряем исправление | наблюдаем за восстановлением].
+
+[Опционально: обходной путь или рекомендуемые действия пользователей]
+
+Следующее обновление: [временной интервал]
+
+Приносим извинения за неудобства.
+```
+
+### Уведомление руководства
+
+**Триггер**:
+
+- Любой инцидент SEV-1
+- Инцидент SEV-2 с потенциальным юридическим/регуляторным/репутационным влиянием
+- Утечка безопасности или проблема целостности данных
+- Инцидент приближается к нарушению SLA
+
+**Уведомление включает**:
+
+- Серьёзность инцидента и влияние на пользователей
+- Первопричину (если известна)
+- Текущий статус и ETA
+- Потенциальные юридические/регуляторные/репутационные последствия
+- Задействованные ресурсы
+
+---
+
+## Деревья решений эскалации
+
+### Стоит ли эскалировать incident commander-у?
+
+```
+Это SEV-1? → ДА → Немедленно назначить incident commander
+  ↓ НЕТ
+Могу решить сам за <30 мин? → ДА → Продолжить, переоценить через 30 мин
+  ↓ НЕТ
+Нужна помощь специалиста? → ДА → Назначить incident commander для координации
+  ↓ НЕТ
+Эскалировать incident commander-у
+```
+
+### Стоит ли откатывать?
+
+```
+Сервис полностью сломан? → ДА → Откатить (следовать image-rollback.md)
+  ↓ НЕТ
+Error rate >10%? → ДА → Откатить
+  ↓ НЕТ
+Миграция обратно совместима? → НЕТ → Откат невозможен (только forward-fix)
+  ↓ ДА
+Forward-fix доступен за <30 мин? → ДА → Рассмотреть forward-fix
+  ↓ НЕТ
+Откатить (следовать image-rollback.md)
+```
+
+### Стоит ли восстанавливать базу данных?
+
+```
+База данных повреждена? → НЕТ → Не восстанавливать
+  ↓ ДА
+Откат приложения может решить проблему? → ДА → Сначала попробовать откат
+  ↓ НЕТ
+Потеря данных приемлема? → НЕТ → Эскалировать руководству + юридическому отделу
+  ↓ ДА
+Есть проверенный backup? → НЕТ → Эскалировать руководству + DBA
+  ↓ ДА
+Следовать database-restore.md с incident commander + DBA
 ```
 
 ---
 
-## Incident lifecycle
+## Жизненный цикл инцидента
 
-### 1. Detection
+### 1. Обнаружение
 
-**Sources**:
+**Источники**:
 
-- Monitoring alert
-- User report
-- On-call engineer observation
-- External notification (provider, security)
+- Алерт мониторинга
+- Обращение пользователя
+- Наблюдение дежурного инженера
+- Внешнее уведомление (провайдер, безопасность)
 
-**Actions**:
+**Действия**:
 
-- Acknowledge alert
-- Create incident record
-- Begin investigation
+- Подтвердить получение алерта
+- Создать запись об инциденте
+- Начать расследование
 
-### 2. Triage
+### 2. Триаж
 
-**Actions**:
+**Действия**:
 
-- Assess severity (SEV-1/2/3/4)
-- Identify affected systems and users
-- Review recent changes (deployments, config)
-- Assign incident commander if needed
+- Оценить серьёзность (SEV-1/2/3/4)
+- Определить затронутые системы и пользователей
+- Просмотреть недавние изменения (деплои, конфигурация)
+- При необходимости назначить incident commander
 
-### 3. Investigation
+### 3. Расследование
 
-**Actions**:
+**Действия**:
 
-- Review logs and metrics
-- Test hypothesis
-- Identify root cause or containment approach
-- Document timeline
+- Просмотреть логи и метрики
+- Проверить гипотезу
+- Определить первопричину или подход к сдерживанию
+- Задокументировать хронологию
 
-### 4. Mitigation
+### 4. Смягчение
 
-**Actions**:
+**Действия**:
 
-- Execute mitigation plan (rollback, restart, config change)
-- Verify mitigation effectiveness
-- Monitor for recurrence
-- Update stakeholders
+- Выполнить план смягчения (откат, рестарт, изменение конфигурации)
+- Проверить эффективность смягчения
+- Следить за повторением
+- Обновить заинтересованные стороны
 
-### 5. Recovery
+### 5. Восстановление
 
-**Actions**:
+**Действия**:
 
-- Verify all systems healthy
-- Confirm user impact resolved
-- Monitor for stability
-- Declare incident resolved
+- Проверить здоровье всех систем
+- Подтвердить решение влияния на пользователей
+- Следить за стабильностью
+- Объявить инцидент решённым
 
-### 6. Post-incident
+### 6. После инцидента
 
-**Actions**:
+**Действия**:
 
-- Schedule post-incident review
-- Document timeline and root cause
-- Identify prevention measures
-- Assign action items
-- Update runbooks
+- Запланировать post-incident review
+- Задокументировать хронологию и первопричину
+- Определить меры профилактики
+- Назначить задачи
+- Обновить регламенты
 
 ---
 
 ## Post-incident review
 
-### When required
+### Когда обязателен
 
-- All SEV-1 incidents
-- SEV-2 incidents with user impact >1 hour
-- Security incidents
-- Incidents revealing process or tooling gaps
-- Incidents requested by stakeholders
+- Все инциденты SEV-1
+- Инциденты SEV-2 с влиянием на пользователей >1 часа
+- Инциденты безопасности
+- Инциденты, выявившие пробелы в процессе или инструментах
+- Инциденты по запросу заинтересованных сторон
 
-### Review agenda
+### Повестка review
 
-1. **Timeline**: What happened and when
-2. **Root cause**: Why did it happen
-3. **Detection**: How did we discover it, how fast
-4. **Response**: What we did, what worked, what didn't
-5. **Impact**: User impact, business impact, SLA impact
-6. **Prevention**: How to prevent recurrence
-7. **Action items**: Specific, assigned, dated
+1. **Хронология**: что произошло и когда
+2. **Первопричина**: почему это произошло
+3. **Обнаружение**: как обнаружили, насколько быстро
+4. **Реакция**: что сделали, что сработало, что нет
+5. **Влияние**: влияние на пользователей, на бизнес, на SLA
+6. **Профилактика**: как предотвратить повторение
+7. **Задачи**: конкретные, назначенные, с датами
 
-### Review attendees
+### Участники review
 
-- Incident commander (facilitator)
-- On-call engineer(s)
-- Specialists who participated
-- Technical lead
-- Product owner (if user impact)
+- Incident commander (модератор)
+- Дежурный инженер(ы)
+- Специалисты, которые участвовали
+- Технический лид
+- Владелец продукта (при влиянии на пользователей)
 
-### Review outcomes
+### Результаты review
 
-- [ ] Timeline documented
-- [ ] Root cause identified
-- [ ] Prevention measures identified
-- [ ] Action items assigned with owners and due dates
-- [ ] Runbooks updated with lessons learned
-- [ ] Monitoring/alerting gaps addressed
+- [ ] Хронология задокументирована
+- [ ] Первопричина определена
+- [ ] Меры профилактики определены
+- [ ] Задачи назначены с ответственными и сроками
+- [ ] Регламенты обновлены с учётом выводов
+- [ ] Устранены пробелы мониторинга/алертинга
 
 ---
 
-## Incident record template
+## Шаблон записи об инциденте
 
 ```
-Incident ID: [unique identifier]
-Severity: SEV-[1/2/3/4]
-Status: [open | investigating | mitigating | resolved | closed]
+ID инцидента: [уникальный идентификатор]
+Серьёзность: SEV-[1/2/3/4]
+Статус: [open | investigating | mitigating | resolved | closed]
 
-Detection:
-- Detected: [YYYY-MM-DD HH:MM UTC]
-- Detected by: [alert | user report | engineer]
-- Detection lag: [minutes from start to detection]
+Обнаружение:
+- Обнаружен: [YYYY-MM-DD HH:MM UTC]
+- Обнаружил: [алерт | обращение пользователя | инженер]
+- Задержка обнаружения: [минуты от начала до обнаружения]
 
-Impact:
-- User impact: [description and user count]
-- Duration: [minutes]
-- Affected services: [list]
+Влияние:
+- Влияние на пользователей: [описание и число пользователей]
+- Длительность: [минуты]
+- Затронутые сервисы: [список]
 
-Response:
-- Incident commander: [name]
-- Responders: [names]
-- Mitigation: [description]
-- Resolution: [YYYY-MM-DD HH:MM UTC]
+Реакция:
+- Incident commander: [имя]
+- Исполнители: [имена]
+- Смягчение: [описание]
+- Решение: [YYYY-MM-DD HH:MM UTC]
 
-Root cause:
-- [Description or "under investigation"]
+Первопричина:
+- [Описание или «расследуется»]
 
-Timeline:
-[HH:MM] Event
-[HH:MM] Event
+Хронология:
+[HH:MM] Событие
+[HH:MM] Событие
 ...
 
-Action items:
-- [ ] Action 1 - Owner: [name] - Due: [date]
-- [ ] Action 2 - Owner: [name] - Due: [date]
+Задачи:
+- [ ] Задача 1 — ответственный: [имя] — срок: [дата]
+- [ ] Задача 2 — ответственный: [имя] — срок: [дата]
 
-Post-incident review: [date scheduled]
+Post-incident review: [запланированная дата]
 ```
 
 ---
 
-## Emergency contacts
+## Экстренные контакты
 
-| Role                   | Primary         | Secondary   | Escalation path    |
-| ---------------------- | --------------- | ----------- | ------------------ |
-| On-call engineer       | `[contact]`     | `[contact]` | Incident commander |
-| Incident commander     | `[contact]`     | `[contact]` | Technical lead     |
-| Technical lead         | `[contact]`     | `[contact]` | Executive          |
-| Database administrator | `[contact]`     | `[contact]` | Provider support   |
-| Security team          | `[contact]`     | `[contact]` | Legal/compliance   |
-| Provider support       | `[contact/URL]` | -           | TAM (if available) |
-| Legal/compliance       | `[contact]`     | -           | Executive          |
-| Executive on-call      | `[contact]`     | -           | -                  |
+| Роль                    | Основной        | Резервный   | Путь эскалации      |
+| ----------------------- | --------------- | ----------- | -------------------- |
+| Дежурный инженер         | `[контакт]`     | `[контакт]` | Incident commander   |
+| Incident commander      | `[контакт]`     | `[контакт]` | Технический лид      |
+| Технический лид         | `[контакт]`     | `[контакт]` | Руководство          |
+| Администратор базы данных | `[контакт]`   | `[контакт]` | Поддержка провайдера |
+| Команда безопасности    | `[контакт]`     | `[контакт]` | Юридический отдел/compliance |
+| Поддержка провайдера    | `[контакт/URL]` | -           | TAM (если доступен)  |
+| Юридический отдел/compliance | `[контакт]` | -          | Руководство          |
+| Дежурный руководитель   | `[контакт]`     | -           | -                     |
 
-**Contact information storage**: `[protected operations record system - not Git]`
-
----
-
-## Related runbooks
-
-- `docs/runbooks/deploy.md` - Production deployment
-- `docs/runbooks/image-rollback.md` - Application rollback
-- `docs/runbooks/database-restore.md` - Database recovery
-- All other runbooks reference this for escalation
+**Хранение контактной информации**: `[защищённая система операционных записей — не Git]`
 
 ---
 
-**Runbook version**: 2026-09-09  
-**Last incident**: `[date and ID]`  
-**Next review**: `[date]`
+## Связанные регламенты
+
+- `docs/runbooks/deploy.md` — production-деплой
+- `docs/runbooks/image-rollback.md` — откат приложения
+- `docs/runbooks/database-restore.md` — восстановление базы данных
+- Все остальные регламенты ссылаются сюда для эскалации
+
+---
+
+**Версия регламента**: 2026-09-09  
+**Последний инцидент**: `[дата и ID]`  
+**Следующая проверка**: `[дата]`

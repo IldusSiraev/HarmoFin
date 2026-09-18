@@ -1,445 +1,445 @@
-# API Error Spike Runbook
+# Регламент всплеска ошибок API
 
-**Trigger**: Elevated HTTP 5xx error rate, high error rate alert, dashboard showing error spike
+**Триггер**: повышенный уровень HTTP 5xx ошибок, алерт по высокому error rate, dashboard показывает всплеск ошибок
 
-**Prerequisites**:
+**Предусловия**:
 
-- Baseline error rate known
-- Recent deployment information available
-- Monitoring and log access configured
+- Известен baseline error rate
+- Доступна информация о недавнем деплое
+- Настроен доступ к мониторингу и логам
 
-**Estimated duration**: 15-60 minutes depending on root cause
-
----
-
-## Symptoms
-
-Common indicators of API error spike:
-
-- HTTP 5xx error rate significantly above baseline
-- Alert triggered for error rate threshold
-- Dashboard shows error rate increase
-- User reports of application errors or failures
-- Increased error reporting backend activity
+**Ориентировочная длительность**: 15-60 минут в зависимости от первопричины
 
 ---
 
-## Initial assessment
+## Симптомы
 
-### 1. Confirm error spike scope
+Типичные признаки всплеска ошибок API:
+
+- Уровень HTTP 5xx ошибок значительно выше baseline
+- Сработал алерт по порогу error rate
+- Dashboard показывает рост error rate
+- Обращения пользователей об ошибках или сбоях приложения
+- Возросшая активность в backend для отправки ошибок
+
+---
+
+## Первичная оценка
+
+### 1. Подтвердить масштаб всплеска ошибок
 
 ```bash
-# Check API health endpoint
+# Проверить health endpoint API
 curl -f https://production-domain/api/v1/health/live
 curl -f https://production-domain/api/v1/health/ready
 
-# Check metrics dashboard for:
-# - Current error rate vs baseline
-# - Error rate by endpoint
-# - Error rate by status code (500, 502, 503, 504)
+# Проверить dashboard метрик на:
+# - Текущий error rate против baseline
+# - Error rate по endpoint
+# - Error rate по коду статуса (500, 502, 503, 504)
 ```
 
-**Error rate snapshot**:
+**Снимок error rate**:
 
-- Baseline error rate: `[percentage or count/min]`
-- Current error rate: `[percentage or count/min]`
-- Duration: `[minutes since spike started]`
-- Affected endpoints: `[all | specific routes]`
-- Status code distribution: `[500: X%, 502: Y%, etc.]`
+- Baseline error rate: `[процент или count/мин]`
+- Текущий error rate: `[процент или count/мин]`
+- Длительность: `[минуты с начала всплеска]`
+- Затронутые endpoint: `[все | конкретные маршруты]`
+- Распределение по кодам статуса: `[500: X%, 502: Y%, и т.д.]`
 
-### 2. Check recent deployments
+### 2. Проверить недавние деплои
 
 ```bash
-# Check if error spike correlates with recent deployment
-# Review GitHub Actions for recent production deploys
-# Check metrics for release SHA
+# Проверить, коррелирует ли всплеск ошибок с недавним деплоем
+# Просмотреть GitHub Actions на недавние production-деплои
+# Проверить метрики на release SHA
 
-# If recent deployment: Likely regression in new code
-# If no recent deployment: Environmental or load-related issue
+# Если недавний деплой: вероятна регрессия в новом коде
+# Если деплоя не было: проблема окружения или нагрузки
 ```
 
-**Recent deployment**:
+**Недавний деплой**:
 
-- Last deployment: `[timestamp]`
-- Deployment SHA: `[commit SHA]`
-- Error spike timing: `[before/after/unrelated to deployment]`
+- Последний деплой: `[timestamp]`
+- SHA деплоя: `[commit SHA]`
+- Тайминг всплеска ошибок: `[до/после/не связан с деплоем]`
 
-### 3. Review error logs
+### 3. Просмотреть логи ошибок
 
 ```bash
-# Query log backend for recent 5xx errors
-# Look for:
-# - Common error message or stack trace
-# - Specific endpoint failing
-# - Database connection errors
-# - External service failures
-# - Unhandled exceptions
+# Запросить в log-бэкенде недавние 5xx ошибки
+# Искать:
+# - Общее сообщение об ошибке или stack trace
+# - Конкретный падающий endpoint
+# - Ошибки соединения с базой данных
+# - Сбои внешних сервисов
+# - Необработанные исключения
 
-# Example log query (adjust for your log backend):
-# - status:5xx AND level:error in last 15 minutes
-# - Group by error message
-# - Identify most frequent error
+# Пример запроса к логам (адаптировать под ваш log-бэкенд):
+# - status:5xx AND level:error за последние 15 минут
+# - Группировка по сообщению об ошибке
+# - Определение самой частой ошибки
 ```
 
-**Log evidence**:
+**Evidence из логов**:
 
-- Most common error: `[error message or exception]`
-- Affected endpoint(s): `[route paths]`
-- Error frequency: `[count]`
+- Самая частая ошибка: `[сообщение об ошибке или исключение]`
+- Затронутые endpoint: `[пути маршрутов]`
+- Частота ошибки: `[число]`
 
-### 4. Check service health
+### 4. Проверить health сервиса
 
 ```bash
-# Check API container status
+# Проверить статус контейнера API
 ssh production-user@production-host
 docker compose -f infra/compose/production.yml ps api
 docker compose -f infra/compose/production.yml logs --tail=50 api
 ```
 
-**Service status**:
+**Статус сервиса**:
 
-- Container state: `[running/restarting/stopped]`
-- Recent container restarts: `[count]`
-- Resource usage: `[CPU/memory if visible]`
+- Состояние контейнера: `[running/restarting/stopped]`
+- Недавние рестарты контейнера: `[число]`
+- Использование ресурсов: `[CPU/память, если видно]`
 
 ---
 
-## Common causes and resolutions
+## Типичные причины и решения
 
-### Deployment regression (code bug)
+### Регрессия деплоя (баг в коде)
 
-**Symptoms**: Error spike immediately after deployment, specific error pattern in logs
+**Симптомы**: всплеск ошибок сразу после деплоя, конкретный паттерн ошибки в логах
 
-**Diagnosis**:
+**Диагностика**:
 
 ```bash
-# Review deployment timing vs error spike
-# Identify new code introduced in deployment
-# Review error logs for new exception types
+# Сравнить тайминг деплоя со всплеском ошибок
+# Определить новый код, добавленный в деплое
+# Просмотреть логи ошибок на новые типы исключений
 git log --oneline $PREVIOUS_SHA..$CURRENT_SHA
 ```
 
-**Resolution**:
+**Решение**:
 
 ```bash
-# Rollback to previous known-good SHA
-# Follow image-rollback.md runbook
+# Откатиться на предыдущий известный рабочий SHA
+# Следовать регламенту image-rollback.md
 
-# Prerequisites for rollback:
-# - Migration compatibility: backward-compatible or rollback-safe
-# - Previous SHA identified and verified
+# Предусловия для отката:
+# - Совместимость миграции: backward-compatible или rollback-safe
+# - Предыдущий SHA определён и проверен
 ```
 
-- [ ] Deployment regression confirmed
-- [ ] Rollback decision made
-- [ ] Follow docs/runbooks/image-rollback.md
-- [ ] Services restored with previous SHA
-- [ ] Error rate returned to baseline
+- [ ] Регрессия деплоя подтверждена
+- [ ] Принято решение об откате
+- [ ] Следовать `docs/runbooks/image-rollback.md`
+- [ ] Сервисы восстановлены с предыдущим SHA
+- [ ] Error rate вернулся к baseline
 
-### Database connectivity failure
+### Сбой связности с базой данных
 
-**Symptoms**: 500 errors with database connection errors in logs, health ready endpoint failing
+**Симптомы**: 500 ошибки с ошибками соединения с базой данных в логах, health ready endpoint падает
 
-**Diagnosis**:
+**Диагностика**:
 
 ```bash
-# Check API health ready endpoint (includes database check)
+# Проверить health ready endpoint API (включает проверку базы данных)
 curl -f https://production-domain/api/v1/health/ready
 
-# Review logs for database connection errors
+# Просмотреть логи на ошибки соединения с базой данных
 docker compose -f infra/compose/production.yml logs api | grep -i "database\|connection"
 ```
 
-**Resolution**:
+**Решение**:
 
 ```bash
-# Follow postgres-outage.md runbook
-# After database restored, verify API recovers
+# Следовать регламенту postgres-outage.md
+# После восстановления базы данных проверить восстановление API
 curl -f https://production-domain/api/v1/health/ready
 ```
 
-- [ ] Database issue confirmed
-- [ ] Follow docs/runbooks/postgres-outage.md
-- [ ] Database connectivity restored
-- [ ] API error rate returned to baseline
+- [ ] Проблема базы данных подтверждена
+- [ ] Следовать `docs/runbooks/postgres-outage.md`
+- [ ] Связность с базой данных восстановлена
+- [ ] Error rate API вернулся к baseline
 
-### External service failure (SMTP, observability)
+### Сбой внешнего сервиса (SMTP, observability)
 
-**Symptoms**: Specific endpoint failing (password reset, notifications), external service timeout errors
+**Симптомы**: падает конкретный endpoint (сброс пароля, уведомления), ошибки таймаута внешнего сервиса
 
-**Diagnosis**:
+**Диагностика**:
 
 ```bash
-# Review logs for external service errors
-# - SMTP connection errors
-# - Error reporting endpoint unreachable
-# - Tracing backend timeout
+# Просмотреть логи на ошибки внешнего сервиса
+# - Ошибки соединения SMTP
+# - Endpoint отправки ошибок недоступен
+# - Таймаут бэкенда трассировки
 
-# Check if external service is degraded
-# - SMTP provider status page
-# - Observability provider status page
+# Проверить, деградировал ли внешний сервис
+# - Страница статуса SMTP-провайдера
+# - Страница статуса провайдера observability
 ```
 
-**Resolution**:
+**Решение**:
 
 ```bash
-# If external service degraded:
-# - Wait for external service recovery
-# - Monitor external service status page
-# - Consider temporary feature disable if critical
+# Если внешний сервис деградировал:
+# - Дождаться восстановления внешнего сервиса
+# - Следить за страницей статуса внешнего сервиса
+# - Рассмотреть временное отключение функции, если критично
 
-# If misconfiguration:
-# - Verify external service credentials
-# - Check network connectivity from API container
-# - Follow secret-rotation.md if credentials rotated without updating API
+# Если неверная конфигурация:
+# - Проверить credentials внешнего сервиса
+# - Проверить сетевую связность с контейнера API
+# - Следовать secret-rotation.md, если credentials ротировались без обновления API
 ```
 
-- [ ] External service failure identified
-- [ ] Service provider status checked
-- [ ] Mitigation applied (wait/disable/fix configuration)
-- [ ] API error rate improved or isolated to specific feature
+- [ ] Сбой внешнего сервиса определён
+- [ ] Статус сервис-провайдера проверен
+- [ ] Применено смягчение (ожидание/отключение/исправление конфигурации)
+- [ ] Error rate API улучшился или изолирован до конкретной функции
 
-### Traffic spike or resource exhaustion
+### Всплеск трафика или исчерпание ресурсов
 
-**Symptoms**: Gradual error rate increase, timeouts, memory/CPU exhaustion, no code changes
+**Симптомы**: постепенный рост error rate, таймауты, исчерпание памяти/CPU, изменений кода не было
 
-**Diagnosis**:
+**Диагностика**:
 
 ```bash
-# Check API request rate vs baseline
-# Check container resource usage
+# Сравнить частоту запросов API с baseline
+# Проверить использование ресурсов контейнера
 docker stats production-api-1
 
-# Check for unusual traffic patterns
-# - Single user making many requests
-# - DDoS or bot traffic
-# - Legitimate traffic spike (viral post, scheduled event)
+# Проверить необычные паттерны трафика
+# - Один пользователь делает много запросов
+# - DDoS или бот-трафик
+# - Легитимный всплеск трафика (вирусный пост, запланированное событие)
 ```
 
-**Resolution**:
+**Решение**:
 
 ```bash
-# Short-term:
-# - Rate limit aggressive clients if identifiable
-# - Scale API container resources if provider allows
-# - Add additional API replica if supported
+# Краткосрочно:
+# - Ограничить агрессивных клиентов, если можно определить
+# - Масштабировать ресурсы контейнера API, если провайдер позволяет
+# - Добавить дополнительную реплику API, если поддерживается
 
-# Immediate relief:
-# - Restart API to clear memory if memory leak suspected
+# Немедленное облегчение:
+# - Перезапустить API для очистки памяти, если подозревается утечка
 docker compose -f infra/compose/production.yml restart api
 
-# Long-term:
-# - Optimize slow endpoints
-# - Add caching layer
-# - Review rate limiting strategy
-# - Scale infrastructure
+# Долгосрочно:
+# - Оптимизировать медленные endpoint
+# - Добавить слой кеширования
+# - Пересмотреть стратегию rate limiting
+# - Масштабировать инфраструктуру
 ```
 
-- [ ] Traffic spike or resource exhaustion confirmed
-- [ ] Immediate mitigation applied
-- [ ] Error rate improved
-- [ ] Capacity planning review scheduled
+- [ ] Всплеск трафика или исчерпание ресурсов подтверждены
+- [ ] Немедленное смягчение применено
+- [ ] Error rate улучшился
+- [ ] Запланирован пересмотр планирования мощностей
 
-### Specific endpoint bug (not deployment-wide)
+### Баг конкретного endpoint (не по всему деплою)
 
-**Symptoms**: Single endpoint or feature failing, other endpoints healthy
+**Симптомы**: падает один endpoint или функция, остальные endpoint здоровы
 
-**Diagnosis**:
+**Диагностика**:
 
 ```bash
-# Identify failing endpoint from logs/metrics
-# Check if specific query parameter or input triggers error
-# Review recent changes to that endpoint
+# Определить падающий endpoint по логам/метрикам
+# Проверить, вызывает ли ошибку конкретный параметр запроса или ввод
+# Просмотреть недавние изменения в этом endpoint
 ```
 
-**Resolution**:
+**Решение**:
 
 ```bash
-# If non-critical endpoint:
-# - Document known issue
-# - Schedule fix for next release
-# - Communicate to users if needed
+# Если некритичный endpoint:
+# - Задокументировать известную проблему
+# - Запланировать исправление на следующий релиз
+# - При необходимости сообщить пользователям
 
-# If critical endpoint:
-# - Develop hotfix
-# - Test in staging
-# - Deploy via normal release process
-# - OR temporarily disable endpoint if possible
+# Если критичный endpoint:
+# - Разработать hotfix
+# - Протестировать на staging
+# - Задеплоить через обычный релизный процесс
+# - ИЛИ временно отключить endpoint, если возможно
 ```
 
-- [ ] Failing endpoint identified
-- [ ] Impact assessed (critical vs non-critical)
-- [ ] Mitigation plan (hotfix vs scheduled fix vs disable)
-- [ ] User communication if needed
+- [ ] Падающий endpoint определён
+- [ ] Влияние оценено (критично или нет)
+- [ ] План смягчения (hotfix, плановое исправление или отключение)
+- [ ] Коммуникация с пользователями при необходимости
 
-### Unhandled exception in new code path
+### Необработанное исключение в новом коде
 
-**Symptoms**: New exception type in logs, specific user action triggers error
+**Симптомы**: новый тип исключения в логах, конкретное действие пользователя вызывает ошибку
 
-**Diagnosis**:
+**Диагностика**:
 
 ```bash
-# Review error logs for stack trace
-# Identify code path causing exception
-# Reproduce in staging if possible
+# Просмотреть логи ошибок на stack trace
+# Определить код, вызывающий исключение
+# Воспроизвести на staging, если возможно
 ```
 
-**Resolution**:
+**Решение**:
 
 ```bash
-# Follow deployment regression resolution (rollback or hotfix)
-# Add test coverage for failing scenario
-# Deploy fix through normal release process
+# Следовать решению для регрессии деплоя (откат или hotfix)
+# Добавить тестовое покрытие для падающего сценария
+# Задеплоить исправление через обычный релизный процесс
 ```
 
-- [ ] Exception root cause identified
-- [ ] Rollback or hotfix decision made
-- [ ] Test coverage added
-- [ ] Fix deployed
+- [ ] Первопричина исключения определена
+- [ ] Принято решение об откате или hotfix
+- [ ] Тестовое покрытие добавлено
+- [ ] Исправление задеплоено
 
 ---
 
-## Temporary mitigation strategies
+## Временные стратегии смягчения
 
-### Restart API to clear transient state
+### Перезапустить API для очистки временного состояния
 
-**Use when**: Memory leak suspected, connection pool exhausted, transient error
+**Использовать когда**: подозревается утечка памяти, исчерпан пул соединений, временная ошибка
 
 ```bash
 ssh production-user@production-host
 docker compose -f infra/compose/production.yml restart api
 ```
 
-**Impact**: In-flight requests interrupted, brief service disruption (10-30 seconds)
+**Влияние**: прерывание запросов в процессе, краткое прерывание сервиса (10-30 секунд)
 
-### Disable problematic feature flag (if feature flagged)
+### Отключить проблемный feature flag (если функция флагована)
 
-**Use when**: New feature causing errors, feature can be safely disabled
+**Использовать когда**: новая функция вызывает ошибки, функцию можно безопасно отключить
 
 ```bash
-# If feature flags implemented via environment variable
-# Update .env.production to disable feature
-# Restart API
+# Если feature flag реализован через переменную окружения
+# Обновить .env.production, чтобы отключить функцию
+# Перезапустить API
 docker compose -f infra/compose/production.yml restart api
 ```
 
-### Increase API resources (if provider supports)
+### Увеличить ресурсы API (если провайдер поддерживает)
 
-**Use when**: Resource exhaustion confirmed, scaling possible
+**Использовать когда**: исчерпание ресурсов подтверждено, масштабирование возможно
 
 ```bash
-# Scale via provider console or update production.yml resource limits
-# Redeploy with increased resources
+# Масштабировать через консоль провайдера или обновить лимиты ресурсов в production.yml
+# Передеплоить с увеличенными ресурсами
 ```
 
 ---
 
-## Escalation
+## Эскалация
 
-### When to escalate
+### Когда эскалировать
 
-- Error rate remains high after initial mitigation attempts
-- Database or infrastructure issue requiring specialist (escalate to postgres-outage.md)
-- Code bug requiring urgent hotfix beyond on-call engineer capability
-- User data integrity concern
-- Sustained high error rate risking SLA breach
+- Error rate остаётся высоким после первичных попыток смягчения
+- Проблема базы данных или инфраструктуры требует специалиста (эскалировать в postgres-outage.md)
+- Баг в коде требует срочного hotfix за пределами возможностей дежурного инженера
+- Есть опасение за целостность пользовательских данных
+- Устойчивый высокий error rate угрожает нарушением SLA
 
-### Emergency contacts
+### Экстренные контакты
 
-- **Incident commander**: `[contact]`
-- **On-call engineer**: `[contact]`
-- **Database administrator**: `[contact if database issue]`
-- **API/backend team lead**: `[contact for code issues]`
-
----
-
-## Communication
-
-### User communication
-
-**If user-facing impact**:
-
-- [ ] Status page updated (if exists)
-- [ ] User-facing communication drafted
-- [ ] Support team notified
-- [ ] Timeline for resolution communicated
-
-**Communication template**:
-
-```
-We are investigating elevated error rates affecting [feature/all functionality].
-[Specific actions users should avoid or expect delays]
-We will provide updates every [timeframe].
-```
+- **Incident commander**: `[контакт]`
+- **Дежурный инженер**: `[контакт]`
+- **Администратор базы данных**: `[контакт, если проблема с базой данных]`
+- **Тимлид API/backend**: `[контакт по проблемам кода]`
 
 ---
 
-## Post-incident actions
+## Коммуникация
 
-### 1. Record incident evidence
+### Коммуникация с пользователями
 
-- **Incident ID**: `[unique identifier]`
-- **Trigger timestamp**: `[YYYY-MM-DD HH:MM UTC]`
-- **Resolution timestamp**: `[YYYY-MM-DD HH:MM UTC]`
-- **Duration**: `[minutes]`
-- **Peak error rate**: `[percentage or count/min]`
-- **Root cause**: `[description]`
-- **User impact**: `[number of affected requests/users]`
+**При влиянии на пользователей**:
 
-### 2. Root cause analysis
+- [ ] Status page обновлена (если есть)
+- [ ] Подготовлена коммуникация для пользователей
+- [ ] Служба поддержки уведомлена
+- [ ] Сообщён срок решения проблемы
 
-- [ ] Root cause identified and documented
-- [ ] Timeline of events recorded
-- [ ] Contributing factors identified
-- [ ] Detection delay analyzed (could we have caught it earlier?)
+**Шаблон коммуникации**:
 
-### 3. Prevention measures
+```
+Мы расследуем повышенный уровень ошибок, затрагивающий [функция/весь функционал].
+[Конкретные действия, которых стоит избегать пользователям, или ожидаемые задержки]
+Мы будем сообщать об обновлениях каждые [интервал времени].
+```
 
-- [ ] Add test coverage for failure scenario
-- [ ] Add monitoring/alerting to detect earlier
-- [ ] Code fix deployed (if bug)
-- [ ] Deployment process improvement (if regression)
-- [ ] Update this runbook with lessons learned
+---
+
+## Действия после инцидента
+
+### 1. Зафиксировать evidence инцидента
+
+- **ID инцидента**: `[уникальный идентификатор]`
+- **Время начала**: `[YYYY-MM-DD HH:MM UTC]`
+- **Время решения**: `[YYYY-MM-DD HH:MM UTC]`
+- **Длительность**: `[минуты]`
+- **Пиковый error rate**: `[процент или count/мин]`
+- **Первопричина**: `[описание]`
+- **Влияние на пользователей**: `[число затронутых запросов/пользователей]`
+
+### 2. Анализ первопричины
+
+- [ ] Первопричина определена и задокументирована
+- [ ] Хронология событий зафиксирована
+- [ ] Определены сопутствующие факторы
+- [ ] Проанализирована задержка обнаружения (могли ли поймать раньше?)
+
+### 3. Меры профилактики
+
+- [ ] Добавлено тестовое покрытие для сценария сбоя
+- [ ] Добавлен мониторинг/алертинг для более раннего обнаружения
+- [ ] Исправление кода задеплоено (если баг)
+- [ ] Улучшен процесс деплоя (если регрессия)
+- [ ] Обновлён этот регламент с учётом выводов
 
 ### 4. Post-incident review
 
-- [ ] Post-incident review scheduled
-- [ ] Action items assigned
-- [ ] SLA impact assessed
-- [ ] User communication follow-up
+- [ ] Post-incident review запланирован
+- [ ] Задачи назначены
+- [ ] Влияние на SLA оценено
+- [ ] Проведена дальнейшая коммуникация с пользователями
 
 ---
 
-## Monitoring and alerts
+## Мониторинг и алерты
 
-**Recommended alerts**:
+**Рекомендуемые алерты**:
 
-- HTTP 5xx error rate > baseline threshold (e.g., 1% over 5 minutes)
-- API health ready endpoint failing
-- Specific endpoint error rate > threshold
-- Response time P99 > threshold
-- Container restart loop
+- Уровень HTTP 5xx ошибок > порога baseline (например, 1% за 5 минут)
+- Health ready endpoint API падает
+- Error rate конкретного endpoint > порога
+- Response time P99 > порога
+- Цикл рестартов контейнера
 
-**Recommended dashboard panels**:
+**Рекомендуемые панели dashboard**:
 
-- HTTP status code distribution over time
-- Error rate by endpoint
-- Response time percentiles (P50, P95, P99)
-- Request rate
-- Container resource usage
-- Release SHA and deployment markers
-
----
-
-## Related runbooks
-
-- `docs/runbooks/deploy.md` - Production deployment procedure
-- `docs/runbooks/image-rollback.md` - Application rollback procedure
-- `docs/runbooks/postgres-outage.md` - Database connectivity issues
-- `docs/runbooks/incident-escalation.md` - Incident response escalation
+- Распределение кодов статуса HTTP во времени
+- Error rate по endpoint
+- Перцентили времени ответа (P50, P95, P99)
+- Частота запросов
+- Использование ресурсов контейнера
+- Release SHA и маркеры деплоя
 
 ---
 
-**Runbook version**: 2026-09-09  
-**Last incident**: `[date]`  
-**Next review**: `[date]`
+## Связанные регламенты
+
+- `docs/runbooks/deploy.md` — процедура production-деплоя
+- `docs/runbooks/image-rollback.md` — процедура отката приложения
+- `docs/runbooks/postgres-outage.md` — проблемы связности с базой данных
+- `docs/runbooks/incident-escalation.md` — эскалация реагирования на инцидент
+
+---
+
+**Версия регламента**: 2026-09-09  
+**Последний инцидент**: `[дата]`  
+**Следующая проверка**: `[дата]`

@@ -1,352 +1,352 @@
-# PostgreSQL Outage Runbook
+# Регламент сбоя PostgreSQL
 
-**Trigger**: Database connectivity failure, high error rate from database queries, health checks failing with database errors
+**Триггер**: сбой связности с базой данных, высокий уровень ошибок из запросов к базе, health-проверки падают с ошибками базы данных
 
-**Prerequisites**:
+**Предусловия**:
 
-- Database monitoring and alerts configured
-- Provider support contact information available
-- Recent backup evidence current
+- Настроен мониторинг и алерты базы данных
+- Доступны контакты поддержки провайдера
+- Актуальные данные о свежем backup
 
-**Estimated duration**: 15 minutes - 4 hours depending on root cause
-
----
-
-## Symptoms
-
-Common indicators of PostgreSQL outage or degradation:
-
-- API `/health/ready` endpoint failing with database error
-- Worker `/internal/health/ready` failing with database check error
-- High rate of database connection errors in logs
-- Database connection pool exhaustion
-- Query timeouts or extremely high latency
-- Provider alert indicating database instance unhealthy
+**Ориентировочная длительность**: 15 минут - 4 часа в зависимости от первопричины
 
 ---
 
-## Initial assessment
+## Симптомы
 
-### 1. Confirm database outage scope
+Типичные признаки сбоя или деградации PostgreSQL:
+
+- Endpoint API `/health/ready` падает с ошибкой базы данных
+- `/internal/health/ready` у worker падает с ошибкой проверки базы данных
+- Высокая частота ошибок соединения с базой данных в логах
+- Исчерпание пула соединений с базой данных
+- Таймауты запросов или крайне высокая latency
+- Алерт провайдера об нездоровом инстансе базы данных
+
+---
+
+## Первичная оценка
+
+### 1. Подтвердить масштаб сбоя базы данных
 
 ```bash
-# Check API health (includes database check)
+# Проверить health API (включает проверку базы данных)
 curl -f https://production-domain/api/v1/health/ready
 
-# Check worker health (includes database check)
-# SSH to production host if worker health not externally accessible
+# Проверить health worker (включает проверку базы данных)
+# SSH на production-хост, если health worker недоступен извне
 ssh production-user@production-host
 docker compose -f infra/compose/production.yml exec worker curl -f http://localhost:3003/internal/health/ready
 ```
 
-**Health check results**:
+**Результаты health-проверки**:
 
 - API ready: `[pass/fail]`
 - Worker ready: `[pass/fail]`
-- Error message: `[database error details]`
+- Сообщение об ошибке: `[детали ошибки базы данных]`
 
-### 2. Test direct database connectivity
+### 2. Проверить прямую связность с базой данных
 
 ```bash
-# Test database connection from application host
-# DO NOT include actual DATABASE_URL in Git
+# Проверить соединение с базой данных с хоста приложения
+# НЕ включать реальный DATABASE_URL в Git
 ssh production-user@production-host
 psql "$DATABASE_URL" -c "SELECT 1;"
 ```
 
-**Connectivity test results**:
+**Результаты проверки связности**:
 
-- [ ] Connection succeeds
-- [ ] Connection times out
-- [ ] Connection refused
-- [ ] Authentication failure
-- [ ] Other error: `[description]`
+- [ ] Соединение успешно
+- [ ] Соединение по таймауту
+- [ ] Соединение отклонено
+- [ ] Ошибка аутентификации
+- [ ] Другая ошибка: `[описание]`
 
-### 3. Check provider database console
-
-```bash
-# Navigate to provider database console
-# Check instance status, metrics, alerts
-```
-
-**Provider status**:
-
-- Instance state: `[available/stopped/maintenance/failing-over/unknown]`
-- CPU usage: `[percentage]`
-- Memory usage: `[percentage]`
-- Connection count: `[current/max]`
-- IOPS: `[current]`
-- Recent alerts: `[description]`
-
-### 4. Review application logs
+### 3. Проверить консоль базы данных провайдера
 
 ```bash
-# Check recent API/worker logs for database errors
-# Look for connection pool exhaustion, query timeouts, connection refused
-
-# Example log queries (adjust for your log backend):
-# - "database connection" AND "error" in last 15 minutes
-# - "connection pool" AND "exhausted" in last 15 minutes
-# - "query timeout" in last 15 minutes
+# Перейти в консоль базы данных провайдера
+# Проверить статус инстанса, метрики, алерты
 ```
 
-**Log evidence**: `[log query results or dashboard URL]`
+**Статус провайдера**:
+
+- Состояние инстанса: `[available/stopped/maintenance/failing-over/unknown]`
+- Использование CPU: `[процент]`
+- Использование памяти: `[процент]`
+- Число соединений: `[текущее/максимум]`
+- IOPS: `[текущее]`
+- Недавние алерты: `[описание]`
+
+### 4. Просмотреть логи приложения
+
+```bash
+# Проверить недавние логи API/worker на ошибки базы данных
+# Искать исчерпание пула соединений, таймауты запросов, отказ соединения
+
+# Примеры запросов к логам (адаптировать под ваш log-бэкенд):
+# - "database connection" AND "error" за последние 15 минут
+# - "connection pool" AND "exhausted" за последние 15 минут
+# - "query timeout" за последние 15 минут
+```
+
+**Evidence из логов**: `[результаты запроса к логам или URL dashboard]`
 
 ---
 
-## Common causes and resolutions
+## Типичные причины и решения
 
-### Connection pool exhaustion
+### Исчерпание пула соединений
 
-**Symptoms**: "connection pool exhausted", "too many clients", API/worker can't acquire connection
+**Симптомы**: «connection pool exhausted», «too many clients», API/worker не может получить соединение
 
-**Diagnosis**:
+**Диагностика**:
 
 ```bash
-# Check active connection count vs pool size
-# Review DATABASE_URL connection pool settings
-# Check for long-running queries or transactions
+# Сравнить число активных соединений с размером пула
+# Просмотреть настройки пула соединений в DATABASE_URL
+# Проверить наличие долгих запросов или транзакций
 ```
 
-**Resolution**:
+**Решение**:
 
 ```bash
-# Short-term: Restart API/worker to reset connection pools
+# Краткосрочно: перезапустить API/worker для сброса пулов соединений
 docker compose -f infra/compose/production.yml restart api worker
 
-# Long-term:
-# - Increase connection pool size if database can handle it
-# - Investigate connection leaks in application code
-# - Add connection pool monitoring/alerts
+# Долгосрочно:
+# - Увеличить размер пула соединений, если база данных выдержит
+# - Расследовать утечки соединений в коде приложения
+# - Добавить мониторинг/алерты по пулу соединений
 ```
 
-- [ ] Connection pool settings reviewed
-- [ ] Services restarted
-- [ ] Health checks passing
-- [ ] Connection monitoring added
+- [ ] Настройки пула соединений пересмотрены
+- [ ] Сервисы перезапущены
+- [ ] Health-проверки проходят
+- [ ] Добавлен мониторинг соединений
 
-### Database instance failure or maintenance
+### Сбой или обслуживание инстанса базы данных
 
-**Symptoms**: Connection refused, provider console shows instance stopped/maintenance/failing-over
+**Симптомы**: соединение отклонено, консоль провайдера показывает инстанс остановленным/на обслуживании/в фейловере
 
-**Diagnosis**:
+**Диагностика**:
 
 ```bash
-# Check provider console for:
-# - Scheduled maintenance window
-# - Automatic failover in progress
-# - Instance stopped/terminated
-# - Provider-wide outage
+# Проверить консоль провайдера на:
+# - Запланированное окно обслуживания
+# - Идущий автоматический фейловер
+# - Остановленный/удалённый инстанс
+# - Сбой на стороне провайдера
 ```
 
-**Resolution**:
+**Решение**:
 
 ```bash
-# If scheduled maintenance: Wait for maintenance completion (typically 15-30 min)
-# If automatic failover: Wait for failover completion (typically 1-5 min)
-# If instance stopped: Restart via provider console
-# If provider outage: Escalate to provider support
+# Если плановое обслуживание: дождаться завершения (обычно 15-30 мин)
+# Если автоматический фейловер: дождаться завершения (обычно 1-5 мин)
+# Если инстанс остановлен: перезапустить через консоль провайдера
+# Если сбой провайдера: эскалировать в поддержку провайдера
 
-# Monitor provider console for instance to return to available state
-# Verify health checks pass after instance recovers
+# Следить за консолью провайдера до возврата инстанса в доступное состояние
+# Проверить прохождение health-проверок после восстановления инстанса
 ```
 
-- [ ] Root cause identified
-- [ ] Instance recovered or failover completed
-- [ ] Health checks passing
-- [ ] Provider support ticket opened (if needed)
+- [ ] Первопричина определена
+- [ ] Инстанс восстановлен или фейловер завершён
+- [ ] Health-проверки проходят
+- [ ] Открыт тикет в поддержку провайдера (при необходимости)
 
-### Network connectivity failure
+### Сбой сетевой связности
 
-**Symptoms**: Connection timeout, network unreachable, DNS resolution failure
+**Симптомы**: таймаут соединения, network unreachable, ошибка резолва DNS
 
-**Diagnosis**:
+**Диагностика**:
 
 ```bash
-# Test network connectivity from application host
+# Проверить сетевую связность с хоста приложения
 ssh production-user@production-host
 ping database-hostname
 nslookup database-hostname
 telnet database-hostname 5432
 ```
 
-**Resolution**:
+**Решение**:
 
 ```bash
-# Check firewall/security group rules
-# Check private network configuration
-# Check DNS resolution
-# Verify database hostname hasn't changed (provider failover)
+# Проверить правила firewall/security group
+# Проверить конфигурацию приватной сети
+# Проверить резолв DNS
+# Убедиться, что хостнейм базы данных не изменился (фейловер провайдера)
 
-# If network rules changed: Restore application host access
-# If DNS issue: Verify DATABASE_URL hostname correct
-# If provider network issue: Escalate to provider support
+# Если изменились сетевые правила: восстановить доступ хоста приложения
+# Если проблема DNS: проверить корректность хостнейма в DATABASE_URL
+# Если сетевая проблема провайдера: эскалировать в поддержку провайдера
 ```
 
-- [ ] Network connectivity restored
-- [ ] Firewall rules verified
-- [ ] DNS resolution working
-- [ ] Health checks passing
+- [ ] Сетевая связность восстановлена
+- [ ] Правила firewall проверены
+- [ ] Резолв DNS работает
+- [ ] Health-проверки проходят
 
-### Authentication failure
+### Сбой аутентификации
 
-**Symptoms**: "authentication failed", "password authentication failed", "role does not exist"
+**Симптомы**: «authentication failed», «password authentication failed», «role does not exist»
 
-**Diagnosis**:
+**Диагностика**:
 
 ```bash
-# Verify DATABASE_URL credentials correct
-# Check if database password was rotated without updating application
-# Check if database user was deleted or disabled
+# Убедиться, что credentials в DATABASE_URL корректны
+# Проверить, не ротировался ли пароль базы данных без обновления приложения
+# Проверить, не удалён/отключён ли пользователь базы данных
 ```
 
-**Resolution**:
+**Решение**:
 
 ```bash
-# If credentials incorrect: Update .env.production with correct DATABASE_URL
+# Если credentials некорректны: обновить .env.production правильным DATABASE_URL
 docker compose -f infra/compose/production.yml restart api worker
 
-# If credentials rotated: Follow secret-rotation.md runbook
-# If user deleted: Recreate user via provider console and update credentials
+# Если credentials ротировались: следовать регламенту secret-rotation.md
+# Если пользователь удалён: пересоздать через консоль провайдера и обновить credentials
 ```
 
-- [ ] Credentials verified/updated
-- [ ] Services restarted
-- [ ] Health checks passing
+- [ ] Credentials проверены/обновлены
+- [ ] Сервисы перезапущены
+- [ ] Health-проверки проходят
 
-### Database disk full or performance degradation
+### Диск базы данных заполнен или деградация производительности
 
-**Symptoms**: Slow queries, high IOPS, disk full errors, extremely high latency
+**Симптомы**: медленные запросы, высокий IOPS, ошибки заполненного диска, крайне высокая latency
 
-**Diagnosis**:
+**Диагностика**:
 
 ```bash
-# Check provider console for:
-# - Disk usage percentage
-# - IOPS/throughput utilization
-# - CPU/memory usage
-# - Long-running queries
+# Проверить консоль провайдера на:
+# - Процент использования диска
+# - Утилизацию IOPS/пропускной способности
+# - Использование CPU/памяти
+# - Долгие запросы
 ```
 
-**Resolution**:
+**Решение**:
 
 ```bash
-# If disk full:
-# - Increase database storage via provider console
-# - Clean up old data (logs, temp tables) if applicable
-# - Review data growth rate and capacity planning
+# Если диск заполнен:
+# - Увеличить хранилище базы данных через консоль провайдера
+# - Очистить старые данные (логи, временные таблицы), если применимо
+# - Пересмотреть темп роста данных и планирование мощностей
 
-# If IOPS exhausted:
-# - Increase provisioned IOPS
-# - Optimize slow queries
-# - Add database indexes
+# Если IOPS исчерпан:
+# - Увеличить выделенный IOPS
+# - Оптимизировать медленные запросы
+# - Добавить индексы базы данных
 
-# If CPU/memory exhausted:
-# - Scale database instance size
-# - Optimize slow queries
-# - Review connection pool size
+# Если исчерпаны CPU/память:
+# - Увеличить размер инстанса базы данных
+# - Оптимизировать медленные запросы
+# - Пересмотреть размер пула соединений
 ```
 
-- [ ] Storage/performance issue identified
-- [ ] Instance scaled or optimized
-- [ ] Health checks passing
-- [ ] Capacity planning reviewed
+- [ ] Проблема хранилища/производительности определена
+- [ ] Инстанс масштабирован или оптимизирован
+- [ ] Health-проверки проходят
+- [ ] Планирование мощностей пересмотрено
 
 ---
 
-## Escalation
+## Эскалация
 
-### When to escalate to provider support
+### Когда эскалировать в поддержку провайдера
 
-- Database instance unrecoverable via console
-- Provider-wide outage suspected
-- Unexpected failover or data loss
-- Performance degradation with no obvious application cause
-- RTO approaching 4-hour limit
+- Инстанс базы данных невосстановим через консоль
+- Подозрение на сбой на стороне всего провайдера
+- Неожиданный фейловер или потеря данных
+- Деградация производительности без очевидной причины со стороны приложения
+- RTO приближается к пределу в 4 часа
 
-### Provider support information
+### Информация о поддержке провайдера
 
-**Provider**: `[provider name]`  
-**Support contact**: `[phone, email, portal URL]`  
-**Support plan/SLA**: `[plan details]`  
-**Account ID**: `[do not commit if sensitive]`
+**Провайдер**: `[название провайдера]`  
+**Контакт поддержки**: `[телефон, email, URL портала]`  
+**Тарифный план/SLA**: `[детали плана]`  
+**ID аккаунта**: `[не коммитить, если чувствительно]`
 
-**Information to provide**:
+**Информация для предоставления**:
 
-- Instance identifier
-- Timestamp of issue onset
-- Symptoms and error messages
-- Recent changes (deployments, configuration)
-- Troubleshooting steps already taken
-
----
-
-## If database unrecoverable
-
-**Trigger**: Database instance destroyed, data corruption, RTO exceeded, provider cannot restore
-
-**Escalation path**:
-
-1. Declare major incident
-2. Notify incident commander and stakeholders
-3. Assess database restore from backup (see `docs/runbooks/database-restore.md`)
-4. Prepare user communication about data loss window
-
-**Critical decision**: Database restore vs wait for provider resolution
-
-- [ ] Incident commander notified
-- [ ] Restore decision made
-- [ ] User communication prepared
-- [ ] Follow database-restore.md runbook if restore required
+- Идентификатор инстанса
+- Время начала проблемы
+- Симптомы и сообщения об ошибках
+- Недавние изменения (деплои, конфигурация)
+- Уже предпринятые шаги диагностики
 
 ---
 
-## Post-incident actions
+## Если база данных невосстановима
 
-### 1. Record incident evidence
+**Триггер**: инстанс базы данных уничтожен, повреждение данных, RTO превышен, провайдер не может восстановить
 
-- **Incident ID**: `[unique identifier]`
-- **Trigger timestamp**: `[YYYY-MM-DD HH:MM UTC]`
-- **Resolution timestamp**: `[YYYY-MM-DD HH:MM UTC]`
-- **Duration**: `[minutes]`
-- **Root cause**: `[description]`
-- **User impact**: `[description]`
+**Путь эскалации**:
 
-### 2. Prevention measures
+1. Объявить major-инцидент
+2. Уведомить incident commander и заинтересованные стороны
+3. Оценить восстановление базы данных из backup (см. `docs/runbooks/database-restore.md`)
+4. Подготовить коммуникацию с пользователями об окне потери данных
 
-- [ ] Add monitoring/alerting to detect earlier
-- [ ] Review capacity planning (connections, storage, IOPS)
-- [ ] Review backup frequency and retention
-- [ ] Update this runbook with lessons learned
-- [ ] Test database failover capability (if supported)
+**Критичное решение**: восстановление базы данных или ожидание решения от провайдера
+
+- [ ] Incident commander уведомлён
+- [ ] Решение о восстановлении принято
+- [ ] Коммуникация с пользователями подготовлена
+- [ ] При необходимости восстановления — следовать регламенту database-restore.md
+
+---
+
+## Действия после инцидента
+
+### 1. Зафиксировать evidence инцидента
+
+- **ID инцидента**: `[уникальный идентификатор]`
+- **Время начала**: `[YYYY-MM-DD HH:MM UTC]`
+- **Время решения**: `[YYYY-MM-DD HH:MM UTC]`
+- **Длительность**: `[минуты]`
+- **Первопричина**: `[описание]`
+- **Влияние на пользователей**: `[описание]`
+
+### 2. Меры профилактики
+
+- [ ] Добавить мониторинг/алертинг для более раннего обнаружения
+- [ ] Пересмотреть планирование мощностей (соединения, хранилище, IOPS)
+- [ ] Пересмотреть частоту и хранение backup
+- [ ] Обновить этот регламент с учётом выводов
+- [ ] Протестировать возможность фейловера базы данных (если поддерживается)
 
 ### 3. Post-incident review
 
-- [ ] Timeline documented
-- [ ] Root cause identified
-- [ ] Prevention measures implemented
-- [ ] Provider SLA review (if provider issue)
+- [ ] Хронология задокументирована
+- [ ] Первопричина определена
+- [ ] Меры профилактики внедрены
+- [ ] Пересмотр SLA провайдера (при проблеме на стороне провайдера)
 
 ---
 
-## Emergency contacts
+## Экстренные контакты
 
-- **Incident commander**: `[contact]`
-- **Database administrator**: `[contact]`
-- **Provider support**: `[support contact]`
-- **On-call engineer**: `[contact]`
-
----
-
-## Related runbooks
-
-- `docs/runbooks/database-restore.md` - Database recovery from backup
-- `docs/runbooks/api-error-spike.md` - Elevated API errors
-- `docs/runbooks/worker-failure.md` - Worker processing issues
-- `docs/runbooks/incident-escalation.md` - Incident response escalation
+- **Incident commander**: `[контакт]`
+- **Администратор базы данных**: `[контакт]`
+- **Поддержка провайдера**: `[контакт поддержки]`
+- **Дежурный инженер**: `[контакт]`
 
 ---
 
-**Runbook version**: 2026-09-09  
-**Last incident**: `[date]`  
-**Next review**: `[date]`
+## Связанные регламенты
+
+- `docs/runbooks/database-restore.md` — восстановление базы данных из backup
+- `docs/runbooks/api-error-spike.md` — повышенный уровень ошибок API
+- `docs/runbooks/worker-failure.md` — проблемы обработки у worker
+- `docs/runbooks/incident-escalation.md` — эскалация реагирования на инцидент
+
+---
+
+**Версия регламента**: 2026-09-09  
+**Последний инцидент**: `[дата]`  
+**Следующая проверка**: `[дата]`

@@ -1,377 +1,377 @@
-# Suspicious Activity Runbook
+# Регламент подозрительной активности
 
-**Trigger**: Unauthorized access detected, anomalous traffic patterns, security alert, potential account compromise
+**Триггер**: обнаружен несанкционированный доступ, аномальные паттерны трафика, алерт безопасности, возможная компрометация аккаунта
 
-**Prerequisites**:
+**Предусловия**:
 
-- Access logs and security monitoring available
-- Incident response team contact information
-- Ability to disable accounts and revoke sessions
+- Доступны логи доступа и мониторинг безопасности
+- Есть контакты команды реагирования на инциденты
+- Есть возможность отключать аккаунты и отзывать сессии
 
-**Estimated duration**: 30 minutes - 4 hours depending on severity and scope
-
----
-
-## Symptoms
-
-Common indicators of suspicious activity:
-
-- Multiple failed authentication attempts from single IP
-- Successful authentication from unusual location or device
-- Unusual API usage patterns (scraping, enumeration)
-- Elevated rate of specific operations (account creation, password resets)
-- Security alert from monitoring system
-- User report of unauthorized access to their account
-- Unexpected database queries or data access patterns
+**Ориентировочная длительность**: 30 минут - 4 часа в зависимости от серьёзности и масштаба
 
 ---
 
-## Severity assessment
+## Симптомы
 
-### Critical (immediate action required)
+Типичные признаки подозрительной активности:
 
-- Confirmed unauthorized access to production database
-- Confirmed unauthorized access to administrative accounts
-- Evidence of data exfiltration
-- Active ongoing attack (DDoS, injection attempts)
-- Credential compromise confirmed
-
-**Action**: Proceed immediately to containment, notify security team
-
-### High (urgent investigation)
-
-- Multiple failed authentication attempts from many IPs (credential stuffing)
-- Successful authentication from suspicious location
-- Unusual API usage suggesting enumeration or scraping
-- User report of compromised account
-
-**Action**: Investigate and contain within 1 hour
-
-### Medium (investigation required)
-
-- Single user reporting unusual activity
-- Anomalous traffic patterns without clear attack signature
-- Failed authentication attempts within normal threshold
-
-**Action**: Investigate within 4 hours, monitor for escalation
+- Множественные неудачные попытки аутентификации с одного IP
+- Успешная аутентификация из необычной локации или с необычного устройства
+- Необычные паттерны использования API (скрейпинг, перебор)
+- Повышенная частота конкретных операций (создание аккаунтов, сброс пароля)
+- Алерт безопасности от системы мониторинга
+- Обращение пользователя о несанкционированном доступе к его аккаунту
+- Неожиданные запросы к базе данных или паттерны доступа к данным
 
 ---
 
-## Initial investigation
+## Оценка серьёзности
 
-### 1. Identify affected accounts and scope
+### Критично (требуются немедленные действия)
+
+- Подтверждён несанкционированный доступ к production-базе данных
+- Подтверждён несанкционированный доступ к административным аккаунтам
+- Есть признаки эксфильтрации данных
+- Идёт активная атака (DDoS, попытки инъекций)
+- Подтверждена компрометация credentials
+
+**Действие**: немедленно переходить к сдерживанию, уведомить команду безопасности
+
+### Высокая (срочное расследование)
+
+- Множественные неудачные попытки аутентификации с многих IP (credential stuffing)
+- Успешная аутентификация из подозрительной локации
+- Необычное использование API, указывающее на перебор или скрейпинг
+- Обращение пользователя о компрометации аккаунта
+
+**Действие**: расследовать и сдержать в течение 1 часа
+
+### Средняя (требуется расследование)
+
+- Один пользователь сообщает о необычной активности
+- Аномальные паттерны трафика без явной сигнатуры атаки
+- Неудачные попытки аутентификации в пределах нормального порога
+
+**Действие**: расследовать в течение 4 часов, следить за эскалацией
+
+---
+
+## Первичное расследование
+
+### 1. Определить затронутые аккаунты и масштаб
 
 ```bash
-# Review authentication logs for suspicious patterns
-# Query log backend for:
-# - Failed authentication attempts by IP
-# - Successful authentications from new locations
-# - Unusual API access patterns by user
+# Просмотреть логи аутентификации на подозрительные паттерны
+# Запросить в log-бэкенде:
+# - Неудачные попытки аутентификации по IP
+# - Успешные аутентификации из новых локаций
+# - Необычные паттерны доступа к API по пользователю
 
-# Example log queries (adjust for your log backend):
-# - "auth/sign-in" AND status:401 group by ip in last hour
-# - "auth/sign-in" AND status:200 AND ip:[suspicious-ip]
-# - user_id:[affected-user] in last 24 hours
+# Примеры запросов к логам (адаптировать под ваш log-бэкенд):
+# - "auth/sign-in" AND status:401 группировка по ip за последний час
+# - "auth/sign-in" AND status:200 AND ip:[подозрительный-ip]
+# - user_id:[затронутый-пользователь] за последние 24 часа
 ```
 
-**Investigation findings**:
+**Результаты расследования**:
 
-- Suspicious IP(s): `[IP addresses]`
-- Affected user account(s): `[user IDs or emails - redact in Git]`
-- Time range: `[start - end timestamp]`
-- Activity pattern: `[description]`
+- Подозрительные IP: `[IP-адреса]`
+- Затронутые аккаунты пользователей: `[ID пользователей или email — скрыть в Git]`
+- Временной диапазон: `[начало - конец, timestamp]`
+- Паттерн активности: `[описание]`
 
-### 2. Review access logs
+### 2. Просмотреть логи доступа
 
 ```bash
-# Check what actions were performed by suspicious account/IP
-# Look for:
-# - Budget/workspace access
-# - Financial operation queries
-# - Account settings changes
-# - Data export requests
-# - API enumeration attempts
+# Проверить, какие действия выполнил подозрительный аккаунт/IP
+# Искать:
+# - Доступ к бюджету/workspace
+# - Запросы финансовых операций
+# - Изменения настроек аккаунта
+# - Запросы экспорта данных
+# - Попытки перебора через API
 
-# Query for recent activity by affected user or IP
+# Запросить недавнюю активность затронутого пользователя или IP
 ```
 
-**Access summary**:
+**Сводка доступа**:
 
-- Budgets accessed: `[count]`
-- Operations queried: `[count]`
-- Sensitive actions: `[list any concerning actions]`
-- Data potentially exposed: `[assessment]`
+- Доступных бюджетов: `[число]`
+- Запрошенных операций: `[число]`
+- Чувствительные действия: `[список тревожных действий]`
+- Потенциально раскрытые данные: `[оценка]`
 
-### 3. Assess attack vector
+### 3. Оценить вектор атаки
 
-**Possible vectors**:
+**Возможные векторы**:
 
-- [ ] Credential stuffing (leaked password from another site)
-- [ ] Phishing (user tricked into giving credentials)
-- [ ] Session hijacking (stolen session cookie)
-- [ ] SQL injection or other application vulnerability
-- [ ] Compromised device or browser
-- [ ] Insider threat
-- [ ] API key compromise (if applicable)
+- [ ] Credential stuffing (утёкший пароль с другого сайта)
+- [ ] Фишинг (пользователя обманом заставили передать credentials)
+- [ ] Перехват сессии (украденная сессионная cookie)
+- [ ] SQL-инъекция или другая уязвимость приложения
+- [ ] Скомпрометированное устройство или браузер
+- [ ] Инсайдерская угроза
+- [ ] Компрометация API-ключа (если применимо)
 
-**Evidence**: `[what indicates this vector]`
+**Evidence**: `[что указывает на этот вектор]`
 
 ---
 
-## Containment
+## Сдерживание
 
-### For compromised user account
+### Для скомпрометированного аккаунта пользователя
 
 ```bash
-# 1. Revoke all sessions for affected user
+# 1. Отозвать все сессии затронутого пользователя
 ssh production-user@production-host
 psql "$DATABASE_URL" -c "
-DELETE FROM \"Session\" WHERE user_id = '[affected-user-id]';
+DELETE FROM \"Session\" WHERE user_id = '[id-затронутого-пользователя]';
 "
 
-# 2. Force password reset on next login (if user table supports)
+# 2. Потребовать сброс пароля при следующем входе (если таблица пользователей поддерживает)
 psql "$DATABASE_URL" -c "
 UPDATE \"User\"
 SET password_reset_required = true
-WHERE id = '[affected-user-id]';
+WHERE id = '[id-затронутого-пользователя]';
 "
 
-# 3. Lock account if necessary (if active attack ongoing)
+# 3. Заблокировать аккаунт при необходимости (если идёт активная атака)
 psql "$DATABASE_URL" -c "
 UPDATE \"User\"
 SET is_locked = true, locked_at = NOW(), locked_reason = 'Security investigation'
-WHERE id = '[affected-user-id]';
+WHERE id = '[id-затронутого-пользователя]';
 "
 ```
 
-**Containment actions**:
+**Действия сдерживания**:
 
-- [ ] Sessions revoked for affected user(s)
-- [ ] Password reset required
-- [ ] Account locked (if necessary)
-- [ ] User notified of security action
+- [ ] Сессии затронутого пользователя(ей) отозваны
+- [ ] Требуется сброс пароля
+- [ ] Аккаунт заблокирован (при необходимости)
+- [ ] Пользователь уведомлён о действии по безопасности
 
-### For suspicious IP or pattern
-
-```bash
-# If rate limiting or IP blocking available:
-# - Add IP to temporary block list
-# - Apply stricter rate limits
-
-# Via application configuration or infrastructure firewall
-# (Provider-specific commands - do not commit actual IPs)
-```
-
-**IP containment**:
-
-- [ ] Suspicious IP(s) identified
-- [ ] Rate limiting applied
-- [ ] IP blocked (if confirmed attack)
-
-### For credential compromise
+### Для подозрительного IP или паттерна
 
 ```bash
-# If application credentials compromised (not user accounts):
-# - Follow secret-rotation.md runbook
-# - Revoke compromised API keys/tokens
-# - Rotate affected secrets immediately
+# Если доступны rate limiting или блокировка IP:
+# - Добавить IP во временный блок-лист
+# - Применить более строгие лимиты частоты
+
+# Через конфигурацию приложения или инфраструктурный firewall
+# (Команды специфичны для провайдера — не коммитить реальные IP)
 ```
 
-**Credential containment**:
+**Сдерживание по IP**:
 
-- [ ] Compromised credentials identified
-- [ ] Secrets rotated (see docs/runbooks/secret-rotation.md)
-- [ ] Access logs reviewed for unauthorized usage
+- [ ] Подозрительные IP определены
+- [ ] Rate limiting применён
+- [ ] IP заблокирован (при подтверждённой атаке)
 
----
-
-## Evidence collection
-
-### 1. Preserve logs
+### Для компрометации credentials
 
 ```bash
-# Export relevant logs for forensic analysis
-# - Authentication attempts
-# - API access by affected user/IP
-# - Database query logs (if available)
-
-# Store evidence securely outside production environment
+# Если скомпрометированы credentials приложения (не аккаунты пользователей):
+# - Следовать регламенту secret-rotation.md
+# - Отозвать скомпрометированные API-ключи/токены
+# - Немедленно ротировать затронутые секреты
 ```
 
-**Evidence preserved**:
+**Сдерживание credentials**:
 
-- [ ] Authentication logs exported
-- [ ] Access logs exported
-- [ ] Database audit logs exported (if available)
-- [ ] Evidence stored securely: `[protected storage location]`
-
-### 2. Document timeline
-
-**Timeline of events**:
-
-```
-[YYYY-MM-DD HH:MM] First suspicious activity detected
-[YYYY-MM-DD HH:MM] Alert triggered or investigation started
-[YYYY-MM-DD HH:MM] Containment actions taken
-[YYYY-MM-DD HH:MM] User notified
-[YYYY-MM-DD HH:MM] Investigation completed
-```
-
-### 3. Assess data exposure
-
-**Data exposure assessment**:
-
-- [ ] User personal information accessed
-- [ ] Financial operations/balances accessed
-- [ ] Budget data accessed
-- [ ] Comments or sensitive notes accessed
-- [ ] Data modified or deleted
-- [ ] Data exfiltrated (exported or scraped)
-
-**Impact summary**: `[description of what data was potentially compromised]`
+- [ ] Скомпрометированные credentials определены
+- [ ] Секреты ротированы (см. docs/runbooks/secret-rotation.md)
+- [ ] Логи доступа просмотрены на несанкционированное использование
 
 ---
 
-## User communication
+## Сбор доказательств
 
-### For compromised user account
+### 1. Сохранить логи
 
-**Notification template**:
+```bash
+# Экспортировать релевантные логи для криминалистического анализа
+# - Попытки аутентификации
+# - Доступ к API от затронутого пользователя/IP
+# - Логи запросов к базе данных (если доступны)
 
-```
-Subject: Security notice - action required
-
-We detected unusual activity on your HarmoFin account from [location/IP] on [date/time].
-
-As a precaution, we have:
-- Signed you out of all sessions
-- Required a password reset on your next login
-- [Locked your account temporarily - if applicable]
-
-Please reset your password immediately and review your account activity.
-
-If you did not authorize this activity, please reply to this email immediately.
-
-We recommend:
-- Use a strong, unique password for HarmoFin
-- Enable two-factor authentication (if available)
-- Review your recent account activity for unauthorized changes
+# Хранить evidence безопасно вне production-окружения
 ```
 
-**Communication checklist**:
+**Сохранённые доказательства**:
 
-- [ ] User notified of security incident
-- [ ] Actions taken communicated
-- [ ] Next steps provided
-- [ ] Support contact provided
+- [ ] Логи аутентификации экспортированы
+- [ ] Логи доступа экспортированы
+- [ ] Audit-логи базы данных экспортированы (если доступны)
+- [ ] Evidence хранится безопасно: `[защищённое место хранения]`
 
-### For security incident disclosure
+### 2. Задокументировать хронологию
 
-**If data breach or widespread impact**:
+**Хронология событий**:
 
-- [ ] Security incident response team notified
-- [ ] Legal/compliance team notified
-- [ ] Disclosure timeline determined
-- [ ] User communication prepared
-- [ ] Regulatory reporting requirements assessed
+```
+[YYYY-MM-DD HH:MM] Первая подозрительная активность обнаружена
+[YYYY-MM-DD HH:MM] Сработал алерт или начато расследование
+[YYYY-MM-DD HH:MM] Приняты меры сдерживания
+[YYYY-MM-DD HH:MM] Пользователь уведомлён
+[YYYY-MM-DD HH:MM] Расследование завершено
+```
 
----
+### 3. Оценить раскрытие данных
 
-## Escalation
+**Оценка раскрытия данных**:
 
-### When to escalate
+- [ ] Доступ к персональной информации пользователя
+- [ ] Доступ к финансовым операциям/балансам
+- [ ] Доступ к данным бюджета
+- [ ] Доступ к комментариям или чувствительным заметкам
+- [ ] Данные изменены или удалены
+- [ ] Данные эксфильтрованы (экспортированы или собраны скрейпингом)
 
-- Confirmed unauthorized database access
-- Evidence of data exfiltration
-- Widespread attack affecting multiple users
-- Application vulnerability exploited
-- Credentials compromise requiring emergency rotation
-- Legal or compliance implications
-
-### Emergency contacts
-
-- **Security incident commander**: `[contact]`
-- **Legal/compliance**: `[contact]`
-- **On-call engineer**: `[contact]`
-- **Provider security support**: `[support contact]`
+**Сводка влияния**: `[описание того, какие данные потенциально скомпрометированы]`
 
 ---
 
-## Post-incident actions
+## Коммуникация с пользователями
 
-### 1. Record incident evidence
+### Для скомпрометированного аккаунта пользователя
 
-- **Incident ID**: `[unique identifier]`
-- **Detection timestamp**: `[YYYY-MM-DD HH:MM UTC]`
-- **Containment timestamp**: `[YYYY-MM-DD HH:MM UTC]`
-- **Resolution timestamp**: `[YYYY-MM-DD HH:MM UTC]`
-- **Attack vector**: `[confirmed or suspected]`
-- **Affected users**: `[count - do not list in Git]`
-- **Data exposure**: `[assessment]`
+**Шаблон уведомления**:
 
-### 2. Root cause analysis
+```
+Тема: Уведомление о безопасности — требуется действие
 
-- [ ] Attack vector confirmed
-- [ ] Application vulnerability identified (if applicable)
-- [ ] Security control gap identified
-- [ ] Detection delay analyzed
+Мы обнаружили необычную активность в вашем аккаунте HarmoFin из [локация/IP] [дата/время].
 
-### 3. Prevention measures
+В качестве меры предосторожности мы:
+- Вышли из всех ваших сессий
+- Потребовали сброс пароля при следующем входе
+- [Временно заблокировали ваш аккаунт — если применимо]
 
-**Technical controls**:
+Пожалуйста, немедленно сбросьте пароль и проверьте активность своего аккаунта.
 
-- [ ] Rate limiting enhanced
-- [ ] Authentication security hardened (captcha, MFA, etc.)
-- [ ] Monitoring/alerting added for this pattern
-- [ ] Application vulnerability patched
-- [ ] Infrastructure firewall rules updated
+Если вы не авторизовали эту активность, пожалуйста, немедленно ответьте на это письмо.
 
-**Process improvements**:
+Мы рекомендуем:
+- Использовать надёжный уникальный пароль для HarmoFin
+- Включить двухфакторную аутентификацию (если доступна)
+- Проверить недавнюю активность аккаунта на несанкционированные изменения
+```
 
-- [ ] Incident response process updated
-- [ ] User communication templates updated
-- [ ] Logging/monitoring coverage expanded
-- [ ] Security training for team
+**Чеклист коммуникации**:
 
-### 4. User follow-up
+- [ ] Пользователь уведомлён об инциденте безопасности
+- [ ] Сообщены предпринятые действия
+- [ ] Предоставлены дальнейшие шаги
+- [ ] Предоставлен контакт поддержки
 
-- [ ] Affected users notified of resolution
-- [ ] Account access restored (if locked)
-- [ ] Additional security recommendations provided
-- [ ] Follow-up communication after 7 days
+### Для раскрытия информации об инциденте безопасности
 
----
+**При утечке данных или широком влиянии**:
 
-## Prevention and detection
-
-**Recommended security controls**:
-
-- Rate limiting on authentication endpoints
-- Account lockout after N failed attempts
-- Monitoring for unusual login locations/devices
-- Session timeout and absolute maximum session lifetime
-- Strong password requirements (length, complexity)
-- Two-factor authentication (future enhancement)
-- CAPTCHA on authentication (if bot activity detected)
-
-**Recommended alerts**:
-
-- Multiple failed authentication attempts from single IP (>10 in 5 min)
-- Successful authentication from new country/ASN
-- Elevated API error rate (potential injection attempts)
-- Unusual data access patterns (rapid enumeration)
-- Database query anomalies (unusual WHERE clauses, table scans)
+- [ ] Уведомлена команда реагирования на инциденты безопасности
+- [ ] Уведомлена юридическая/compliance команда
+- [ ] Определены сроки раскрытия информации
+- [ ] Подготовлена коммуникация с пользователями
+- [ ] Оценены требования по регуляторной отчётности
 
 ---
 
-## Related runbooks
+## Эскалация
 
-- `docs/runbooks/secret-rotation.md` - Credential rotation procedure
-- `docs/runbooks/incident-escalation.md` - Incident response escalation
-- `docs/runbooks/account-data-request.md` - User data access/deletion requests
+### Когда эскалировать
+
+- Подтверждён несанкционированный доступ к базе данных
+- Есть признаки эксфильтрации данных
+- Широкомасштабная атака, затрагивающая множество пользователей
+- Эксплуатирована уязвимость приложения
+- Компрометация credentials требует экстренной ротации
+- Есть юридические или compliance последствия
+
+### Экстренные контакты
+
+- **Security incident commander**: `[контакт]`
+- **Юридический отдел/compliance**: `[контакт]`
+- **Дежурный инженер**: `[контакт]`
+- **Поддержка безопасности провайдера**: `[контакт поддержки]`
 
 ---
 
-**Runbook version**: 2026-09-09  
-**Last incident**: `[date]`  
-**Next review**: `[date]`
+## Действия после инцидента
+
+### 1. Зафиксировать evidence инцидента
+
+- **ID инцидента**: `[уникальный идентификатор]`
+- **Время обнаружения**: `[YYYY-MM-DD HH:MM UTC]`
+- **Время сдерживания**: `[YYYY-MM-DD HH:MM UTC]`
+- **Время решения**: `[YYYY-MM-DD HH:MM UTC]`
+- **Вектор атаки**: `[подтверждён или предполагается]`
+- **Затронутые пользователи**: `[число — не перечислять в Git]`
+- **Раскрытие данных**: `[оценка]`
+
+### 2. Анализ первопричины
+
+- [ ] Вектор атаки подтверждён
+- [ ] Уязвимость приложения определена (если применимо)
+- [ ] Определён пробел в мерах безопасности
+- [ ] Проанализирована задержка обнаружения
+
+### 3. Меры профилактики
+
+**Технические меры**:
+
+- [ ] Усилен rate limiting
+- [ ] Усилена безопасность аутентификации (captcha, MFA и т.д.)
+- [ ] Добавлен мониторинг/алертинг для этого паттерна
+- [ ] Уязвимость приложения устранена
+- [ ] Обновлены правила инфраструктурного firewall
+
+**Улучшения процесса**:
+
+- [ ] Обновлён процесс реагирования на инциденты
+- [ ] Обновлены шаблоны коммуникации с пользователями
+- [ ] Расширено покрытие логирования/мониторинга
+- [ ] Проведено обучение команды по безопасности
+
+### 4. Дальнейшая работа с пользователями
+
+- [ ] Затронутые пользователи уведомлены о решении
+- [ ] Доступ к аккаунту восстановлен (если был заблокирован)
+- [ ] Предоставлены дополнительные рекомендации по безопасности
+- [ ] Дальнейшая коммуникация через 7 дней
+
+---
+
+## Профилактика и обнаружение
+
+**Рекомендуемые меры безопасности**:
+
+- Rate limiting на endpoint аутентификации
+- Блокировка аккаунта после N неудачных попыток
+- Мониторинг необычных локаций/устройств входа
+- Таймаут сессии и абсолютный максимальный срок жизни сессии
+- Строгие требования к паролю (длина, сложность)
+- Двухфакторная аутентификация (будущее улучшение)
+- CAPTCHA на аутентификации (при обнаружении активности ботов)
+
+**Рекомендуемые алерты**:
+
+- Множественные неудачные попытки аутентификации с одного IP (>10 за 5 мин)
+- Успешная аутентификация из новой страны/ASN
+- Повышенный уровень ошибок API (возможные попытки инъекций)
+- Необычные паттерны доступа к данным (быстрый перебор)
+- Аномалии в запросах к базе данных (необычные условия WHERE, полные сканы таблиц)
+
+---
+
+## Связанные регламенты
+
+- `docs/runbooks/secret-rotation.md` — процедура ротации credentials
+- `docs/runbooks/incident-escalation.md` — эскалация реагирования на инцидент
+- `docs/runbooks/account-data-request.md` — запросы на доступ/удаление данных пользователя
+
+---
+
+**Версия регламента**: 2026-09-09  
+**Последний инцидент**: `[дата]`  
+**Следующая проверка**: `[дата]`

@@ -1,127 +1,127 @@
-# Image Rollback Runbook
+# Регламент отката образа
 
-**Trigger**: Production deployment failure or critical issue requiring immediate return to previous known-good state
+**Триггер**: сбой production-деплоя или критичная проблема, требующая немедленного возврата к последнему известному рабочему состоянию
 
-**Prerequisites**:
+**Предусловия**:
 
-- Migration compatibility verified as `backward-compatible` or `rollback-safe`
-- Previous SHA identified and verified in staging
-- Incident owner assigned
+- Совместимость миграции подтверждена как `backward-compatible` или `rollback-safe`
+- Предыдущий SHA определён и проверен на staging
+- Назначен владелец инцидента
 
-**Estimated duration**: 15-30 minutes
-
----
-
-## Rollback decision gate
-
-**STOP**: Do not proceed without verifying migration compatibility
-
-### Migration compatibility check
-
-Review the production release record for this deployment's migration compatibility:
-
-- **forward-only**: ❌ Rollback NOT SAFE
-  - New database schema incompatible with previous application code
-  - Database restore is the only recovery path (see `docs/runbooks/database-restore.md`)
-  - Do not attempt image rollback
-
-- **backward-compatible**: ✅ Rollback SAFE
-  - Previous application code can run with new database schema
-  - Proceed with image rollback
-
-- **rollback-safe**: ✅ Rollback SAFE with verification
-  - Explicit testing confirmed rollback compatibility
-  - Verify rollback SHA in release record
-  - Proceed with image rollback
-
-**Current migration compatibility**: `[from release record]`
-
-- [ ] Migration compatibility permits image rollback
-- [ ] Rollback SHA identified: `[previous known-good SHA]`
-- [ ] Incident owner assigned: `[name]`
+**Ориентировочная длительность**: 15-30 минут
 
 ---
 
-## Pre-rollback
+## Гейт решения об откате
 
-### 1. Record incident context
+**СТОП**: не продолжать без проверки совместимости миграции
+
+### Проверка совместимости миграции
+
+Проверить в production release record совместимость миграции для этого деплоя:
+
+- **forward-only**: ❌ откат НЕ БЕЗОПАСЕН
+  - Новая схема базы данных несовместима с предыдущим кодом приложения
+  - Единственный путь восстановления — восстановление базы данных (см. `docs/runbooks/database-restore.md`)
+  - Не пытаться откатывать образ
+
+- **backward-compatible**: ✅ откат БЕЗОПАСЕН
+  - Предыдущий код приложения работает с новой схемой базы данных
+  - Продолжить откат образа
+
+- **rollback-safe**: ✅ откат БЕЗОПАСЕН при проверке
+  - Совместимость отката подтверждена явным тестированием
+  - Проверить SHA отката в release record
+  - Продолжить откат образа
+
+**Текущая совместимость миграции**: `[из release record]`
+
+- [ ] Совместимость миграции допускает откат образа
+- [ ] SHA для отката определён: `[последний известный рабочий SHA]`
+- [ ] Назначен владелец инцидента: `[имя]`
+
+---
+
+## Перед откатом
+
+### 1. Зафиксировать контекст инцидента
 
 ```bash
-# Capture evidence before rollback:
-# - Current error rate and metrics
-# - Recent log entries showing failure
-# - User impact assessment
-# - Triggering event or alert
+# Собрать evidence до отката:
+# - Текущий error rate и метрики
+# - Недавние записи лога, показывающие сбой
+# - Оценка влияния на пользователей
+# - Событие или алерт, вызвавший инцидент
 ```
 
-**Incident ID**: `[unique identifier]`  
-**Trigger**: `[error spike | service unavailable | data corruption | other]`  
-**User impact**: `[description]`  
-**Evidence**: `[dashboard URLs, log queries, alert references]`
+**ID инцидента**: `[уникальный идентификатор]`  
+**Триггер**: `[всплеск ошибок | сервис недоступен | повреждение данных | другое]`  
+**Влияние на пользователей**: `[описание]`  
+**Evidence**: `[URL dashboard, запросы к логам, ссылки на алерты]`
 
-### 2. Verify rollback SHA availability
+### 2. Проверить доступность SHA для отката
 
 ```bash
-# Confirm rollback SHA exists in registry
+# Подтвердить, что SHA для отката существует в registry
 docker manifest inspect ghcr.io/[org]/[repo]/web:$ROLLBACK_SHA
 docker manifest inspect ghcr.io/[org]/[repo]/api:$ROLLBACK_SHA
 docker manifest inspect ghcr.io/[org]/[repo]/worker:$ROLLBACK_SHA
 ```
 
-**Rollback SHA**: `[commit SHA]`
+**SHA для отката**: `[commit SHA]`
 
-- [ ] Rollback SHA images exist in registry
-- [ ] Rollback SHA previously verified in staging
+- [ ] Образы с SHA для отката существуют в registry
+- [ ] SHA для отката ранее проверен на staging
 
-### 3. Notify stakeholders
+### 3. Уведомить заинтересованные стороны
 
-- [ ] On-call engineer notified
-- [ ] Release owner notified
-- [ ] Team channel updated with rollback intent
+- [ ] Дежурный инженер уведомлён
+- [ ] Владелец релиза уведомлён
+- [ ] Команда в канале уведомлена о намерении откатить
 
 ---
 
-## Rollback execution
+## Выполнение отката
 
-### 4. Invoke production deployment workflow with rollback SHA
+### 4. Запустить production deployment workflow с SHA для отката
 
-Navigate to: `.github/workflows/deploy-production.yml`
+Перейти: `.github/workflows/deploy-production.yml`
 
-**Workflow dispatch inputs**:
+**Входные параметры workflow dispatch**:
 
-- `image_tag`: `[rollback SHA]`
-- `staging_evidence`: `[original staging evidence for rollback SHA]`
-- `migration_compatibility`: `backward-compatible` or `rollback-safe`
-- `backup_evidence`: `[current backup reference]`
+- `image_tag`: `[SHA для отката]`
+- `staging_evidence`: `[исходный staging evidence для SHA отката]`
+- `migration_compatibility`: `backward-compatible` или `rollback-safe`
+- `backup_evidence`: `[ссылка на текущий backup]`
 
-**GitHub Environment approval**: Requires `production` environment approver
+**Одобрение GitHub Environment**: требуется approver окружения `production`
 
-**Note**: This is NOT a new migration. The migration step will be idempotent (already applied).
+**Примечание**: это НЕ новая миграция. Шаг миграции будет идемпотентным (уже применена).
 
-### 5. Monitor rollback deployment
+### 5. Мониторинг деплоя отката
 
 ```bash
-# Watch GitHub Actions workflow run
-# Monitor service reconciliation
-# Watch for health check success
+# Следить за прогоном GitHub Actions
+# Отслеживать реконсиляцию сервисов
+# Дождаться успешных health-проверок
 ```
 
-**Rollback workflow run**: `[GitHub Actions URL]`
+**Прогон workflow отката**: `[URL GitHub Actions]`
 
-**Expected behavior**:
+**Ожидаемое поведение**:
 
-1. Validate inputs ✓
-2. Pull rollback SHA images ✓
-3. Migration step (idempotent, already applied) ✓
-4. Service reconciliation to rollback images ✓
-5. Health checks pass ✓
-6. Smoke tests pass ✓
+1. Валидация входных данных ✓
+2. Загрузка образов SHA для отката ✓
+3. Шаг миграции (идемпотентный, уже применена) ✓
+4. Реконсиляция сервисов на образы отката ✓
+5. Health-проверки проходят ✓
+6. Smoke-тесты проходят ✓
 
 ---
 
-## Post-rollback verification
+## Проверка после отката
 
-### 6. Verify services healthy with rollback SHA
+### 6. Проверить, что сервисы здоровы с SHA отката
 
 ```bash
 curl -f https://production-domain/
@@ -129,119 +129,119 @@ curl -f https://production-domain/api/v1/health/live
 curl -f https://production-domain/api/v1/health/ready
 ```
 
-- [ ] Web responds with 200
-- [ ] API health probes respond with 200
-- [ ] Worker health probes respond with 200
+- [ ] Web отвечает 200
+- [ ] Health-пробы API отвечают 200
+- [ ] Health-пробы worker отвечают 200
 
-### 7. Verify error rate returned to baseline
-
-```bash
-# Check production dashboard
-# Compare current metrics to pre-deployment baseline
-```
-
-**Error rate**: `[baseline]` → `[current after rollback]`  
-**API latency P95**: `[baseline]` → `[current after rollback]`
-
-- [ ] Error rate returned to acceptable range
-- [ ] Latency returned to baseline
-- [ ] No worker backlog
-
-### 8. Test critical authenticated journey
-
-- [ ] Sign-in works
-- [ ] Budget list loads
-- [ ] Journal query works
-- [ ] No authentication errors
-
-### 9. Verify metrics show rollback SHA
+### 7. Проверить, что error rate вернулся к baseline
 
 ```bash
-# Check metrics endpoint or dashboard
-# Confirm release SHA label shows rollback SHA
+# Проверить production dashboard
+# Сравнить текущие метрики с baseline до деплоя
 ```
 
-- [ ] Metrics show rollback SHA
-- [ ] Logs include rollback SHA
+**Error rate**: `[baseline]` → `[текущий после отката]`  
+**API latency P95**: `[baseline]` → `[текущий после отката]`
 
----
+- [ ] Error rate вернулся в допустимый диапазон
+- [ ] Latency вернулась к baseline
+- [ ] Нет очереди у worker
 
-## Post-rollback actions
+### 8. Проверить критичный аутентифицированный сценарий
 
-### 10. Update incident record
+- [ ] Вход работает
+- [ ] Список бюджетов загружается
+- [ ] Запрос журнала работает
+- [ ] Нет ошибок аутентификации
+
+### 9. Проверить, что метрики показывают SHA отката
 
 ```bash
-# Document rollback completion
-# Record rollback SHA, timing, and verification results
+# Проверить endpoint метрик или dashboard
+# Подтвердить, что метка release SHA показывает SHA отката
 ```
 
-**Rollback completed**: `[timestamp]`  
-**Rollback duration**: `[minutes]`  
-**Services restored**: `[yes/no]`
-
-### 11. Investigate root cause
-
-**Do not re-deploy without**:
-
-1. Root cause identified
-2. Fix verified in staging
-3. Post-incident review completed
-
-**Investigation tasks**:
-
-- [ ] Root cause identified
-- [ ] Fix developed and tested
-- [ ] Staging verification with fix
-- [ ] Post-incident review scheduled
-
-### 12. Notify stakeholders of completion
-
-- [ ] Team notified of rollback completion
-- [ ] User communication (if user-facing impact)
-- [ ] Incident tracking system updated
+- [ ] Метрики показывают SHA отката
+- [ ] Логи включают SHA отката
 
 ---
 
-## If rollback fails
+## Действия после отката
 
-**Escalation trigger**: Rollback does not restore service health
+### 10. Обновить запись об инциденте
 
-### Escalate to database restore
+```bash
+# Задокументировать завершение отката
+# Зафиксировать SHA отката, тайминг и результаты проверки
+```
 
-If image rollback does not resolve the issue:
+**Откат завершён**: `[timestamp]`  
+**Длительность отката**: `[минуты]`  
+**Сервисы восстановлены**: `[да/нет]`
 
-1. Assess whether database corruption or data issue is root cause
-2. Follow `docs/runbooks/database-restore.md`
-3. Escalate to incident commander and DBA
+### 11. Расследовать первопричину
 
-### Emergency contacts
+**Не деплоить повторно без**:
 
-- **Incident commander**: `[contact]`
-- **Database administrator**: `[contact]`
-- **Provider support**: `[support contact]`
+1. Определённой первопричины
+2. Проверенного на staging исправления
+3. Завершённого post-incident review
 
----
+**Задачи расследования**:
 
-## Prevention
+- [ ] Первопричина определена
+- [ ] Исправление разработано и протестировано
+- [ ] Проверка на staging с исправлением
+- [ ] Post-incident review запланирован
 
-**Post-incident actions to prevent recurrence**:
+### 12. Уведомить заинтересованные стороны о завершении
 
-- [ ] Add monitoring/alerting for this failure mode
-- [ ] Add CI gate to catch this class of issue
-- [ ] Update deployment checklist with additional verification
-- [ ] Document lessons learned in post-incident review
-
----
-
-## Related runbooks
-
-- `docs/runbooks/deploy.md` - Production deployment procedure
-- `docs/runbooks/database-restore.md` - Database recovery procedure
-- `docs/runbooks/api-error-spike.md` - Elevated error investigation
-- `docs/runbooks/incident-escalation.md` - Incident response escalation
+- [ ] Команда уведомлена о завершении отката
+- [ ] Коммуникация с пользователями (при влиянии на пользователей)
+- [ ] Система отслеживания инцидентов обновлена
 
 ---
 
-**Runbook version**: 2026-09-09  
-**Last tested**: `[date]`  
-**Next review**: `[date]`
+## Если откат не помог
+
+**Триггер эскалации**: откат не восстанавливает здоровье сервиса
+
+### Эскалация до восстановления базы данных
+
+Если откат образа не решает проблему:
+
+1. Оценить, является ли первопричиной повреждение или проблема с данными
+2. Следовать `docs/runbooks/database-restore.md`
+3. Эскалировать incident commander-у и DBA
+
+### Экстренные контакты
+
+- **Incident commander**: `[контакт]`
+- **Администратор базы данных**: `[контакт]`
+- **Поддержка провайдера**: `[контакт поддержки]`
+
+---
+
+## Профилактика
+
+**Действия после инцидента для предотвращения повторения**:
+
+- [ ] Добавить мониторинг/алертинг для этого сценария сбоя
+- [ ] Добавить CI-гейт для отлова такого класса проблем
+- [ ] Обновить deployment checklist дополнительной проверкой
+- [ ] Задокументировать выводы в post-incident review
+
+---
+
+## Связанные регламенты
+
+- `docs/runbooks/deploy.md` — процедура production-деплоя
+- `docs/runbooks/database-restore.md` — процедура восстановления базы данных
+- `docs/runbooks/api-error-spike.md` — расследование повышенного уровня ошибок
+- `docs/runbooks/incident-escalation.md` — эскалация реагирования на инцидент
+
+---
+
+**Версия регламента**: 2026-09-09  
+**Последняя проверка**: `[дата]`  
+**Следующая проверка**: `[дата]`

@@ -1,165 +1,165 @@
-# Account Data Request Runbook
+# Регламент запросов на данные аккаунта
 
-**Trigger**: User requests data export, account deletion, or data correction under privacy regulations (GDPR, etc.)
+**Триггер**: пользователь запрашивает экспорт данных, удаление аккаунта или исправление данных согласно правилам о приватности (GDPR и т.п.)
 
-**Prerequisites**:
+**Предусловия**:
 
-- User identity verification completed
-- Legal/compliance guidance on data retention and deletion
-- Backup and audit requirements understood
+- Верификация личности пользователя завершена
+- Есть указания юридического/compliance отдела по хранению и удалению данных
+- Понятны требования к backup и audit
 
-**Estimated duration**: 30 minutes - 2 hours depending on request type
-
----
-
-## Request types
-
-### 1. Data export (right to data portability)
-
-User requests copy of all their personal data in machine-readable format.
-
-**Requirements**:
-
-- Export all user data associated with their account
-- Include data from all budgets they own or have access to
-- Provide in structured, machine-readable format (JSON recommended)
-- Deliver securely (not via unencrypted email)
-- Complete within regulatory timeframe (typically 30 days)
-
-### 2. Account deletion (right to be forgotten)
-
-User requests permanent deletion of their account and associated data.
-
-**Requirements**:
-
-- Verify user identity and authorization
-- Preserve audit trail and legally required data
-- Handle shared budgets (user is member but not owner)
-- Handle owned budgets (user is owner, may have other members)
-- Complete within regulatory timeframe (typically 30 days)
-- Cannot be undone
-
-### 3. Data correction (right to rectification)
-
-User requests correction of inaccurate personal data.
-
-**Requirements**:
-
-- Verify user identity
-- Validate correction request
-- Update data through normal application flow if possible
-- Manual update if application flow insufficient
+**Ориентировочная длительность**: 30 минут - 2 часа в зависимости от типа запроса
 
 ---
 
-## Identity verification
+## Типы запросов
 
-**CRITICAL**: Verify user identity before processing any data request.
+### 1. Экспорт данных (право на переносимость данных)
 
-### Verification steps
+Пользователь запрашивает копию всех своих персональных данных в машиночитаемом формате.
+
+**Требования**:
+
+- Экспортировать все данные пользователя, связанные с его аккаунтом
+- Включить данные из всех бюджетов, которыми он владеет или к которым имеет доступ
+- Предоставить в структурированном машиночитаемом формате (рекомендуется JSON)
+- Доставить безопасно (не через незашифрованную почту)
+- Завершить в рамках регуляторного срока (обычно 30 дней)
+
+### 2. Удаление аккаунта (право быть забытым)
+
+Пользователь запрашивает безвозвратное удаление аккаунта и связанных данных.
+
+**Требования**:
+
+- Проверить личность и авторизацию пользователя
+- Сохранить audit trail и юридически обязательные данные
+- Обработать общие бюджеты (пользователь участник, но не владелец)
+- Обработать собственные бюджеты (пользователь владелец, могут быть другие участники)
+- Завершить в рамках регуляторного срока (обычно 30 дней)
+- Действие необратимо
+
+### 3. Исправление данных (право на исправление)
+
+Пользователь запрашивает исправление неточных персональных данных.
+
+**Требования**:
+
+- Проверить личность пользователя
+- Проверить обоснованность запроса на исправление
+- Обновить данные через обычный поток приложения, если возможно
+- Ручное обновление, если поток приложения недостаточен
+
+---
+
+## Верификация личности
+
+**КРИТИЧНО**: проверить личность пользователя перед обработкой любого запроса на данные.
+
+### Шаги верификации
 
 ```bash
-# 1. User must be authenticated in application
-# 2. Confirm email address matches account
-# 3. For sensitive requests (deletion), require additional verification:
-#    - Recent authentication (within last 15 minutes)
-#    - Email confirmation link clicked
-#    - Support ticket reference if initiated through support
+# 1. Пользователь должен быть аутентифицирован в приложении
+# 2. Подтвердить, что email совпадает с аккаунтом
+# 3. Для чувствительных запросов (удаление) требовать дополнительную верификацию:
+#    - Недавняя аутентификация (в пределах последних 15 минут)
+#    - Переход по ссылке подтверждения email
+#    - Ссылка на тикет поддержки, если инициировано через поддержку
 ```
 
-**Verification checklist**:
+**Чеклист верификации**:
 
-- [ ] User authenticated in application
-- [ ] Email address confirmed
-- [ ] Recent authentication verified (for deletion)
-- [ ] Support ticket reference: `[ticket ID if applicable]`
-- [ ] Verified by: `[name and timestamp]`
+- [ ] Пользователь аутентифицирован в приложении
+- [ ] Email подтверждён
+- [ ] Недавняя аутентификация проверена (для удаления)
+- [ ] Ссылка на тикет поддержки: `[ID тикета, если применимо]`
+- [ ] Проверил: `[имя и timestamp]`
 
 ---
 
-## Data export procedure
+## Процедура экспорта данных
 
-### 1. Identify data scope
+### 1. Определить объём данных
 
-**Data to export**:
+**Данные для экспорта**:
 
-- User profile (name, email, preferences)
-- Workspaces where user is member
-- Budgets where user has access
-- Operations created or modified by user
-- Categories and envelopes configured by user
-- Comments authored by user
-- Account balances and totals (owned budgets only)
-- Audit trail entries related to user actions
+- Профиль пользователя (имя, email, настройки)
+- Workspace, где пользователь участник
+- Бюджеты, к которым у пользователя есть доступ
+- Операции, созданные или изменённые пользователем
+- Категории и конверты, настроенные пользователем
+- Комментарии, написанные пользователем
+- Балансы и суммы счетов (только собственные бюджеты)
+- Записи audit trail, связанные с действиями пользователя
 
-**Data NOT to export**:
+**Данные, которые НЕ экспортируются**:
 
-- Other users' private data
-- Budget data where user is not owner or member
-- System secrets or credentials
-- Internal identifiers not meaningful to user
+- Приватные данные других пользователей
+- Данные бюджета, где пользователь не владелец и не участник
+- Системные секреты или credentials
+- Внутренние идентификаторы, не значимые для пользователя
 
-### 2. Generate export
+### 2. Сгенерировать экспорт
 
 ```bash
-# SSH to production host
+# SSH на production-хост
 ssh production-user@production-host
 
-# Run export script or manual query (customize for your schema)
+# Запустить скрипт экспорта или ручной запрос (адаптировать под вашу схему)
 psql "$DATABASE_URL" -c "
 \copy (
   SELECT jsonb_build_object(
     'user', (SELECT row_to_json(u) FROM \"User\" u WHERE id = '[user-id]'),
     'workspaces', (SELECT jsonb_agg(row_to_json(w)) FROM \"WorkspaceMember\" wm JOIN \"Workspace\" w ON wm.workspace_id = w.id WHERE wm.user_id = '[user-id]'),
     'budgets', (SELECT jsonb_agg(row_to_json(b)) FROM \"BudgetMember\" bm JOIN \"Budget\" b ON bm.budget_id = b.id WHERE bm.user_id = '[user-id]')
-    -- Add more data as needed
+    -- Добавить остальные данные по необходимости
   )
 ) TO '/tmp/user-export-[user-id]-[timestamp].json';
 "
 
-# Download export file securely
+# Скачать файл экспорта безопасно
 scp production-user@production-host:/tmp/user-export-[user-id]-[timestamp].json .
 
-# Remove temporary file from production host
+# Удалить временный файл с production-хоста
 ssh production-user@production-host rm /tmp/user-export-[user-id]-[timestamp].json
 ```
 
-**Export file**: `user-export-[user-id]-[timestamp].json`
+**Файл экспорта**: `user-export-[user-id]-[timestamp].json`
 
-### 3. Review and sanitize export
+### 3. Проверить и очистить экспорт
 
-- [ ] Review export for sensitive data (other users' data, system secrets)
-- [ ] Verify export contains expected user data
-- [ ] Ensure format is machine-readable (valid JSON)
-- [ ] Sanitize any internal identifiers if needed
+- [ ] Экспорт проверен на чувствительные данные (данные других пользователей, системные секреты)
+- [ ] Подтверждено, что экспорт содержит ожидаемые данные пользователя
+- [ ] Формат машиночитаем (валидный JSON)
+- [ ] При необходимости очищены внутренние идентификаторы
 
-### 4. Deliver export securely
+### 4. Доставить экспорт безопасно
 
-**Delivery methods** (in order of preference):
+**Способы доставки** (в порядке предпочтения):
 
-1. Secure download link in application (preferred if implemented)
-2. Encrypted file via secure file sharing service (password-protected)
-3. Email with password-protected ZIP (password sent separately)
+1. Защищённая ссылка для скачивания в приложении (предпочтительно, если реализовано)
+2. Зашифрованный файл через сервис безопасного обмена файлами (с паролем)
+3. Email с ZIP-архивом с паролем (пароль отправлен отдельно)
 
-**DO NOT**: Send unencrypted user data via email
+**НЕ ДЕЛАТЬ**: отправлять незашифрованные данные пользователя по почте
 
-**Delivery checklist**:
+**Чеклист доставки**:
 
-- [ ] Export delivered securely
-- [ ] User notified of delivery
-- [ ] Delivery method recorded
-- [ ] Export file destroyed from temporary storage after delivery
+- [ ] Экспорт доставлен безопасно
+- [ ] Пользователь уведомлён о доставке
+- [ ] Способ доставки зафиксирован
+- [ ] Файл экспорта удалён из временного хранилища после доставки
 
 ---
 
-## Account deletion procedure
+## Процедура удаления аккаунта
 
-### 1. Assess deletion impact
+### 1. Оценить влияние удаления
 
-**Shared budget impact**:
+**Влияние на общие бюджеты**:
 
 ```bash
-# Check if user owns any budgets with other members
+# Проверить, владеет ли пользователь бюджетами с другими участниками
 ssh production-user@production-host
 psql "$DATABASE_URL" -c "
 SELECT b.id, b.name, COUNT(bm.user_id) as member_count
@@ -171,65 +171,65 @@ HAVING COUNT(bm.user_id) > 1;
 "
 ```
 
-**Deletion scenarios**:
+**Сценарии удаления**:
 
-- **User owns budgets with no other members**: Delete budgets and all data
-- **User owns budgets with other members**: Cannot auto-delete; require user to transfer ownership or remove members first
-- **User is member of budgets owned by others**: Remove membership, preserve budget data
+- **Пользователь владеет бюджетами без других участников**: удалить бюджеты и все данные
+- **Пользователь владеет бюджетами с другими участниками**: автоматическое удаление невозможно; сначала требуется передать владение или удалить участников
+- **Пользователь участник бюджетов, которыми владеют другие**: удалить участие, сохранить данные бюджета
 
-**Impact assessment**:
+**Оценка влияния**:
 
-- [ ] User owns `[count]` budgets
-- [ ] User is member of `[count]` budgets owned by others
-- [ ] Budgets with other members: `[count]` (requires ownership transfer)
-- [ ] Deletion impact communicated to user
-- [ ] User confirmed deletion understanding
+- [ ] Пользователь владеет `[число]` бюджетами
+- [ ] Пользователь участник `[число]` бюджетов, которыми владеют другие
+- [ ] Бюджеты с другими участниками: `[число]` (требуется передача владения)
+- [ ] Влияние удаления сообщено пользователю
+- [ ] Пользователь подтвердил понимание последствий удаления
 
-### 2. Handle budget ownership conflicts
+### 2. Обработать конфликты владения бюджетом
 
-**If user owns budgets with other members**:
+**Если пользователь владеет бюджетами с другими участниками**:
 
 ```text
-Cannot complete account deletion automatically. Please:
-1. Transfer ownership of shared budgets to another member, OR
-2. Remove other members from your budgets, OR
-3. Contact support for assisted deletion
+Невозможно завершить удаление аккаунта автоматически. Пожалуйста:
+1. Передайте владение общими бюджетами другому участнику, ИЛИ
+2. Удалите других участников из своих бюджетов, ИЛИ
+3. Обратитесь в поддержку для удаления с помощью специалиста
 
-Affected budgets:
-- [Budget name 1]: [member count] members
-- [Budget name 2]: [member count] members
+Затронутые бюджеты:
+- [Название бюджета 1]: [число] участников
+- [Название бюджета 2]: [число] участников
 ```
 
-**User must resolve conflicts before deletion can proceed.**
+**Пользователь должен разрешить конфликты, прежде чем удаление сможет продолжиться.**
 
-### 3. Preserve audit trail
+### 3. Сохранить audit trail
 
-**Data to preserve** (for legal/audit requirements):
+**Данные для сохранения** (по юридическим/audit требованиям):
 
-- User ID (as tombstone record)
-- Account creation date
-- Account deletion date
-- Deletion request source and verification
-- Financial operations audit trail (anonymized)
+- ID пользователя (как tombstone-запись)
+- Дата создания аккаунта
+- Дата удаления аккаунта
+- Источник запроса на удаление и верификация
+- Audit trail финансовых операций (анонимизированный)
 
-**Retention period**: Per legal requirements (typically 7 years for financial data)
+**Срок хранения**: согласно юридическим требованиям (обычно 7 лет для финансовых данных)
 
-### 4. Execute deletion
+### 4. Выполнить удаление
 
-**⚠️ WARNING**: This action is permanent and cannot be undone.
+**⚠️ ВНИМАНИЕ**: это действие необратимо и не может быть отменено.
 
 ```bash
-# SSH to production host
+# SSH на production-хост
 ssh production-user@production-host
 
-# Begin transaction
+# Начать транзакцию
 psql "$DATABASE_URL" <<'EOSQL'
 BEGIN;
 
--- Delete user sessions
+-- Удалить сессии пользователя
 DELETE FROM "Session" WHERE user_id = '[user-id]';
 
--- Delete user memberships (budgets owned by others)
+-- Удалить участие пользователя (бюджеты, которыми владеют другие)
 DELETE FROM "BudgetMember" WHERE user_id = '[user-id]' AND budget_id NOT IN (
   SELECT id FROM "Budget" WHERE owner_user_id = '[user-id]'
 );
@@ -238,17 +238,17 @@ DELETE FROM "WorkspaceMember" WHERE user_id = '[user-id]' AND workspace_id NOT I
   SELECT id FROM "Workspace" WHERE owner_user_id = '[user-id]'
 );
 
--- Delete owned budgets (and cascading data)
--- Assumes foreign keys set up with ON DELETE CASCADE for:
--- - Operations, Categories, Envelopes, Accounts, etc.
+-- Удалить собственные бюджеты (и каскадные данные)
+-- Предполагается настройка внешних ключей с ON DELETE CASCADE для:
+-- - Operations, Categories, Envelopes, Accounts и т.д.
 DELETE FROM "Budget" WHERE owner_user_id = '[user-id]';
 
--- Delete owned workspaces (if no other members)
+-- Удалить собственные workspace (если нет других участников)
 DELETE FROM "Workspace" WHERE owner_user_id = '[user-id]' AND id NOT IN (
   SELECT workspace_id FROM "WorkspaceMember" WHERE user_id != '[user-id]'
 );
 
--- Anonymize or delete user record (preserve audit trail)
+-- Анонимизировать или удалить запись пользователя (сохранить audit trail)
 UPDATE "User" SET
   email = '[deleted-user-[user-id]@example.invalid]',
   name = 'Deleted User',
@@ -257,7 +257,7 @@ UPDATE "User" SET
   deleted_at = NOW()
 WHERE id = '[user-id]';
 
--- Verify deletion
+-- Проверить удаление
 SELECT
   (SELECT COUNT(*) FROM "Session" WHERE user_id = '[user-id]') as remaining_sessions,
   (SELECT COUNT(*) FROM "Budget" WHERE owner_user_id = '[user-id]') as remaining_budgets,
@@ -267,150 +267,150 @@ COMMIT;
 EOSQL
 ```
 
-**Deletion verification**:
+**Проверка удаления**:
 
-- [ ] User sessions deleted
-- [ ] Budget memberships removed
-- [ ] Owned budgets deleted (or ownership transferred)
-- [ ] User record anonymized/marked deleted
-- [ ] Audit trail preserved
+- [ ] Сессии пользователя удалены
+- [ ] Участие в бюджетах удалено
+- [ ] Собственные бюджеты удалены (или владение передано)
+- [ ] Запись пользователя анонимизирована/помечена удалённой
+- [ ] Audit trail сохранён
 
-### 5. Verify deletion and notify user
+### 5. Проверить удаление и уведомить пользователя
 
 ```bash
-# Verify user cannot authenticate
+# Проверить, что пользователь не может аутентифицироваться
 curl -f https://production-domain/api/v1/auth/sign-in -d '{"email":"[user-email]","password":"[any-password]"}'
-# Should return 401 Unauthorized or "User not found"
+# Должен вернуть 401 Unauthorized или «User not found»
 ```
 
-**User notification**:
+**Уведомление пользователя**:
 
 ```
-Subject: Account deletion completed
+Тема: Удаление аккаунта завершено
 
-Your HarmoFin account and associated data have been permanently deleted as requested.
+Ваш аккаунт HarmoFin и связанные данные были безвозвратно удалены по вашему запросу.
 
-Deleted data:
-- User profile
-- [N] budgets owned by you
-- [N] operations across all budgets
-- All preferences and settings
+Удалённые данные:
+- Профиль пользователя
+- [N] бюджетов, которыми вы владели
+- [N] операций по всем бюджетам
+- Все настройки и предпочтения
 
-Preserved data (legal/audit requirements):
-- Anonymized audit trail for financial operations
-- Account deletion record
+Сохранённые данные (юридические/audit требования):
+- Анонимизированный audit trail финансовых операций
+- Запись об удалении аккаунта
 
-You will no longer receive emails from HarmoFin.
+Вы больше не будете получать письма от HarmoFin.
 
-If you did not request this deletion, please reply immediately.
+Если вы не запрашивали это удаление, пожалуйста, немедленно ответьте на это письмо.
 ```
 
 ---
 
-## Data correction procedure
+## Процедура исправления данных
 
-### 1. Identify data to correct
+### 1. Определить данные для исправления
 
-**Correction request**:
+**Запрос на исправление**:
 
-- Field to correct: `[user name, email, preferences, etc.]`
-- Current value: `[current value - redact if sensitive]`
-- Requested value: `[requested value - redact if sensitive]`
-- Reason: `[user explanation]`
+- Поле для исправления: `[имя пользователя, email, настройки и т.д.]`
+- Текущее значение: `[текущее значение — скрыть, если чувствительно]`
+- Запрошенное значение: `[запрошенное значение — скрыть, если чувствительно]`
+- Причина: `[объяснение пользователя]`
 
-### 2. Validate correction
+### 2. Проверить исправление
 
-- [ ] User identity verified
-- [ ] Correction request is reasonable (not fraudulent)
-- [ ] Corrected value meets validation rules
-- [ ] Correction does not violate data integrity
+- [ ] Личность пользователя проверена
+- [ ] Запрос на исправление обоснован (не мошеннический)
+- [ ] Исправленное значение соответствует правилам валидации
+- [ ] Исправление не нарушает целостность данных
 
-### 3. Apply correction
+### 3. Применить исправление
 
-**Preferred method**: User updates through application UI
+**Предпочтительный способ**: пользователь обновляет через UI приложения
 
-**If manual update required**:
+**Если требуется ручное обновление**:
 
 ```bash
-# SSH to production host
+# SSH на production-хост
 ssh production-user@production-host
 
-# Apply correction
+# Применить исправление
 psql "$DATABASE_URL" -c "
 UPDATE \"User\"
-SET [field] = '[new-value]', updated_at = NOW()
+SET [поле] = '[новое-значение]', updated_at = NOW()
 WHERE id = '[user-id]';
 "
 
-# Verify correction
+# Проверить исправление
 psql "$DATABASE_URL" -c "
-SELECT id, [field], updated_at FROM \"User\" WHERE id = '[user-id]';
+SELECT id, [поле], updated_at FROM \"User\" WHERE id = '[user-id]';
 "
 ```
 
-**Correction record**:
+**Запись исправления**:
 
-- [ ] Correction applied
-- [ ] User notified of completion
-- [ ] Correction logged for audit
-
----
-
-## Compliance and legal
-
-### GDPR compliance (if applicable)
-
-- [ ] Data export completed within 30 days
-- [ ] Account deletion completed within 30 days
-- [ ] Data correction completed within 30 days
-- [ ] User identity verified before processing
-- [ ] Audit trail preserved per legal requirements
-- [ ] User notified of completion
-
-### Data retention
-
-**Retention policy**:
-
-- Active user data: Retained while account active
-- Deleted user data: Anonymized, audit trail retained for 7 years
-- Backup retention: `[retention period]`
-- Log retention: `[retention period]`
+- [ ] Исправление применено
+- [ ] Пользователь уведомлён о завершении
+- [ ] Исправление зафиксировано для audit
 
 ---
 
-## Record keeping
+## Compliance и юридические аспекты
 
-### Request record
+### Соответствие GDPR (если применимо)
 
-- **Request ID**: `[unique identifier]`
-- **Request type**: `[export | deletion | correction]`
-- **User ID**: `[user-id]`
-- **Request date**: `[YYYY-MM-DD]`
-- **Verification date**: `[YYYY-MM-DD]`
-- **Completion date**: `[YYYY-MM-DD]`
-- **Processed by**: `[name]`
-- **Outcome**: `[completed | rejected | pending]`
-- **Notes**: `[any special circumstances]`
+- [ ] Экспорт данных завершён в течение 30 дней
+- [ ] Удаление аккаунта завершено в течение 30 дней
+- [ ] Исправление данных завершено в течение 30 дней
+- [ ] Личность пользователя проверена перед обработкой
+- [ ] Audit trail сохранён согласно юридическим требованиям
+- [ ] Пользователь уведомлён о завершении
 
-**Record storage**: `[protected compliance record system - not Git]`
+### Хранение данных
 
----
+**Политика хранения**:
 
-## Emergency contacts
-
-- **Privacy officer**: `[contact]`
-- **Legal/compliance**: `[contact]`
-- **Data protection officer**: `[contact if required by jurisdiction]`
+- Данные активного пользователя: хранятся, пока аккаунт активен
+- Данные удалённого пользователя: анонимизированы, audit trail хранится 7 лет
+- Хранение backup: `[срок хранения]`
+- Хранение логов: `[срок хранения]`
 
 ---
 
-## Related runbooks
+## Учёт записей
 
-- `docs/runbooks/suspicious-activity.md` - Security incident response
-- `docs/runbooks/incident-escalation.md` - Incident response escalation
+### Запись о запросе
+
+- **ID запроса**: `[уникальный идентификатор]`
+- **Тип запроса**: `[export | deletion | correction]`
+- **ID пользователя**: `[user-id]`
+- **Дата запроса**: `[YYYY-MM-DD]`
+- **Дата верификации**: `[YYYY-MM-DD]`
+- **Дата завершения**: `[YYYY-MM-DD]`
+- **Обработал**: `[имя]`
+- **Результат**: `[completed | rejected | pending]`
+- **Заметки**: `[особые обстоятельства]`
+
+**Хранение записи**: `[защищённая система compliance-записей — не Git]`
 
 ---
 
-**Runbook version**: 2026-09-09  
-**Last request**: `[date]`  
-**Next review**: `[date]`
+## Экстренные контакты
+
+- **Privacy officer**: `[контакт]`
+- **Юридический отдел/compliance**: `[контакт]`
+- **Data protection officer**: `[контакт, если требуется юрисдикцией]`
+
+---
+
+## Связанные регламенты
+
+- `docs/runbooks/suspicious-activity.md` — реагирование на инцидент безопасности
+- `docs/runbooks/incident-escalation.md` — эскалация реагирования на инцидент
+
+---
+
+**Версия регламента**: 2026-09-09  
+**Последний запрос**: `[дата]`  
+**Следующая проверка**: `[дата]`

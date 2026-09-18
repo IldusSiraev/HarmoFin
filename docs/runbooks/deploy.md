@@ -1,271 +1,271 @@
-# Production Deployment Runbook
+# Регламент деплоя в production
 
-**Trigger**: Approved production release with all evidence gates passed
+**Триггер**: одобренный production-релиз, все evidence-гейты пройдены
 
-**Prerequisites**:
+**Предусловия**:
 
-- Release checklist completed (`docs/operations/release-record.md`)
-- Staging deployment successful with same SHA
-- Migration compatibility verified
-- Backup evidence current
-- On-call engineer available
+- Release checklist завершён (`docs/operations/release-record.md`)
+- Деплой на staging прошёл успешно с тем же SHA
+- Совместимость миграции проверена
+- Свежий backup подтверждён
+- Дежурный инженер на связи
 
-**Estimated duration**: 30-60 minutes including observation window
+**Ориентировочная длительность**: 30-60 минут, включая окно наблюдения
 
 ---
 
-## Pre-deployment
+## Перед деплоем
 
-### 1. Verify prerequisites
+### 1. Проверка предусловий
 
 ```bash
-# Check release checklist completion
-# Verify staging workflow run succeeded
-# Confirm backup within RPO window (≤1 hour)
-# Confirm migration compatibility classification
+# Проверить завершение release checklist
+# Убедиться, что прогон staging workflow прошёл успешно
+# Подтвердить, что backup укладывается в окно RPO (≤1 час)
+# Подтвердить классификацию совместимости миграции
 ```
 
-- [ ] Release SHA published and scanned
-- [ ] Staging smoke tests passed with this SHA
-- [ ] Backup evidence current (≤1 hour old)
-- [ ] Migration compatibility: `[forward-only | backward-compatible | rollback-safe]`
-- [ ] On-call engineer notified and available
-- [ ] Rollback SHA identified: `[previous known-good SHA]`
+- [ ] Release SHA опубликован и просканирован
+- [ ] Smoke-тесты на staging прошли с этим SHA
+- [ ] Backup свежий (не старше 1 часа)
+- [ ] Совместимость миграции: `[forward-only | backward-compatible | rollback-safe]`
+- [ ] Дежурный инженер уведомлён и доступен
+- [ ] SHA для отката определён: `[последний известный рабочий SHA]`
 
-### 2. Record production baseline
+### 2. Зафиксировать baseline production
 
 ```bash
-# Access production dashboard
-# Record current metrics before deployment:
+# Открыть production dashboard
+# Записать текущие метрики до деплоя:
 # - HTTP error rate
 # - API P95/P99 latency
-# - Active user sessions
-# - Worker backlog depth
-# - Database connection count
+# - Активные пользовательские сессии
+# - Глубина очереди worker
+# - Число соединений к базе данных
 ```
 
-**Baseline snapshot**: `[dashboard URL or screenshot reference]`
+**Снимок baseline**: `[ссылка на dashboard или скриншот]`
 
-### 3. Trigger production backup
+### 3. Запустить production backup
 
 ```bash
-# Trigger manual backup before deployment via provider console
-# Wait for backup confirmation
-# Record backup reference
+# Запустить ручной backup перед деплоем через консоль провайдера
+# Дождаться подтверждения backup
+# Зафиксировать ссылку на backup
 ```
 
-**Pre-deployment backup**: `[protected backup reference]`
+**Backup перед деплоем**: `[защищённая ссылка на backup]`
 
 ---
 
-## Deployment execution
+## Выполнение деплоя
 
-### 4. Invoke production workflow
+### 4. Запустить production workflow
 
-Navigate to: `.github/workflows/deploy-production.yml`
+Перейти: `.github/workflows/deploy-production.yml`
 
-**Workflow inputs**:
+**Входные параметры workflow**:
 
-- `image_tag`: `[exact commit SHA]`
-- `staging_evidence`: `[staging workflow run URL]`
+- `image_tag`: `[точный commit SHA]`
+- `staging_evidence`: `[URL прогона staging workflow]`
 - `migration_compatibility`: `[forward-only | backward-compatible | rollback-safe]`
-- `backup_evidence`: `[backup reference from step 3]`
+- `backup_evidence`: `[ссылка на backup из шага 3]`
 
-**GitHub Environment approval**: Requires `production` environment approver confirmation
+**Одобрение GitHub Environment**: требуется подтверждение approver-а окружения `production`
 
-### 5. Monitor deployment progress
+### 5. Мониторинг хода деплоя
 
 ```bash
-# Watch GitHub Actions workflow run
-# Monitor each deployment phase:
-# - Input validation
-# - SSH connection
-# - File upload
-# - Migration execution
-# - Service reconciliation
-# - Health checks
-# - Smoke tests
+# Следить за прогоном GitHub Actions
+# Отслеживать каждую фазу деплоя:
+# - Валидация входных данных
+# - SSH-подключение
+# - Загрузка файлов
+# - Выполнение миграции
+# - Реконсиляция сервисов
+# - Health-проверки
+# - Smoke-тесты
 ```
 
-**Workflow run**: `[GitHub Actions URL]`
+**Прогон workflow**: `[URL GitHub Actions]`
 
-**Expected phases**:
+**Ожидаемые фазы**:
 
-1. Validate inputs ✓
-2. Configure SSH ✓
-3. Upload deployment files ✓
-4. Upload production environment file ✓
-5. Deploy exact SHA (migration → rollout → health → smoke) ✓
-6. Publish release metadata ✓
+1. Валидация входных данных ✓
+2. Настройка SSH ✓
+3. Загрузка файлов деплоя ✓
+4. Загрузка production env-файла ✓
+5. Деплой точного SHA (миграция → раскатка → health → smoke) ✓
+6. Публикация метаданных релиза ✓
 
 ---
 
-## Post-deployment verification
+## Проверка после деплоя
 
-### 6. Verify service health
+### 6. Проверить health сервисов
 
 ```bash
-# Check all service health probes
+# Проверить все health-пробы сервисов
 curl -f https://production-domain/
 curl -f https://production-domain/api/v1/health/live
 curl -f https://production-domain/api/v1/health/ready
 
-# Verify worker health (internal only, via SSH if needed)
+# Проверить health worker (доступен только внутри сети, через SSH при необходимости)
 # curl http://worker:3003/internal/health/live
 # curl http://worker:3003/internal/health/ready
 ```
 
-- [ ] Web responds with 200
-- [ ] API live probe responds with 200
-- [ ] API ready probe responds with 200
-- [ ] Worker live probe responds with 200
-- [ ] Worker ready probe responds with 200
+- [ ] Web отвечает 200
+- [ ] API live-проба отвечает 200
+- [ ] API ready-проба отвечает 200
+- [ ] Worker live-проба отвечает 200
+- [ ] Worker ready-проба отвечает 200
 
-### 7. Verify database connectivity
-
-```bash
-# API ready probe includes database check
-# Verify recent operations visible in production
-# No connection pool exhaustion
-```
-
-- [ ] Database connections healthy
-- [ ] Recent operations queryable
-- [ ] No connection errors in logs
-
-### 8. Test critical authenticated journey
-
-**Critical path**: Sign in → view budget → view journal → verify recent operation
-
-- [ ] Sign-in flow works
-- [ ] Session created and persisted
-- [ ] Budget list loads
-- [ ] Journal query returns results
-- [ ] No authentication errors
-
-**Test account**: `[designated test account for production smoke - not in Git]`
-
-### 9. Verify observability
+### 7. Проверить связность с базой данных
 
 ```bash
-# Check logs appearing in log backend
-# Check metrics updating in dashboard
-# Check traces appearing (if configured)
-# Check error reporting connected (if configured)
+# Ready-проба API включает проверку базы данных
+# Убедиться, что недавние операции видны в production
+# Нет исчерпания пула соединений
 ```
 
-- [ ] Request logs appearing with request IDs
-- [ ] Metrics updating (HTTP requests, database, worker)
-- [ ] Release SHA visible in metrics
-- [ ] Traces appearing (if configured)
-- [ ] Error reporting connected (if configured)
-- [ ] No sensitive data in logs
+- [ ] Соединения с базой данных здоровы
+- [ ] Недавние операции доступны для запроса
+- [ ] Нет ошибок соединения в логах
 
-### 10. Monitor for error rate spike
+### 8. Проверить критичный аутентифицированный сценарий
 
-**Observation window**: 30 minutes minimum
+**Критичный путь**: вход → просмотр бюджета → просмотр журнала → проверка недавней операции
+
+- [ ] Вход работает
+- [ ] Сессия создаётся и сохраняется
+- [ ] Список бюджетов загружается
+- [ ] Запрос журнала возвращает результаты
+- [ ] Нет ошибок аутентификации
+
+**Тестовый аккаунт**: `[выделенный тестовый аккаунт для production smoke — не в Git]`
+
+### 9. Проверить observability
 
 ```bash
-# Monitor production dashboard for:
-# - HTTP 5xx error rate increase
-# - API latency P95/P99 degradation
-# - Database connection failures
-# - Worker job failure rate increase
-# - User-reported issues
+# Проверить, что логи появляются в log-бэкенде
+# Проверить, что метрики обновляются в dashboard
+# Проверить, что появляются трейсы (если настроено)
+# Проверить, что подключена отправка ошибок (если настроено)
 ```
 
-**Metrics to watch**:
+- [ ] Логи запросов появляются с request ID
+- [ ] Метрики обновляются (HTTP-запросы, база данных, worker)
+- [ ] Release SHA виден в метриках
+- [ ] Трейсы появляются (если настроено)
+- [ ] Отправка ошибок подключена (если настроено)
+- [ ] В логах нет чувствительных данных
 
-- HTTP error rate: `[baseline]` → `[current]`
-- API P95 latency: `[baseline]` → `[current]`
-- Worker backlog: `[baseline]` → `[current]`
+### 10. Наблюдение за всплеском ошибок
 
-- [ ] Error rate within baseline range
-- [ ] Latency within baseline range
-- [ ] No worker backlog spike
-- [ ] No user-reported issues
+**Окно наблюдения**: минимум 30 минут
+
+```bash
+# Следить за production dashboard на предмет:
+# - Роста HTTP 5xx error rate
+# - Деградации API latency P95/P99
+# - Сбоев соединения с базой данных
+# - Роста частоты сбоев job у worker
+# - Обращений пользователей о проблемах
+```
+
+**Метрики для наблюдения**:
+
+- HTTP error rate: `[baseline]` → `[текущее]`
+- API P95 latency: `[baseline]` → `[текущее]`
+- Очередь worker: `[baseline]` → `[текущее]`
+
+- [ ] Error rate в пределах baseline
+- [ ] Latency в пределах baseline
+- [ ] Нет всплеска очереди worker
+- [ ] Нет обращений пользователей о проблемах
 
 ---
 
-## Rollback (if needed)
+## Откат (при необходимости)
 
-**Trigger**: Critical error rate spike, data corruption, or service unavailability
+**Триггер**: критичный всплеск ошибок, повреждение данных или недоступность сервиса
 
-### Rollback decision gate
+### Гейт решения об откате
 
-**Do not rollback without**:
+**Не откатывать без**:
 
-1. Confirming migration compatibility permits rollback
-2. Recording rollback reason and evidence
-3. Approval from on-call engineer and release owner
+1. Подтверждения, что совместимость миграции допускает откат
+2. Фиксации причины отката и evidence
+3. Одобрения от дежурного инженера и владельца релиза
 
-**Migration compatibility check**:
+**Проверка совместимости миграции**:
 
-- `forward-only`: Rollback NOT SAFE (database schema incompatible with previous code)
-- `backward-compatible`: Rollback SAFE (previous code can run with new schema)
-- `rollback-safe`: Rollback SAFE with explicit verification
+- `forward-only`: откат НЕ БЕЗОПАСЕН (схема базы данных несовместима с предыдущим кодом)
+- `backward-compatible`: откат БЕЗОПАСЕН (предыдущий код работает с новой схемой)
+- `rollback-safe`: откат БЕЗОПАСЕН при явной проверке
 
-### Rollback execution
+### Выполнение отката
 
-See: `docs/runbooks/image-rollback.md`
+См.: `docs/runbooks/image-rollback.md`
 
 ```bash
-# Invoke production deployment workflow with previous known-good SHA
-# Workflow inputs:
-# - image_tag: [rollback SHA]
-# - staging_evidence: [original staging evidence]
+# Запустить production deployment workflow с предыдущим известным рабочим SHA
+# Входные параметры workflow:
+# - image_tag: [SHA для отката]
+# - staging_evidence: [исходный staging evidence]
 # - migration_compatibility: backward-compatible
-# - backup_evidence: [current backup]
+# - backup_evidence: [текущий backup]
 ```
 
-**Rollback SHA**: `[from release checklist step 1]`
+**SHA для отката**: `[из шага 1 release checklist]`
 
-**Post-rollback**:
+**После отката**:
 
-- [ ] Services healthy with rollback SHA
-- [ ] Error rate returned to baseline
-- [ ] Critical journey verified
-- [ ] Incident record created
-
----
-
-## Completion
-
-### 11. Record release evidence
-
-Update `docs/operations/release-record.md` with:
-
-- Production workflow run URL
-- Post-deployment verification results
-- Observation window completion timestamp
-- Approvals from on-call engineer and release owner
-
-### 12. Publish release communication
-
-- [ ] Notify team of successful deployment
-- [ ] Update release tracking system
-- [ ] Schedule post-release review if issues encountered
+- [ ] Сервисы здоровы с SHA отката
+- [ ] Error rate вернулся к baseline
+- [ ] Критичный сценарий проверен
+- [ ] Запись об инциденте создана
 
 ---
 
-## Emergency contacts
+## Завершение
 
-- **On-call engineer**: `[contact from release checklist]`
-- **Release owner**: `[contact from release checklist]`
-- **Database administrator**: `[contact]`
-- **Provider support**: `[support contact for infrastructure provider]`
+### 11. Зафиксировать evidence релиза
+
+Обновить `docs/operations/release-record.md`:
+
+- URL прогона production workflow
+- Результаты проверки после деплоя
+- Отметка времени завершения окна наблюдения
+- Одобрения от дежурного инженера и владельца релиза
+
+### 12. Опубликовать коммуникацию о релизе
+
+- [ ] Уведомить команду об успешном деплое
+- [ ] Обновить систему отслеживания релизов
+- [ ] Запланировать пост-релизный разбор при возникновении проблем
 
 ---
 
-## Related runbooks
+## Экстренные контакты
 
-- `docs/runbooks/image-rollback.md` - Application rollback procedure
-- `docs/runbooks/database-restore.md` - Database recovery procedure
-- `docs/runbooks/api-error-spike.md` - Elevated error investigation
-- `docs/runbooks/incident-escalation.md` - Incident response escalation
+- **Дежурный инженер**: `[контакт из release checklist]`
+- **Владелец релиза**: `[контакт из release checklist]`
+- **Администратор базы данных**: `[контакт]`
+- **Поддержка провайдера**: `[контакт поддержки инфраструктурного провайдера]`
 
 ---
 
-**Runbook version**: 2026-09-09  
-**Last tested**: `[date]`  
-**Next review**: `[date]`
+## Связанные регламенты
+
+- `docs/runbooks/image-rollback.md` — процедура отката приложения
+- `docs/runbooks/database-restore.md` — процедура восстановления базы данных
+- `docs/runbooks/api-error-spike.md` — расследование повышенного уровня ошибок
+- `docs/runbooks/incident-escalation.md` — эскалация реагирования на инцидент
+
+---
+
+**Версия регламента**: 2026-09-09  
+**Последняя проверка**: `[дата]`  
+**Следующая проверка**: `[дата]`
