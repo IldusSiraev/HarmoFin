@@ -66,7 +66,9 @@ defineOptions({ name: 'ReferencePageLayout' });
 }
 
 .reference-page-layout__filters {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--hf-space-4);
   margin-top: var(--hf-space-6);
 }

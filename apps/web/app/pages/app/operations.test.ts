@@ -515,8 +515,7 @@ describe('operations page', () => {
     await flushPromises();
     expect(wrapper!.text()).toContain('Операций пока нет');
 
-    await wrapper!.get('[data-testid="chip-type"]').trigger('click');
-    await wrapper!.get('[data-testid="chip-option-type-EXPENSE"]').trigger('click');
+    await wrapper!.get('[data-testid="type-tab-EXPENSE"]').trigger('click');
     await flushPromises();
 
     expect(wrapper!.text()).toContain('Ничего не найдено');

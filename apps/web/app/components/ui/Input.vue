@@ -19,6 +19,7 @@ const props = withDefaults(
     required?: boolean;
     disabled?: boolean;
     readonly?: boolean;
+    hideLabel?: boolean;
   }>(),
   {
     id: undefined,
@@ -32,6 +33,7 @@ const props = withDefaults(
     required: false,
     disabled: false,
     readonly: false,
+    hideLabel: false,
   },
 );
 
@@ -73,7 +75,11 @@ function handleInput(event: Event) {
 <template>
   <div class="ui-field">
     <div class="ui-field__label-row">
-      <label class="ui-field__label" :for="getInputId()">
+      <label
+        class="ui-field__label"
+        :class="{ 'ui-field__label--visually-hidden': hideLabel }"
+        :for="getInputId()"
+      >
         {{ label }}<span v-if="required" aria-hidden="true"> *</span>
       </label>
       <UiTooltip v-if="tooltip" :text="tooltip" v-slot="{ describedby }">
@@ -154,6 +160,21 @@ function handleInput(event: Event) {
 .ui-field__label {
   font-weight: var(--hf-font-weight-medium);
   color: var(--hf-color-text);
+}
+
+/* Visually hidden but still readable by assistive tech — the accessible
+   name a label provides doesn't require it to occupy visual space, e.g. a
+   search box whose placeholder plus surrounding context already say what
+   it's for. */
+.ui-field__label--visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .ui-field__tooltip-trigger {

@@ -12,7 +12,7 @@ import type { OperationFilters } from '../../composables/useOperationFilters.js'
 defineOptions({ name: 'OperationsToolbar' });
 
 type Option = { value: string; label: string };
-type ChipKey = 'periodStart' | 'accountId' | 'categoryId' | 'envelopeId' | 'type';
+type ChipKey = 'periodStart' | 'accountId' | 'categoryId' | 'envelopeId';
 
 const props = defineProps<{
   filters: OperationFilters;
@@ -56,9 +56,10 @@ onBeforeUnmount(() => {
   if (searchTimer !== undefined) clearTimeout(searchTimer);
 });
 
-const typeOptions: Option[] = [
-  { value: 'INCOME', label: 'Доход' },
-  { value: 'EXPENSE', label: 'Расход' },
+const typeTabs: Option[] = [
+  { value: '', label: 'Все' },
+  { value: 'INCOME', label: 'Доходы' },
+  { value: 'EXPENSE', label: 'Расходы' },
 ];
 
 const chips = computed<Array<{ key: ChipKey; label: string; options: ReadonlyArray<Option> }>>(
@@ -67,7 +68,6 @@ const chips = computed<Array<{ key: ChipKey; label: string; options: ReadonlyArr
     { key: 'accountId', label: 'Счёт', options: props.accounts },
     { key: 'categoryId', label: 'Категория', options: props.categories },
     { key: 'envelopeId', label: 'Конверт', options: props.envelopes },
-    { key: 'type', label: 'Тип', options: typeOptions },
   ],
 );
 
@@ -145,18 +145,37 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="root" class="operations-toolbar">
-    <UiInput
-      class="operations-toolbar__search"
-      name="operations-search"
-      type="search"
-      label="Поиск по операциям"
-      placeholder="Категория, получатель, комментарий"
-      data-testid="operations-search"
-      :model-value="searchText"
-      @update:model-value="onSearchInput"
-    >
-      <template #icon><Search :size="18" /></template>
-    </UiInput>
+    <div class="operations-toolbar__primary">
+      <div class="operations-toolbar__tabs" role="tablist" aria-label="Тип операций">
+        <button
+          v-for="tab in typeTabs"
+          :key="tab.value"
+          type="button"
+          role="tab"
+          class="operations-toolbar__tab"
+          :class="{ 'operations-toolbar__tab--active': filters.type === tab.value }"
+          :aria-selected="filters.type === tab.value ? 'true' : 'false'"
+          :data-testid="`type-tab-${tab.value || 'all'}`"
+          @click="emit('change', 'type', tab.value)"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
+
+      <UiInput
+        class="operations-toolbar__search"
+        name="operations-search"
+        type="search"
+        label="Поиск по операциям"
+        hide-label
+        placeholder="Категория, получатель, комментарий"
+        data-testid="operations-search"
+        :model-value="searchText"
+        @update:model-value="onSearchInput"
+      >
+        <template #icon><Search :size="18" /></template>
+      </UiInput>
+    </div>
 
     <div ref="chipsRow" class="operations-toolbar__chips">
       <UiChip
@@ -273,8 +292,51 @@ onBeforeUnmount(() => {
   gap: var(--hf-space-3);
 }
 
+.operations-toolbar__primary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hf-space-3);
+  align-items: center;
+}
+
+.operations-toolbar__tabs {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--hf-space-2);
+}
+
+.operations-toolbar__tab {
+  min-height: 2.75rem;
+  padding: 0 var(--hf-space-4);
+  border: 1px solid var(--hf-color-border-strong);
+  border-radius: var(--hf-radius-xl);
+  background: var(--hf-color-surface);
+  color: var(--hf-color-text);
+  font: inherit;
+  font-weight: var(--hf-font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.operations-toolbar__tab:hover {
+  background: var(--hf-color-action-secondary-hover);
+}
+
+.operations-toolbar__tab:focus-visible {
+  outline: 2px solid var(--hf-color-action-primary);
+  outline-offset: 2px;
+}
+
+.operations-toolbar__tab--active {
+  border-color: var(--hf-color-brand);
+  background: var(--hf-color-brand-soft);
+  color: var(--hf-color-brand);
+}
+
 .operations-toolbar__search {
-  max-width: 32rem;
+  flex: 1 1 16rem;
+  min-width: 12rem;
+  max-width: 28rem;
 }
 
 .operations-toolbar__chips {
