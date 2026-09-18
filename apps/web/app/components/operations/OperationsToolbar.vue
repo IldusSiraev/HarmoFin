@@ -287,6 +287,11 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .operations-toolbar {
+  /* ReferencePageLayout's #filters slot is a flex row now (fixed elsewhere so
+     a single filter chip there doesn't stretch full width) — a flex item's
+     main-axis size defaults to shrink-to-fit, so this toolbar needs its own
+     explicit full width or it shrinks to its content instead of the row. */
+  width: 100%;
   position: relative;
   display: grid;
   gap: var(--hf-space-3);
@@ -334,9 +339,19 @@ onBeforeUnmount(() => {
 }
 
 .operations-toolbar__search {
-  flex: 1 1 16rem;
+  flex: 0 1 20rem;
   min-width: 12rem;
-  max-width: 28rem;
+  margin-left: auto;
+}
+
+/* Once the search box wraps onto its own line, margin-left: auto would push
+   it to the right and strand it there instead of letting it use the full
+   line width. */
+@media (max-width: 47.9375rem) {
+  .operations-toolbar__search {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
 }
 
 .operations-toolbar__chips {
