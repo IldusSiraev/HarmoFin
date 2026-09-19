@@ -174,7 +174,7 @@ async function createAccount(page: Page, name: string, balance: string): Promise
   await page.getByRole('button', { name: 'Создать счёт' }).first().click();
   await page.getByLabel('Название счёта').fill(name);
   await page.getByLabel('Начальный баланс').fill(balance);
-  await page.getByLabel('Дата начала учёта').fill('04.09.2026');
+  await page.getByLabel('Дата начала учёта').fill('2026-09-04');
   await page.getByRole('button', { name: 'Сохранить счёт' }).click();
   await expect(page.getByText(name)).toBeVisible();
 }
@@ -230,7 +230,7 @@ async function createIncome(page: Page, source: string, amount: string): Promise
   await page.locator('[data-action="create-operation"]').click();
   // Step 1
   await page.getByLabel('Тип операции').selectOption('INCOME');
-  const today = new Date().toLocaleDateString('ru-RU');
+  const today = new Date().toISOString().split('T')[0];
   await page.getByLabel('Дата операции').fill(today);
   await page.getByLabel('Сумма').fill(amount);
   await page.getByRole('button', { name: 'Далее' }).click();
@@ -272,7 +272,7 @@ async function createExpense(
   await page.goto('/app/operations');
   await page.locator('[data-action="create-operation"]').click();
   // Step 1
-  const today = new Date().toLocaleDateString('ru-RU');
+  const today = new Date().toISOString().split('T')[0];
   await page.getByLabel('Дата операции').fill(today);
   await page.getByLabel('Сумма').fill(amount);
   await page.getByRole('button', { name: 'Далее' }).click();

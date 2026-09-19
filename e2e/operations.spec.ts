@@ -61,7 +61,7 @@ test('browser retry with same idempotency key creates one income', async ({ page
   await page.locator('[data-action="create-operation"]').click();
   // Step 1
   await page.getByLabel('Тип операции').selectOption('INCOME');
-  const today = new Date().toLocaleDateString('ru-RU');
+  const today = new Date().toISOString().split('T')[0];
   await page.getByLabel('Дата операции').fill(today);
   await page.getByLabel('Сумма').fill('10,00');
   await page.getByRole('button', { name: 'Далее' }).click();
@@ -117,7 +117,7 @@ test('owner sees financial validation and server-confirmed expense lifecycle', a
   await page.goto('/app/operations');
   await page.locator('[data-action="create-operation"]').click();
   // Step 1
-  const today = new Date().toLocaleDateString('ru-RU');
+  const today = new Date().toISOString().split('T')[0];
   await page.getByLabel('Дата операции').fill(today);
   await page.getByLabel('Сумма').fill('1.234');
   await page.getByRole('button', { name: 'Далее' }).click();
@@ -203,7 +203,7 @@ async function createAccount(page: Page, name: string, balance: string): Promise
   await page.getByRole('button', { name: 'Создать счёт' }).first().click();
   await page.getByLabel('Название счёта').fill(name);
   await page.getByLabel('Начальный баланс').fill(balance);
-  await page.getByLabel('Дата начала учёта').fill('04.09.2026');
+  await page.getByLabel('Дата начала учёта').fill('2026-09-04');
   await page.getByRole('button', { name: 'Сохранить счёт' }).click();
   await expect(page.getByText(name)).toBeVisible();
 }
@@ -290,7 +290,7 @@ async function createIncome(
   await page.locator('[data-action="create-operation"]').click();
   // Step 1: operation type, date, amount
   await page.getByLabel('Тип операции').selectOption('INCOME');
-  const today = new Date().toLocaleDateString('ru-RU');
+  const today = new Date().toISOString().split('T')[0];
   await page.getByLabel('Дата операции').fill(today);
   await page.getByLabel('Сумма').fill(amount);
   await page.getByRole('button', { name: 'Далее' }).click();
@@ -320,7 +320,7 @@ async function createExpense(
 ): Promise<void> {
   await page.locator('[data-action="create-operation"]').click();
   // Step 1: operation type, date, amount
-  const today = new Date().toLocaleDateString('ru-RU');
+  const today = new Date().toISOString().split('T')[0];
   await page.getByLabel('Дата операции').fill(today);
   await page.getByLabel('Сумма').fill(amount);
   await page.getByRole('button', { name: 'Далее' }).click();
