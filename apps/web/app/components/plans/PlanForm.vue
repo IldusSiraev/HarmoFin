@@ -10,6 +10,7 @@ import type {
 } from '../../composables/useBudgetReferenceData.js';
 import FinanceMoneyInput from '../finance/FinanceMoneyInput.vue';
 import UiButton from '../ui/Button.vue';
+import UiDatePicker from '../ui/DatePicker.vue';
 import UiInput from '../ui/Input.vue';
 import UiSelect from '../ui/Select.vue';
 
@@ -160,27 +161,24 @@ function minorToDecimal(value: string): string {
       :error="errors.amount"
       required
     />
-    <UiInput
+    <UiDatePicker
       v-model="form.anchorOn"
       name="anchorOn"
       label="Опорная дата"
-      type="date"
       :error="errors.anchorOn"
       required
     />
-    <UiInput
+    <UiDatePicker
       v-model="form.startOn"
       name="startOn"
       label="Дата начала"
-      type="date"
       :error="errors.startOn"
       required
     />
-    <UiInput
+    <UiDatePicker
       v-model="form.endOn"
       name="endOn"
       label="Дата окончания"
-      type="date"
       :error="errors.endOn"
     />
     <UiSelect

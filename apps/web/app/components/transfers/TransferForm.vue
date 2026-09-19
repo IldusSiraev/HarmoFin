@@ -10,6 +10,7 @@ import {
 } from '../../composables/useTransferForm.js';
 import FinanceMoneyInput from '../finance/FinanceMoneyInput.vue';
 import UiButton from '../ui/Button.vue';
+import UiDatePicker from '../ui/DatePicker.vue';
 import UiInput from '../ui/Input.vue';
 import UiSelect from '../ui/Select.vue';
 
@@ -48,11 +49,10 @@ function submit(status: 'DRAFT' | 'CONFIRMED') {
 <template>
   <form class="transfer-form" @submit.prevent="submit('DRAFT')">
     <div class="transfer-form__core">
-      <UiInput
+      <UiDatePicker
         v-model="form.occurredOn"
         name="occurredOn"
         label="Дата перевода"
-        type="date"
         :error="errors.occurredOn"
         required
       />

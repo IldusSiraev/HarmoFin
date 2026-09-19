@@ -9,6 +9,7 @@ import {
 } from '../../composables/useOperationForm.js';
 import FinanceMoneyInput from '../finance/FinanceMoneyInput.vue';
 import UiButton from '../ui/Button.vue';
+import UiDatePicker from '../ui/DatePicker.vue';
 import UiInput from '../ui/Input.vue';
 import UiSelect from '../ui/Select.vue';
 
@@ -120,11 +121,10 @@ function submit(status: 'DRAFT' | 'CONFIRMED') {
         ]"
         required
       />
-      <UiInput
+      <UiDatePicker
         v-model="form.occurredOn"
         name="occurredOn"
         label="Дата операции"
-        type="date"
         :error="errors.occurredOn"
         required
       />

@@ -17,6 +17,7 @@ import {
 } from '../../composables/useTransferForm.js';
 import OperationAmountField from '../operations/OperationAmountField.vue';
 import UiButton from '../ui/Button.vue';
+import UiDatePicker from '../ui/DatePicker.vue';
 import UiInput from '../ui/Input.vue';
 import UiModal from '../ui/Modal.vue';
 import UiPillSelect from '../ui/PillSelect.vue';
@@ -177,7 +178,7 @@ function requestSplit(): void {
         />
 
         <div class="entry-dialog__row">
-          <UiInput v-model="operation.occurredOn" name="occurredOn" label="Дата" type="date" required />
+          <UiDatePicker v-model="operation.occurredOn" name="occurredOn" label="Дата" required />
           <UiInput
             :model-value="activeType === 'EXPENSE' ? operation.merchantName : operation.sourceDescription"
             name="note"
@@ -226,7 +227,7 @@ function requestSplit(): void {
         />
 
         <div class="entry-dialog__row">
-          <UiInput v-model="transfer.occurredOn" name="transferOccurredOn" label="Дата" type="date" required />
+          <UiDatePicker v-model="transfer.occurredOn" name="transferOccurredOn" label="Дата" required />
           <UiInput
             v-model="transfer.comment"
             name="transferComment"
