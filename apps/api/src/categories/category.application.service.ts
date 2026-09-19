@@ -43,9 +43,9 @@ export class CategoryApplicationService {
   ): Promise<CategoryView[]> {
     const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
     if (!budget) throw resourceNotFound();
-    return (
-      await this.repository.list(userId, budgetId, categoryType, status, options)
-    ).map((category) => this.toView(category));
+    return (await this.repository.list(userId, budgetId, categoryType, status, options)).map(
+      (category) => this.toView(category),
+    );
   }
 
   async get(userId: string, budgetId: string, categoryId: string): Promise<CategoryView> {

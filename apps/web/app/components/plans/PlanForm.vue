@@ -175,12 +175,7 @@ function minorToDecimal(value: string): string {
       :error="errors.startOn"
       required
     />
-    <UiDatePicker
-      v-model="form.endOn"
-      name="endOn"
-      label="Дата окончания"
-      :error="errors.endOn"
-    />
+    <UiDatePicker v-model="form.endOn" name="endOn" label="Дата окончания" :error="errors.endOn" />
     <UiSelect
       v-model="form.recurrence"
       name="recurrence"

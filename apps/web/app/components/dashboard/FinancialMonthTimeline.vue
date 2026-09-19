@@ -95,10 +95,16 @@ const summaryLabel = computed(
     <p class="fm-timeline__title">Ваш финансовый месяц</p>
     <div class="fm-timeline__marks" aria-hidden="true">
       <span class="fm-timeline__mark fm-timeline__mark--start">{{ startLabel }}</span>
-      <span class="fm-timeline__mark fm-timeline__mark--boundary" :style="{ left: `${boundaryLabelPercent}%` }">
+      <span
+        class="fm-timeline__mark fm-timeline__mark--boundary"
+        :style="{ left: `${boundaryLabelPercent}%` }"
+      >
         {{ boundaryDateLabel }}
       </span>
-      <span class="fm-timeline__mark fm-timeline__mark--today" :style="{ left: `${todayLabelPercent}%` }">
+      <span
+        class="fm-timeline__mark fm-timeline__mark--today"
+        :style="{ left: `${todayLabelPercent}%` }"
+      >
         {{ todayDateLabel }}
       </span>
       <span class="fm-timeline__mark fm-timeline__mark--end">{{ endLabel }}</span>

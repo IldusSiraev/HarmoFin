@@ -49,7 +49,7 @@ function step(delta: 1 | -1): void {
         :value="modelValue"
         :aria-invalid="error ? 'true' : undefined"
         @input="handleInput"
-      >
+      />
       <span class="amount-field__currency" aria-hidden="true">{{ currencySymbol }}</span>
       <span class="amount-field__steppers">
         <button type="button" aria-label="Увеличить сумму" @click="step(1)">

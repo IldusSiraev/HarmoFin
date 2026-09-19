@@ -86,9 +86,9 @@ describe('AppOperationDialogs', () => {
 
     expect(useOperationDialogs().openDialog.value).toBe('entry');
     expect(useOperationDialogs().entryType.value).toBe('INCOME');
-    expect(document.querySelector('[data-testid="entry-tab-INCOME"]')?.getAttribute('aria-selected')).toBe(
-      'true',
-    );
+    expect(
+      document.querySelector('[data-testid="entry-tab-INCOME"]')?.getAttribute('aria-selected'),
+    ).toBe('true');
     expect(document.querySelector('[data-testid="operation-type-expense"]')).toBeNull();
     wrapper.unmount();
   });
@@ -100,9 +100,9 @@ describe('AppOperationDialogs', () => {
     await flushPromises();
 
     expect(api.listAccounts).toHaveBeenCalledWith('budget-id', 'active');
-    expect(document.querySelector('[data-testid="entry-tab-TRANSFER"]')?.getAttribute('aria-selected')).toBe(
-      'true',
-    );
+    expect(
+      document.querySelector('[data-testid="entry-tab-TRANSFER"]')?.getAttribute('aria-selected'),
+    ).toBe('true');
     wrapper.unmount();
   });
 
@@ -196,7 +196,9 @@ describe('AppOperationDialogs', () => {
     };
     api.listCategories.mockImplementation(
       (_budgetId: string, _type: unknown, _status: unknown, options?: { sort?: string }) =>
-        Promise.resolve(options?.sort === 'popular' ? [groceries] : [groceries, ...fillers, overflow]),
+        Promise.resolve(
+          options?.sort === 'popular' ? [groceries] : [groceries, ...fillers, overflow],
+        ),
     );
     const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
     useOperationDialogs().openOperation('EXPENSE');
@@ -212,7 +214,9 @@ describe('AppOperationDialogs', () => {
     search!.dispatchEvent(new Event('input', { bubbles: true }));
     await flushPromises();
 
-    expect(document.querySelector('[data-testid="pill-category-overflow-category-id"]')).not.toBeNull();
+    expect(
+      document.querySelector('[data-testid="pill-category-overflow-category-id"]'),
+    ).not.toBeNull();
     wrapper.unmount();
   });
 

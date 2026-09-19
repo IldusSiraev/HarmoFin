@@ -2,7 +2,10 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { ArrowLeft, Search, X } from '@lucide/vue';
 
-import { useBudgetReferenceData, type CategoryDto } from '../../composables/useBudgetReferenceData.js';
+import {
+  useBudgetReferenceData,
+  type CategoryDto,
+} from '../../composables/useBudgetReferenceData.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import type { EntryType } from '../../composables/useOperationDialogs.js';
 import {
@@ -118,7 +121,9 @@ const accent = computed<'danger' | 'success' | 'info'>(() => {
 
 const categoryOptions = computed(() =>
   props.categories
-    .filter((category) => category.categoryType === operation.transactionType && !category.archivedAt)
+    .filter(
+      (category) => category.categoryType === operation.transactionType && !category.archivedAt,
+    )
     .map((category) => ({ value: category.id, label: category.name })),
 );
 
@@ -169,9 +174,9 @@ const canSubmit = computed(() => {
   if (activeType.value === 'TRANSFER') {
     return Boolean(
       transfer.total &&
-        transfer.sourceAccountId &&
-        transfer.destinationAccountId &&
-        transfer.parts[0]?.sourceEnvelopeId,
+      transfer.sourceAccountId &&
+      transfer.destinationAccountId &&
+      transfer.parts[0]?.sourceEnvelopeId,
     );
   }
   if (!operation.amount || !operation.accountId || !operation.categoryId) return false;
@@ -195,7 +200,12 @@ function requestSplit(): void {
 <template>
   <UiModal :open="open" title="Новая операция" @close="emit('close')">
     <template #header>
-      <button type="button" class="entry-dialog__back" aria-label="Назад к выбору типа" @click="emit('back')">
+      <button
+        type="button"
+        class="entry-dialog__back"
+        aria-label="Назад к выбору типа"
+        @click="emit('back')"
+      >
         <ArrowLeft :size="20" aria-hidden="true" />
       </button>
       <div class="entry-dialog__tabs" role="tablist" aria-label="Тип операции">
@@ -271,7 +281,9 @@ function requestSplit(): void {
             quick-dates
           />
           <UiInput
-            :model-value="activeType === 'EXPENSE' ? operation.merchantName : operation.sourceDescription"
+            :model-value="
+              activeType === 'EXPENSE' ? operation.merchantName : operation.sourceDescription
+            "
             name="note"
             label="Заметка"
             placeholder="Необязательно"
@@ -284,7 +296,7 @@ function requestSplit(): void {
         </div>
 
         <label v-if="activeType === 'INCOME'" class="entry-dialog__check">
-          <input v-model="operation.isPlanned" type="checkbox"> Запланированная операция
+          <input v-model="operation.isPlanned" type="checkbox" /> Запланированная операция
           <UiInfoTooltip
             text="Отметьте, если это поступление уже запланированного дохода — например, обычной зарплаты. Нужно только для сравнения плана и факта в отчётах, на баланс и остатки не влияет."
             @click.stop

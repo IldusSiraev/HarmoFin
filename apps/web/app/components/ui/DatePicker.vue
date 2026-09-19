@@ -148,7 +148,12 @@ function selectQuickDate(value: string): void {
       @update:model-value="handleUpdate"
     />
 
-    <div v-if="quickDates" class="ui-date-field__quick-dates" role="group" aria-label="Быстрый выбор даты">
+    <div
+      v-if="quickDates"
+      class="ui-date-field__quick-dates"
+      role="group"
+      aria-label="Быстрый выбор даты"
+    >
       <button
         v-for="option in quickDateOptions"
         :key="option.value"
