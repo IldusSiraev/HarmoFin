@@ -18,6 +18,7 @@ import {
 import OperationAmountField from '../operations/OperationAmountField.vue';
 import UiButton from '../ui/Button.vue';
 import UiDatePicker from '../ui/DatePicker.vue';
+import UiInfoTooltip from '../ui/InfoTooltip.vue';
 import UiInput from '../ui/Input.vue';
 import UiModal from '../ui/Modal.vue';
 import UiPillSelect from '../ui/PillSelect.vue';
@@ -194,6 +195,10 @@ function requestSplit(): void {
 
         <label v-if="activeType === 'INCOME'" class="entry-dialog__check">
           <input v-model="operation.isPlanned" type="checkbox"> Запланированная операция
+          <UiInfoTooltip
+            text="Отметьте, если это поступление уже запланированного дохода — например, обычной зарплаты. Нужно только для сравнения плана и факта в отчётах, на баланс и остатки не влияет."
+            @click.stop
+          />
         </label>
       </template>
 
@@ -236,14 +241,19 @@ function requestSplit(): void {
           />
         </div>
 
-        <button
-          type="button"
-          class="entry-dialog__split"
-          data-testid="entry-split-transfer"
-          @click="requestSplit"
-        >
-          Разбить перевод на несколько конвертов
-        </button>
+        <div class="entry-dialog__split-row">
+          <button
+            type="button"
+            class="entry-dialog__split"
+            data-testid="entry-split-transfer"
+            @click="requestSplit"
+          >
+            Разбить перевод на несколько конвертов
+          </button>
+          <UiInfoTooltip
+            text="Нужно только если этим переводом вы одновременно двигаете деньги нескольких разных конвертов — например, часть на «Ремонт», часть на «Отпуск». Для обычного перевода это не требуется."
+          />
+        </div>
       </template>
     </div>
 
@@ -347,8 +357,14 @@ function requestSplit(): void {
   font-size: var(--hf-font-size-small);
 }
 
-.entry-dialog__split {
+.entry-dialog__split-row {
+  display: flex;
+  align-items: center;
+  gap: var(--hf-space-2);
   justify-self: start;
+}
+
+.entry-dialog__split {
   padding: 0;
   border: none;
   background: transparent;
