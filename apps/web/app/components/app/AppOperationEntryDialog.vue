@@ -1,0 +1,365 @@
+<script setup lang="ts">
+import { computed, reactive, ref, watch } from 'vue';
+import { ArrowLeft, X } from '@lucide/vue';
+
+import type { CategoryDto } from '../../composables/useBudgetReferenceData.js';
+import type { EntryType } from '../../composables/useOperationDialogs.js';
+import {
+  createOperationForm,
+  toTransactionInput,
+  type OperationFormModel,
+} from '../../composables/useOperationForm.js';
+import {
+  createTransferForm,
+  syncSourceEnvelope,
+  toCreateTransferInput,
+  type TransferFormModel,
+} from '../../composables/useTransferForm.js';
+import OperationAmountField from '../operations/OperationAmountField.vue';
+import UiButton from '../ui/Button.vue';
+import UiInput from '../ui/Input.vue';
+import UiModal from '../ui/Modal.vue';
+import UiPillSelect from '../ui/PillSelect.vue';
+
+defineOptions({ name: 'AppOperationEntryDialog' });
+
+const props = withDefaults(
+  defineProps<{
+    open: boolean;
+    initialType: EntryType;
+    accounts: ReadonlyArray<{ value: string; label: string }>;
+    categories: ReadonlyArray<CategoryDto>;
+    envelopes: ReadonlyArray<{ value: string; label: string }>;
+    pending?: boolean;
+    error?: string;
+  }>(),
+  { pending: false, error: '' },
+);
+
+const emit = defineEmits<{
+  close: [];
+  back: [];
+  submitOperation: [input: ReturnType<typeof toTransactionInput>];
+  submitTransfer: [input: ReturnType<typeof toCreateTransferInput>];
+  splitTransfer: [model: TransferFormModel];
+}>();
+
+const tabs: ReadonlyArray<{ type: EntryType; label: string; modifier: string }> = [
+  { type: 'EXPENSE', label: 'Расход', modifier: 'entry-dialog__tab--expense' },
+  { type: 'INCOME', label: 'Доход', modifier: 'entry-dialog__tab--income' },
+  { type: 'TRANSFER', label: 'Перевод', modifier: 'entry-dialog__tab--transfer' },
+];
+
+const activeType = ref<EntryType>('EXPENSE');
+const operation = reactive<OperationFormModel>(createOperationForm());
+const transfer = reactive<TransferFormModel>(createTransferForm());
+
+// Each open is a fresh entry — the dialog is create-only, so there is no
+// existing record to preserve when the type or the whole dialog resets.
+watch(
+  () => props.open,
+  (open) => {
+    if (!open) return;
+    activeType.value = props.initialType;
+    Object.assign(operation, createOperationForm(), {
+      transactionType: props.initialType === 'INCOME' ? 'INCOME' : 'EXPENSE',
+    });
+    Object.assign(transfer, createTransferForm());
+  },
+);
+
+watch(activeType, (type) => {
+  if (type === 'EXPENSE' || type === 'INCOME') operation.transactionType = type;
+});
+
+const accent = computed<'danger' | 'success' | 'info'>(() => {
+  if (activeType.value === 'EXPENSE') return 'danger';
+  if (activeType.value === 'INCOME') return 'success';
+  return 'info';
+});
+
+const categoryOptions = computed(() =>
+  props.categories
+    .filter((category) => category.categoryType === operation.transactionType && !category.archivedAt)
+    .map((category) => ({ value: category.id, label: category.name })),
+);
+
+const transferSourceOptions = computed(() =>
+  props.accounts.filter((account) => account.value !== transfer.destinationAccountId),
+);
+const transferDestinationOptions = computed(() =>
+  props.accounts.filter((account) => account.value !== transfer.sourceAccountId),
+);
+
+const canSubmit = computed(() => {
+  if (activeType.value === 'TRANSFER') {
+    return Boolean(
+      transfer.total &&
+        transfer.sourceAccountId &&
+        transfer.destinationAccountId &&
+        transfer.parts[0]?.sourceEnvelopeId,
+    );
+  }
+  if (!operation.amount || !operation.accountId || !operation.categoryId) return false;
+  return activeType.value === 'INCOME' || Boolean(operation.envelopeId);
+});
+
+function submit(): void {
+  if (!canSubmit.value) return;
+  if (activeType.value === 'TRANSFER') {
+    emit('submitTransfer', toCreateTransferInput(transfer, 'CONFIRMED'));
+    return;
+  }
+  emit('submitOperation', toTransactionInput(operation, 'CONFIRMED'));
+}
+
+function requestSplit(): void {
+  emit('splitTransfer', { ...transfer, parts: transfer.parts.map((part) => ({ ...part })) });
+}
+</script>
+
+<template>
+  <UiModal :open="open" title="Новая операция" @close="emit('close')">
+    <template #header>
+      <button type="button" class="entry-dialog__back" aria-label="Назад к выбору типа" @click="emit('back')">
+        <ArrowLeft :size="20" aria-hidden="true" />
+      </button>
+      <div class="entry-dialog__tabs" role="tablist" aria-label="Тип операции">
+        <button
+          v-for="tab in tabs"
+          :key="tab.type"
+          type="button"
+          role="tab"
+          class="entry-dialog__tab"
+          :class="[tab.modifier, { 'entry-dialog__tab--active': activeType === tab.type }]"
+          :aria-selected="activeType === tab.type"
+          :data-testid="`entry-tab-${tab.type}`"
+          @click="activeType = tab.type"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
+      <button type="button" class="entry-dialog__close" aria-label="Закрыть" @click="emit('close')">
+        <X :size="20" aria-hidden="true" />
+      </button>
+    </template>
+
+    <p v-if="error" class="entry-dialog__error" role="alert">{{ error }}</p>
+
+    <div class="entry-dialog__body">
+      <template v-if="activeType !== 'TRANSFER'">
+        <OperationAmountField v-model="operation.amount" :accent="accent" />
+
+        <UiPillSelect
+          v-model="operation.accountId"
+          name="account"
+          label="Счёт"
+          :options="accounts"
+          :accent="accent"
+          required
+        />
+        <UiPillSelect
+          v-model="operation.categoryId"
+          name="category"
+          label="Категория"
+          :options="categoryOptions"
+          :accent="accent"
+          required
+        />
+        <UiPillSelect
+          v-if="activeType === 'EXPENSE'"
+          v-model="operation.envelopeId"
+          name="envelope"
+          label="Конверт"
+          :options="envelopes"
+          :accent="accent"
+          required
+        />
+
+        <div class="entry-dialog__row">
+          <UiInput v-model="operation.occurredOn" name="occurredOn" label="Дата" type="date" required />
+          <UiInput
+            :model-value="activeType === 'EXPENSE' ? operation.merchantName : operation.sourceDescription"
+            name="note"
+            label="Заметка"
+            placeholder="Необязательно"
+            @update:model-value="
+              activeType === 'EXPENSE'
+                ? (operation.merchantName = $event)
+                : (operation.sourceDescription = $event)
+            "
+          />
+        </div>
+
+        <label v-if="activeType === 'INCOME'" class="entry-dialog__check">
+          <input v-model="operation.isPlanned" type="checkbox"> Запланированная операция
+        </label>
+      </template>
+
+      <template v-else>
+        <OperationAmountField v-model="transfer.total" accent="info" />
+
+        <UiPillSelect
+          v-model="transfer.sourceAccountId"
+          name="transferSource"
+          label="Откуда"
+          :options="transferSourceOptions"
+          accent="info"
+          required
+        />
+        <UiPillSelect
+          v-model="transfer.destinationAccountId"
+          name="transferDestination"
+          label="Куда"
+          :options="transferDestinationOptions"
+          accent="info"
+          required
+        />
+        <UiPillSelect
+          name="transferEnvelope"
+          label="Конверт"
+          :options="envelopes"
+          :model-value="transfer.parts[0]?.sourceEnvelopeId ?? ''"
+          accent="info"
+          required
+          @update:model-value="transfer.parts[0] && syncSourceEnvelope(transfer.parts[0], $event)"
+        />
+
+        <div class="entry-dialog__row">
+          <UiInput v-model="transfer.occurredOn" name="transferOccurredOn" label="Дата" type="date" required />
+          <UiInput
+            v-model="transfer.comment"
+            name="transferComment"
+            label="Заметка"
+            placeholder="Необязательно"
+          />
+        </div>
+
+        <button
+          type="button"
+          class="entry-dialog__split"
+          data-testid="entry-split-transfer"
+          @click="requestSplit"
+        >
+          Разбить перевод на несколько конвертов
+        </button>
+      </template>
+    </div>
+
+    <UiButton
+      class="entry-dialog__submit"
+      full-width
+      data-testid="entry-submit"
+      :disabled="!canSubmit || pending"
+      :loading="pending"
+      @click="submit"
+    >
+      Сохранить операцию
+    </UiButton>
+  </UiModal>
+</template>
+
+<style scoped>
+.entry-dialog__back,
+.entry-dialog__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--hf-radius-md);
+  background: transparent;
+  color: var(--hf-color-text-muted);
+  cursor: pointer;
+}
+
+.entry-dialog__back:hover,
+.entry-dialog__close:hover {
+  background: var(--hf-color-action-secondary-hover);
+  color: var(--hf-color-text);
+}
+
+.entry-dialog__tabs {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  gap: var(--hf-space-1);
+}
+
+.entry-dialog__tab {
+  min-height: 2.25rem;
+  padding: 0 var(--hf-space-3);
+  border: none;
+  border-radius: var(--hf-radius-xl);
+  background: transparent;
+  color: var(--hf-color-text-muted);
+  font: inherit;
+  font-weight: var(--hf-font-weight-medium);
+  cursor: pointer;
+}
+
+.entry-dialog__tab:focus-visible {
+  outline: 2px solid var(--hf-color-action-primary);
+  outline-offset: 2px;
+}
+
+.entry-dialog__tab--expense.entry-dialog__tab--active {
+  background: var(--hf-color-status-danger-background);
+  color: var(--hf-color-status-danger);
+}
+
+.entry-dialog__tab--income.entry-dialog__tab--active {
+  background: var(--hf-color-status-success-background);
+  color: var(--hf-color-status-success);
+}
+
+.entry-dialog__tab--transfer.entry-dialog__tab--active {
+  background: var(--hf-color-status-info-background);
+  color: var(--hf-color-status-info);
+}
+
+.entry-dialog__body {
+  display: grid;
+  gap: var(--hf-space-5);
+  margin-bottom: var(--hf-space-5);
+}
+
+.entry-dialog__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--hf-space-3);
+}
+
+@media (max-width: 30rem) {
+  .entry-dialog__row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.entry-dialog__check {
+  display: flex;
+  align-items: center;
+  gap: var(--hf-space-2);
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+}
+
+.entry-dialog__split {
+  justify-self: start;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--hf-color-action-primary);
+  font: inherit;
+  font-weight: var(--hf-font-weight-medium);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.entry-dialog__error {
+  margin: 0 0 var(--hf-space-4);
+  color: var(--hf-color-text-danger);
+}
+</style>

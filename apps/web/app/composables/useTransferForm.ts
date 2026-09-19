@@ -39,6 +39,14 @@ export function removeTransferPart(model: TransferFormModel, index: number): voi
   if (model.parts.length > 1) model.parts.splice(index, 1);
 }
 
+// The destination envelope defaults to the source one until explicitly
+// changed — an ordinary transfer preserves purpose, so picking a source
+// envelope should not silently leave the destination unset.
+export function syncSourceEnvelope(part: TransferPartFormModel, value: string): void {
+  part.sourceEnvelopeId = value;
+  part.destinationEnvelopeId = value;
+}
+
 export function toCreateTransferInput(
   model: TransferFormModel,
   status: 'DRAFT' | 'CONFIRMED' = 'DRAFT',

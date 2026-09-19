@@ -1,21 +1,16 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 
-import OperationForm from '../operations/OperationForm.vue';
 import TransferForm from '../transfers/TransferForm.vue';
 import UiModal from '../ui/Modal.vue';
+import AppOperationEntryDialog from './AppOperationEntryDialog.vue';
 import AppOperationTypeDialog from './AppOperationTypeDialog.vue';
 import {
   useBudgetReferenceData,
   type CreateTransactionInput,
   type CreateTransferInput,
-  type UpdateTransactionInput,
 } from '../../composables/useBudgetReferenceData.js';
-import {
-  createOperationForm,
-  type OperationFormModel,
-} from '../../composables/useOperationForm.js';
-import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
+import { useOperationDialogs, type EntryType } from '../../composables/useOperationDialogs.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import { createTransferForm, type TransferFormModel } from '../../composables/useTransferForm.js';
 import { useToast } from '../../composables/useToast.js';
@@ -25,22 +20,30 @@ defineOptions({ name: 'AppOperationDialogs' });
 const emit = defineEmits<{ saved: [] }>();
 
 const api = useBudgetReferenceData();
-const { openDialog, presetType, openOperation, openTransfer, close } = useOperationDialogs();
+const {
+  openDialog,
+  entryType,
+  openChoose,
+  openOperation,
+  openTransfer,
+  openTransferAdvanced,
+  close,
+} = useOperationDialogs();
 const { accounts, categories, envelopes, budgetId, load } = useOperationReferenceData();
 const { push } = useToast();
 
 const chooseOpen = computed(() => openDialog.value === 'choose');
-const operationOpen = computed(() => openDialog.value === 'operation');
-const transferOpen = computed(() => openDialog.value === 'transfer');
+const entryOpen = computed(() => openDialog.value === 'entry');
+const advancedOpen = computed(() => openDialog.value === 'transferAdvanced');
 
-function chooseType(type: 'EXPENSE' | 'INCOME' | 'TRANSFER'): void {
+function chooseType(type: EntryType): void {
   if (type === 'TRANSFER') {
     openTransfer();
   } else {
     openOperation(type);
   }
 }
-const operationModel = ref<OperationFormModel>(createOperationForm());
+
 const transferModel = ref<TransferFormModel>(createTransferForm());
 const pending = ref(false);
 const formError = ref('');
@@ -49,24 +52,21 @@ watch(openDialog, async (value) => {
   if (value === 'none') return;
   formError.value = '';
   await load();
-  if (value === 'operation') {
-    operationModel.value = {
-      ...createOperationForm(),
-      transactionType: presetType.value ?? 'EXPENSE',
-    };
-  } else {
-    transferModel.value = createTransferForm();
-  }
 });
 
-async function saveOperation(
-  input: CreateTransactionInput | UpdateTransactionInput,
-): Promise<void> {
+// The quick transfer view hands over its already-filled-in fields so the
+// rare split-by-envelope case does not force retyping the amount and accounts.
+function startAdvancedTransfer(model: TransferFormModel): void {
+  transferModel.value = model;
+  openTransferAdvanced();
+}
+
+async function saveOperation(input: CreateTransactionInput): Promise<void> {
   const id = budgetId.value;
   if (!id) return;
   pending.value = true;
   try {
-    await api.createTransaction(id, input as CreateTransactionInput, crypto.randomUUID());
+    await api.createTransaction(id, input, crypto.randomUUID());
     close();
     push({ tone: 'success', title: 'Операция сохранена' });
     emit('saved');
@@ -100,20 +100,22 @@ async function saveTransfer(input: CreateTransferInput): Promise<void> {
   <div class="app-operation-dialogs">
     <AppOperationTypeDialog :open="chooseOpen" @close="close" @select="chooseType" />
 
-    <UiModal :open="operationOpen" title="Новая операция" @close="close">
-      <p v-if="formError" class="app-operation-dialogs__error" role="alert">{{ formError }}</p>
-      <OperationForm
-        mode="create"
-        :model="operationModel"
-        :accounts="accounts"
-        :categories="categories"
-        :envelopes="envelopes"
-        :pending="pending"
-        @submit="saveOperation"
-      />
-    </UiModal>
+    <AppOperationEntryDialog
+      :open="entryOpen"
+      :initial-type="entryType ?? 'EXPENSE'"
+      :accounts="accounts"
+      :categories="categories"
+      :envelopes="envelopes"
+      :pending="pending"
+      :error="formError"
+      @close="close"
+      @back="openChoose"
+      @submit-operation="saveOperation"
+      @submit-transfer="saveTransfer"
+      @split-transfer="startAdvancedTransfer"
+    />
 
-    <UiModal :open="transferOpen" title="Новый перевод" @close="close">
+    <UiModal :open="advancedOpen" title="Перевод с разбивкой по конвертам" @close="close">
       <p v-if="formError" class="app-operation-dialogs__error" role="alert">{{ formError }}</p>
       <TransferForm
         :model="transferModel"

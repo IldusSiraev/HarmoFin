@@ -30,7 +30,7 @@ describe('AppBottomNav', () => {
 
     await wrapper.get('[data-testid="bottom-nav-add"]').trigger('click');
 
-    expect(useOperationDialogs().openDialog.value).toBe('operation');
+    expect(useOperationDialogs().openDialog.value).toBe('entry');
   });
 
   it('asks the shell to open the rest of the navigation', async () => {

@@ -4,9 +4,9 @@ import { reactive, watch } from 'vue';
 import {
   addTransferPart,
   removeTransferPart,
+  syncSourceEnvelope,
   toCreateTransferInput,
   type TransferFormModel,
-  type TransferPartFormModel,
 } from '../../composables/useTransferForm.js';
 import FinanceMoneyInput from '../finance/FinanceMoneyInput.vue';
 import UiButton from '../ui/Button.vue';
@@ -39,11 +39,6 @@ watch(
   (model) => Object.assign(form, { ...model, parts: model.parts.map((part) => ({ ...part })) }),
   { deep: true },
 );
-
-function updateSourceEnvelope(part: TransferPartFormModel, value: string) {
-  part.sourceEnvelopeId = value;
-  part.destinationEnvelopeId = value;
-}
 
 function submit(status: 'DRAFT' | 'CONFIRMED') {
   emit('submit', toCreateTransferInput(form, status));
@@ -112,7 +107,7 @@ function submit(status: 'DRAFT' | 'CONFIRMED') {
           :options="envelopes"
           :error="errors[`parts.${index}.sourceEnvelopeId`]"
           required
-          @update:model-value="updateSourceEnvelope(part, $event)"
+          @update:model-value="syncSourceEnvelope(part, $event)"
         />
         <UiSelect
           v-model="part.destinationEnvelopeId"

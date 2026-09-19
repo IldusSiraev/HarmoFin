@@ -54,17 +54,19 @@ onBeforeUnmount(() => {
       <div v-if="open" class="modal-backdrop" @click="handleBackdropClick">
         <div class="modal" role="dialog" :aria-label="title" aria-modal="true">
           <div class="modal__header">
-            <h2 class="modal__title">{{ title }}</h2>
-            <button type="button" class="modal__close" aria-label="Закрыть" @click="handleClose">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path
-                  d="M18 6L6 18M6 6l12 12"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                />
-              </svg>
-            </button>
+            <slot name="header">
+              <h2 class="modal__title">{{ title }}</h2>
+              <button type="button" class="modal__close" aria-label="Закрыть" @click="handleClose">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M18 6L6 18M6 6l12 12"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </button>
+            </slot>
           </div>
           <div class="modal__content">
             <slot />

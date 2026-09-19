@@ -53,6 +53,7 @@ vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) =>
 }));
 
 import { ApiRequestError } from '../../composables/useApiClient.js';
+import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 import { useToast } from '../../composables/useToast.js';
 import OperationsPage from './operations.vue';
 
@@ -100,6 +101,7 @@ describe('operations page', () => {
       ],
     };
     vi.clearAllMocks();
+    useOperationDialogs().close();
     for (const key of Object.keys(routeQuery)) delete routeQuery[key];
     api.listTransactions.mockResolvedValue({ items: [], nextCursor: null });
     api.getTransaction.mockResolvedValue(null);
@@ -120,7 +122,7 @@ describe('operations page', () => {
     }
   });
 
-  it('loads server journal and opens explicit operation form', async () => {
+  it('loads server journal and opens the shared type picker from the create button', async () => {
     mountPage();
     await flushPromises();
 
@@ -128,17 +130,26 @@ describe('operations page', () => {
       sortBy: 'occurredOn',
       sortDirection: 'desc',
     });
+    // The type picker and quick-add forms live in the layout's shared
+    // AppOperationDialogs, not in this page — see AppOperationDialogs.test.ts
+    // for that flow. Here we only need proof the button asks for it.
     await wrapper!.get('[data-action="create-operation"]').trigger('click');
+
+    expect(useOperationDialogs().openDialog.value).toBe('choose');
+  });
+
+  it('reloads the journal after the shared quick-add dialog closes', async () => {
+    mountPage();
     await flushPromises();
-    document
-      .querySelector<HTMLButtonElement>('[data-testid="operation-type-expense"]')
-      ?.click();
+    expect(api.listTransactions).toHaveBeenCalledTimes(1);
+
+    const dialogs = useOperationDialogs();
+    dialogs.openOperation('EXPENSE');
+    await wrapper!.vm.$nextTick();
+    dialogs.close();
     await flushPromises();
-    // The create form is stepped (one decision at a time), so the submit
-    // buttons only render once the user reaches the last step — see
-    // OperationForm.test.ts for that flow. Here we only need proof the
-    // create form opened.
-    expect(document.body.textContent).toContain('Шаг 1 из 4');
+
+    expect(api.listTransactions).toHaveBeenCalledTimes(2);
   });
 
   it('lets owner download CSV with current journal filters', async () => {
@@ -281,38 +292,6 @@ describe('operations page', () => {
     // modal in a loop.
     expect(api.getTransaction).toHaveBeenCalledTimes(1);
     expect(document.body.textContent).not.toContain('Сохранить изменения');
-  });
-
-  it('shows API money validation beside operation amount', async () => {
-    api.createTransaction.mockRejectedValueOnce(
-      new ApiRequestError(400, {
-        code: 'VALIDATION_FAILED',
-        detail: 'Допустимо не более двух знаков после запятой.',
-        fieldErrors: [],
-      }),
-    );
-    mountPage();
-    await flushPromises();
-
-    await wrapper!.get('[data-action="create-operation"]').trigger('click');
-    await flushPromises();
-    document
-      .querySelector<HTMLButtonElement>('[data-testid="operation-type-expense"]')
-      ?.click();
-    await flushPromises();
-
-    const amountInput = document.querySelector('input[name="amount"]') as HTMLInputElement;
-    amountInput.value = '1.234';
-    amountInput.dispatchEvent(new Event('input', { bubbles: true }));
-    amountInput.dispatchEvent(new Event('change', { bubbles: true }));
-    await flushPromises();
-
-    const form = document.querySelector('.operation-form') as HTMLFormElement;
-    form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    await flushPromises();
-
-    expect(document.body.textContent).toContain('Укажите данные формы.');
-    expect(amountInput?.getAttribute('aria-invalid')).toBe('true');
   });
 
   it('hides a rejected generic allocation proposal without creating allocation', async () => {
