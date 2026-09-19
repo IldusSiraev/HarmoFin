@@ -39,7 +39,9 @@ describe('useAuth session and password management', () => {
     mocks.request.mockResolvedValue(undefined);
     const { revokeSession } = useAuth();
     await revokeSession('session-1');
-    expect(mocks.request).toHaveBeenCalledWith('/api/v1/auth/sessions/session-1', { method: 'DELETE' });
+    expect(mocks.request).toHaveBeenCalledWith('/api/v1/auth/sessions/session-1', {
+      method: 'DELETE',
+    });
   });
 
   it('revokeAllSessions deletes every session', async () => {

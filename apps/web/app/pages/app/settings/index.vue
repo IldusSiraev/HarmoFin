@@ -2,20 +2,20 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { definePageMeta } from '#imports';
 
-import CyclePreview from '../../components/settings/CyclePreview.vue';
-import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
-import UiButton from '../../components/ui/Button.vue';
-import UiCard from '../../components/ui/Card.vue';
-import UiEmptyState from '../../components/ui/EmptyState.vue';
-import UiInput from '../../components/ui/Input.vue';
-import UiStatus from '../../components/ui/Status.vue';
-import { useAuth } from '../../composables/useAuth.js';
+import CyclePreview from '../../../components/settings/CyclePreview.vue';
+import ReferencePageLayout from '../../../components/ui/ReferencePageLayout.vue';
+import UiButton from '../../../components/ui/Button.vue';
+import UiCard from '../../../components/ui/Card.vue';
+import UiEmptyState from '../../../components/ui/EmptyState.vue';
+import UiInput from '../../../components/ui/Input.vue';
+import UiStatus from '../../../components/ui/Status.vue';
+import { useAuth } from '../../../composables/useAuth.js';
 import {
   type BudgetDto,
   type UpdateBudgetInput,
   useBudgetReferenceData,
-} from '../../composables/useBudgetReferenceData.js';
-import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js';
+} from '../../../composables/useBudgetReferenceData.js';
+import { useReferenceDataForm } from '../../../composables/useReferenceDataForm.js';
 
 defineOptions({ name: 'AppSettingsPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
@@ -37,6 +37,7 @@ const cycleForm = reactive({ cycleStartDay: '', periodBoundaryOffset: '' });
 
 const templateSaving = ref(false);
 const templateSummary = ref('');
+const templateFailed = ref(false);
 
 const budgetId = computed(() => currentData.value?.workspaces[0]?.budgets[0]?.id);
 const previewCycleStartDay = computed(() => Number(cycleForm.cycleStartDay) || 0);
@@ -99,10 +100,12 @@ async function initializeTemplate() {
   if (!id) return;
   templateSaving.value = true;
   templateSummary.value = '';
+  templateFailed.value = false;
   try {
     await api.initializeTemplate(id);
     templateSummary.value = 'Базовый шаблон создан.';
   } catch {
+    templateFailed.value = true;
     templateSummary.value = 'Не удалось выполнить действие. Повторите попытку.';
   } finally {
     templateSaving.value = false;
@@ -132,49 +135,48 @@ onMounted(() => {
     <template #kicker>Настройки</template>
     <template #title>Настройки</template>
     <template #content>
+      <p class="settings-page__help-link">
+        <NuxtLink to="/app/help">Как пользоваться HarmoFin</NuxtLink>
+      </p>
       <div class="settings-page__grid">
-        <div class="settings-page__column">
-          <UiCard as="section" aria-labelledby="settings-budget-title">
-            <template #header><h2 id="settings-budget-title">Бюджет</h2></template>
-            <NuxtLink to="/app/settings/general" class="settings-page__row">
-              <span>Общие настройки</span>
-              <span class="settings-page__row-link">Изменить →</span>
-            </NuxtLink>
-            <div class="settings-page__static-row">
-              <div>
-                <p class="settings-page__static-row-title">Базовый шаблон</p>
-                <p class="settings-page__hint">Создаёт отсутствующие категории и конверты.</p>
-              </div>
-              <UiButton
-                variant="tertiary"
-                size="sm"
-                data-action="initialize-template"
-                :loading="templateSaving"
-                @click="initializeTemplate"
-              >
-                Создать базовый шаблон
-              </UiButton>
+        <UiCard
+          as="section"
+          class="settings-page__area settings-page__area--budget"
+          aria-labelledby="settings-budget-title"
+        >
+          <template #header><h2 id="settings-budget-title">Бюджет</h2></template>
+          <NuxtLink to="/app/settings/general" class="settings-page__row">
+            <span>Общие настройки</span>
+            <span class="settings-page__row-link">Изменить →</span>
+          </NuxtLink>
+          <div class="settings-page__static-row">
+            <div>
+              <p class="settings-page__static-row-title">Базовый шаблон</p>
+              <p class="settings-page__hint">Создаёт отсутствующие категории и конверты.</p>
             </div>
-            <UiStatus v-if="templateSummary" :label="templateSummary" tone="success" aria-live="polite" />
-          </UiCard>
+            <UiButton
+              variant="tertiary"
+              size="sm"
+              data-action="initialize-template"
+              :loading="templateSaving"
+              @click="initializeTemplate"
+            >
+              Создать базовый шаблон
+            </UiButton>
+          </div>
+          <UiStatus
+            v-if="templateSummary"
+            :label="templateSummary"
+            :tone="templateFailed ? 'danger' : 'success'"
+            aria-live="polite"
+          />
+        </UiCard>
 
-          <UiCard as="section" aria-labelledby="settings-account-title">
-            <template #header><h2 id="settings-account-title">Аккаунт</h2></template>
-            <div class="settings-page__static-row">
-              <p class="settings-page__static-row-title">{{ accountEmail() }}</p>
-            </div>
-            <NuxtLink to="/app/settings/password" class="settings-page__row">
-              <span>Пароль</span>
-              <span class="settings-page__row-link">Изменить →</span>
-            </NuxtLink>
-            <NuxtLink to="/app/settings/sessions" class="settings-page__row">
-              <span>Сессии</span>
-              <span class="settings-page__row-link">Управлять →</span>
-            </NuxtLink>
-          </UiCard>
-        </div>
-
-        <UiCard as="section" aria-labelledby="settings-cycle-title">
+        <UiCard
+          as="section"
+          class="settings-page__area settings-page__area--cycle"
+          aria-labelledby="settings-cycle-title"
+        >
           <template #header><h2 id="settings-cycle-title">Финансовый цикл</h2></template>
           <UiStatus
             v-if="cycleSummary"
@@ -207,11 +209,30 @@ onMounted(() => {
               :period-boundary-offset="previewPeriodBoundaryOffset"
             />
             <p class="settings-page__cycle-note">
-              Изменение цикла не меняет даты операций, но пересчитывает их принадлежность к периодам и
-              циклам.
+              Изменение цикла не меняет даты операций, но пересчитывает их принадлежность к периодам
+              и циклам.
             </p>
             <UiButton type="submit" :loading="cycleSaving">Сохранить</UiButton>
           </form>
+        </UiCard>
+
+        <UiCard
+          as="section"
+          class="settings-page__area settings-page__area--account"
+          aria-labelledby="settings-account-title"
+        >
+          <template #header><h2 id="settings-account-title">Аккаунт</h2></template>
+          <div class="settings-page__static-row">
+            <p class="settings-page__static-row-title">{{ accountEmail() }}</p>
+          </div>
+          <NuxtLink to="/app/settings/password" class="settings-page__row">
+            <span>Пароль</span>
+            <span class="settings-page__row-link">Изменить →</span>
+          </NuxtLink>
+          <NuxtLink to="/app/settings/sessions" class="settings-page__row">
+            <span>Сессии</span>
+            <span class="settings-page__row-link">Управлять →</span>
+          </NuxtLink>
         </UiCard>
       </div>
     </template>
@@ -219,16 +240,34 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.settings-page__help-link {
+  margin: 0 0 var(--hf-space-5);
+  font-size: var(--hf-font-size-small);
+}
+
+/* Single column: the spec orders the cards «Бюджет», «Финансовый цикл»,
+   «Аккаунт» — the cycle is promoted as the most frequently used setting. */
 .settings-page__grid {
   display: grid;
   gap: var(--hf-space-5);
   grid-template-columns: 1fr;
+  grid-template-areas:
+    'budget'
+    'cycle'
+    'account';
   align-items: start;
 }
 
-.settings-page__column {
-  display: grid;
-  gap: var(--hf-space-5);
+.settings-page__area--budget {
+  grid-area: budget;
+}
+
+.settings-page__area--cycle {
+  grid-area: cycle;
+}
+
+.settings-page__area--account {
+  grid-area: account;
 }
 
 .settings-page__row {
@@ -288,9 +327,17 @@ onMounted(() => {
   font-size: var(--hf-font-size-small);
 }
 
+/* Two columns: «Бюджет» over «Аккаунт» on the left, «Финансовый цикл»
+   spanning both rows on the right. */
 @media (min-width: 48rem) {
   .settings-page__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    /* The flexible second row absorbs the taller cycle card, so the spanning
+       card cannot inflate row 1 and push «Аккаунт» away from «Бюджет». */
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      'budget cycle'
+      'account cycle';
   }
 }
 </style>

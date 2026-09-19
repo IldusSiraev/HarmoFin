@@ -14,18 +14,30 @@ definePageMeta({ middleware: 'auth', layout: 'app' });
 const { changePassword } = useAuth();
 const currentPassword = ref('');
 const newPassword = ref('');
+const confirmPassword = ref('');
 const saving = ref(false);
 const summary = ref('');
 const fieldErrors = ref<Record<string, string>>({});
 
 async function save() {
-  saving.value = true;
   summary.value = '';
   fieldErrors.value = {};
+  // Confirmation is a client-side guard only: the API takes just the current
+  // and the new password.
+  if (newPassword.value !== confirmPassword.value) {
+    fieldErrors.value = { confirmPassword: 'Пароли не совпадают.' };
+    summary.value = 'Проверьте подтверждение нового пароля.';
+    return;
+  }
+  saving.value = true;
   try {
-    await changePassword({ currentPassword: currentPassword.value, newPassword: newPassword.value });
+    await changePassword({
+      currentPassword: currentPassword.value,
+      newPassword: newPassword.value,
+    });
     currentPassword.value = '';
     newPassword.value = '';
+    confirmPassword.value = '';
     summary.value = 'Пароль изменён.';
   } catch (error) {
     const mapped = errorMessage(error);
@@ -69,6 +81,15 @@ async function save() {
           label="Новый пароль"
           hint="Минимум 10 символов."
           :error="fieldErrors.newPassword"
+          required
+        />
+        <UiInput
+          v-model="confirmPassword"
+          name="confirmPassword"
+          type="password"
+          autocomplete="new-password"
+          label="Подтвердите новый пароль"
+          :error="fieldErrors.confirmPassword"
           required
         />
         <UiButton type="submit" :loading="saving">Сохранить</UiButton>

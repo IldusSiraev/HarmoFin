@@ -16,6 +16,7 @@ const { loadMe, listSessions, revokeSession, revokeAllSessions } = useAuth();
 const sessions = ref<SessionView[]>([]);
 const loading = ref(true);
 const loadError = ref('');
+const actionError = ref('');
 const revokingId = ref<string | null>(null);
 const revokingAll = ref(false);
 const confirmingRevokeAll = ref(false);
@@ -43,6 +44,7 @@ async function loadSessions() {
 // if that now fails, the row we just revoked was our own.
 async function revoke(sessionId: string) {
   revokingId.value = sessionId;
+  actionError.value = '';
   try {
     await revokeSession(sessionId);
     try {
@@ -52,6 +54,10 @@ async function revoke(sessionId: string) {
       return;
     }
     await loadSessions();
+  } catch {
+    // The row is still listed because the server never confirmed the revoke;
+    // say so instead of letting the spinner stop silently.
+    actionError.value = 'Не удалось завершить сессию. Повторите попытку.';
   } finally {
     revokingId.value = null;
   }
@@ -59,9 +65,12 @@ async function revoke(sessionId: string) {
 
 async function confirmRevokeAll() {
   revokingAll.value = true;
+  actionError.value = '';
   try {
     await revokeAllSessions();
     await navigateTo('/login');
+  } catch {
+    actionError.value = 'Не удалось выйти отовсюду. Повторите попытку.';
   } finally {
     revokingAll.value = false;
     confirmingRevokeAll.value = false;
@@ -84,10 +93,13 @@ onMounted(() => {
       <UiStatus v-if="loading" label="Загрузка сессий…" tone="info" aria-live="polite" />
       <UiStatus v-else-if="loadError" :label="loadError" tone="danger" aria-live="polite" />
       <template v-else>
+        <UiStatus v-if="actionError" :label="actionError" tone="danger" aria-live="assertive" />
         <ul class="sessions-list">
           <li v-for="session in sessions" :key="session.id" class="sessions-list__row">
             <div>
-              <p class="sessions-list__device">{{ session.userAgent ?? 'Неизвестное устройство' }}</p>
+              <p class="sessions-list__device">
+                {{ session.userAgent ?? 'Неизвестное устройство' }}
+              </p>
               <p class="sessions-list__meta">
                 Вход: {{ formatDate(session.createdAt) }} · Активность:
                 {{ formatDate(session.lastSeenAt) }}

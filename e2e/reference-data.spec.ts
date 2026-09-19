@@ -8,14 +8,18 @@ test.skip('owner initializes template and manages account through server-confirm
   await registerAndReachApp(page);
 
   await page.goto('/app/settings');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Бюджет');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Настройки');
   await page.getByRole('button', { name: 'Создать базовый шаблон' }).click();
   await expect(page.getByText('Базовый шаблон создан.')).toBeVisible();
   await page.getByRole('button', { name: 'Создать базовый шаблон' }).click();
   await expect(page.getByText('Базовый шаблон создан.')).toBeVisible();
+
+  // The general budget settings moved behind «Изменить →» on the hub.
+  await page.goto('/app/settings/general');
   await page.getByLabel('Часовой пояс').fill('Europe/Moscow');
-  await page.getByRole('button', { name: 'Сохранить настройки' }).click();
-  await expect(page.getByText('Настройки бюджета сохранены.')).toBeVisible();
+  await page.getByRole('option', { name: 'Europe/Moscow', exact: true }).click();
+  await page.getByRole('button', { name: 'Сохранить' }).click();
+  await expect(page.getByText('Общие настройки сохранены.')).toBeVisible();
 
   await page.goto('/app/categories');
   await expect(page.getByText('Зарплата')).toHaveCount(1);
@@ -117,7 +121,7 @@ test.describe('compact reference-data navigation', () => {
   test('reaches reference headings and actions without horizontal overflow', async ({ page }) => {
     await registerAndReachApp(page);
     for (const [path, heading, action] of [
-      ['/app/settings', 'Бюджет', 'Создать базовый шаблон'],
+      ['/app/settings', 'Настройки', 'Создать базовый шаблон'],
       ['/app/accounts', 'Счета', 'Создать счёт'],
       ['/app/categories', 'Категории', 'Создать категорию'],
       ['/app/envelopes', 'Конверты', 'Создать конверт'],

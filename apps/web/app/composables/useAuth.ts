@@ -78,7 +78,10 @@ export function useAuth() {
     currentData.value = null;
   }
 
-  async function changePassword(input: { currentPassword: string; newPassword: string }): Promise<void> {
+  async function changePassword(input: {
+    currentPassword: string;
+    newPassword: string;
+  }): Promise<void> {
     await api.request('/api/v1/auth/password', {
       method: 'POST',
       body: JSON.stringify(input),
@@ -90,7 +93,9 @@ export function useAuth() {
   }
 
   async function revokeSession(sessionId: string): Promise<void> {
-    await api.request(`/api/v1/auth/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+    await api.request(`/api/v1/auth/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'DELETE',
+    });
   }
 
   async function revokeAllSessions(): Promise<void> {

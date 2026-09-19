@@ -27,6 +27,7 @@ describe('settings password page', () => {
 
     await wrapper.get('[name="currentPassword"]').setValue('old-password');
     await wrapper.get('[name="newPassword"]').setValue('new-password-10');
+    await wrapper.get('[name="confirmPassword"]').setValue('new-password-10');
     await wrapper.get('form').trigger('submit');
     await flushPromises();
 
@@ -36,6 +37,22 @@ describe('settings password page', () => {
     });
     expect(wrapper.text()).toContain('Пароль изменён.');
     expect((wrapper.get('[name="currentPassword"]').element as HTMLInputElement).value).toBe('');
+    expect((wrapper.get('[name="confirmPassword"]').element as HTMLInputElement).value).toBe('');
+  });
+
+  it('refuses to submit when the confirmation does not match', async () => {
+    mocks.changePassword.mockClear();
+    const wrapper = mountPage();
+
+    await wrapper.get('[name="currentPassword"]').setValue('old-password');
+    await wrapper.get('[name="newPassword"]').setValue('new-password-10');
+    await wrapper.get('[name="confirmPassword"]').setValue('new-password-11');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(mocks.changePassword).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain('Пароли не совпадают.');
+    expect(wrapper.get('[name="confirmPassword"]').attributes('aria-invalid')).toBe('true');
   });
 
   it('shows a field error next to the matching control on failure', async () => {
@@ -50,6 +67,7 @@ describe('settings password page', () => {
 
     await wrapper.get('[name="currentPassword"]').setValue('wrong-password');
     await wrapper.get('[name="newPassword"]').setValue('new-password-10');
+    await wrapper.get('[name="confirmPassword"]').setValue('new-password-10');
     await wrapper.get('form').trigger('submit');
     await flushPromises();
 

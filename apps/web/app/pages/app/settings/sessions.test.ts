@@ -91,6 +91,33 @@ describe('settings sessions page', () => {
     expect(mocks.navigateTo).toHaveBeenCalledWith('/login');
   });
 
+  it('reports a failed single revoke instead of silently stopping the spinner', async () => {
+    mocks.revokeSession.mockRejectedValue(new Error('network down'));
+    const wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('button[data-action="revoke-session"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Не удалось завершить сессию. Повторите попытку.');
+    expect(mocks.navigateTo).not.toHaveBeenCalled();
+    // The unrevoked session must stay visible.
+    expect(wrapper.text()).toContain('Chrome on Windows');
+  });
+
+  it('reports a failed "sign out everywhere" and stays on the page', async () => {
+    mocks.revokeAllSessions.mockRejectedValue(new Error('network down'));
+    const wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-action="revoke-all"]').trigger('click');
+    await wrapper.get('[data-confirm]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Не удалось выйти отовсюду. Повторите попытку.');
+    expect(mocks.navigateTo).not.toHaveBeenCalled();
+  });
+
   it('confirming "sign out everywhere" revokes all sessions and redirects to login', async () => {
     mocks.revokeAllSessions.mockResolvedValue(undefined);
     const wrapper = mountPage();

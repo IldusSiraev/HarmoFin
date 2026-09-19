@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiRequestError } from '../../composables/useApiClient.js';
+import { ApiRequestError } from '../../../composables/useApiClient.js';
 
 const mocks = vi.hoisted(() => {
   return {
@@ -17,15 +17,15 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('../../composables/useAuth.js', () => ({
+vi.mock('../../../composables/useAuth.js', () => ({
   useAuth: () => mocks.auth,
 }));
 
-vi.mock('../../composables/useBudgetReferenceData.js', () => ({
+vi.mock('../../../composables/useBudgetReferenceData.js', () => ({
   useBudgetReferenceData: () => mocks.api,
 }));
 
-import SettingsPage from './settings.vue';
+import SettingsPage from './index.vue';
 
 const budget = {
   id: 'budget-id',
@@ -83,6 +83,22 @@ describe('settings hub page', () => {
     expect(wrapper.find('a[href="/app/settings/sessions"]').exists()).toBe(true);
   });
 
+  it('keeps a link to the help page', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('a[href="/app/help"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Как пользоваться HarmoFin');
+  });
+
+  it('orders the cards so a single column reads «Бюджет», «Финансовый цикл», «Аккаунт»', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const headings = wrapper.findAll('section h2').map((heading) => heading.text());
+    expect(headings).toEqual(['Бюджет', 'Финансовый цикл', 'Аккаунт']);
+  });
+
   it('does not show the income allocation rule anywhere on the page', async () => {
     const wrapper = mountPage();
     await flushPromises();
@@ -92,7 +108,11 @@ describe('settings hub page', () => {
   });
 
   it('saves the financial cycle fields independently and refreshes them', async () => {
-    mocks.api.updateBudget.mockResolvedValue({ ...budget, cycleStartDay: 5, periodBoundaryOffset: 20 });
+    mocks.api.updateBudget.mockResolvedValue({
+      ...budget,
+      cycleStartDay: 5,
+      periodBoundaryOffset: 20,
+    });
     const wrapper = mountPage();
     await flushPromises();
 
@@ -143,5 +163,19 @@ describe('settings hub page', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('Базовый шаблон создан.');
+    expect(wrapper.get('.ui-status').classes()).toContain('ui-status--success');
+  });
+
+  it('reports a failed template creation with the danger tone', async () => {
+    mocks.api.initializeTemplate.mockRejectedValue(new Error('boom'));
+    const wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-action="initialize-template"]').trigger('click');
+    await flushPromises();
+
+    const status = wrapper.get('.ui-status');
+    expect(status.text()).toBe('Не удалось выполнить действие. Повторите попытку.');
+    expect(status.classes()).toContain('ui-status--danger');
   });
 });

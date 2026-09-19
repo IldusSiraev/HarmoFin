@@ -186,7 +186,9 @@ function handleComboBlur(event: FocusEvent) {
         aria-autocomplete="list"
         :aria-expanded="open"
         :aria-controls="getListboxId()"
-        :aria-activedescendant="open && filteredOptions[activeIndex] ? getOptionId(activeIndex) : undefined"
+        :aria-activedescendant="
+          open && filteredOptions[activeIndex] ? getOptionId(activeIndex) : undefined
+        "
         :aria-describedby="getDescribedBy()"
         :aria-invalid="error ? 'true' : undefined"
         :aria-required="required || undefined"
