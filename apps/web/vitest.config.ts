@@ -8,7 +8,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '#imports': fileURLToPath(new URL('./app/test/nuxt-imports.ts', import.meta.url)),
-      '#app': fileURLToPath(new URL('./app/test/nuxt-imports.ts', import.meta.url)),
       '#components': fileURLToPath(new URL('./app/test/nuxt-components.ts', import.meta.url)),
     },
   },

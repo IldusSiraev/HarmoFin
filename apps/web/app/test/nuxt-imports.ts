@@ -14,6 +14,6 @@ export function useSeoMeta(): void {}
 
 export function useHead(): void {}
 
-export function useState<T>(key: string, init?: () => T): any {
-  return ref(init?.());
+export function useState<T>(key: string, init?: () => T): Ref<T | undefined> {
+  return ref(init?.()) as Ref<T | undefined>;
 }
