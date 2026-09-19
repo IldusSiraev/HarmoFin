@@ -2,16 +2,16 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { definePageMeta } from '#imports';
 
+import CyclePreview from '../../components/settings/CyclePreview.vue';
+import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../components/ui/Button.vue';
+import UiCard from '../../components/ui/Card.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
 import UiInput from '../../components/ui/Input.vue';
-import UiSelect from '../../components/ui/Select.vue';
 import UiStatus from '../../components/ui/Status.vue';
 import { useAuth } from '../../composables/useAuth.js';
 import {
   type BudgetDto,
-  type CategoryDto,
-  type EnvelopeDto,
   type UpdateBudgetInput,
   useBudgetReferenceData,
 } from '../../composables/useBudgetReferenceData.js';
@@ -20,77 +20,42 @@ import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js'
 defineOptions({ name: 'AppSettingsPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
 
-const settingsFields = [
-  'name',
-  'timezone',
-  'cycleStartDay',
-  'periodBoundaryOffset',
-  'incomeAllocationSourceCategoryId',
-  'incomeAllocationTargetEnvelopeId',
-] as const;
+const cycleFields = ['cycleStartDay', 'periodBoundaryOffset'] as const;
 
 const { currentData, loadMe } = useAuth();
 const api = useBudgetReferenceData();
-const formHelper = useReferenceDataForm(settingsFields);
+const formHelper = useReferenceDataForm(cycleFields);
+
 const loading = ref(true);
-const saving = ref(false);
-const initializingTemplate = ref(false);
 const loadError = ref('');
-const summary = ref('');
-const fieldErrors = ref<Partial<Record<(typeof settingsFields)[number], string>>>({});
 const budget = ref<BudgetDto | null>(null);
-const categories = ref<CategoryDto[]>([]);
-const envelopes = ref<EnvelopeDto[]>([]);
-const form = reactive({
-  name: '',
-  timezone: '',
-  cycleStartDay: '',
-  periodBoundaryOffset: '',
-  allowNegativeBalance: false,
-  incomeAllocationRuleEnabled: false,
-  incomeAllocationSourceCategoryId: '',
-  incomeAllocationTargetEnvelopeId: '',
-});
+
+const cycleSaving = ref(false);
+const cycleSummary = ref('');
+const cycleFieldErrors = ref<Partial<Record<(typeof cycleFields)[number], string>>>({});
+const cycleForm = reactive({ cycleStartDay: '', periodBoundaryOffset: '' });
+
+const templateSaving = ref(false);
+const templateSummary = ref('');
 
 const budgetId = computed(() => currentData.value?.workspaces[0]?.budgets[0]?.id);
+const previewCycleStartDay = computed(() => Number(cycleForm.cycleStartDay) || 0);
+const previewPeriodBoundaryOffset = computed(() => Number(cycleForm.periodBoundaryOffset) || 0);
 
-function syncForm(nextBudget: BudgetDto) {
-  form.name = nextBudget.name;
-  form.timezone = nextBudget.timezone;
-  form.cycleStartDay = String(nextBudget.cycleStartDay);
-  form.periodBoundaryOffset = String(nextBudget.periodBoundaryOffset);
-  form.allowNegativeBalance = nextBudget.allowNegativeBalance;
-  form.incomeAllocationRuleEnabled = nextBudget.incomeAllocationRuleEnabled;
-  form.incomeAllocationSourceCategoryId = nextBudget.incomeAllocationRuleEnabled
-    ? (nextBudget.incomeAllocationSourceCategoryId ?? '')
-    : '';
-  form.incomeAllocationTargetEnvelopeId = nextBudget.incomeAllocationRuleEnabled
-    ? (nextBudget.incomeAllocationTargetEnvelopeId ?? '')
-    : '';
-}
-
-async function loadReferenceData() {
-  const id = budgetId.value;
-  if (!id) return;
-
-  const [nextBudget, nextCategories, nextEnvelopes] = await Promise.all([
-    api.getBudget(id),
-    api.listCategories(id, 'INCOME', 'active'),
-    api.listEnvelopes(id, 'active'),
-  ]);
-  budget.value = nextBudget;
-  categories.value = nextCategories;
-  envelopes.value = nextEnvelopes;
-  syncForm(nextBudget);
+function syncCycleForm(nextBudget: BudgetDto) {
+  cycleForm.cycleStartDay = String(nextBudget.cycleStartDay);
+  cycleForm.periodBoundaryOffset = String(nextBudget.periodBoundaryOffset);
 }
 
 async function loadPage() {
   loading.value = true;
   loadError.value = '';
-
   try {
     if (!currentData.value) await loadMe();
-    await loadReferenceData();
+    const id = budgetId.value;
+    if (!id) return;
+    budget.value = await api.getBudget(id);
+    syncCycleForm(budget.value);
   } catch {
     loadError.value = 'Не удалось загрузить настройки бюджета. Повторите попытку.';
   } finally {
@@ -98,76 +63,49 @@ async function loadPage() {
   }
 }
 
-function getIncomeCategoryOptions() {
-  return categories.value.map((category) => ({ value: category.id, label: category.name }));
+function getCycleFieldError(field: (typeof cycleFields)[number]) {
+  return cycleFieldErrors.value[field];
 }
 
-function getEnvelopeOptions() {
-  return envelopes.value.map((envelope) => ({ value: envelope.id, label: envelope.name }));
+function accountEmail() {
+  return currentData.value?.user?.email ?? '';
 }
 
-function getFieldError(field: (typeof settingsFields)[number]) {
-  return fieldErrors.value[field];
-}
-
-function requiresRuleReferences() {
-  return (
-    form.incomeAllocationRuleEnabled &&
-    (!form.incomeAllocationSourceCategoryId || !form.incomeAllocationTargetEnvelopeId)
-  );
-}
-
-async function saveSettings() {
+async function saveCycle() {
   const id = budgetId.value;
-  if (!id || requiresRuleReferences()) return;
-
-  saving.value = true;
-  summary.value = '';
-  fieldErrors.value = {};
-
+  if (!id) return;
+  cycleSaving.value = true;
+  cycleSummary.value = '';
+  cycleFieldErrors.value = {};
   const input: UpdateBudgetInput = {
-    name: form.name,
-    timezone: form.timezone,
-    cycleStartDay: Number(form.cycleStartDay),
-    periodBoundaryOffset: Number(form.periodBoundaryOffset),
-    allowNegativeBalance: form.allowNegativeBalance,
-    incomeAllocationRuleEnabled: form.incomeAllocationRuleEnabled,
-    incomeAllocationSourceCategoryId: form.incomeAllocationRuleEnabled
-      ? form.incomeAllocationSourceCategoryId
-      : undefined,
-    incomeAllocationTargetEnvelopeId: form.incomeAllocationRuleEnabled
-      ? form.incomeAllocationTargetEnvelopeId
-      : undefined,
+    cycleStartDay: Number(cycleForm.cycleStartDay),
+    periodBoundaryOffset: Number(cycleForm.periodBoundaryOffset),
   };
-
   try {
-    await api.updateBudget(id, input);
-    await loadReferenceData();
-    summary.value = 'Настройки бюджета сохранены.';
+    budget.value = await api.updateBudget(id, input);
+    syncCycleForm(budget.value);
+    cycleSummary.value = 'Финансовый цикл сохранён.';
   } catch (error) {
     const mapped = formHelper.errorMessage(error);
-    fieldErrors.value = mapped.fields;
-    summary.value = mapped.summary;
+    cycleFieldErrors.value = mapped.fields;
+    cycleSummary.value = mapped.summary;
   } finally {
-    saving.value = false;
+    cycleSaving.value = false;
   }
 }
 
 async function initializeTemplate() {
   const id = budgetId.value;
   if (!id) return;
-
-  initializingTemplate.value = true;
-  summary.value = '';
-
+  templateSaving.value = true;
+  templateSummary.value = '';
   try {
     await api.initializeTemplate(id);
-    await loadReferenceData();
-    summary.value = 'Базовый шаблон создан.';
+    templateSummary.value = 'Базовый шаблон создан.';
   } catch {
-    summary.value = 'Не удалось выполнить действие. Повторите попытку.';
+    templateSummary.value = 'Не удалось выполнить действие. Повторите попытку.';
   } finally {
-    initializingTemplate.value = false;
+    templateSaving.value = false;
   }
 }
 
@@ -177,242 +115,182 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="settings-page">
-    <section class="settings-page__content">
-      <p class="settings-page__help-link">
-        <NuxtLink to="/app/help">Как пользоваться HarmoFin</NuxtLink>
-      </p>
-      <template v-if="loading">
-        <UiStatus label="Загрузка настроек…" tone="info" aria-live="polite" />
-      </template>
-      <template v-else-if="loadError">
-        <UiEmptyState title="Настройки недоступны" :description="loadError">
-          <template #action>
-            <UiButton @click="loadPage">Повторить</UiButton>
-          </template>
-        </UiEmptyState>
-      </template>
-      <UiEmptyState
-        v-else-if="!budgetId"
-        title="Бюджет не выбран"
-        description="Создайте или выберите бюджет, чтобы изменить настройки."
-      />
-      <template v-else-if="budget">
-        <p class="settings-page__kicker">Настройки</p>
-        <h1 id="settings-title">Бюджет</h1>
-        <p class="settings-page__description">Параметры финансового цикла и справочных данных.</p>
+  <template v-if="loading">
+    <UiStatus label="Загрузка настроек…" tone="info" aria-live="polite" />
+  </template>
+  <UiEmptyState v-else-if="loadError" title="Настройки недоступны" :description="loadError">
+    <template #action>
+      <UiButton @click="loadPage">Повторить</UiButton>
+    </template>
+  </UiEmptyState>
+  <UiEmptyState
+    v-else-if="!budgetId"
+    title="Бюджет не выбран"
+    description="Создайте или выберите бюджет, чтобы изменить настройки."
+  />
+  <ReferencePageLayout v-else>
+    <template #kicker>Настройки</template>
+    <template #title>Настройки</template>
+    <template #content>
+      <div class="settings-page__grid">
+        <div class="settings-page__column">
+          <UiCard as="section" aria-labelledby="settings-budget-title">
+            <template #header><h2 id="settings-budget-title">Бюджет</h2></template>
+            <NuxtLink to="/app/settings/general" class="settings-page__row">
+              <span>Общие настройки</span>
+              <span class="settings-page__row-link">Изменить →</span>
+            </NuxtLink>
+            <div class="settings-page__static-row">
+              <div>
+                <p class="settings-page__static-row-title">Базовый шаблон</p>
+                <p class="settings-page__hint">Создаёт отсутствующие категории и конверты.</p>
+              </div>
+              <UiButton
+                variant="tertiary"
+                size="sm"
+                data-action="initialize-template"
+                :loading="templateSaving"
+                @click="initializeTemplate"
+              >
+                Создать базовый шаблон
+              </UiButton>
+            </div>
+            <UiStatus v-if="templateSummary" :label="templateSummary" tone="success" aria-live="polite" />
+          </UiCard>
 
-        <UiStatus
-          v-if="summary"
-          class="settings-page__summary"
-          :label="summary"
-          :tone="fieldErrors && Object.keys(fieldErrors).length ? 'danger' : 'success'"
-          aria-live="polite"
-        />
+          <UiCard as="section" aria-labelledby="settings-account-title">
+            <template #header><h2 id="settings-account-title">Аккаунт</h2></template>
+            <div class="settings-page__static-row">
+              <p class="settings-page__static-row-title">{{ accountEmail() }}</p>
+            </div>
+            <NuxtLink to="/app/settings/password" class="settings-page__row">
+              <span>Пароль</span>
+              <span class="settings-page__row-link">Изменить →</span>
+            </NuxtLink>
+            <NuxtLink to="/app/settings/sessions" class="settings-page__row">
+              <span>Сессии</span>
+              <span class="settings-page__row-link">Управлять →</span>
+            </NuxtLink>
+          </UiCard>
+        </div>
 
-        <form class="settings-form" @submit.prevent="saveSettings">
-          <UiInput
-            v-model="form.name"
-            name="name"
-            label="Название бюджета"
-            :error="getFieldError('name')"
-            required
+        <UiCard as="section" aria-labelledby="settings-cycle-title">
+          <template #header><h2 id="settings-cycle-title">Финансовый цикл</h2></template>
+          <UiStatus
+            v-if="cycleSummary"
+            :label="cycleSummary"
+            :tone="Object.keys(cycleFieldErrors).length ? 'danger' : 'success'"
+            aria-live="polite"
           />
-          <UiInput
-            v-model="form.timezone"
-            name="timezone"
-            label="Часовой пояс"
-            hint="Например, Europe/Moscow"
-            :error="getFieldError('timezone')"
-            required
-          />
-          <UiInput
-            v-model="form.cycleStartDay"
-            name="cycleStartDay"
-            label="Начало финансового месяца (число)"
-            tooltip="Финансовый месяц — это ваш период планирования денег между двумя поступлениями. Не обязательно начинается 1-го числа: укажите день, который соответствует вашему графику доходов."
-            inputmode="numeric"
-            :error="getFieldError('cycleStartDay')"
-            required
-          />
-          <UiInput
-            v-model="form.periodBoundaryOffset"
-            name="periodBoundaryOffset"
-            label="Граница периода (дней от начала месяца)"
-            tooltip="Финансовый месяц делится на два периода — например, от аванса до зарплаты и от зарплаты до аванса. Здесь указывается, через сколько дней после начала месяца заканчивается первый период."
-            inputmode="numeric"
-            :error="getFieldError('periodBoundaryOffset')"
-            required
-          />
-
-          <fieldset class="settings-form__options">
-            <legend>Баланс и распределение</legend>
-            <label class="settings-form__checkbox">
-              <input v-model="form.allowNegativeBalance" type="checkbox" />
-              <span>Разрешить уходить в минус</span>
-            </label>
-            <p class="settings-form__hint">
-              Если выключено, HarmoFin не даст сохранить расход, который уведёт счёт или конверт в
-              минус.
+          <form class="settings-page__cycle-form" @submit.prevent="saveCycle">
+            <UiInput
+              v-model="cycleForm.cycleStartDay"
+              name="cycleStartDay"
+              label="Начало первого периода"
+              tooltip="Финансовый месяц — это ваш период планирования денег между двумя поступлениями. Не обязательно начинается 1-го числа: укажите день, который соответствует вашему графику доходов."
+              inputmode="numeric"
+              :error="getCycleFieldError('cycleStartDay')"
+              required
+            />
+            <UiInput
+              v-model="cycleForm.periodBoundaryOffset"
+              name="periodBoundaryOffset"
+              label="Граница второго периода (дней от начала первого)"
+              tooltip="Финансовый месяц делится на два периода — например, от аванса до зарплаты и от зарплаты до аванса. Здесь указывается, через сколько дней после начала первого периода начинается второй."
+              inputmode="numeric"
+              :error="getCycleFieldError('periodBoundaryOffset')"
+              required
+            />
+            <CyclePreview
+              v-if="previewCycleStartDay && previewPeriodBoundaryOffset"
+              :cycle-start-day="previewCycleStartDay"
+              :period-boundary-offset="previewPeriodBoundaryOffset"
+            />
+            <p class="settings-page__cycle-note">
+              Изменение цикла не меняет даты операций, но пересчитывает их принадлежность к периодам и
+              циклам.
             </p>
-            <label class="settings-form__checkbox">
-              <input v-model="form.incomeAllocationRuleEnabled" type="checkbox" />
-              <span>Настроить автоматическое распределение дохода</span>
-            </label>
-          </fieldset>
-
-          <div v-if="form.incomeAllocationRuleEnabled" class="settings-form__rule-fields">
-            <UiSelect
-              v-model="form.incomeAllocationSourceCategoryId"
-              name="incomeAllocationSourceCategoryId"
-              label="Категория дохода"
-              placeholder="Выберите категорию"
-              :options="getIncomeCategoryOptions()"
-              :error="getFieldError('incomeAllocationSourceCategoryId')"
-              required
-            />
-            <UiSelect
-              v-model="form.incomeAllocationTargetEnvelopeId"
-              name="incomeAllocationTargetEnvelopeId"
-              label="Конверт"
-              placeholder="Выберите конверт"
-              :options="getEnvelopeOptions()"
-              :error="getFieldError('incomeAllocationTargetEnvelopeId')"
-              required
-            />
-          </div>
-
-          <UiButton type="submit" :loading="saving" :disabled="requiresRuleReferences()">
-            Сохранить настройки
-          </UiButton>
-        </form>
-
-        <section class="settings-template" aria-labelledby="settings-template-title">
-          <h2 id="settings-template-title">Базовый шаблон</h2>
-          <p>Создаёт отсутствующие категории и конверты. Уже созданные данные не изменяются.</p>
-          <UiButton
-            data-action="initialize-template"
-            variant="secondary"
-            :loading="initializingTemplate"
-            :disabled="initializingTemplate"
-            @click="initializeTemplate"
-          >
-            Создать базовый шаблон
-          </UiButton>
-        </section>
-      </template>
-    </section>
-  </div>
+            <UiButton type="submit" :loading="cycleSaving">Сохранить</UiButton>
+          </form>
+        </UiCard>
+      </div>
+    </template>
+  </ReferencePageLayout>
 </template>
 
 <style scoped>
-.settings-page {
-  min-height: 100vh;
-  color: var(--hf-color-text);
-  background: var(--hf-color-page-background);
-}
-
-.settings-page__content {
-  max-width: 44rem;
-  margin: var(--hf-space-8) auto 0;
-  padding: var(--hf-space-8);
-}
-
-.settings-page__help-link {
-  margin: 0 0 var(--hf-space-5);
-  font-size: var(--hf-font-size-small);
-}
-
-.settings-page__kicker {
-  margin: 0 0 var(--hf-space-2);
-  color: var(--hf-color-action-primary-hover);
-  font-size: 0.875rem;
-  font-weight: var(--hf-font-weight-semibold);
-  text-transform: uppercase;
-}
-
-.settings-page h1,
-.settings-page h2,
-.settings-page__description,
-.settings-template p {
-  margin: 0;
-}
-
-.settings-page h1 {
-  font-size: clamp(2rem, 5vw, 3rem);
-  letter-spacing: -0.04em;
-}
-
-.settings-page__description {
-  margin-top: var(--hf-space-3);
-  color: var(--hf-color-text-muted);
-}
-
-.settings-page__summary {
-  margin-top: var(--hf-space-5);
-}
-
-.settings-form {
+.settings-page__grid {
   display: grid;
   gap: var(--hf-space-5);
-  margin-top: var(--hf-space-6);
+  grid-template-columns: 1fr;
+  align-items: start;
 }
 
-.settings-form__options,
-.settings-form__rule-fields,
-.settings-template {
+.settings-page__column {
   display: grid;
-  gap: var(--hf-space-4);
+  gap: var(--hf-space-5);
 }
 
-.settings-form__options {
-  padding: var(--hf-space-4);
-  border: 1px solid var(--hf-color-border);
-  border-radius: var(--hf-control-radius);
-}
-
-.settings-form__options legend {
-  padding-inline: var(--hf-space-2);
-  font-weight: var(--hf-font-weight-semibold);
-}
-
-.settings-form__checkbox {
+.settings-page__row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--hf-space-3);
   min-height: var(--hf-control-height-sm);
+  padding: var(--hf-space-2) var(--hf-space-3);
+  border-radius: var(--hf-radius-md);
+  color: var(--hf-color-text);
+  text-decoration: none;
+}
+
+.settings-page__row:hover {
+  background: var(--hf-color-surface-subtle);
+}
+
+.settings-page__row-link {
+  color: var(--hf-color-action-primary-hover);
+  font-size: var(--hf-font-size-small);
+  white-space: nowrap;
+}
+
+.settings-page__static-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hf-space-3);
+  min-height: var(--hf-control-height-sm);
+  padding: var(--hf-space-2) var(--hf-space-3);
+}
+
+.settings-page__static-row-title {
+  margin: 0;
   color: var(--hf-color-text);
 }
 
-.settings-form__checkbox input {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
-.settings-form__hint {
-  margin: calc(var(--hf-space-2) * -1) 0 0;
+.settings-page__hint {
+  margin: 0;
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-small);
 }
 
-.settings-template {
-  margin-top: var(--hf-space-10);
-  padding-top: var(--hf-space-6);
-  border-top: 1px solid var(--hf-color-border);
+.settings-page__cycle-form {
+  display: grid;
+  gap: var(--hf-space-5);
+  margin-top: var(--hf-space-4);
 }
 
-.settings-template p {
+.settings-page__cycle-note {
+  margin: 0;
+  padding: var(--hf-space-3);
+  border-radius: var(--hf-radius-md);
+  background: var(--hf-color-surface-subtle);
   color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
 }
 
-@media (max-width: 47.9375rem) {
-  .settings-page__content {
-    padding-right: var(--hf-space-5);
-    padding-left: var(--hf-space-5);
-  }
-
-  .settings-page__content {
-    margin-top: var(--hf-space-4);
+@media (min-width: 48rem) {
+  .settings-page__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>
