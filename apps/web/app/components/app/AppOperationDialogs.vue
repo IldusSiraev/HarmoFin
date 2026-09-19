@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue';
 import OperationForm from '../operations/OperationForm.vue';
 import TransferForm from '../transfers/TransferForm.vue';
 import UiModal from '../ui/Modal.vue';
+import AppOperationTypeDialog from './AppOperationTypeDialog.vue';
 import {
   useBudgetReferenceData,
   type CreateTransactionInput,
@@ -24,12 +25,21 @@ defineOptions({ name: 'AppOperationDialogs' });
 const emit = defineEmits<{ saved: [] }>();
 
 const api = useBudgetReferenceData();
-const { openDialog, presetType, close } = useOperationDialogs();
+const { openDialog, presetType, openOperation, openTransfer, close } = useOperationDialogs();
 const { accounts, categories, envelopes, budgetId, load } = useOperationReferenceData();
 const { push } = useToast();
 
+const chooseOpen = computed(() => openDialog.value === 'choose');
 const operationOpen = computed(() => openDialog.value === 'operation');
 const transferOpen = computed(() => openDialog.value === 'transfer');
+
+function chooseType(type: 'EXPENSE' | 'INCOME' | 'TRANSFER'): void {
+  if (type === 'TRANSFER') {
+    openTransfer();
+  } else {
+    openOperation(type);
+  }
+}
 const operationModel = ref<OperationFormModel>(createOperationForm());
 const transferModel = ref<TransferFormModel>(createTransferForm());
 const pending = ref(false);
@@ -88,6 +98,8 @@ async function saveTransfer(input: CreateTransferInput): Promise<void> {
 
 <template>
   <div class="app-operation-dialogs">
+    <AppOperationTypeDialog :open="chooseOpen" @close="close" @select="chooseType" />
+
     <UiModal :open="operationOpen" title="Новая операция" @close="close">
       <p v-if="formError" class="app-operation-dialogs__error" role="alert">{{ formError }}</p>
       <OperationForm

@@ -56,6 +56,24 @@ describe('AppOperationDialogs', () => {
     wrapper.unmount();
   });
 
+  it('opens the type picker and routes the chosen type to its dialog', async () => {
+    const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
+
+    useOperationDialogs().openChoose();
+    await flushPromises();
+    expect(document.querySelector('[data-testid="operation-type-expense"]')).not.toBeNull();
+
+    document
+      .querySelector<HTMLButtonElement>('[data-testid="operation-type-income"]')
+      ?.click();
+    await flushPromises();
+
+    expect(useOperationDialogs().openDialog.value).toBe('operation');
+    expect(useOperationDialogs().presetType.value).toBe('INCOME');
+    expect(document.querySelector('[data-testid="operation-type-expense"]')).toBeNull();
+    wrapper.unmount();
+  });
+
   it('opens the requested dialog with the budget reference data', async () => {
     const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
 

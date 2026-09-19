@@ -63,7 +63,7 @@ async function handleLogout() {
     <div class="app-sidebar__top">
       <NuxtLink to="/app" class="app-sidebar__wordmark">HarmoFin</NuxtLink>
       <div class="app-sidebar__top-actions">
-        <AppAddMenu class="app-sidebar__add" align="start" tooltip-placement="bottom" />
+        <AppAddMenu class="app-sidebar__add" tooltip-placement="bottom" />
         <UiButton
           variant="tertiary"
           size="sm"
@@ -208,9 +208,9 @@ async function handleLogout() {
   padding-inline: 0;
 }
 
-.app-sidebar__add :deep(.ui-action-menu__trigger) {
-  width: 2.25rem;
-  height: 2.25rem;
+.app-sidebar__add {
+  min-width: 2.25rem;
+  padding-inline: 0;
 }
 
 .app-sidebar__nav {

@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { definePageMeta, useRoute } from '#imports';
 import { Download } from '@lucide/vue';
 
+import AppOperationTypeDialog from '../../components/app/AppOperationTypeDialog.vue';
 import OperationDrawer from '../../components/operations/OperationDrawer.vue';
 import OperationForm from '../../components/operations/OperationForm.vue';
 import OperationGroup from '../../components/operations/OperationGroup.vue';
@@ -33,6 +34,7 @@ import {
   useOperationFilters,
   type OperationFilters,
 } from '../../composables/useOperationFilters.js';
+import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 import { useOperationMutations } from '../../composables/useOperationMutations.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import { useToast } from '../../composables/useToast.js';
@@ -50,6 +52,7 @@ const { push } = useToast();
 const { filters, activeCount, isGrouped, toListInput, set, reset, syncQuery } =
   useOperationFilters();
 const mutations = useOperationMutations();
+const { openTransfer } = useOperationDialogs();
 
 const transactions = ref<TransactionDto[]>([]);
 const nextCursor = ref<string | null>(null);
@@ -62,6 +65,7 @@ const exportError = ref('');
 const error = ref('');
 const formErrors = ref<Partial<Record<string, string>>>({});
 const formOpen = ref(false);
+const chooserOpen = ref(false);
 const form = ref<OperationFormModel>(createOperationForm());
 const selectedTransaction = ref<TransactionDto | null>(null);
 const preloadedDraftId = ref<string | null>(null);
@@ -252,8 +256,13 @@ function applyChanged(updated: TransactionDto): void {
   }
 }
 
-function openCreate() {
-  form.value = createOperationForm();
+function chooseType(type: 'EXPENSE' | 'INCOME' | 'TRANSFER'): void {
+  chooserOpen.value = false;
+  if (type === 'TRANSFER') {
+    openTransfer();
+    return;
+  }
+  form.value = { ...createOperationForm(), transactionType: type };
   formErrors.value = {};
   selectedTransaction.value = null;
   formOpen.value = true;
@@ -466,7 +475,9 @@ async function downloadCsv() {
         >
           <Download :size="18" aria-hidden="true" />
         </UiButton>
-        <UiButton data-action="create-operation" @click="openCreate">Добавить операцию</UiButton>
+        <UiButton data-action="create-operation" @click="chooserOpen = true">
+          Добавить операцию
+        </UiButton>
       </template>
 
       <template #filters>
@@ -615,6 +626,8 @@ async function downloadCsv() {
       @edit="openEdit"
       @request-delete="ask('delete', $event)"
     />
+
+    <AppOperationTypeDialog :open="chooserOpen" @close="chooserOpen = false" @select="chooseType" />
 
     <UiModal
       :open="formOpen"

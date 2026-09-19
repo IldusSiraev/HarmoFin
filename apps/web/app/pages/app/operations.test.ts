@@ -130,6 +130,10 @@ describe('operations page', () => {
     });
     await wrapper!.get('[data-action="create-operation"]').trigger('click');
     await flushPromises();
+    document
+      .querySelector<HTMLButtonElement>('[data-testid="operation-type-expense"]')
+      ?.click();
+    await flushPromises();
     // The create form is stepped (one decision at a time), so the submit
     // buttons only render once the user reaches the last step — see
     // OperationForm.test.ts for that flow. Here we only need proof the
@@ -291,6 +295,10 @@ describe('operations page', () => {
     await flushPromises();
 
     await wrapper!.get('[data-action="create-operation"]').trigger('click');
+    await flushPromises();
+    document
+      .querySelector<HTMLButtonElement>('[data-testid="operation-type-expense"]')
+      ?.click();
     await flushPromises();
 
     const amountInput = document.querySelector('input[name="amount"]') as HTMLInputElement;
