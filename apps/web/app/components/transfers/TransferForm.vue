@@ -55,6 +55,7 @@ function submit(status: 'DRAFT' | 'CONFIRMED') {
         label="Дата перевода"
         :error="errors.occurredOn"
         required
+        quick-dates
       />
       <FinanceMoneyInput
         v-model="form.total"

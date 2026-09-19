@@ -127,6 +127,7 @@ function submit(status: 'DRAFT' | 'CONFIRMED') {
         label="Дата операции"
         :error="errors.occurredOn"
         required
+        quick-dates
       />
       <FinanceMoneyInput
         v-model="form.amount"

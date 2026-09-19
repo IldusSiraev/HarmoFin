@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { format, subDays } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { VueDatePicker } from '@vuepic/vue-datepicker';
 
@@ -22,6 +23,7 @@ const props = withDefaults(
     required?: boolean;
     disabled?: boolean;
     hideLabel?: boolean;
+    quickDates?: boolean;
   }>(),
   {
     id: undefined,
@@ -31,6 +33,7 @@ const props = withDefaults(
     required: false,
     disabled: false,
     hideLabel: false,
+    quickDates: false,
   },
 );
 
@@ -88,6 +91,16 @@ const ariaLabels = {
 function handleUpdate(value: unknown): void {
   emit('update:modelValue', typeof value === 'string' ? value : '');
 }
+
+const quickDateOptions = computed(() => [
+  { label: 'Сегодня', value: format(new Date(), 'yyyy-MM-dd') },
+  { label: 'Вчера', value: format(subDays(new Date(), 1), 'yyyy-MM-dd') },
+  { label: 'Позавчера', value: format(subDays(new Date(), 2), 'yyyy-MM-dd') },
+]);
+
+function selectQuickDate(value: string): void {
+  emit('update:modelValue', value);
+}
 </script>
 
 <template>
@@ -134,6 +147,21 @@ function handleUpdate(value: unknown): void {
       teleport="body"
       @update:model-value="handleUpdate"
     />
+
+    <div v-if="quickDates" class="ui-date-field__quick-dates" role="group" aria-label="Быстрый выбор даты">
+      <button
+        v-for="option in quickDateOptions"
+        :key="option.value"
+        type="button"
+        class="ui-date-field__quick-date"
+        :class="{ 'ui-date-field__quick-date--active': modelValue === option.value }"
+        :aria-pressed="modelValue === option.value"
+        :disabled="disabled"
+        @click="selectQuickDate(option.value)"
+      >
+        {{ option.label }}
+      </button>
+    </div>
 
     <p v-if="hint" :id="getHintId()" class="ui-field__hint">{{ hint }}</p>
     <p v-if="error" :id="getErrorId()" class="ui-field__error">{{ error }}</p>
@@ -194,6 +222,46 @@ function handleUpdate(value: unknown): void {
   outline: 2px solid var(--hf-color-action-primary);
   outline-offset: 2px;
   border-radius: var(--hf-radius-sm);
+}
+
+.ui-date-field__quick-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hf-space-1) var(--hf-space-4);
+}
+
+.ui-date-field__quick-date {
+  padding: var(--hf-space-1) 0;
+  color: var(--hf-color-text-subtle);
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  min-height: 1.75rem;
+}
+
+.ui-date-field__quick-date:hover:not(:disabled) {
+  color: var(--hf-color-action-primary);
+  text-decoration-color: currentcolor;
+}
+
+.ui-date-field__quick-date:focus-visible {
+  outline: 2px solid var(--hf-color-action-primary);
+  outline-offset: 2px;
+  border-radius: var(--hf-radius-sm);
+}
+
+.ui-date-field__quick-date--active {
+  color: var(--hf-color-action-primary);
+  font-weight: var(--hf-font-weight-medium);
+}
+
+.ui-date-field__quick-date:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .ui-field__hint,

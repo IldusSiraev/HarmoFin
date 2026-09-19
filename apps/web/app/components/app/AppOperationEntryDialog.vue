@@ -263,7 +263,13 @@ function requestSplit(): void {
         />
 
         <div class="entry-dialog__row">
-          <UiDatePicker v-model="operation.occurredOn" name="occurredOn" label="Дата" required />
+          <UiDatePicker
+            v-model="operation.occurredOn"
+            name="occurredOn"
+            label="Дата"
+            required
+            quick-dates
+          />
           <UiInput
             :model-value="activeType === 'EXPENSE' ? operation.merchantName : operation.sourceDescription"
             name="note"
@@ -316,7 +322,13 @@ function requestSplit(): void {
         />
 
         <div class="entry-dialog__row">
-          <UiDatePicker v-model="transfer.occurredOn" name="transferOccurredOn" label="Дата" required />
+          <UiDatePicker
+            v-model="transfer.occurredOn"
+            name="transferOccurredOn"
+            label="Дата"
+            required
+            quick-dates
+          />
           <UiInput
             v-model="transfer.comment"
             name="transferComment"
@@ -429,6 +441,7 @@ function requestSplit(): void {
 .entry-dialog__row {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-items: start;
   gap: var(--hf-space-3);
 }
 
