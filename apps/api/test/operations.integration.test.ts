@@ -228,6 +228,44 @@ describe('operations API', () => {
     expect(foreignBudgetId).not.toBe(ownerBudgetId);
   });
 
+  it('ranks categories by confirmed-transaction usage when sort=popular', async () => {
+    const refs = await createReferences('popular');
+    const rareCategoryId = (
+      await prisma.category.findFirstOrThrow({
+        where: { budgetId: ownerBudgetId, templateKey: 'expense-fuel' },
+      })
+    ).id;
+    const unusedCategoryId = (
+      await prisma.category.findFirstOrThrow({
+        where: { budgetId: ownerBudgetId, templateKey: 'expense-travel' },
+      })
+    ).id;
+
+    await createTransaction(expensePayload(refs, '10.00'), 'popular-1');
+    await createTransaction(expensePayload(refs, '20.00'), 'popular-2');
+    await createTransaction(
+      { ...expensePayload(refs, '5.00'), categoryId: rareCategoryId },
+      'popular-3',
+    );
+    // A draft must not count toward popularity.
+    await createTransaction(
+      { ...expensePayload(refs, '999.00'), status: 'DRAFT', categoryId: rareCategoryId },
+      'popular-draft',
+    );
+
+    const response = await server.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${ownerBudgetId}/categories?type=EXPENSE&sort=popular&limit=30`,
+      cookies: { harmofin_session: owner.cookie },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const ids = response.json<Array<{ id: string }>>().map((item) => item.id);
+    expect(ids.indexOf(expenseCategoryId)).toBeGreaterThanOrEqual(0);
+    expect(ids.indexOf(expenseCategoryId)).toBeLessThan(ids.indexOf(rareCategoryId));
+    expect(ids).not.toContain(unusedCategoryId);
+  });
+
   async function createReferences(suffix: string) {
     const account = await createAccount(`Счёт ${suffix}`, '1000.00');
     const envelope = await createEnvelope(`Конверт ${suffix}`, '500.00');

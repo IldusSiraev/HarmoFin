@@ -56,17 +56,45 @@ export class CategoryRepository {
     budgetId: string,
     categoryType: CategoryType | undefined,
     status: ReferenceDataStatus,
+    options: { sort?: 'default' | 'popular' | undefined; limit?: number | undefined } = {},
   ): Promise<CategoryRecord[]> {
-    return this.prisma.category.findMany({
-      where: {
-        budgetId,
-        ...(categoryType ? { categoryType } : {}),
-        ...archiveWhere(status),
-        budget: activeBudgetWhere(userId, budgetId),
-      },
-      select: categorySelect,
-      orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+    const where = {
+      budgetId,
+      ...(categoryType ? { categoryType } : {}),
+      ...archiveWhere(status),
+      budget: activeBudgetWhere(userId, budgetId),
+    };
+
+    if (options.sort !== 'popular') {
+      return this.prisma.category.findMany({
+        where,
+        select: categorySelect,
+        orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+      });
+    }
+
+    const candidates = await this.prisma.category.findMany({ where, select: { id: true } });
+    if (candidates.length === 0) return [];
+
+    const usage = await this.prisma.transaction.groupBy({
+      by: ['categoryId'],
+      where: { budgetId, status: 'CONFIRMED', categoryId: { in: candidates.map((c) => c.id) } },
+      _count: { categoryId: true },
+      orderBy: { _count: { categoryId: 'desc' } },
+      take: options.limit ?? 15,
     });
+    if (usage.length === 0) return [];
+
+    const popular = await this.prisma.category.findMany({
+      where: { id: { in: usage.map((row) => row.categoryId) } },
+      select: categorySelect,
+    });
+    const byId = new Map(popular.map((category) => [category.id, category]));
+    // groupBy does not preserve the requested ordering, so the usage-ranked
+    // order from the aggregate query has to be reapplied here.
+    return usage
+      .map((row) => byId.get(row.categoryId))
+      .filter((category): category is CategoryRecord => category !== undefined);
   }
 
   async find(userId: string, budgetId: string, categoryId: string): Promise<CategoryRecord | null> {

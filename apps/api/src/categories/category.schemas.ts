@@ -26,6 +26,8 @@ export const listCategoriesSchema = z
   .object({
     type: z.enum(['INCOME', 'EXPENSE']).optional(),
     status: z.enum(['active', 'archived', 'all']).default('active'),
+    sort: z.enum(['default', 'popular']).default('default'),
+    limit: z.coerce.number().int().min(1).max(50).optional(),
   })
   .strict();
 

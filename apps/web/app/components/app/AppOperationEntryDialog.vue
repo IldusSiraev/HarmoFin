@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
-import { ArrowLeft, X } from '@lucide/vue';
+import { ArrowLeft, Search, X } from '@lucide/vue';
 
-import type { CategoryDto } from '../../composables/useBudgetReferenceData.js';
+import { useBudgetReferenceData, type CategoryDto } from '../../composables/useBudgetReferenceData.js';
+import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import type { EntryType } from '../../composables/useOperationDialogs.js';
 import {
   createOperationForm,
@@ -55,6 +56,39 @@ const tabs: ReadonlyArray<{ type: EntryType; label: string; modifier: string }> 
 const activeType = ref<EntryType>('EXPENSE');
 const operation = reactive<OperationFormModel>(createOperationForm());
 const transfer = reactive<TransferFormModel>(createTransferForm());
+const categorySearch = ref('');
+const popularCategories = ref<ReadonlyArray<{ value: string; label: string }>>([]);
+
+const api = useBudgetReferenceData();
+const { budgetId } = useOperationReferenceData();
+
+// The full category list can run to several dozen entries per type, which is
+// too many pills to scan at a glance — so by default the picker only shows
+// the ones this budget actually uses, and search reaches the rest.
+async function loadPopularCategories(type: EntryType): Promise<void> {
+  if (type === 'TRANSFER' || !budgetId.value) {
+    popularCategories.value = [];
+    return;
+  }
+  try {
+    const result = await api.listCategories(budgetId.value, type, 'active', {
+      sort: 'popular',
+      limit: 15,
+    });
+    popularCategories.value = result.map((category) => ({
+      value: category.id,
+      label: category.name,
+    }));
+  } catch {
+    popularCategories.value = [];
+  }
+}
+
+function selectType(type: EntryType): void {
+  activeType.value = type;
+  categorySearch.value = '';
+  void loadPopularCategories(type);
+}
 
 // Each open is a fresh entry — the dialog is create-only, so there is no
 // existing record to preserve when the type or the whole dialog resets.
@@ -63,10 +97,12 @@ watch(
   (open) => {
     if (!open) return;
     activeType.value = props.initialType;
+    categorySearch.value = '';
     Object.assign(operation, createOperationForm(), {
       transactionType: props.initialType === 'INCOME' ? 'INCOME' : 'EXPENSE',
     });
     Object.assign(transfer, createTransferForm());
+    void loadPopularCategories(props.initialType);
   },
 );
 
@@ -85,6 +121,22 @@ const categoryOptions = computed(() =>
     .filter((category) => category.categoryType === operation.transactionType && !category.archivedAt)
     .map((category) => ({ value: category.id, label: category.name })),
 );
+
+// No query: the short, budget-specific "popular" list — plus whatever is
+// already selected, so picking a rarer category and closing the search
+// doesn't make its pill disappear. A query searches the full list instead.
+const visibleCategoryOptions = computed(() => {
+  const query = categorySearch.value.trim().toLowerCase();
+  if (query) {
+    return categoryOptions.value.filter((option) => option.label.toLowerCase().includes(query));
+  }
+  const base = popularCategories.value.length > 0 ? popularCategories.value : categoryOptions.value;
+  if (operation.categoryId && !base.some((option) => option.value === operation.categoryId)) {
+    const selected = categoryOptions.value.find((option) => option.value === operation.categoryId);
+    if (selected) return [...base, selected];
+  }
+  return base;
+});
 
 const transferSourceOptions = computed(() =>
   props.accounts.filter((account) => account.value !== transfer.destinationAccountId),
@@ -136,7 +188,7 @@ function requestSplit(): void {
           :class="[tab.modifier, { 'entry-dialog__tab--active': activeType === tab.type }]"
           :aria-selected="activeType === tab.type"
           :data-testid="`entry-tab-${tab.type}`"
-          @click="activeType = tab.type"
+          @click="selectType(tab.type)"
         >
           {{ tab.label }}
         </button>
@@ -160,14 +212,26 @@ function requestSplit(): void {
           :accent="accent"
           required
         />
-        <UiPillSelect
-          v-model="operation.categoryId"
-          name="category"
-          label="Категория"
-          :options="categoryOptions"
-          :accent="accent"
-          required
-        />
+        <div class="entry-dialog__category">
+          <UiInput
+            v-model="categorySearch"
+            name="categorySearch"
+            label="Поиск категории"
+            hide-label
+            placeholder="Поиск категории"
+            autocomplete="off"
+          >
+            <template #icon><Search :size="16" aria-hidden="true" /></template>
+          </UiInput>
+          <UiPillSelect
+            v-model="operation.categoryId"
+            name="category"
+            label="Категория"
+            :options="visibleCategoryOptions"
+            :accent="accent"
+            required
+          />
+        </div>
         <UiPillSelect
           v-if="activeType === 'EXPENSE'"
           v-model="operation.envelopeId"
@@ -335,6 +399,11 @@ function requestSplit(): void {
   display: grid;
   gap: var(--hf-space-5);
   margin-bottom: var(--hf-space-5);
+}
+
+.entry-dialog__category {
+  display: grid;
+  gap: var(--hf-space-3);
 }
 
 .entry-dialog__row {

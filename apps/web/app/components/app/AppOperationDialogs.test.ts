@@ -170,6 +170,42 @@ describe('AppOperationDialogs', () => {
     wrapper.unmount();
   });
 
+  it('shows only popular categories by default and reaches the rest through search', async () => {
+    api.listCategories.mockImplementation(
+      (_budgetId: string, _type: unknown, _status: unknown, options?: { sort?: string }) => {
+        const groceries = {
+          id: 'category-id',
+          name: 'Продукты',
+          categoryType: 'EXPENSE',
+          templateKey: 'expense-groceries',
+          archivedAt: null,
+        };
+        const travel = {
+          id: 'rare-category-id',
+          name: 'Путешествия',
+          categoryType: 'EXPENSE',
+          templateKey: 'expense-travel',
+          archivedAt: null,
+        };
+        return Promise.resolve(options?.sort === 'popular' ? [groceries] : [groceries, travel]);
+      },
+    );
+    const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
+    useOperationDialogs().openOperation('EXPENSE');
+    await flushPromises();
+
+    expect(document.querySelector('[data-testid="pill-category-rare-category-id"]')).toBeNull();
+    expect(document.querySelector('[data-testid="pill-category-category-id"]')).not.toBeNull();
+
+    const search = document.querySelector<HTMLInputElement>('input[name="categorySearch"]');
+    search!.value = 'путешеств';
+    search!.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+
+    expect(document.querySelector('[data-testid="pill-category-rare-category-id"]')).not.toBeNull();
+    wrapper.unmount();
+  });
+
   it('hands the quick transfer fields to the advanced split-by-envelope form', async () => {
     const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
     api.listAccounts.mockResolvedValue([

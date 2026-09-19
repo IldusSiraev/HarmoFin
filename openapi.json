@@ -3853,7 +3853,45 @@
     "/api/v1/budgets/{budgetId}/categories": {
       "get": {
         "operationId": "CategoryController_list",
-        "parameters": [],
+        "parameters": [
+          {
+            "description": "Caps the result count; only meaningful together with sort=popular.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "description": "popular orders by confirmed-transaction usage instead of display order.",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "enum": ["default", "popular"],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": ["active", "archived", "all"],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "enum": ["INCOME", "EXPENSE"],
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {

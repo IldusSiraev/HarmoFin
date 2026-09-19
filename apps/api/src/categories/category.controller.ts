@@ -16,6 +16,7 @@ import {
   ApiCookieAuth,
   ApiCreatedResponse,
   ApiOkResponse,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -49,6 +50,20 @@ export class CategoryController {
   ) {}
 
   @Get('budgets/:budgetId/categories')
+  @ApiQuery({ name: 'type', enum: ['INCOME', 'EXPENSE'], required: false })
+  @ApiQuery({ name: 'status', enum: ['active', 'archived', 'all'], required: false })
+  @ApiQuery({
+    name: 'sort',
+    enum: ['default', 'popular'],
+    required: false,
+    description: 'popular orders by confirmed-transaction usage instead of display order.',
+  })
+  @ApiQuery({
+    name: 'limit',
+    type: Number,
+    required: false,
+    description: 'Caps the result count; only meaningful together with sort=popular.',
+  })
   @ApiOkResponse({ type: [CategoryResponse] })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
@@ -57,7 +72,10 @@ export class CategoryController {
     @Query(new ZodValidationPipe(listCategoriesSchema)) query: ListCategoriesInput,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.service.list(contextOf(request).userId, budgetId, query.type, query.status);
+    return this.service.list(contextOf(request).userId, budgetId, query.type, query.status, {
+      sort: query.sort,
+      limit: query.limit,
+    });
   }
 
   @Post('budgets/:budgetId/categories')
