@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Post-implementation correction (final review, 2026-09-20):** Task 4 below has `settings.vue` coexist with a new `settings/` directory (`general.vue`, `password.vue`, `sessions.vue` from Tasks 5-7). In Nuxt 4 this makes the sub-pages *nested children* of `settings.vue`, which has no `<NuxtPage />` — they never render. The final whole-branch review caught this; the actual implementation renamed `apps/web/app/pages/app/settings.vue` → `apps/web/app/pages/app/settings/index.vue` (and `settings.test.ts` → `settings/index.test.ts`) to produce flat sibling routes instead. **Do not replay Task 4 or this plan literally — use `settings/index.vue` as the hub's filename from the start.**
+
 **Goal:** Rebuild `/app/settings` as a card-based hub (Calm Fintech style) with dedicated sub-pages for password/sessions/general settings, a searchable timezone field, a financial-cycle preview, and removal of the income-allocation-rule UI.
 
 **Architecture:** `/app/settings` becomes a read-mostly hub page (`UiCard` + `UiListRow` rows linking to sub-routes) plus one inline form (financial cycle, with a new `CyclePreview` component). Three new sibling pages (`general.vue`, `password.vue`, `sessions.vue`) carry the actual forms, reusing the existing `ReferencePageLayout`/`UiInput`/`UiSelect`/`UiButton` components and the `PATCH /budgets/:id`, `POST auth/password`, `GET/DELETE auth/sessions` endpoints, all of which already exist. `UiSelect` gains a `searchable` mode for the timezone field. No backend changes.
