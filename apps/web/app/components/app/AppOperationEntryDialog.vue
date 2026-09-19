@@ -122,20 +122,40 @@ const categoryOptions = computed(() =>
     .map((category) => ({ value: category.id, label: category.name })),
 );
 
-// No query: the short, budget-specific "popular" list — plus whatever is
-// already selected, so picking a rarer category and closing the search
-// doesn't make its pill disappear. A query searches the full list instead.
+// A budget with only a handful of confirmed operations has just as few
+// "popular" categories, which read as a near-empty picker — so below this
+// count the rest of the list fills in behind the popular ones instead of
+// leaving the picker looking broken.
+const CATEGORY_PICKER_TARGET_COUNT = 15;
+
+// No query: popular categories first, padded out with the regular list up to
+// the target count, plus whatever is already selected so picking a rarer
+// category and closing the search doesn't make its pill disappear. A query
+// searches the full list instead.
 const visibleCategoryOptions = computed(() => {
   const query = categorySearch.value.trim().toLowerCase();
   if (query) {
     return categoryOptions.value.filter((option) => option.label.toLowerCase().includes(query));
   }
-  const base = popularCategories.value.length > 0 ? popularCategories.value : categoryOptions.value;
-  if (operation.categoryId && !base.some((option) => option.value === operation.categoryId)) {
-    const selected = categoryOptions.value.find((option) => option.value === operation.categoryId);
-    if (selected) return [...base, selected];
+
+  const seen = new Set<string>();
+  const combined: Array<{ value: string; label: string }> = [];
+  for (const option of popularCategories.value) {
+    if (seen.has(option.value)) continue;
+    seen.add(option.value);
+    combined.push(option);
   }
-  return base;
+  for (const option of categoryOptions.value) {
+    if (combined.length >= CATEGORY_PICKER_TARGET_COUNT) break;
+    if (seen.has(option.value)) continue;
+    seen.add(option.value);
+    combined.push(option);
+  }
+  if (operation.categoryId && !seen.has(operation.categoryId)) {
+    const selected = categoryOptions.value.find((option) => option.value === operation.categoryId);
+    if (selected) combined.push(selected);
+  }
+  return combined;
 });
 
 const transferSourceOptions = computed(() =>

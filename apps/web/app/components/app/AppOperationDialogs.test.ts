@@ -170,39 +170,49 @@ describe('AppOperationDialogs', () => {
     wrapper.unmount();
   });
 
-  it('shows only popular categories by default and reaches the rest through search', async () => {
+  it('leads with popular categories, pads with the regular list, and reaches the overflow through search', async () => {
+    const groceries = {
+      id: 'category-id',
+      name: 'Продукты',
+      categoryType: 'EXPENSE',
+      templateKey: 'expense-groceries',
+      archivedAt: null,
+    };
+    // 14 filler categories pad the picker up to the 15-item target alongside
+    // the one popular category; a 15th "overflow" one should get pushed out.
+    const fillers = Array.from({ length: 14 }, (_unused, index) => ({
+      id: `filler-${index}`,
+      name: `Категория ${index}`,
+      categoryType: 'EXPENSE',
+      templateKey: null,
+      archivedAt: null,
+    }));
+    const overflow = {
+      id: 'overflow-category-id',
+      name: 'Путешествия',
+      categoryType: 'EXPENSE',
+      templateKey: 'expense-travel',
+      archivedAt: null,
+    };
     api.listCategories.mockImplementation(
-      (_budgetId: string, _type: unknown, _status: unknown, options?: { sort?: string }) => {
-        const groceries = {
-          id: 'category-id',
-          name: 'Продукты',
-          categoryType: 'EXPENSE',
-          templateKey: 'expense-groceries',
-          archivedAt: null,
-        };
-        const travel = {
-          id: 'rare-category-id',
-          name: 'Путешествия',
-          categoryType: 'EXPENSE',
-          templateKey: 'expense-travel',
-          archivedAt: null,
-        };
-        return Promise.resolve(options?.sort === 'popular' ? [groceries] : [groceries, travel]);
-      },
+      (_budgetId: string, _type: unknown, _status: unknown, options?: { sort?: string }) =>
+        Promise.resolve(options?.sort === 'popular' ? [groceries] : [groceries, ...fillers, overflow]),
     );
     const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
     useOperationDialogs().openOperation('EXPENSE');
     await flushPromises();
 
-    expect(document.querySelector('[data-testid="pill-category-rare-category-id"]')).toBeNull();
-    expect(document.querySelector('[data-testid="pill-category-category-id"]')).not.toBeNull();
+    const pills = [...document.querySelectorAll('[data-testid^="pill-category-"]')];
+    expect(pills).toHaveLength(15);
+    expect(pills[0]!.getAttribute('data-testid')).toBe('pill-category-category-id');
+    expect(document.querySelector('[data-testid="pill-category-overflow-category-id"]')).toBeNull();
 
     const search = document.querySelector<HTMLInputElement>('input[name="categorySearch"]');
     search!.value = 'путешеств';
     search!.dispatchEvent(new Event('input', { bubbles: true }));
     await flushPromises();
 
-    expect(document.querySelector('[data-testid="pill-category-rare-category-id"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="pill-category-overflow-category-id"]')).not.toBeNull();
     wrapper.unmount();
   });
 
