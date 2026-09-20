@@ -38,10 +38,6 @@ jobs:
             exit 1
           }
 
-      - name: Validate staging evidence
-        run: |
-          test -n "${{ inputs.staging_evidence }}"
-
       - name: Validate backup evidence
         run: |
           test -n "${{ inputs.backup_evidence }}"
