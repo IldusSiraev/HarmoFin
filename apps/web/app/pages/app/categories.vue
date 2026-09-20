@@ -203,7 +203,7 @@ async function saveCategory() {
       const input: UpdateCategoryInput = {
         name: form.name,
         parentId: form.parentId || null,
-        icon: form.icon,
+        icon: editingHasActiveChildren() ? null : form.icon,
         displayOrder: Number(form.displayOrder),
         comment: optionalText(form.comment),
       };
@@ -216,7 +216,7 @@ async function saveCategory() {
         name: form.name,
         categoryType: form.categoryType,
         parentId: form.parentId || null,
-        icon: form.icon,
+        icon: editingHasActiveChildren() ? null : form.icon,
         displayOrder: Number(form.displayOrder),
         comment: optionalText(form.comment),
       };

@@ -621,6 +621,30 @@ describe('reference template API', () => {
     expect(response.json()).toMatchObject({ icon: 'ellipsis', comment: 'Обновлённый комментарий' });
   });
 
+  it('clears a category icon automatically when it gains a child', async () => {
+    const futureParent = await createCategory({
+      name: `Будущий родитель ${randomUUID()}`,
+      icon: 'utensils',
+    });
+    const futureParentCategory = futureParent.json<{ id: string; icon: string }>();
+    expect(futureParentCategory.icon).toBe('utensils');
+
+    const child = await createCategory({
+      name: `Новый ребёнок ${randomUUID()}`,
+      parentId: futureParentCategory.id,
+    });
+    expect(child.statusCode).toBe(201);
+
+    const parentAfter = await getCategory(futureParentCategory.id);
+    expect(parentAfter.json()).toMatchObject({ icon: null });
+
+    // The parent must now be freely updatable (no lockout) even without touching icon.
+    const rename = await updateCategory(futureParentCategory.id, {
+      name: `Переименован ${randomUUID()}`,
+    });
+    expect(rename.statusCode).toBe(200);
+  });
+
   it('creates, updates, archives and scopes envelopes', async () => {
     const defaults = await listEnvelopes('active');
     expect(defaults.statusCode).toBe(200);

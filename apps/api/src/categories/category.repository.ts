@@ -176,6 +176,13 @@ export class CategoryRepository {
 
         await validateParentInTransaction(tx, input.budgetId, input.categoryType, input.parentId);
 
+        if (input.parentId) {
+          await tx.category.updateMany({
+            where: { id: input.parentId, budgetId: input.budgetId, icon: { not: null } },
+            data: { icon: null },
+          });
+        }
+
         const category = await tx.category.create({
           data: { id: createUuidV7(), ...input },
           select: categorySelect,
@@ -229,6 +236,12 @@ export class CategoryRepository {
             input.parentId,
             categoryId,
           );
+          if (input.parentId) {
+            await tx.category.updateMany({
+              where: { id: input.parentId, budgetId, icon: { not: null } },
+              data: { icon: null },
+            });
+          }
         }
 
         const [budget, category] = await Promise.all([
