@@ -17,14 +17,11 @@ test('adds an operation from a page other than the dashboard', async ({ page }) 
   // them per width, so pick whichever copy this viewport actually shows.
   const trigger = page.getByTestId('add-menu-trigger').filter({ visible: true });
   await trigger.click();
-  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  await page.getByTestId('operation-type-expense').click();
 
-  await page.getByTestId('add-menu-expense').filter({ visible: true }).click();
-
-  await expect(page.getByRole('dialog')).toBeVisible();
-  // The stub modal is gone: the shell now mounts the real operation form.
+  await expect(page.getByRole('dialog', { name: 'Новая операция' })).toBeVisible();
   await expect(page.getByLabel('Сумма')).toBeVisible();
-  await expect(page.getByLabel('Тип операции')).toHaveValue('EXPENSE');
+  await expect(page.getByTestId('entry-tab-EXPENSE')).toHaveAttribute('aria-selected', 'true');
 });
 
 test('shows a toast after a reference record is created', async ({ page }) => {
@@ -36,7 +33,7 @@ test('shows a toast after a reference record is created', async ({ page }) => {
   await page.getByRole('button', { name: 'Создать счёт' }).first().click();
   await page.getByLabel('Название счёта').fill('Карта для тоста');
   await page.getByLabel('Начальный баланс').fill('1 000,00');
-  await page.getByLabel('Дата начала учёта').fill('2026-09-04');
+  await page.getByLabel('Дата начала учёта').pressSequentially('04092026');
   await page.getByRole('button', { name: 'Сохранить счёт' }).click();
 
   await expect(page.getByTestId('toast-stack')).toContainText('Счёт создан');

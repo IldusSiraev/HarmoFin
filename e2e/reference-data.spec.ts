@@ -29,7 +29,7 @@ test.skip('owner initializes template and manages account through server-confirm
   await page.getByRole('button', { name: 'Создать счёт' }).first().click();
   await page.getByLabel('Название счёта').fill('Основной счёт');
   await page.getByLabel('Начальный баланс').fill('1 234,50');
-  await page.getByLabel('Дата начала учёта').fill('2026-09-04');
+  await page.getByLabel('Дата начала учёта').pressSequentially('04092026');
   await page.getByRole('button', { name: 'Сохранить счёт' }).click();
   await expect(page.getByText('Основной счёт')).toBeVisible();
   await expect(page.getByText(/1.*234.*50/).first()).toBeVisible();
@@ -108,7 +108,7 @@ test('shows server validation beside invalid money input', async ({ page }) => {
   await page.getByRole('button', { name: 'Создать счёт' }).first().click();
   await page.getByLabel('Название счёта').fill('Некорректный счёт');
   await page.getByLabel('Начальный баланс').fill('1.234');
-  await page.getByLabel('Дата начала учёта').fill('2026-09-04');
+  await page.getByLabel('Дата начала учёта').pressSequentially('04092026');
   await page.getByRole('button', { name: 'Сохранить счёт' }).click();
 
   await expect(page.getByText(/денеж|формат|знаков/i)).toBeVisible();

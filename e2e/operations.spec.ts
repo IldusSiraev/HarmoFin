@@ -10,7 +10,7 @@ test('owner accepts generic income allocation and logically deletes confirmed in
   await createAccount(page, 'Основная карта', '10 000,00');
   await configureIncomeAllocationRule(page);
 
-  await createIncome(page, '12 000,00', 'CONFIRMED');
+  await createIncome(page, '12 000,00');
   await openFirstOperation(page);
   await expect(page.getByRole('button', { name: 'Применить предложение' })).toBeVisible();
   await page.getByRole('button', { name: 'Применить предложение' }).click();
@@ -37,7 +37,7 @@ test('owner changes and rejects non-binding generic allocation proposals', async
   await createAccount(page, 'Основная карта', '10 000,00');
   await configureIncomeAllocationRule(page);
 
-  await createIncome(page, '12 000,00', 'CONFIRMED', 'Доход первый');
+  await createIncome(page, '12 000,00', 'Доход первый');
   await openFirstOperation(page, 'Доход первый');
   await page.getByLabel('Распределение дохода').getByRole('button', { name: 'Изменить' }).click();
   await page.getByLabel('Сумма распределения').fill('1 000,00');
@@ -45,7 +45,7 @@ test('owner changes and rejects non-binding generic allocation proposals', async
   await expect(page.getByText(/доступно 11.*000.*00/)).toBeVisible();
   await page.getByTestId('drawer-close').click();
 
-  await createIncome(page, '2 000,00', 'CONFIRMED', 'Доход второй');
+  await createIncome(page, '2 000,00', 'Доход второй');
   await openFirstOperation(page, 'Доход второй');
   await page.getByRole('button', { name: 'Не распределять' }).click();
   await expect(page.getByRole('button', { name: 'Не распределять' })).toHaveCount(0);
@@ -59,25 +59,18 @@ test('browser retry with same idempotency key creates one income', async ({ page
 
   await page.goto('/app/operations');
   await page.locator('[data-action="create-operation"]').click();
-  // Step 1
-  await page.getByLabel('Тип операции').selectOption('INCOME');
-  const today = new Date().toISOString().split('T')[0];
-  await page.getByLabel('Дата операции').fill(today);
+  await page.getByTestId('operation-type-income').click();
+  await fillOperationDate(page);
   await page.getByLabel('Сумма').fill('10,00');
-  await page.getByRole('button', { name: 'Далее' }).click();
-  // Step 2
-  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная карта' });
-  await page.getByRole('button', { name: 'Далее' }).click();
-  // Step 3
-  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Шабашка' });
-  await page.getByRole('button', { name: 'Далее' }).click();
-  // Step 4
+  await selectPill(page, 'Счёт', 'Основная карта');
+  await selectPill(page, 'Категория', 'Шабашка');
+
   const requestPromise = page.waitForRequest(
     (request) => request.method() === 'POST' && /\/transactions$/.test(request.url()),
   );
-  await page.getByRole('button', { name: 'Создать черновик' }).click();
+  await page.getByTestId('entry-submit').click();
   const request = await requestPromise;
-  await expect(page.getByText('Черновик', { exact: true })).toHaveCount(1);
+  await expect(page.getByTestId('toast-stack')).toContainText('Операция сохранена');
 
   const replay = await page.evaluate(
     async ({ url, body, idempotencyKey }) => {
@@ -105,7 +98,7 @@ test('browser retry with same idempotency key creates one income', async ({ page
 
   expect(replay.status).toBe(201);
   await page.reload();
-  await expect(page.getByText('Черновик', { exact: true })).toHaveCount(1);
+  await expect(page.getByTestId('list-row-select')).toHaveCount(1);
 });
 
 test('owner sees financial validation and server-confirmed expense lifecycle', async ({ page }) => {
@@ -116,39 +109,33 @@ test('owner sees financial validation and server-confirmed expense lifecycle', a
 
   await page.goto('/app/operations');
   await page.locator('[data-action="create-operation"]').click();
-  // Step 1
-  const today = new Date().toISOString().split('T')[0];
-  await page.getByLabel('Дата операции').fill(today);
+  await page.getByTestId('operation-type-expense').click();
+  await fillOperationDate(page);
   await page.getByLabel('Сумма').fill('1.234');
-  await page.getByRole('button', { name: 'Далее' }).click();
-  // Step 2
-  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная карта' });
-  await page.getByRole('button', { name: 'Далее' }).click();
-  // Step 3
-  await page.getByLabel('Категория').selectOption({ label: 'Продукты' });
-  await page.getByRole('button', { name: 'Далее' }).click();
-  // Step 4
-  await page.getByLabel(/^Конверт\s*\*?$/).selectOption({ label: 'Продукты на неделю' });
-  await page.getByRole('button', { name: 'Создать черновик' }).click();
+  await selectPill(page, 'Счёт', 'Основная карта');
+  await selectPill(page, 'Категория', 'Продукты');
+  await selectPill(page, 'Конверт', 'Продукты на неделю');
+  await page.getByTestId('entry-submit').click();
   await expect(page.getByRole('alert')).toContainText(/денеж|формат|знаков|данные|заполн/i);
 
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).toBeHidden();
+  await expect(page.getByRole('dialog', { name: 'Новая операция' })).toBeHidden();
 
-  await createExpense(page, '100,00', 'CONFIRMED');
+  await createExpense(page, '100,00');
   await page.goto('/app/accounts');
   await expect(page.getByText(/900.*00/).first()).toBeVisible();
   await page.goto('/app/envelopes');
   await expect(page.getByText(/900.*00/).first()).toBeVisible();
 
   await page.goto('/app/operations');
-  await createExpense(page, '1 000,00', 'CONFIRMED');
+  await createExpense(page, '1 000,00');
   await expect(page.getByRole('alert')).toContainText(
     'Недостаточно средств на счёте или в конверте.',
   );
   await expect(page.getByTestId('list-row-select')).toHaveCount(1);
 
-  await createIncome(page, '10,00', 'DRAFT', 'Черновик дохода');
+  await createDraftIncomeViaApi(page, '10,00', 'Шабашка', 'Основная карта', 'Черновик дохода');
+  await page.goto('/app/operations');
   await openRowMenu(page, 'Черновик дохода');
   await page.getByTestId('row-cancel').click();
   await expect(page.locator('dialog[open]')).toBeVisible();
@@ -174,7 +161,7 @@ test.describe('operations mobile route', () => {
     await page.goto('/app/operations');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Операции');
     await page.locator('[data-action="create-operation"]').click();
-    await expect(page.getByLabel('Тип операции')).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Что произошло?' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       375,
     );
@@ -203,7 +190,7 @@ async function createAccount(page: Page, name: string, balance: string): Promise
   await page.getByRole('button', { name: 'Создать счёт' }).first().click();
   await page.getByLabel('Название счёта').fill(name);
   await page.getByLabel('Начальный баланс').fill(balance);
-  await page.getByLabel('Дата начала учёта').fill('2026-09-04');
+  await page.getByLabel('Дата начала учёта').pressSequentially('04092026');
   await page.getByRole('button', { name: 'Сохранить счёт' }).click();
   await expect(page.getByText(name)).toBeVisible();
 }
@@ -280,62 +267,95 @@ async function filterByStatus(page: Page, status: string): Promise<void> {
   await page.getByRole('button', { name: 'Готово' }).click();
 }
 
-async function createIncome(
-  page: Page,
-  amount: string,
-  status: 'DRAFT' | 'CONFIRMED',
-  source?: string,
-): Promise<void> {
-  await page.goto('/app/operations');
-  await page.locator('[data-action="create-operation"]').click();
-  // Step 1: operation type, date, amount
-  await page.getByLabel('Тип операции').selectOption('INCOME');
-  const today = new Date().toISOString().split('T')[0];
-  await page.getByLabel('Дата операции').fill(today);
-  await page.getByLabel('Сумма').fill(amount);
-  await page.getByRole('button', { name: 'Далее' }).click();
-  // Step 2: account
-  await page.getByLabel('Счёт').selectOption({ label: 'Основная карта' });
-  await page.getByRole('button', { name: 'Далее' }).click();
-  // Step 3: category
-  await page.getByLabel('Категория').selectOption({ label: 'Шабашка' });
-  await page.getByRole('button', { name: 'Далее' }).click();
-  // Step 4: details
-  if (source !== undefined) await page.getByLabel('Источник дохода').fill(source);
-  await page
-    .getByRole('button', { name: status === 'DRAFT' ? 'Создать черновик' : 'Подтвердить операцию' })
-    .click();
-  if (status === 'CONFIRMED') {
-    await confirmDialog(page);
-    await expect(page.getByTestId('toast-stack')).toContainText('Операция подтверждена');
-  } else {
-    await expect(page.getByText('Черновик', { exact: true })).toBeVisible();
-  }
+// The quick-entry dialog date field always reads "Дата" — it presets the
+// current date, but only typing overwrites the stale mask placeholder.
+async function fillOperationDate(page: Page): Promise<void> {
+  const now = new Date();
+  const digits = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${now.getFullYear()}`;
+  await page.getByLabel('Дата').pressSequentially(digits);
 }
 
-async function createExpense(
+// UiPillSelect renders each field as a radiogroup of buttons, not a <select>.
+async function selectPill(page: Page, group: string, option: string): Promise<void> {
+  await page.getByRole('radiogroup', { name: group }).getByRole('radio', { name: option }).click();
+}
+
+async function createIncome(page: Page, amount: string, source?: string): Promise<void> {
+  await page.goto('/app/operations');
+  await page.locator('[data-action="create-operation"]').click();
+  await page.getByTestId('operation-type-income').click();
+  await fillOperationDate(page);
+  await page.getByLabel('Сумма').fill(amount);
+  await selectPill(page, 'Счёт', 'Основная карта');
+  await selectPill(page, 'Категория', 'Шабашка');
+  if (source !== undefined) await page.getByLabel('Заметка').fill(source);
+  await page.getByTestId('entry-submit').click();
+  await expect(page.getByTestId('toast-stack')).toContainText('Операция сохранена');
+}
+
+async function createExpense(page: Page, amount: string): Promise<void> {
+  await page.locator('[data-action="create-operation"]').click();
+  await page.getByTestId('operation-type-expense').click();
+  await fillOperationDate(page);
+  await page.getByLabel('Сумма').fill(amount);
+  await selectPill(page, 'Счёт', 'Основная карта');
+  await selectPill(page, 'Категория', 'Продукты');
+  await selectPill(page, 'Конверт', 'Продукты на неделю');
+  await page.getByTestId('entry-submit').click();
+}
+
+// The quick-entry dialog only ever submits CONFIRMED — draft creation now
+// requires going through the API directly, matching how a real client would
+// call it outside the UI.
+async function createDraftIncomeViaApi(
   page: Page,
   amount: string,
-  status: 'DRAFT' | 'CONFIRMED',
+  categoryName: string,
+  accountName: string,
+  source?: string,
 ): Promise<void> {
-  await page.locator('[data-action="create-operation"]').click();
-  // Step 1: operation type, date, amount
-  const today = new Date().toISOString().split('T')[0];
-  await page.getByLabel('Дата операции').fill(today);
-  await page.getByLabel('Сумма').fill(amount);
-  await page.getByRole('button', { name: 'Далее' }).click();
-  // Step 2: account
-  await page.getByLabel('Счёт').selectOption({ label: 'Основная карта' });
-  await page.getByRole('button', { name: 'Далее' }).click();
-  // Step 3: category
-  await page.getByLabel('Категория').selectOption({ label: 'Продукты' });
-  await page.getByRole('button', { name: 'Далее' }).click();
-  // Step 4: envelope and merchant
-  await page.getByLabel('Конверт').selectOption({ label: 'Продукты на неделю' });
-  await page
-    .getByRole('button', { name: status === 'DRAFT' ? 'Создать черновик' : 'Подтвердить операцию' })
-    .click();
-  if (status === 'CONFIRMED') {
-    await confirmDialog(page);
-  }
+  await page.evaluate(
+    async ({ amount, categoryName, accountName, source }) => {
+      const api = 'http://localhost:3001/api/v1';
+      const me = (await fetch(`${api}/me`, { credentials: 'include' }).then((response) =>
+        response.json(),
+      )) as { workspaces: Array<{ budgets: Array<{ id: string }> }> };
+      const budgetId = me.workspaces[0]?.budgets[0]?.id;
+      if (!budgetId) throw new Error('Missing budget id');
+
+      const accounts = (await fetch(`${api}/budgets/${budgetId}/accounts`, {
+        credentials: 'include',
+      }).then((response) => response.json())) as Array<{ id: string; name: string }>;
+      const categories = (await fetch(`${api}/budgets/${budgetId}/categories?type=INCOME`, {
+        credentials: 'include',
+      }).then((response) => response.json())) as Array<{ id: string; name: string }>;
+      const account = accounts.find((item) => item.name === accountName);
+      const category = categories.find((item) => item.name === categoryName);
+      if (!account || !category) throw new Error('Missing account or category');
+
+      const csrf = (await fetch(`${api}/auth/csrf`, { credentials: 'include' }).then((response) =>
+        response.json(),
+      )) as { csrfToken: string };
+      await fetch(`${api}/budgets/${budgetId}/transactions`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrf.csrfToken,
+          'Idempotency-Key': crypto.randomUUID(),
+        },
+        body: JSON.stringify({
+          transactionType: 'INCOME',
+          status: 'DRAFT',
+          amount: amount.replace(',', '.'),
+          occurredOn: new Date().toISOString().slice(0, 10),
+          accountId: account.id,
+          categoryId: category.id,
+          sourceDescription: source,
+          isPlanned: false,
+        }),
+      });
+    },
+    { amount, categoryName, accountName, source },
+  );
 }

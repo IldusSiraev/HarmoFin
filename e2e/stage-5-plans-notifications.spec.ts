@@ -92,7 +92,7 @@ async function createAccount(page: Page, name: string, balance: string): Promise
   await page.getByRole('button', { name: 'Создать счёт' }).first().click();
   await page.getByLabel('Название счёта').fill(name);
   await page.getByLabel('Начальный баланс').fill(balance);
-  await page.getByLabel('Дата начала учёта').fill('2026-09-01');
+  await page.getByLabel('Дата начала учёта').pressSequentially('01092026');
   await page.getByRole('button', { name: 'Сохранить счёт' }).click();
   await expect(page.getByText(name)).toBeVisible();
 }
