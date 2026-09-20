@@ -188,6 +188,31 @@ describe('reference template API', () => {
     expect(JSON.stringify(audit?.newValues)).not.toContain('comment');
   });
 
+  it('assigns an icon to every default leaf category and none to groups', async () => {
+    const groceries = await prisma.category.findFirstOrThrow({
+      where: { budgetId: ownerBudgetId, templateKey: 'expense-groceries' },
+    });
+    expect(groceries.icon).toBe('shopping-cart');
+
+    const salaryGroup = await prisma.category.findFirstOrThrow({
+      where: { budgetId: ownerBudgetId, templateKey: 'income-group-salary' },
+    });
+    expect(salaryGroup.icon).toBeNull();
+
+    // Scoped to templateKey (default) rows only — other tests in this shared-budget
+    // file create their own custom child categories with no icon, which is legitimate
+    // and must not be flagged here.
+    const templateLeavesWithoutIcon = await prisma.category.count({
+      where: {
+        budgetId: ownerBudgetId,
+        templateKey: { not: null },
+        parentId: { not: null },
+        icon: null,
+      },
+    });
+    expect(templateLeavesWithoutIcon).toBe(0);
+  });
+
   it('lists default categories by type and archive status', async () => {
     const income = await listCategories('INCOME', 'active');
     const expense = await listCategories('EXPENSE', 'active');
