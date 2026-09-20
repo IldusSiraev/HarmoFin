@@ -808,6 +808,31 @@ describe('reference template API', () => {
     });
     expect(advance.parentId).toBe(preexistingCategory.id);
   });
+
+  it('persists an icon value directly on the category row', async () => {
+    const created = await prisma.category.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ownerBudgetId,
+        name: `Иконка-тест ${randomUUID()}`,
+        categoryType: 'EXPENSE',
+        displayOrder: 999,
+        icon: 'shopping-cart',
+      },
+    });
+    expect(created.icon).toBe('shopping-cart');
+
+    const withoutIcon = await prisma.category.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ownerBudgetId,
+        name: `Без иконки-тест ${randomUUID()}`,
+        categoryType: 'EXPENSE',
+        displayOrder: 998,
+      },
+    });
+    expect(withoutIcon.icon).toBeNull();
+  });
 });
 
 type OpenApiSchema = {
