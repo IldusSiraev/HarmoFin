@@ -39,9 +39,10 @@ function step(delta: 1 | -1): void {
 
 <template>
   <div class="amount-field" :style="{ '--amount-accent': accentVar[accent] }">
-    <p class="amount-field__label">Сумма</p>
+    <label class="amount-field__label" for="operation-amount-input">Сумма</label>
     <div class="amount-field__row">
       <input
+        id="operation-amount-input"
         class="amount-field__input"
         type="text"
         inputmode="decimal"

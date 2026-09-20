@@ -76,8 +76,8 @@ const inputAttrs = computed(() => ({
   ...(props.error ? { state: false } : {}),
 }));
 
-const ariaLabels = {
-  input: 'Дата',
+const ariaLabels = computed(() => ({
+  input: props.label,
   clearInput: 'Очистить дату',
   calendarIcon: 'Открыть календарь',
   menu: 'Календарь',
@@ -86,7 +86,7 @@ const ariaLabels = {
   nextYear: 'Следующий год',
   prevYear: 'Предыдущий год',
   toggleOverlay: 'Переключить вид',
-};
+}));
 
 function handleUpdate(value: unknown): void {
   emit('update:modelValue', typeof value === 'string' ? value : '');
@@ -141,6 +141,7 @@ function selectQuickDate(value: string): void {
       :time-config="{ enableTimePicker: false }"
       :input-attrs="inputAttrs"
       :aria-labels="ariaLabels"
+      :text-input="{ format: 'dd.MM.yyyy', maskFormat: 'DD.MM.YYYY' }"
       :disabled="disabled"
       :dark="isDark"
       auto-apply

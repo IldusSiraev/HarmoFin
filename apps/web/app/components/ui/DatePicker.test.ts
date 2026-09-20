@@ -16,10 +16,8 @@ describe('UiDatePicker', () => {
     expect(wrapper.get('label').attributes('for')).toBe(input.attributes('id'));
     expect(wrapper.get('label').text()).toBe('Дата *');
     expect((input.element as HTMLInputElement).value).toBe('19.09.2026');
-    // Calendar-only selection: typing is blocked without the readonly attribute
-    // itself (which would also block opening the popover) — the library
-    // enforces it via this class plus inputmode="none" instead.
-    expect(input.classes()).toContain('dp--input-readonly');
+    // Typing is allowed (masked dd.MM.yyyy) alongside calendar selection.
+    expect(input.classes()).not.toContain('dp--input-readonly');
     wrapper.unmount();
   });
 
