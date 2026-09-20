@@ -11,6 +11,7 @@ const props = defineProps<{
 }>();
 
 const dayFormatter = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
+const shortDayFormatter = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' });
 
 function toDate(iso: string): Date {
   const [year, month, day] = iso.split('-').map(Number);
@@ -19,6 +20,10 @@ function toDate(iso: string): Date {
 
 function formatDate(iso: string): string {
   return dayFormatter.format(toDate(iso));
+}
+
+function formatDateShort(iso: string): string {
+  return shortDayFormatter.format(toDate(iso));
 }
 
 function dayOffset(from: Date, to: Date): number {
@@ -52,8 +57,31 @@ function toPercent(offset: number): number {
 const todayPercent = computed(() => toPercent(todayOffset.value));
 const boundaryPercent = computed(() => toPercent(boundaryOffset.value));
 
+// Keep marker labels off the track's edges so they don't clip outside the card
+// or collide with the start/end labels below the track.
+function clampLabelPercent(percent: number): number {
+  return Math.min(Math.max(percent, 6), 94);
+}
+
+const todayLabelPercent = computed(() => clampLabelPercent(todayPercent.value));
+const boundaryLabelPercent = computed(() => clampLabelPercent(boundaryPercent.value));
+
 const startLabel = computed(() => formatDate(props.cycle.start));
 const endLabel = computed(() => formatDate(props.cycle.end));
+
+// Read straight off the clock instead of re-deriving from todayOffset: offset is
+// a rounded day count, so late-in-the-day it can round up to tomorrow's date.
+const todayDateLabel = computed(() => shortDayFormatter.format(new Date()));
+const boundaryDateLabel = computed(() => formatDateShort(toIso(boundaryOffset.value)));
+
+function toIso(offset: number): string {
+  const date = toDate(props.cycle.start);
+  date.setDate(date.getDate() + offset);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 const summaryLabel = computed(
   () =>
@@ -65,14 +93,26 @@ const summaryLabel = computed(
 <template>
   <div class="fm-timeline">
     <p class="fm-timeline__title">Ваш финансовый месяц</p>
+    <div class="fm-timeline__marks" aria-hidden="true">
+      <span class="fm-timeline__mark fm-timeline__mark--start">{{ startLabel }}</span>
+      <span
+        class="fm-timeline__mark fm-timeline__mark--boundary"
+        :style="{ left: `${boundaryLabelPercent}%` }"
+      >
+        {{ boundaryDateLabel }}
+      </span>
+      <span
+        class="fm-timeline__mark fm-timeline__mark--today"
+        :style="{ left: `${todayLabelPercent}%` }"
+      >
+        {{ todayDateLabel }}
+      </span>
+      <span class="fm-timeline__mark fm-timeline__mark--end">{{ endLabel }}</span>
+    </div>
     <div class="fm-timeline__track" role="img" :aria-label="summaryLabel">
       <div class="fm-timeline__fill" :style="{ width: `${todayPercent}%` }" />
       <div class="fm-timeline__boundary" :style="{ left: `${boundaryPercent}%` }" />
       <div class="fm-timeline__today" :style="{ left: `${todayPercent}%` }" />
-    </div>
-    <div class="fm-timeline__labels">
-      <span>{{ startLabel }}</span>
-      <span>{{ endLabel }}</span>
     </div>
   </div>
 </template>
@@ -130,10 +170,32 @@ const summaryLabel = computed(
   transform: translate(-50%, -50%);
 }
 
-.fm-timeline__labels {
-  display: flex;
-  justify-content: space-between;
+.fm-timeline__marks {
+  position: relative;
+  height: 1rem;
+}
+
+.fm-timeline__mark {
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-caption);
+  transform: translateX(-50%);
+}
+
+.fm-timeline__mark--start {
+  left: 0;
+  transform: none;
+}
+
+.fm-timeline__mark--end {
+  left: 100%;
+  transform: translateX(-100%);
+}
+
+.fm-timeline__mark--today {
+  color: var(--hf-color-brand-active);
+  font-weight: var(--hf-font-weight-medium);
 }
 </style>

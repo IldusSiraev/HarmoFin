@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue';
 
-import UiInput from '../ui/Input.vue';
+import UiDatePicker from '../ui/DatePicker.vue';
 import UiSelect from '../ui/Select.vue';
 
 export type AnalyticsFilters = {
@@ -35,20 +35,8 @@ function update() {
 
 <template>
   <section class="report-filters" aria-label="Фильтры аналитики">
-    <UiInput
-      v-model="model.from"
-      name="from"
-      label="С даты"
-      type="date"
-      @update:model-value="update"
-    />
-    <UiInput
-      v-model="model.to"
-      name="to"
-      label="По дату"
-      type="date"
-      @update:model-value="update"
-    />
+    <UiDatePicker v-model="model.from" name="from" label="С даты" @update:model-value="update" />
+    <UiDatePicker v-model="model.to" name="to" label="По дату" @update:model-value="update" />
     <UiSelect
       v-model="model.type"
       name="type"

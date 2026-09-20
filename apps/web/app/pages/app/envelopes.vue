@@ -12,6 +12,7 @@ import UiActionMenu from '../../components/ui/ActionMenu.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiChip from '../../components/ui/Chip.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
+import UiDatePicker from '../../components/ui/DatePicker.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
 import UiInput from '../../components/ui/Input.vue';
 import UiModal from '../../components/ui/Modal.vue';
@@ -493,11 +494,10 @@ onMounted(() => {
           label="Целевая сумма"
           :error="getFieldError('targetAmount')"
         />
-        <UiInput
+        <UiDatePicker
           v-model="form.targetDate"
           name="targetDate"
           label="Дата цели"
-          type="date"
           :error="getFieldError('targetDate')"
         />
         <UiInput

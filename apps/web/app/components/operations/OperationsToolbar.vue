@@ -4,6 +4,7 @@ import { Search, SlidersHorizontal } from '@lucide/vue';
 
 import UiButton from '../ui/Button.vue';
 import UiChip from '../ui/Chip.vue';
+import UiDatePicker from '../ui/DatePicker.vue';
 import UiDrawer from '../ui/Drawer.vue';
 import UiInput from '../ui/Input.vue';
 import UiSelect from '../ui/Select.vue';
@@ -232,23 +233,20 @@ onBeforeUnmount(() => {
           ]"
           @update:model-value="emit('change', 'status', $event)"
         />
-        <UiInput
+        <UiDatePicker
           name="from"
-          type="date"
           label="Дата с"
           :model-value="filters.from"
           @update:model-value="emit('change', 'from', $event)"
         />
-        <UiInput
+        <UiDatePicker
           name="to"
-          type="date"
           label="Дата по"
           :model-value="filters.to"
           @update:model-value="emit('change', 'to', $event)"
         />
-        <UiInput
+        <UiDatePicker
           name="cycleStart"
-          type="date"
           label="Начало цикла"
           :model-value="filters.cycleStart"
           @update:model-value="emit('change', 'cycleStart', $event)"

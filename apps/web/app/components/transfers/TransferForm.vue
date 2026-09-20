@@ -4,12 +4,13 @@ import { reactive, watch } from 'vue';
 import {
   addTransferPart,
   removeTransferPart,
+  syncSourceEnvelope,
   toCreateTransferInput,
   type TransferFormModel,
-  type TransferPartFormModel,
 } from '../../composables/useTransferForm.js';
 import FinanceMoneyInput from '../finance/FinanceMoneyInput.vue';
 import UiButton from '../ui/Button.vue';
+import UiDatePicker from '../ui/DatePicker.vue';
 import UiInput from '../ui/Input.vue';
 import UiSelect from '../ui/Select.vue';
 
@@ -40,11 +41,6 @@ watch(
   { deep: true },
 );
 
-function updateSourceEnvelope(part: TransferPartFormModel, value: string) {
-  part.sourceEnvelopeId = value;
-  part.destinationEnvelopeId = value;
-}
-
 function submit(status: 'DRAFT' | 'CONFIRMED') {
   emit('submit', toCreateTransferInput(form, status));
 }
@@ -53,13 +49,13 @@ function submit(status: 'DRAFT' | 'CONFIRMED') {
 <template>
   <form class="transfer-form" @submit.prevent="submit('DRAFT')">
     <div class="transfer-form__core">
-      <UiInput
+      <UiDatePicker
         v-model="form.occurredOn"
         name="occurredOn"
         label="Дата перевода"
-        type="date"
         :error="errors.occurredOn"
         required
+        quick-dates
       />
       <FinanceMoneyInput
         v-model="form.total"
@@ -112,7 +108,7 @@ function submit(status: 'DRAFT' | 'CONFIRMED') {
           :options="envelopes"
           :error="errors[`parts.${index}.sourceEnvelopeId`]"
           required
-          @update:model-value="updateSourceEnvelope(part, $event)"
+          @update:model-value="syncSourceEnvelope(part, $event)"
         />
         <UiSelect
           v-model="part.destinationEnvelopeId"

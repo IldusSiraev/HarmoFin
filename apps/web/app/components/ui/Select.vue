@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed, ref, watch } from 'vue';
+
 import UiTooltip from './Tooltip.vue';
 
 defineOptions({ name: 'UiSelect' });
@@ -22,6 +24,7 @@ const props = withDefaults(
     tooltip?: string | undefined;
     required?: boolean;
     disabled?: boolean;
+    searchable?: boolean;
   }>(),
   {
     id: undefined,
@@ -31,6 +34,7 @@ const props = withDefaults(
     tooltip: undefined,
     required: false,
     disabled: false,
+    searchable: false,
   },
 );
 
@@ -51,6 +55,10 @@ function getErrorId() {
   return `${getSelectId()}-error`;
 }
 
+function getListboxId() {
+  return `${getSelectId()}-listbox`;
+}
+
 function getDescribedBy() {
   return (
     [props.hint ? getHintId() : undefined, props.error ? getErrorId() : undefined]
@@ -61,6 +69,84 @@ function getDescribedBy() {
 
 function handleChange(event: Event) {
   emit('update:modelValue', (event.target as HTMLSelectElement).value);
+}
+
+// --- searchable combobox ---
+function labelFor(value: string): string {
+  return props.options.find((option) => option.value === value)?.label ?? '';
+}
+
+const query = ref('');
+const open = ref(false);
+const activeIndex = ref(0);
+
+watch(
+  () => props.modelValue,
+  (value) => {
+    query.value = labelFor(value);
+  },
+  { immediate: true },
+);
+
+const filteredOptions = computed(() => {
+  const search = query.value.trim().toLowerCase();
+  if (!search || search === labelFor(props.modelValue).toLowerCase()) return props.options;
+  return props.options.filter((option) => option.label.toLowerCase().includes(search));
+});
+
+function getOptionId(index: number) {
+  return `${getListboxId()}-option-${index}`;
+}
+
+function openList() {
+  if (props.disabled) return;
+  open.value = true;
+  activeIndex.value = 0;
+}
+
+function closeList() {
+  open.value = false;
+  query.value = labelFor(props.modelValue);
+}
+
+function selectOption(option: SelectOption) {
+  if (option.disabled) return;
+  emit('update:modelValue', option.value);
+  query.value = option.label;
+  open.value = false;
+}
+
+function handleQueryInput(event: Event) {
+  query.value = (event.target as HTMLInputElement).value;
+  open.value = true;
+  activeIndex.value = 0;
+}
+
+function handleComboKeydown(event: KeyboardEvent) {
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    if (!open.value) {
+      openList();
+      return;
+    }
+    activeIndex.value = Math.min(activeIndex.value + 1, filteredOptions.value.length - 1);
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    activeIndex.value = Math.max(activeIndex.value - 1, 0);
+  } else if (event.key === 'Enter') {
+    const option = filteredOptions.value[activeIndex.value];
+    if (open.value && option) {
+      event.preventDefault();
+      selectOption(option);
+    }
+  } else if (event.key === 'Escape') {
+    closeList();
+  }
+}
+
+function handleComboBlur(event: FocusEvent) {
+  closeList();
+  emit('blur', event);
 }
 </script>
 
@@ -85,7 +171,53 @@ function handleChange(event: Event) {
         </button>
       </UiTooltip>
     </div>
+
+    <div v-if="searchable" class="ui-select__combobox">
+      <input
+        :id="getSelectId()"
+        class="ui-select__control"
+        :class="{ 'ui-select__control--error': error }"
+        type="text"
+        role="combobox"
+        autocomplete="off"
+        :name="name"
+        :value="query"
+        :placeholder="placeholder"
+        aria-autocomplete="list"
+        :aria-expanded="open"
+        :aria-controls="getListboxId()"
+        :aria-activedescendant="
+          open && filteredOptions[activeIndex] ? getOptionId(activeIndex) : undefined
+        "
+        :aria-describedby="getDescribedBy()"
+        :aria-invalid="error ? 'true' : undefined"
+        :aria-required="required || undefined"
+        :disabled="disabled"
+        @focus="openList"
+        @input="handleQueryInput"
+        @keydown="handleComboKeydown"
+        @blur="handleComboBlur"
+      />
+      <ul v-if="open" :id="getListboxId()" class="ui-select__listbox" role="listbox">
+        <li
+          v-for="(option, index) in filteredOptions"
+          :id="getOptionId(index)"
+          :key="option.value"
+          role="option"
+          class="ui-select__option"
+          :class="{ 'ui-select__option--active': index === activeIndex }"
+          :aria-selected="option.value === modelValue"
+          @mousedown.prevent="selectOption(option)"
+        >
+          {{ option.label }}
+        </li>
+        <li v-if="filteredOptions.length === 0" class="ui-select__option ui-select__option--empty">
+          Ничего не найдено
+        </li>
+      </ul>
+    </div>
     <select
+      v-else
       :id="getSelectId()"
       class="ui-select__control"
       :class="{ 'ui-select__control--error': error }"
@@ -109,6 +241,7 @@ function handleChange(event: Event) {
         {{ option.label }}
       </option>
     </select>
+
     <p v-if="hint" :id="getHintId()" class="ui-select__hint">{{ hint }}</p>
     <p v-if="error" :id="getErrorId()" class="ui-select__error">{{ error }}</p>
   </div>
@@ -185,5 +318,39 @@ function handleChange(event: Event) {
 
 .ui-select__error {
   color: var(--hf-color-text-danger);
+}
+
+.ui-select__combobox {
+  position: relative;
+}
+
+.ui-select__listbox {
+  position: absolute;
+  z-index: var(--hf-z-index-tooltip);
+  width: 100%;
+  max-height: 16rem;
+  margin: var(--hf-space-1) 0 0;
+  padding: var(--hf-space-1);
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--hf-color-border-strong);
+  border-radius: var(--hf-control-radius);
+  background: var(--hf-color-surface);
+  box-shadow: var(--hf-shadow-sm);
+}
+
+.ui-select__option {
+  padding: var(--hf-space-2) var(--hf-space-3);
+  border-radius: var(--hf-radius-sm);
+  cursor: pointer;
+}
+
+.ui-select__option--active {
+  background: var(--hf-color-action-secondary-hover);
+}
+
+.ui-select__option--empty {
+  color: var(--hf-color-text-muted);
+  cursor: default;
 }
 </style>

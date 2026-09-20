@@ -9,6 +9,7 @@ import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiChip from '../../components/ui/Chip.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
+import UiDatePicker from '../../components/ui/DatePicker.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
 import UiInput from '../../components/ui/Input.vue';
 import UiModal from '../../components/ui/Modal.vue';
@@ -389,11 +390,10 @@ onMounted(() => {
           :error="getFieldError('startingBalance')"
           :required="!editingId"
         />
-        <UiInput
+        <UiDatePicker
           v-model="form.accountingStartDate"
           name="accountingStartDate"
           label="Дата начала учёта"
-          type="date"
           :error="getFieldError('accountingStartDate')"
           required
         />

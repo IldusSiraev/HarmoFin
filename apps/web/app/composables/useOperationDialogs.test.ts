@@ -17,7 +17,7 @@ describe('useOperationDialogs', () => {
 
     trigger.openOperation();
 
-    expect(host.openDialog.value).toBe('operation');
+    expect(host.openDialog.value).toBe('entry');
   });
 
   it('keeps at most one dialog open', () => {
@@ -26,17 +26,35 @@ describe('useOperationDialogs', () => {
     openOperation();
     openTransfer();
 
-    expect(openDialog.value).toBe('transfer');
+    expect(openDialog.value).toBe('entry');
   });
 
-  it('remembers the operation type the caller asked for', () => {
-    const { openOperation, presetType, close } = useOperationDialogs();
+  it('remembers the entry type the caller asked for', () => {
+    const { openOperation, entryType, close } = useOperationDialogs();
 
     openOperation('INCOME');
-    expect(presetType.value).toBe('INCOME');
+    expect(entryType.value).toBe('INCOME');
 
     close();
-    expect(presetType.value).toBeNull();
+    expect(entryType.value).toBeNull();
+  });
+
+  it('opens the transfer tab of the entry dialog', () => {
+    const { openDialog, entryType, openTransfer } = useOperationDialogs();
+
+    openTransfer();
+
+    expect(openDialog.value).toBe('entry');
+    expect(entryType.value).toBe('TRANSFER');
+  });
+
+  it('opens the advanced split-transfer dialog', () => {
+    const { openDialog, entryType, openTransferAdvanced } = useOperationDialogs();
+
+    openTransferAdvanced();
+
+    expect(openDialog.value).toBe('transferAdvanced');
+    expect(entryType.value).toBe('TRANSFER');
   });
 
   it('closes', () => {

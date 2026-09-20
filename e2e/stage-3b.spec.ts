@@ -174,7 +174,7 @@ async function createAccount(page: Page, name: string, balance: string): Promise
   await page.getByRole('button', { name: 'Создать счёт' }).first().click();
   await page.getByLabel('Название счёта').fill(name);
   await page.getByLabel('Начальный баланс').fill(balance);
-  await page.getByLabel('Дата начала учёта').fill('2026-09-04');
+  await page.getByLabel('Дата начала учёта').pressSequentially('04092026');
   await page.getByRole('button', { name: 'Сохранить счёт' }).click();
   await expect(page.getByText(name)).toBeVisible();
 }
@@ -191,34 +191,64 @@ async function createEnvelope(page: Page, name: string, balance: string): Promis
 }
 
 async function configureIncomeAllocationRule(page: Page): Promise<void> {
-  await page.goto('/app/settings');
-  await page.getByLabel('Настроить автоматическое распределение дохода').check();
-  await page.getByLabel('Категория дохода').selectOption({ label: 'Шабашка' });
-  await page.getByLabel(/^Конверт\s*\*?$/).selectOption({ label: 'Свободные' });
-  await page.getByRole('button', { name: 'Сохранить настройки' }).click();
-  await expect(page.getByText('Настройки бюджета сохранены.')).toBeVisible();
+  await page.evaluate(async () => {
+    const api = 'http://localhost:3001/api/v1';
+    const me = (await fetch(`${api}/me`, { credentials: 'include' }).then((response) =>
+      response.json(),
+    )) as { workspaces: Array<{ budgets: Array<{ id: string }> }> };
+    const budgetId = me.workspaces[0]?.budgets[0]?.id;
+    if (!budgetId) throw new Error('Missing budget id');
+
+    const categories = (await fetch(`${api}/budgets/${budgetId}/categories?type=INCOME`, {
+      credentials: 'include',
+    }).then((response) => response.json())) as Array<{ id: string; name: string }>;
+    const envelopes = (await fetch(`${api}/budgets/${budgetId}/envelopes`, {
+      credentials: 'include',
+    }).then((response) => response.json())) as Array<{ id: string; name: string }>;
+    const category = categories.find((item) => item.name === 'Шабашка');
+    const envelope = envelopes.find((item) => item.name === 'Свободные');
+    if (!category || !envelope) throw new Error('Missing template category or envelope');
+
+    const csrf = (await fetch(`${api}/auth/csrf`, { credentials: 'include' }).then((response) =>
+      response.json(),
+    )) as { csrfToken: string };
+    await fetch(`${api}/budgets/${budgetId}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf.csrfToken },
+      body: JSON.stringify({
+        incomeAllocationRuleEnabled: true,
+        incomeAllocationSourceCategoryId: category.id,
+        incomeAllocationTargetEnvelopeId: envelope.id,
+      }),
+    });
+  });
+}
+
+// The quick-entry dialog date field always reads "Дата" — it presets the
+// current date, but only typing overwrites the stale mask placeholder.
+async function fillOperationDate(page: Page): Promise<void> {
+  const now = new Date();
+  const digits = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${now.getFullYear()}`;
+  await page.getByLabel('Дата').pressSequentially(digits);
+}
+
+// UiPillSelect renders each field as a radiogroup of buttons, not a <select>.
+async function selectPill(page: Page, group: string, option: string): Promise<void> {
+  await page.getByRole('radiogroup', { name: group }).getByRole('radio', { name: option }).click();
 }
 
 async function createIncome(page: Page, source: string, amount: string): Promise<void> {
   await page.goto('/app/operations');
   await page.locator('[data-action="create-operation"]').click();
-  // Step 1
-  await page.getByLabel('Тип операции').selectOption('INCOME');
-  const today = new Date().toISOString().split('T')[0];
-  await page.getByLabel('Дата операции').fill(today);
+  await page.getByTestId('operation-type-income').click();
+  await fillOperationDate(page);
   await page.getByLabel('Сумма').fill(amount);
-  await page.getByRole('button', { name: 'Далее' }).click();
-  // Step 2
-  await page.getByLabel(/^Счёт\s*\*?$/).selectOption({ label: 'Основная Stage 3b' });
-  await page.getByRole('button', { name: 'Далее' }).click();
-  // Step 3
-  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Шабашка' });
-  await page.getByRole('button', { name: 'Далее' }).click();
-  // Step 4
-  await page.getByLabel('Источник дохода').fill(source);
-  await page.getByRole('button', { name: 'Подтвердить операцию' }).click();
-  await confirmDialog(page);
-  await expect(page.getByTestId('toast-stack')).toContainText('Операция подтверждена');
+  await selectPill(page, 'Счёт', 'Основная Stage 3b');
+  await selectPill(page, 'Категория', 'Шабашка');
+  await page.getByLabel('Заметка').fill(source);
+  await page.getByTestId('entry-submit').click();
+  await expect(page.getByTestId('toast-stack')).toContainText('Операция сохранена');
 }
 
 async function openFirstOperation(page: Page): Promise<void> {
@@ -245,21 +275,13 @@ async function createExpense(
 ): Promise<void> {
   await page.goto('/app/operations');
   await page.locator('[data-action="create-operation"]').click();
-  // Step 1
-  const today = new Date().toISOString().split('T')[0];
-  await page.getByLabel('Дата операции').fill(today);
+  await page.getByTestId('operation-type-expense').click();
+  await fillOperationDate(page);
   await page.getByLabel('Сумма').fill(amount);
-  await page.getByRole('button', { name: 'Далее' }).click();
-  // Step 2
-  await page.getByLabel('Счёт').selectOption({ label: account });
-  await page.getByRole('button', { name: 'Далее' }).click();
-  // Step 3
-  await page.getByLabel(/^Категория\s*\*?$/).selectOption({ label: 'Продукты' });
-  await page.getByRole('button', { name: 'Далее' }).click();
-  // Step 4
-  await page.getByLabel(/^Конверт\s*\*?$/).selectOption({ label: envelope });
-  await page.getByLabel('Получатель или магазин').fill(merchant);
-  await page.getByRole('button', { name: 'Подтвердить операцию' }).click();
-  await confirmDialog(page);
-  await expect(page.getByTestId('toast-stack')).toContainText('Операция подтверждена');
+  await selectPill(page, 'Счёт', account);
+  await selectPill(page, 'Категория', 'Продукты');
+  await selectPill(page, 'Конверт', envelope);
+  await page.getByLabel('Заметка').fill(merchant);
+  await page.getByTestId('entry-submit').click();
+  await expect(page.getByTestId('toast-stack')).toContainText('Операция сохранена');
 }

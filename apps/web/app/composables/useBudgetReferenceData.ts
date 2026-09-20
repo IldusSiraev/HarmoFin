@@ -584,6 +584,7 @@ export interface BudgetReferenceDataApi {
     budgetId: string,
     type?: CategoryType,
     status?: ReferenceStatus,
+    options?: { sort?: 'popular'; limit?: number },
   ): Promise<CategoryDto[]>;
   getCategory(budgetId: string, categoryId: string): Promise<CategoryDto>;
   createCategory(budgetId: string, input: CreateCategoryInput): Promise<CategoryDto>;
@@ -835,8 +836,15 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
       }),
     archiveAccount: (budgetId, accountId) =>
       api.request<AccountDto>(`${accountPath(budgetId, accountId)}/archive`, { method: 'POST' }),
-    listCategories: (budgetId, type, status) =>
-      api.request<CategoryDto[]>(withQuery(categoryPath(budgetId), { type, status })),
+    listCategories: (budgetId, type, status, options) =>
+      api.request<CategoryDto[]>(
+        withQuery(categoryPath(budgetId), {
+          type,
+          status,
+          sort: options?.sort,
+          limit: options?.limit === undefined ? undefined : String(options.limit),
+        }),
+      ),
     getCategory: (budgetId, categoryId) =>
       api.request<CategoryDto>(categoryPath(budgetId, categoryId)),
     createCategory: (budgetId, input) =>

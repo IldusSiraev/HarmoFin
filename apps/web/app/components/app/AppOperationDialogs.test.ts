@@ -29,6 +29,17 @@ import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import { useToast } from '../../composables/useToast.js';
 
+function click(testId: string): void {
+  document.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`)?.click();
+}
+
+function typeAmount(value: string): void {
+  const input = document.querySelector<HTMLInputElement>('input[name="amount"]');
+  if (!input) return;
+  input.value = value;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   useOperationDialogs().close();
@@ -43,6 +54,13 @@ beforeEach(() => {
       templateKey: 'expense-groceries',
       archivedAt: null,
     },
+    {
+      id: 'income-category-id',
+      name: 'Зарплата',
+      categoryType: 'INCOME',
+      templateKey: 'income-salary',
+      archivedAt: null,
+    },
   ]);
   api.listEnvelopes.mockResolvedValue([{ id: 'envelope-id', name: 'Текущие' }]);
 });
@@ -51,35 +69,60 @@ describe('AppOperationDialogs', () => {
   it('shows nothing while no dialog is requested', () => {
     const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
 
-    expect(document.querySelector('form.operation-form')).toBeNull();
+    expect(document.querySelector('[data-testid="entry-submit"]')).toBeNull();
     expect(document.querySelector('form.transfer-form')).toBeNull();
     wrapper.unmount();
   });
 
-  it('opens the requested dialog with the budget reference data', async () => {
+  it('opens the type picker and routes the chosen type into the entry dialog', async () => {
+    const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
+
+    useOperationDialogs().openChoose();
+    await flushPromises();
+    expect(document.querySelector('[data-testid="operation-type-expense"]')).not.toBeNull();
+
+    click('operation-type-income');
+    await flushPromises();
+
+    expect(useOperationDialogs().openDialog.value).toBe('entry');
+    expect(useOperationDialogs().entryType.value).toBe('INCOME');
+    expect(
+      document.querySelector('[data-testid="entry-tab-INCOME"]')?.getAttribute('aria-selected'),
+    ).toBe('true');
+    expect(document.querySelector('[data-testid="operation-type-expense"]')).toBeNull();
+    wrapper.unmount();
+  });
+
+  it('opens the transfer tab of the entry dialog with the budget reference data', async () => {
     const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
 
     useOperationDialogs().openTransfer();
     await flushPromises();
 
     expect(api.listAccounts).toHaveBeenCalledWith('budget-id', 'active');
-    expect(document.querySelector('form.transfer-form')).not.toBeNull();
+    expect(
+      document.querySelector('[data-testid="entry-tab-TRANSFER"]')?.getAttribute('aria-selected'),
+    ).toBe('true');
     wrapper.unmount();
   });
 
-  it('creates an operation through the API and closes', async () => {
+  it('creates an expense through the API and closes', async () => {
     api.createTransaction.mockResolvedValue({ id: 'transaction-id' });
     const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
     useOperationDialogs().openOperation('EXPENSE');
     await flushPromises();
 
-    const form = document.querySelector('form.operation-form') as HTMLFormElement;
-    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    typeAmount('500');
+    click('pill-account-account-id');
+    click('pill-category-category-id');
+    click('pill-envelope-envelope-id');
+    await flushPromises();
+    click('entry-submit');
     await flushPromises();
 
     expect(api.createTransaction).toHaveBeenCalledWith(
       'budget-id',
-      expect.objectContaining({ transactionType: 'EXPENSE' }),
+      expect.objectContaining({ transactionType: 'EXPENSE', status: 'CONFIRMED' }),
       expect.any(String),
     );
     expect(useOperationDialogs().openDialog.value).toBe('none');
@@ -88,18 +131,113 @@ describe('AppOperationDialogs', () => {
     wrapper.unmount();
   });
 
-  it('announces a failed save and keeps the dialog open', async () => {
+  it('creates an income without requiring an envelope', async () => {
+    api.createTransaction.mockResolvedValue({ id: 'transaction-id' });
+    const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
+    useOperationDialogs().openOperation('INCOME');
+    await flushPromises();
+
+    typeAmount('1000');
+    click('pill-account-account-id');
+    click('pill-category-income-category-id');
+    await flushPromises();
+    click('entry-submit');
+    await flushPromises();
+
+    expect(api.createTransaction).toHaveBeenCalledWith(
+      'budget-id',
+      expect.objectContaining({ transactionType: 'INCOME', status: 'CONFIRMED' }),
+      expect.any(String),
+    );
+    wrapper.unmount();
+  });
+
+  it('announces a failed save and keeps the entry dialog open', async () => {
     api.createTransaction.mockRejectedValue(new Error('network'));
     const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
     useOperationDialogs().openOperation('INCOME');
     await flushPromises();
 
-    const form = document.querySelector('form.operation-form') as HTMLFormElement;
-    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    typeAmount('1000');
+    click('pill-account-account-id');
+    click('pill-category-income-category-id');
+    await flushPromises();
+    click('entry-submit');
     await flushPromises();
 
-    expect(useOperationDialogs().openDialog.value).toBe('operation');
+    expect(useOperationDialogs().openDialog.value).toBe('entry');
     expect(useToast().toasts.value.at(-1)?.tone).toBe('error');
+    wrapper.unmount();
+  });
+
+  it('leads with popular categories, pads with the regular list, and reaches the overflow through search', async () => {
+    const groceries = {
+      id: 'category-id',
+      name: 'Продукты',
+      categoryType: 'EXPENSE',
+      templateKey: 'expense-groceries',
+      archivedAt: null,
+    };
+    // 14 filler categories pad the picker up to the 15-item target alongside
+    // the one popular category; a 15th "overflow" one should get pushed out.
+    const fillers = Array.from({ length: 14 }, (_unused, index) => ({
+      id: `filler-${index}`,
+      name: `Категория ${index}`,
+      categoryType: 'EXPENSE',
+      templateKey: null,
+      archivedAt: null,
+    }));
+    const overflow = {
+      id: 'overflow-category-id',
+      name: 'Путешествия',
+      categoryType: 'EXPENSE',
+      templateKey: 'expense-travel',
+      archivedAt: null,
+    };
+    api.listCategories.mockImplementation(
+      (_budgetId: string, _type: unknown, _status: unknown, options?: { sort?: string }) =>
+        Promise.resolve(
+          options?.sort === 'popular' ? [groceries] : [groceries, ...fillers, overflow],
+        ),
+    );
+    const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
+    useOperationDialogs().openOperation('EXPENSE');
+    await flushPromises();
+
+    const pills = [...document.querySelectorAll('[data-testid^="pill-category-"]')];
+    expect(pills).toHaveLength(15);
+    expect(pills[0]!.getAttribute('data-testid')).toBe('pill-category-category-id');
+    expect(document.querySelector('[data-testid="pill-category-overflow-category-id"]')).toBeNull();
+
+    const search = document.querySelector<HTMLInputElement>('input[name="categorySearch"]');
+    search!.value = 'путешеств';
+    search!.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+
+    expect(
+      document.querySelector('[data-testid="pill-category-overflow-category-id"]'),
+    ).not.toBeNull();
+    wrapper.unmount();
+  });
+
+  it('hands the quick transfer fields to the advanced split-by-envelope form', async () => {
+    const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
+    api.listAccounts.mockResolvedValue([
+      { id: 'account-id', name: 'Основная карта' },
+      { id: 'savings-id', name: 'Накопительный' },
+    ]);
+    useOperationDialogs().openTransfer();
+    await flushPromises();
+
+    typeAmount('2000');
+    click('pill-transferSource-account-id');
+    click('pill-transferDestination-savings-id');
+    click('pill-transferEnvelope-envelope-id');
+    click('entry-split-transfer');
+    await flushPromises();
+
+    expect(useOperationDialogs().openDialog.value).toBe('transferAdvanced');
+    expect(document.querySelector<HTMLInputElement>('input[name="total"]')?.value).toBe('2000');
     wrapper.unmount();
   });
 });

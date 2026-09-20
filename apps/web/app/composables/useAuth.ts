@@ -1,3 +1,4 @@
+import { useState } from '#imports';
 import { ApiRequestError, useApiClient } from './useApiClient.js';
 
 type User = { id: string; email: string; displayName: string | null };
@@ -9,6 +10,15 @@ type MeResponse = {
     role: string;
     budgets: Array<{ id: string; name: string; primaryCurrency: string }>;
   }>;
+};
+
+export type SessionView = {
+  id: string;
+  createdAt: string;
+  lastSeenAt: string;
+  idleExpiresAt: string;
+  absoluteExpiresAt: string;
+  userAgent: string | null;
 };
 
 export function useAuth() {
@@ -68,6 +78,30 @@ export function useAuth() {
     currentData.value = null;
   }
 
+  async function changePassword(input: {
+    currentPassword: string;
+    newPassword: string;
+  }): Promise<void> {
+    await api.request('/api/v1/auth/password', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async function listSessions(): Promise<SessionView[]> {
+    return api.request<SessionView[]>('/api/v1/auth/sessions');
+  }
+
+  async function revokeSession(sessionId: string): Promise<void> {
+    await api.request(`/api/v1/auth/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async function revokeAllSessions(): Promise<void> {
+    await api.request('/api/v1/auth/sessions', { method: 'DELETE' });
+  }
+
   return {
     currentUser,
     currentData,
@@ -77,6 +111,10 @@ export function useAuth() {
     requestRecovery,
     confirmRecovery,
     logout,
+    changePassword,
+    listSessions,
+    revokeSession,
+    revokeAllSessions,
   };
 }
 

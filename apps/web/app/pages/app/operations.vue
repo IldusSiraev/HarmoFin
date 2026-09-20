@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { definePageMeta, useRoute } from '#imports';
 import { Download } from '@lucide/vue';
 
@@ -33,6 +33,7 @@ import {
   useOperationFilters,
   type OperationFilters,
 } from '../../composables/useOperationFilters.js';
+import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 import { useOperationMutations } from '../../composables/useOperationMutations.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import { useToast } from '../../composables/useToast.js';
@@ -41,7 +42,7 @@ import { ApiRequestError } from '../../composables/useApiClient.js';
 defineOptions({ name: 'OperationsJournalPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
 
-type ConfirmationAction = 'confirm' | 'cancel' | 'delete' | 'restore' | 'create' | 'update';
+type ConfirmationAction = 'confirm' | 'cancel' | 'delete' | 'restore' | 'update';
 
 const auth = useAuth();
 const route = useRoute();
@@ -50,6 +51,7 @@ const { push } = useToast();
 const { filters, activeCount, isGrouped, toListInput, set, reset, syncQuery } =
   useOperationFilters();
 const mutations = useOperationMutations();
+const { openDialog: globalOperationDialog, openChoose } = useOperationDialogs();
 
 const transactions = ref<TransactionDto[]>([]);
 const nextCursor = ref<string | null>(null);
@@ -120,6 +122,12 @@ const unallocatedIncome = computed(() =>
 onMounted(() => {
   hydrated.value = true;
   void load();
+});
+
+// The quick-add and transfer dialogs live in the layout now, so the journal
+// reloads its list whenever one of them closes instead of owning their state.
+watch(globalOperationDialog, (value, previous) => {
+  if (value === 'none' && previous !== 'none') void load();
 });
 
 // The cycle and the period are the server's arithmetic; the journal only asks
@@ -252,13 +260,6 @@ function applyChanged(updated: TransactionDto): void {
   }
 }
 
-function openCreate() {
-  form.value = createOperationForm();
-  formErrors.value = {};
-  selectedTransaction.value = null;
-  formOpen.value = true;
-}
-
 function openEdit(transaction: TransactionDto) {
   detailed.value = null;
   form.value = createOperationForm(transaction);
@@ -284,39 +285,11 @@ function mapFormError(exception: unknown): string {
   return Object.keys(fieldErrors).length > 0 ? 'Укажите данные формы.' : exception.problem.detail;
 }
 
+// The journal only ever opens this form via openEdit — quick-add now lives in
+// the shared entry dialog — so a submit here always updates the selected row.
 function receiveForm(input: CreateTransactionInput | UpdateTransactionInput) {
-  if (selectedTransaction.value) {
-    confirmation.value = { action: 'update', transaction: selectedTransaction.value, input };
-    return;
-  }
-  const createInput = input as CreateTransactionInput;
-  if (createInput.status === 'CONFIRMED') {
-    confirmation.value = { action: 'create', transaction: null, input: createInput };
-    return;
-  }
-  void saveCreate(createInput);
-}
-
-async function saveCreate(input: CreateTransactionInput) {
-  if (!budget.value) return;
-  pending.value = true;
-  error.value = '';
-  formErrors.value = {};
-  const key = keyFor('create');
-  try {
-    await api.createTransaction(budget.value.id, input, key);
-    mutationKeys.delete('create');
-    formOpen.value = false;
-    push({
-      tone: 'success',
-      title: input.status === 'DRAFT' ? 'Черновик сохранён' : 'Операция подтверждена',
-    });
-    await load();
-  } catch (exception) {
-    error.value = mapFormError(exception);
-  } finally {
-    pending.value = false;
-  }
+  if (!selectedTransaction.value) return;
+  confirmation.value = { action: 'update', transaction: selectedTransaction.value, input };
 }
 
 function keyFor(operation: string) {
@@ -338,11 +311,6 @@ async function runConfirmation() {
   const current = confirmation.value;
   if (!current || !budget.value) return;
   confirmation.value = null;
-
-  if (current.action === 'create' && current.input) {
-    await saveCreate(current.input as CreateTransactionInput);
-    return;
-  }
   if (!current.transaction) return;
 
   if (current.action === 'update' && current.input) {
@@ -466,7 +434,7 @@ async function downloadCsv() {
         >
           <Download :size="18" aria-hidden="true" />
         </UiButton>
-        <UiButton data-action="create-operation" @click="openCreate">Добавить операцию</UiButton>
+        <UiButton data-action="create-operation" @click="openChoose">Добавить операцию</UiButton>
       </template>
 
       <template #filters>
@@ -616,13 +584,9 @@ async function downloadCsv() {
       @request-delete="ask('delete', $event)"
     />
 
-    <UiModal
-      :open="formOpen"
-      :title="selectedTransaction ? 'Изменить операцию' : 'Добавить операцию'"
-      @close="formOpen = false"
-    >
+    <UiModal :open="formOpen" title="Изменить операцию" @close="formOpen = false">
       <OperationForm
-        :mode="selectedTransaction ? 'edit' : 'create'"
+        mode="edit"
         :model="form"
         :accounts="accounts"
         :categories="categories"

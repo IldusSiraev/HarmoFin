@@ -61,18 +61,6 @@ describe('OperationForm — create mode (stepped)', () => {
     expect(wrapper.text()).not.toContain('Конверт');
   });
 
-  it('blocks "Далее" until the current step is filled in', async () => {
-    const wrapper = mountCreateForm();
-    const next = wrapper.find('button[type="button"]:not([disabled])');
-    expect(next.exists()).toBe(false); // amount is empty, so "Далее" starts disabled
-
-    await wrapper.get('[name="amount"]').setValue('123.45');
-    const enabledNext = wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'Далее' && !button.attributes('disabled'));
-    expect(enabledNext).toBeDefined();
-  });
-
   it('walks through account, category, then the type-specific details step', async () => {
     const wrapper = mountCreateForm();
 

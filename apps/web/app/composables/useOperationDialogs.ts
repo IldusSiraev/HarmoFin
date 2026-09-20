@@ -1,32 +1,43 @@
 import { readonly, ref, type Ref } from 'vue';
 
-export type OperationDialog = 'none' | 'operation' | 'transfer';
+export type OperationDialog = 'none' | 'choose' | 'entry' | 'transferAdvanced';
+export type EntryType = 'EXPENSE' | 'INCOME' | 'TRANSFER';
 export type OperationPresetType = 'INCOME' | 'EXPENSE';
 
 // Module-level: the header button and the dialogs live in different components.
 const openDialog = ref<OperationDialog>('none');
-const presetType = ref<OperationPresetType | null>(null);
+const entryType = ref<EntryType | null>(null);
 
 export function useOperationDialogs(): {
   openDialog: Readonly<Ref<OperationDialog>>;
-  presetType: Readonly<Ref<OperationPresetType | null>>;
+  entryType: Readonly<Ref<EntryType | null>>;
+  openChoose: () => void;
   openOperation: (type?: OperationPresetType) => void;
   openTransfer: () => void;
+  openTransferAdvanced: () => void;
   close: () => void;
 } {
   return {
     openDialog: readonly(openDialog) as Readonly<Ref<OperationDialog>>,
-    presetType: readonly(presetType) as Readonly<Ref<OperationPresetType | null>>,
+    entryType: readonly(entryType) as Readonly<Ref<EntryType | null>>,
+    openChoose: () => {
+      entryType.value = null;
+      openDialog.value = 'choose';
+    },
     openOperation: (type?: OperationPresetType) => {
-      presetType.value = type ?? null;
-      openDialog.value = 'operation';
+      entryType.value = type ?? 'EXPENSE';
+      openDialog.value = 'entry';
     },
     openTransfer: () => {
-      presetType.value = null;
-      openDialog.value = 'transfer';
+      entryType.value = 'TRANSFER';
+      openDialog.value = 'entry';
+    },
+    openTransferAdvanced: () => {
+      entryType.value = 'TRANSFER';
+      openDialog.value = 'transferAdvanced';
     },
     close: () => {
-      presetType.value = null;
+      entryType.value = null;
       openDialog.value = 'none';
     },
   };
