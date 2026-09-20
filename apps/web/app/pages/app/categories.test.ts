@@ -152,20 +152,12 @@ describe('categories page', () => {
     expect(mocks.api.archiveCategory).toHaveBeenCalledWith('budget-id', 'income-id');
   });
 
-  it('shows the icon picker only for a leaf category and sends the chosen icon', async () => {
+  it('shows the icon picker when creating a category (a new category has no children yet)', async () => {
     mocks.api.createCategory.mockResolvedValue(income);
     wrapper = mountPage();
     await flushPromises();
 
     await wrapper.get('[data-action="create-category"]').trigger('click');
-    await flushPromises();
-    expect(document.querySelector('.category-icon-picker')).toBeNull();
-
-    // The create form defaults categoryType to INCOME, so the parent option pool
-    // (parentOptions() filters by matching categoryType) only offers the INCOME fixture.
-    const parentSelect = document.querySelector('select[name="parentId"]') as HTMLSelectElement;
-    parentSelect.value = 'income-id';
-    parentSelect.dispatchEvent(new Event('change', { bubbles: true }));
     await flushPromises();
     expect(document.querySelector('.category-icon-picker')).not.toBeNull();
 
@@ -176,7 +168,7 @@ describe('categories page', () => {
     await flushPromises();
 
     const nameInput = document.querySelector('input[name="name"]') as HTMLInputElement;
-    nameInput.value = 'Дочерняя категория';
+    nameInput.value = 'Новая категория';
     nameInput.dispatchEvent(new Event('input', { bubbles: true }));
     await flushPromises();
 
@@ -186,7 +178,39 @@ describe('categories page', () => {
 
     expect(mocks.api.createCategory).toHaveBeenCalledWith(
       'budget-id',
-      expect.objectContaining({ parentId: 'income-id', icon: 'wallet' }),
+      expect.objectContaining({ parentId: null, icon: 'wallet' }),
     );
+  });
+
+  it('shows the icon picker when editing a leaf category with no children', async () => {
+    wrapper = mountPage();
+    await flushPromises();
+
+    const incomeRow = Array.from(document.querySelectorAll('.category-row')).find((row) =>
+      row.textContent?.includes('Зарплата'),
+    ) as HTMLElement;
+    incomeRow
+      .querySelector('[data-action="edit-category"]')!
+      .dispatchEvent(new Event('click', { bubbles: true }));
+    await flushPromises();
+
+    expect(document.querySelector('.category-icon-picker')).not.toBeNull();
+  });
+
+  it('hides the icon picker when editing a category that has active children', async () => {
+    const child = { ...expense, id: 'child-id', name: 'Кафе', parentId: 'expense-id' };
+    mocks.api.listCategories.mockResolvedValue([income, expense, child]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    const parentRow = Array.from(document.querySelectorAll('.category-row')).find((row) =>
+      row.textContent?.includes('Продукты'),
+    ) as HTMLElement;
+    parentRow
+      .querySelector('[data-action="edit-category"]')!
+      .dispatchEvent(new Event('click', { bubbles: true }));
+    await flushPromises();
+
+    expect(document.querySelector('.category-icon-picker')).toBeNull();
   });
 });

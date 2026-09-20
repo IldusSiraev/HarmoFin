@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+import { CATEGORY_ICON_KEYS } from './category.schemas.js';
+
 export class CreateCategoryRequest {
   @ApiProperty({ type: String, minLength: 1, maxLength: 120 })
   name!: string;
@@ -16,7 +18,13 @@ export class CreateCategoryRequest {
   @ApiProperty({ type: String, nullable: true, required: false, maxLength: 500 })
   comment?: string | null;
 
-  @ApiProperty({ type: String, nullable: true, required: false, description: 'One of the fixed category-icon keys.' })
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    required: false,
+    enum: CATEGORY_ICON_KEYS,
+    description: 'One of the fixed category-icon keys.',
+  })
   icon?: string | null;
 }
 
@@ -33,7 +41,13 @@ export class UpdateCategoryRequest {
   @ApiProperty({ type: String, nullable: true, required: false, maxLength: 500 })
   comment?: string | null;
 
-  @ApiProperty({ type: String, nullable: true, required: false, description: 'One of the fixed category-icon keys.' })
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    required: false,
+    enum: CATEGORY_ICON_KEYS,
+    description: 'One of the fixed category-icon keys.',
+  })
   icon?: string | null;
 }
 
@@ -62,7 +76,12 @@ export class CategoryResponse {
   @ApiProperty({ type: String, nullable: true })
   comment!: string | null;
 
-  @ApiProperty({ type: String, nullable: true, description: 'One of the fixed category-icon keys.' })
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    enum: CATEGORY_ICON_KEYS,
+    description: 'One of the fixed category-icon keys.',
+  })
   icon!: string | null;
 
   @ApiProperty({ type: String, nullable: true, format: 'date-time' })

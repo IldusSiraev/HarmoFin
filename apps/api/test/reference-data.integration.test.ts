@@ -551,7 +551,7 @@ describe('reference template API', () => {
     expect(reused.statusCode).toBe(201);
   });
 
-  it('validates and enforces leaf-only icon assignment', async () => {
+  it('validates icon against the allow-list and forbids it on categories with active children', async () => {
     const unknownIcon = await createCategory({
       name: `Неизвестная иконка ${randomUUID()}`,
       icon: 'not-a-real-icon',
@@ -559,15 +559,25 @@ describe('reference template API', () => {
     expect(unknownIcon.statusCode).toBe(400);
     expect(unknownIcon.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
 
-    const groupWithIcon = await createCategory({
-      name: `Группа с иконкой ${randomUUID()}`,
+    // A freshly created, childless category may have an icon even without a parent —
+    // it isn't a group yet (mirrors the pre-existing standalone `expense-other` default).
+    const rootWithIcon = await createCategory({
+      name: `Корневая с иконкой ${randomUUID()}`,
       icon: 'shopping-cart',
     });
-    expect(groupWithIcon.statusCode).toBe(400);
-    expect(groupWithIcon.json()).toMatchObject({ code: 'REFERENCE_INVALID' });
+    expect(rootWithIcon.statusCode).toBe(201);
+    expect(rootWithIcon.json()).toMatchObject({ icon: 'shopping-cart' });
 
     const parent = await createCategory({ name: `Родитель для иконки ${randomUUID()}` });
     const parentCategory = parent.json<{ id: string }>();
+
+    // Keeps parentCategory "occupied" as a group with an active child through the rest
+    // of this test, independent of what happens to the other leaf below.
+    const keeper = await createCategory({
+      name: `Хранитель родителя ${randomUUID()}`,
+      parentId: parentCategory.id,
+    });
+    expect(keeper.statusCode).toBe(201);
 
     const leafWithIcon = await createCategory({
       name: `Лист с иконкой ${randomUUID()}`,
@@ -582,15 +592,33 @@ describe('reference template API', () => {
     expect(updated.statusCode).toBe(200);
     expect(updated.json()).toMatchObject({ icon: 'wallet' });
 
+    // Icon and parentId are independent: clearing this leaf's parent must not be blocked
+    // by, or clear, its icon (it still has no children of its own).
+    const clearParentKeepIcon = await updateCategory(leafCategory.id, { parentId: null });
+    expect(clearParentKeepIcon.statusCode).toBe(200);
+    expect(clearParentKeepIcon.json()).toMatchObject({ icon: 'wallet', parentId: null });
+
     const clearIcon = await updateCategory(leafCategory.id, { icon: null });
     expect(clearIcon.statusCode).toBe(200);
     expect(clearIcon.json()).toMatchObject({ icon: null });
 
-    const reparentToGroupWithIcon = await updateCategory(parentCategory.id, {
-      icon: 'wallet',
+    // parentCategory still has an active child (`keeper`), so it's a group in use —
+    // giving it an icon must be rejected.
+    const rejectIconOnGroup = await updateCategory(parentCategory.id, { icon: 'wallet' });
+    expect(rejectIconOnGroup.statusCode).toBe(400);
+    expect(rejectIconOnGroup.json()).toMatchObject({ code: 'REFERENCE_INVALID' });
+  });
+
+  it('allows updating the parentless default "Прочее" category without disturbing its icon', async () => {
+    const other = await prisma.category.findFirstOrThrow({
+      where: { budgetId: ownerBudgetId, templateKey: 'expense-other' },
     });
-    expect(reparentToGroupWithIcon.statusCode).toBe(400);
-    expect(reparentToGroupWithIcon.json()).toMatchObject({ code: 'REFERENCE_INVALID' });
+    expect(other.parentId).toBeNull();
+    expect(other.icon).toBe('ellipsis');
+
+    const response = await updateCategory(other.id, { comment: 'Обновлённый комментарий' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ icon: 'ellipsis', comment: 'Обновлённый комментарий' });
   });
 
   it('creates, updates, archives and scopes envelopes', async () => {

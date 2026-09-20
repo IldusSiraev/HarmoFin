@@ -111,7 +111,7 @@ export function categoryIcon(
   icon: string | null,
   transactionType: 'INCOME' | 'EXPENSE',
 ): Component {
-  const mapped = icon === null ? undefined : ICONS[icon];
+  const mapped = icon !== null && Object.hasOwn(ICONS, icon) ? ICONS[icon] : undefined;
   if (mapped !== undefined) return mapped;
   return transactionType === 'INCOME' ? ArrowDownLeft : ArrowUpRight;
 }

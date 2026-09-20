@@ -46,7 +46,7 @@ function select(key: string): void {
 
 .category-icon-picker__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
   gap: 6px;
 }
 
@@ -54,8 +54,8 @@ function select(key: string): void {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 40px;
-  min-width: 40px;
+  min-height: 44px;
+  min-width: 44px;
   border-radius: var(--hf-radius-md);
   border: 1px solid var(--hf-color-border);
   background: var(--hf-color-surface);

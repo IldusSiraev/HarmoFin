@@ -148,6 +148,19 @@ export class CategoryRepository {
     return ancestorIds;
   }
 
+  async hasActiveChildren(userId: string, budgetId: string, categoryId: string): Promise<boolean> {
+    const child = await this.prisma.category.findFirst({
+      where: {
+        budgetId,
+        parentId: categoryId,
+        archivedAt: null,
+        budget: activeBudgetWhere(userId, budgetId),
+      },
+      select: { id: true },
+    });
+    return child !== null;
+  }
+
   async create(
     userId: string,
     input: CategoryCreateData,

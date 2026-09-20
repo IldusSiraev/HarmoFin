@@ -29,7 +29,14 @@ import { useToast } from '../../composables/useToast.js';
 defineOptions({ name: 'AppCategoriesPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
 
-const categoryFields = ['name', 'categoryType', 'parentId', 'icon', 'displayOrder', 'comment'] as const;
+const categoryFields = [
+  'name',
+  'categoryType',
+  'parentId',
+  'icon',
+  'displayOrder',
+  'comment',
+] as const;
 const { currentData, loadMe } = useAuth();
 const api = useBudgetReferenceData();
 const formHelper = useReferenceDataForm(categoryFields);
@@ -165,6 +172,10 @@ function childrenOf(parentId: string) {
   return categories.value.filter((category) => category.parentId === parentId);
 }
 
+function editingHasActiveChildren() {
+  return editingId.value ? childrenOf(editingId.value).some((child) => !child.archivedAt) : false;
+}
+
 function treeOfType(type: CategoryType): { category: CategoryDto; depth: 0 | 1 }[] {
   const rows: { category: CategoryDto; depth: 0 | 1 }[] = [];
   for (const root of rootCategoriesOfType(type)) {
@@ -192,7 +203,7 @@ async function saveCategory() {
       const input: UpdateCategoryInput = {
         name: form.name,
         parentId: form.parentId || null,
-        icon: form.parentId ? form.icon : null,
+        icon: form.icon,
         displayOrder: Number(form.displayOrder),
         comment: optionalText(form.comment),
       };
@@ -205,7 +216,7 @@ async function saveCategory() {
         name: form.name,
         categoryType: form.categoryType,
         parentId: form.parentId || null,
-        icon: form.parentId ? form.icon : null,
+        icon: form.icon,
         displayOrder: Number(form.displayOrder),
         comment: optionalText(form.comment),
       };
@@ -390,7 +401,7 @@ onMounted(() => {
           :options="parentOptions()"
           :error="getFieldError('parentId')"
         />
-        <CategoryIconPicker v-if="form.parentId" v-model="form.icon" />
+        <CategoryIconPicker v-if="!editingHasActiveChildren()" v-model="form.icon" />
         <UiInput
           v-model="form.displayOrder"
           name="displayOrder"

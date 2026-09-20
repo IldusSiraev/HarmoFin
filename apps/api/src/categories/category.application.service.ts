@@ -63,7 +63,6 @@ export class CategoryApplicationService {
   ): Promise<CategoryView> {
     await this.requireOwnerBudget(userId, budgetId);
     await this.validateParent(userId, budgetId, input.categoryType, input.parentId ?? null);
-    if (!input.parentId && input.icon) throw invalidReference();
     const category = await this.repository.create(
       userId,
       {
@@ -95,9 +94,11 @@ export class CategoryApplicationService {
     if (input.parentId !== undefined) {
       await this.validateParent(userId, budgetId, current.categoryType, input.parentId, categoryId);
     }
-    const resolvedParentId = input.parentId !== undefined ? input.parentId : current.parentId;
     const resolvedIcon = input.icon !== undefined ? input.icon : current.icon;
-    if (!resolvedParentId && resolvedIcon) throw invalidReference();
+    if (resolvedIcon) {
+      const hasChildren = await this.repository.hasActiveChildren(userId, budgetId, categoryId);
+      if (hasChildren) throw invalidReference();
+    }
 
     const category = await this.repository.update(
       userId,
