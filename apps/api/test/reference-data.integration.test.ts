@@ -526,6 +526,48 @@ describe('reference template API', () => {
     expect(reused.statusCode).toBe(201);
   });
 
+  it('validates and enforces leaf-only icon assignment', async () => {
+    const unknownIcon = await createCategory({
+      name: `Неизвестная иконка ${randomUUID()}`,
+      icon: 'not-a-real-icon',
+    });
+    expect(unknownIcon.statusCode).toBe(400);
+    expect(unknownIcon.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
+
+    const groupWithIcon = await createCategory({
+      name: `Группа с иконкой ${randomUUID()}`,
+      icon: 'shopping-cart',
+    });
+    expect(groupWithIcon.statusCode).toBe(400);
+    expect(groupWithIcon.json()).toMatchObject({ code: 'REFERENCE_INVALID' });
+
+    const parent = await createCategory({ name: `Родитель для иконки ${randomUUID()}` });
+    const parentCategory = parent.json<{ id: string }>();
+
+    const leafWithIcon = await createCategory({
+      name: `Лист с иконкой ${randomUUID()}`,
+      parentId: parentCategory.id,
+      icon: 'shopping-cart',
+    });
+    expect(leafWithIcon.statusCode).toBe(201);
+    expect(leafWithIcon.json()).toMatchObject({ icon: 'shopping-cart' });
+
+    const leafCategory = leafWithIcon.json<{ id: string }>();
+    const updated = await updateCategory(leafCategory.id, { icon: 'wallet' });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json()).toMatchObject({ icon: 'wallet' });
+
+    const clearIcon = await updateCategory(leafCategory.id, { icon: null });
+    expect(clearIcon.statusCode).toBe(200);
+    expect(clearIcon.json()).toMatchObject({ icon: null });
+
+    const reparentToGroupWithIcon = await updateCategory(parentCategory.id, {
+      icon: 'wallet',
+    });
+    expect(reparentToGroupWithIcon.statusCode).toBe(400);
+    expect(reparentToGroupWithIcon.json()).toMatchObject({ code: 'REFERENCE_INVALID' });
+  });
+
   it('creates, updates, archives and scopes envelopes', async () => {
     const defaults = await listEnvelopes('active');
     expect(defaults.statusCode).toBe(200);

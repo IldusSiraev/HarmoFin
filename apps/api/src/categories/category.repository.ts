@@ -14,6 +14,7 @@ export interface CategoryRecord {
   parentId: string | null;
   displayOrder: number;
   comment: string | null;
+  icon: string | null;
   archivedAt: Date | null;
 }
 
@@ -24,6 +25,7 @@ export interface CategoryCreateData {
   parentId: string | null;
   displayOrder: number;
   comment: string | null;
+  icon: string | null;
 }
 
 export interface CategoryUpdateData {
@@ -31,6 +33,7 @@ export interface CategoryUpdateData {
   parentId?: string | null;
   displayOrder?: number;
   comment?: string | null;
+  icon?: string | null;
 }
 
 export class CategoryRepository {
@@ -390,5 +393,6 @@ const categorySelect = {
   parentId: true,
   displayOrder: true,
   comment: true,
+  icon: true,
   archivedAt: true,
 } as const;

@@ -1,11 +1,22 @@
 import { z } from 'zod';
 
+// Mirrors CATEGORY_ICON_KEYS in apps/web/app/components/operations/category-icon.ts — keep both in sync.
+const CATEGORY_ICON_KEYS = [
+  'award', 'baby', 'banknote', 'car', 'circle-dollar-sign', 'coffee', 'credit-card', 'dumbbell',
+  'ellipsis', 'fuel', 'gift', 'hammer', 'hand-coins', 'heart-pulse', 'house', 'key-round',
+  'landmark', 'package', 'palette', 'paw-print', 'percent', 'pill', 'plane', 'repeat', 'school',
+  'shield-check', 'shirt', 'shopping-cart', 'smartphone', 'sparkles', 'spray-can',
+  'square-parking', 'stethoscope', 'syringe', 'tag', 'ticket', 'truck', 'utensils',
+  'volleyball', 'wallet', 'wifi', 'wine', 'wrench', 'zap',
+] as const;
+
 const categoryFields = {
   name: z.string().trim().min(1).max(120),
   categoryType: z.enum(['INCOME', 'EXPENSE']),
   parentId: z.string().uuid().nullable().optional(),
   displayOrder: z.number().int().min(0).max(1_000_000),
   comment: z.string().trim().min(1).max(500).nullable().optional(),
+  icon: z.enum(CATEGORY_ICON_KEYS).nullable().optional(),
 };
 
 export const createCategorySchema = z.object(categoryFields).strict();
@@ -16,6 +27,7 @@ export const updateCategorySchema = z
     parentId: categoryFields.parentId,
     displayOrder: categoryFields.displayOrder.optional(),
     comment: categoryFields.comment,
+    icon: categoryFields.icon,
   })
   .strict()
   .refine((input) => Object.keys(input).length > 0, {

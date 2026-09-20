@@ -120,6 +120,7 @@ describe('CategoryApplicationService', () => {
       parentId: null,
       displayOrder: 0,
       comment: null,
+      icon: null,
       archivedAt: null,
       ...overrides,
     };
