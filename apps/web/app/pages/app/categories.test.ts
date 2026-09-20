@@ -151,4 +151,42 @@ describe('categories page', () => {
     await flushPromises();
     expect(mocks.api.archiveCategory).toHaveBeenCalledWith('budget-id', 'income-id');
   });
+
+  it('shows the icon picker only for a leaf category and sends the chosen icon', async () => {
+    mocks.api.createCategory.mockResolvedValue(income);
+    wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-action="create-category"]').trigger('click');
+    await flushPromises();
+    expect(document.querySelector('.category-icon-picker')).toBeNull();
+
+    // The create form defaults categoryType to INCOME, so the parent option pool
+    // (parentOptions() filters by matching categoryType) only offers the INCOME fixture.
+    const parentSelect = document.querySelector('select[name="parentId"]') as HTMLSelectElement;
+    parentSelect.value = 'income-id';
+    parentSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await flushPromises();
+    expect(document.querySelector('.category-icon-picker')).not.toBeNull();
+
+    const walletButton = Array.from(document.querySelectorAll('.category-icon-picker button')).find(
+      (button) => button.getAttribute('aria-label') === 'Кошелёк',
+    ) as HTMLButtonElement;
+    walletButton.dispatchEvent(new Event('click', { bubbles: true }));
+    await flushPromises();
+
+    const nameInput = document.querySelector('input[name="name"]') as HTMLInputElement;
+    nameInput.value = 'Дочерняя категория';
+    nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+
+    const form = document.querySelector('form[data-category-form]') as HTMLFormElement;
+    form.dispatchEvent(new Event('submit', { bubbles: true }));
+    await flushPromises();
+
+    expect(mocks.api.createCategory).toHaveBeenCalledWith(
+      'budget-id',
+      expect.objectContaining({ parentId: 'income-id', icon: 'wallet' }),
+    );
+  });
 });

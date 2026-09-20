@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { definePageMeta } from '#imports';
 import { Archive, Pencil } from '@lucide/vue';
 
+import CategoryIconPicker from '../../components/categories/CategoryIconPicker.vue';
 import { categoryIcon } from '../../components/operations/category-icon.js';
 import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../components/ui/Button.vue';
@@ -28,7 +29,7 @@ import { useToast } from '../../composables/useToast.js';
 defineOptions({ name: 'AppCategoriesPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
 
-const categoryFields = ['name', 'categoryType', 'parentId', 'displayOrder', 'comment'] as const;
+const categoryFields = ['name', 'categoryType', 'parentId', 'icon', 'displayOrder', 'comment'] as const;
 const { currentData, loadMe } = useAuth();
 const api = useBudgetReferenceData();
 const formHelper = useReferenceDataForm(categoryFields);
@@ -48,6 +49,7 @@ const form = reactive({
   name: '',
   categoryType: 'INCOME' as CategoryType,
   parentId: '',
+  icon: null as string | null,
   displayOrder: '0',
   comment: '',
 });
@@ -76,6 +78,7 @@ function resetForm() {
   form.name = '';
   form.categoryType = 'INCOME';
   form.parentId = '';
+  form.icon = null;
   form.displayOrder = '0';
   form.comment = '';
   fieldErrors.value = {};
@@ -92,6 +95,7 @@ function startEdit(category: CategoryDto) {
   form.name = category.name;
   form.categoryType = category.categoryType;
   form.parentId = category.parentId ?? '';
+  form.icon = category.icon;
   form.displayOrder = String(category.displayOrder);
   form.comment = category.comment ?? '';
   fieldErrors.value = {};
@@ -188,6 +192,7 @@ async function saveCategory() {
       const input: UpdateCategoryInput = {
         name: form.name,
         parentId: form.parentId || null,
+        icon: form.parentId ? form.icon : null,
         displayOrder: Number(form.displayOrder),
         comment: optionalText(form.comment),
       };
@@ -200,6 +205,7 @@ async function saveCategory() {
         name: form.name,
         categoryType: form.categoryType,
         parentId: form.parentId || null,
+        icon: form.parentId ? form.icon : null,
         displayOrder: Number(form.displayOrder),
         comment: optionalText(form.comment),
       };
@@ -384,6 +390,7 @@ onMounted(() => {
           :options="parentOptions()"
           :error="getFieldError('parentId')"
         />
+        <CategoryIconPicker v-if="form.parentId" v-model="form.icon" />
         <UiInput
           v-model="form.displayOrder"
           name="displayOrder"
