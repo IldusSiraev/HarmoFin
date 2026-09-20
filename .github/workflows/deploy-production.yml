@@ -4,11 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Exact commit SHA already published and verified in staging'
-        required: true
-        type: string
-      staging_evidence:
-        description: 'Staging deployment workflow run URL or artifact reference'
+        description: 'Exact commit SHA to deploy'
         required: true
         type: string
       migration_compatibility:
@@ -57,7 +53,6 @@ jobs:
       name: production
     env:
       RELEASE_SHA: ${{ inputs.image_tag }}
-      STAGING_EVIDENCE: ${{ inputs.staging_evidence }}
       MIGRATION_COMPATIBILITY: ${{ inputs.migration_compatibility }}
       BACKUP_EVIDENCE: ${{ inputs.backup_evidence }}
       PRODUCTION_SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
@@ -113,8 +108,8 @@ jobs:
 
       - name: Publish production release metadata
         run: |
-          printf 'environment=production\nrevision=%s\nstaging_evidence=%s\nmigration_compatibility=%s\nbackup_evidence=%s\nresult=success\n' \
-            "$RELEASE_SHA" "$STAGING_EVIDENCE" "$MIGRATION_COMPATIBILITY" "$BACKUP_EVIDENCE" \
+          printf 'environment=production\nrevision=%s\nmigration_compatibility=%s\nbackup_evidence=%s\nresult=success\n' \
+            "$RELEASE_SHA" "$MIGRATION_COMPATIBILITY" "$BACKUP_EVIDENCE" \
             > production-release-${RELEASE_SHA}.txt
 
       - name: Upload production release metadata
