@@ -220,8 +220,8 @@ function categoryName(transaction: TransactionDto): string {
   return categoryById.value.get(transaction.categoryId)?.name ?? 'Без категории';
 }
 
-function categoryTemplateKey(transaction: TransactionDto): string | null {
-  return categoryById.value.get(transaction.categoryId)?.templateKey ?? null;
+function categoryIcon(transaction: TransactionDto): string | null {
+  return categoryById.value.get(transaction.categoryId)?.icon ?? null;
 }
 
 function accountName(transaction: TransactionDto): string {
@@ -503,7 +503,7 @@ async function downloadCsv() {
                 <OperationRow
                   :transaction="transaction"
                   :category-name="categoryName(transaction)"
-                  :category-template-key="categoryTemplateKey(transaction)"
+                  :category-icon="categoryIcon(transaction)"
                   :account-name="accountName(transaction)"
                   :envelope-name="envelopeName(transaction)"
                   @select="detailed = transaction"

@@ -103,6 +103,7 @@ export interface CategoryDto {
   parentId: string | null;
   displayOrder: number;
   comment: string | null;
+  icon: string | null;
   archivedAt: string | null;
 }
 
@@ -124,6 +125,7 @@ export interface CreateCategoryInput {
   parentId?: string | null | undefined;
   displayOrder: number;
   comment?: string | null | undefined;
+  icon?: string | null | undefined;
 }
 
 export interface UpdateCategoryInput {
@@ -131,6 +133,7 @@ export interface UpdateCategoryInput {
   parentId?: string | null | undefined;
   displayOrder?: number | undefined;
   comment?: string | null | undefined;
+  icon?: string | null | undefined;
 }
 
 export interface EnvelopeDto {

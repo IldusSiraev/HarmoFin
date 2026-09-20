@@ -13,6 +13,7 @@ const categories = [
     parentId: null,
     displayOrder: 0,
     comment: null,
+    icon: null,
     archivedAt: null,
   },
   {
@@ -24,6 +25,7 @@ const categories = [
     parentId: null,
     displayOrder: 1,
     comment: null,
+    icon: null,
     archivedAt: null,
   },
 ];

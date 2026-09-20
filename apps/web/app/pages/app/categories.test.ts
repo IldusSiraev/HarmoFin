@@ -27,6 +27,7 @@ const income = {
   parentId: null,
   displayOrder: 0,
   comment: null,
+  icon: null,
   archivedAt: null,
 };
 const expense = { ...income, id: 'expense-id', name: 'Продукты', categoryType: 'EXPENSE' as const };

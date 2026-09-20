@@ -34,7 +34,7 @@ const mountRow = (overrides: Partial<TransactionDto> = {}) =>
     props: {
       transaction: { ...expense, ...overrides },
       categoryName: 'Продукты',
-      categoryTemplateKey: 'expense-groceries',
+      categoryIcon: 'shopping-cart',
       accountName: 'Основная карта',
       envelopeName: 'Текущие',
     },

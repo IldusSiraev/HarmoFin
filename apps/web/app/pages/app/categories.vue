@@ -312,7 +312,7 @@ onMounted(() => {
               >
                 <span v-if="entry.depth > 0" class="category-row__icon">
                   <component
-                    :is="categoryIcon(entry.category.templateKey, entry.category.categoryType)"
+                    :is="categoryIcon(entry.category.icon, entry.category.categoryType)"
                     :size="16"
                     aria-hidden="true"
                   />
