@@ -106,6 +106,18 @@ export interface CategoryDto {
   archivedAt: string | null;
 }
 
+// Categories with children are groups: pickers for actual money movement (operations, plans)
+// must only offer leaves, while group categories stay visible in the category list and reports.
+export function selectableCategories<T extends Pick<CategoryDto, 'id' | 'parentId'>>(
+  categories: readonly T[],
+  from: readonly Pick<CategoryDto, 'id' | 'parentId'>[] = categories,
+): T[] {
+  const parentIds = new Set(
+    from.flatMap((category) => (category.parentId ? [category.parentId] : [])),
+  );
+  return categories.filter((category) => !parentIds.has(category.id));
+}
+
 export interface CreateCategoryInput {
   name: string;
   categoryType: CategoryType;

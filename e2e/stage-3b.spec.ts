@@ -205,7 +205,7 @@ async function configureIncomeAllocationRule(page: Page): Promise<void> {
     const envelopes = (await fetch(`${api}/budgets/${budgetId}/envelopes`, {
       credentials: 'include',
     }).then((response) => response.json())) as Array<{ id: string; name: string }>;
-    const category = categories.find((item) => item.name === 'Шабашка');
+    const category = categories.find((item) => item.name === 'Премия');
     const envelope = envelopes.find((item) => item.name === 'Свободные');
     if (!category || !envelope) throw new Error('Missing template category or envelope');
 
@@ -245,7 +245,7 @@ async function createIncome(page: Page, source: string, amount: string): Promise
   await fillOperationDate(page);
   await page.getByLabel('Сумма').fill(amount);
   await selectPill(page, 'Счёт', 'Основная Stage 3b');
-  await selectPill(page, 'Категория', 'Шабашка');
+  await selectPill(page, 'Категория', 'Премия');
   await page.getByLabel('Заметка').fill(source);
   await page.getByTestId('entry-submit').click();
   await expect(page.getByTestId('toast-stack')).toContainText('Операция сохранена');

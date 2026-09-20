@@ -62,7 +62,7 @@ test('creates an operation with the global button from another screen', async ({
   await fillOperationDate(page);
   await page.getByLabel('Сумма').fill('500,00');
   await selectPill(page, 'Счёт', 'Карта из оболочки');
-  await selectPill(page, 'Категория', 'Шабашка');
+  await selectPill(page, 'Категория', 'Премия');
   await page.getByLabel('Заметка').fill('Доход из оболочки');
   await page.getByTestId('entry-submit').click();
 

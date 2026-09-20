@@ -63,7 +63,7 @@ test('browser retry with same idempotency key creates one income', async ({ page
   await fillOperationDate(page);
   await page.getByLabel('Сумма').fill('10,00');
   await selectPill(page, 'Счёт', 'Основная карта');
-  await selectPill(page, 'Категория', 'Шабашка');
+  await selectPill(page, 'Категория', 'Премия');
 
   const requestPromise = page.waitForRequest(
     (request) => request.method() === 'POST' && /\/transactions$/.test(request.url()),
@@ -134,7 +134,7 @@ test('owner sees financial validation and server-confirmed expense lifecycle', a
   );
   await expect(page.getByTestId('list-row-select')).toHaveCount(1);
 
-  await createDraftIncomeViaApi(page, '10,00', 'Шабашка', 'Основная карта', 'Черновик дохода');
+  await createDraftIncomeViaApi(page, '10,00', 'Премия', 'Основная карта', 'Черновик дохода');
   await page.goto('/app/operations');
   await openRowMenu(page, 'Черновик дохода');
   await page.getByTestId('row-cancel').click();
@@ -221,7 +221,7 @@ async function configureIncomeAllocationRule(page: Page): Promise<void> {
     const envelopes = (await fetch(`${api}/budgets/${budgetId}/envelopes`, {
       credentials: 'include',
     }).then((response) => response.json())) as Array<{ id: string; name: string }>;
-    const category = categories.find((item) => item.name === 'Шабашка');
+    const category = categories.find((item) => item.name === 'Премия');
     const envelope = envelopes.find((item) => item.name === 'Свободные');
     if (!category || !envelope) throw new Error('Missing template category or envelope');
 
@@ -287,7 +287,7 @@ async function createIncome(page: Page, amount: string, source?: string): Promis
   await fillOperationDate(page);
   await page.getByLabel('Сумма').fill(amount);
   await selectPill(page, 'Счёт', 'Основная карта');
-  await selectPill(page, 'Категория', 'Шабашка');
+  await selectPill(page, 'Категория', 'Премия');
   if (source !== undefined) await page.getByLabel('Заметка').fill(source);
   await page.getByTestId('entry-submit').click();
   await expect(page.getByTestId('toast-stack')).toContainText('Операция сохранена');

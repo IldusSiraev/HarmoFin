@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { ArrowLeft, Search, X } from '@lucide/vue';
 
 import {
+  selectableCategories,
   useBudgetReferenceData,
   type CategoryDto,
 } from '../../composables/useBudgetReferenceData.js';
@@ -78,7 +79,7 @@ async function loadPopularCategories(type: EntryType): Promise<void> {
       sort: 'popular',
       limit: 15,
     });
-    popularCategories.value = result.map((category) => ({
+    popularCategories.value = selectableCategories(result, props.categories).map((category) => ({
       value: category.id,
       label: category.name,
     }));
@@ -120,7 +121,7 @@ const accent = computed<'danger' | 'success' | 'info'>(() => {
 });
 
 const categoryOptions = computed(() =>
-  props.categories
+  selectableCategories(props.categories)
     .filter(
       (category) => category.categoryType === operation.transactionType && !category.archivedAt,
     )
@@ -359,7 +360,7 @@ function requestSplit(): void {
             Разбить перевод на несколько конвертов
           </button>
           <UiInfoTooltip
-            text="Нужно только если этим переводом вы одновременно двигаете деньги нескольких разных конвертов — например, часть на «Ремонт», часть на «Отпуск». Для обычного перевода это не требуется."
+            text="Нужно только если этим переводом вы одновременно двигаете деньги нескольких разных конвертов — например, часть на «Автомобиль», часть на «Отпуск». Для обычного перевода это не требуется."
           />
         </div>
       </template>

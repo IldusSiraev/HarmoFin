@@ -28,8 +28,8 @@ let otherBudgetId: string;
 
 const incomeKeys = [
   'income-salary',
-  'income-shabashka',
-  'income-other',
+  'income-advance',
+  'income-bonus',
   'income-cashback',
   'income-deposit-interest',
 ];
@@ -37,7 +37,7 @@ const envelopeKeys = [
   'envelope-current-10-24',
   'envelope-current-25-9',
   'envelope-mandatory',
-  'envelope-repair',
+  'envelope-vacation',
   'envelope-car',
   'envelope-free',
 ];
@@ -166,15 +166,15 @@ describe('reference template API', () => {
         where: { budgetId: ownerBudgetId },
         orderBy: { displayOrder: 'asc' },
       }),
-    ).toHaveLength(39);
+    ).toHaveLength(58);
     expect(
       await prisma.category.findFirst({
-        where: { budgetId: ownerBudgetId, name: 'Кэшбек', categoryType: 'INCOME' },
+        where: { budgetId: ownerBudgetId, name: 'Кэшбэк', categoryType: 'INCOME' },
       }),
     ).not.toBeNull();
     expect(
       await prisma.category.findFirst({
-        where: { budgetId: ownerBudgetId, name: 'Проценты от вкладов', categoryType: 'INCOME' },
+        where: { budgetId: ownerBudgetId, name: 'Проценты по вкладам', categoryType: 'INCOME' },
       }),
     ).not.toBeNull();
     expect(await prisma.envelope.count({ where: { budgetId: ownerBudgetId } })).toBe(6);
@@ -194,11 +194,11 @@ describe('reference template API', () => {
     const all = await listCategories(undefined, 'all');
 
     expect(income.statusCode).toBe(200);
-    expect(income.json()).toHaveLength(5);
+    expect(income.json()).toHaveLength(10);
     expect(expense.statusCode).toBe(200);
-    expect(expense.json()).toHaveLength(34);
+    expect(expense.json()).toHaveLength(48);
     expect(all.statusCode).toBe(200);
-    expect(all.json()).toHaveLength(39);
+    expect(all.json()).toHaveLength(58);
   });
 
   it('creates, updates, archives and scopes accounts', async () => {
@@ -712,10 +712,10 @@ describe('reference template API', () => {
   });
 
   it('never duplicates or resurrects manually archived defaults', async () => {
-    const repair = await prisma.envelope.findFirstOrThrow({
-      where: { budgetId: ownerBudgetId, templateKey: 'envelope-repair' },
+    const vacation = await prisma.envelope.findFirstOrThrow({
+      where: { budgetId: ownerBudgetId, templateKey: 'envelope-vacation' },
     });
-    await prisma.envelope.update({ where: { id: repair.id }, data: { archivedAt: new Date() } });
+    await prisma.envelope.update({ where: { id: vacation.id }, data: { archivedAt: new Date() } });
 
     const response = await initializeTemplate(ownerBudgetId, ownerCookie, ownerCsrf);
 
@@ -728,11 +728,11 @@ describe('reference template API', () => {
     });
     expect(
       await prisma.envelope.count({
-        where: { budgetId: ownerBudgetId, templateKey: 'envelope-repair' },
+        where: { budgetId: ownerBudgetId, templateKey: 'envelope-vacation' },
       }),
     ).toBe(1);
     expect(
-      (await prisma.envelope.findUniqueOrThrow({ where: { id: repair.id } })).archivedAt,
+      (await prisma.envelope.findUniqueOrThrow({ where: { id: vacation.id } })).archivedAt,
     ).not.toBeNull();
   });
 
@@ -755,11 +755,14 @@ describe('reference template API', () => {
     expect(foreignResponse.json()).toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
   });
 
-  it('rolls back all template writes when a required default conflicts', async () => {
+  it('adopts a pre-existing category or envelope with a default name instead of duplicating it', async () => {
+    // The database enforces case-insensitive name uniqueness per budget, so a default whose
+    // name the user (or an older template revision) already used must reuse that row rather
+    // than fail the whole transaction.
     const conflictBudget = await prisma.budget.create({
       data: { id: randomUUID(), workspaceId: ownerWorkspaceId, name: `Конфликт ${randomUUID()}` },
     });
-    await prisma.category.create({
+    const preexistingCategory = await prisma.category.create({
       data: {
         id: randomUUID(),
         budgetId: conflictBudget.id,
@@ -768,16 +771,42 @@ describe('reference template API', () => {
         displayOrder: 0,
       },
     });
+    const preexistingEnvelope = await prisma.envelope.create({
+      data: {
+        id: randomUUID(),
+        budgetId: conflictBudget.id,
+        name: 'Отпуск',
+        envelopeType: 'SAVINGS_GOAL',
+        startingBalanceMinor: 0n,
+        displayOrder: 0,
+      },
+    });
 
     const response = await initializeTemplate(conflictBudget.id, ownerCookie, ownerCsrf);
 
-    expect(response.statusCode).toBe(500);
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      createdCategoryKeys: expect.not.arrayContaining(['income-group-salary']),
+      existingCategoryKeys: expect.arrayContaining(['income-group-salary']),
+      createdEnvelopeKeys: expect.not.arrayContaining(['envelope-vacation']),
+      existingEnvelopeKeys: expect.arrayContaining(['envelope-vacation']),
+    });
     expect(
-      await prisma.category.count({
-        where: { budgetId: conflictBudget.id, templateKey: { not: null } },
-      }),
-    ).toBe(0);
-    expect(await prisma.envelope.count({ where: { budgetId: conflictBudget.id } })).toBe(0);
+      await prisma.category.count({ where: { budgetId: conflictBudget.id, name: 'Зарплата' } }),
+    ).toBe(1);
+    expect(
+      await prisma.category.findUniqueOrThrow({ where: { id: preexistingCategory.id } }),
+    ).toMatchObject({ templateKey: 'income-group-salary' });
+    expect(
+      await prisma.envelope.count({ where: { budgetId: conflictBudget.id, name: 'Отпуск' } }),
+    ).toBe(1);
+    expect(
+      await prisma.envelope.findUniqueOrThrow({ where: { id: preexistingEnvelope.id } }),
+    ).toMatchObject({ templateKey: 'envelope-vacation' });
+    const advance = await prisma.category.findFirstOrThrow({
+      where: { budgetId: conflictBudget.id, templateKey: 'income-advance' },
+    });
+    expect(advance.parentId).toBe(preexistingCategory.id);
   });
 });
 

@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 
-import type { CategoryDto, TransactionDto } from '../../composables/useBudgetReferenceData.js';
+import {
+  selectableCategories,
+  type CategoryDto,
+  type TransactionDto,
+} from '../../composables/useBudgetReferenceData.js';
 import {
   toTransactionInput,
   toUpdateTransactionInput,
@@ -71,7 +75,7 @@ watch(
 );
 
 function categoriesFor(type: 'INCOME' | 'EXPENSE') {
-  return props.categories
+  return selectableCategories(props.categories)
     .filter((category) => category.categoryType === type && !category.archivedAt)
     .map((category) => ({ value: category.id, label: category.name }));
 }
