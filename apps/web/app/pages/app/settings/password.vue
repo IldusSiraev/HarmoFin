@@ -4,6 +4,7 @@ import { definePageMeta } from '#imports';
 
 import ReferencePageLayout from '../../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../../components/ui/Button.vue';
+import UiCard from '../../../components/ui/Card.vue';
 import UiInput from '../../../components/ui/Input.vue';
 import UiStatus from '../../../components/ui/Status.vue';
 import { errorMessage, useAuth } from '../../../composables/useAuth.js';
@@ -57,43 +58,45 @@ async function save() {
       <UiButton variant="tertiary" to="/app/settings">← Настройки</UiButton>
     </template>
     <template #content>
-      <UiStatus
-        v-if="summary"
-        :label="summary"
-        :tone="Object.keys(fieldErrors).length ? 'danger' : 'success'"
-        aria-live="polite"
-      />
-      <form class="password-settings-form" @submit.prevent="save">
-        <UiInput
-          v-model="currentPassword"
-          name="currentPassword"
-          type="password"
-          autocomplete="current-password"
-          label="Текущий пароль"
-          :error="fieldErrors.currentPassword"
-          required
+      <UiCard as="section">
+        <UiStatus
+          v-if="summary"
+          :label="summary"
+          :tone="Object.keys(fieldErrors).length ? 'danger' : 'success'"
+          aria-live="polite"
         />
-        <UiInput
-          v-model="newPassword"
-          name="newPassword"
-          type="password"
-          autocomplete="new-password"
-          label="Новый пароль"
-          hint="Минимум 10 символов."
-          :error="fieldErrors.newPassword"
-          required
-        />
-        <UiInput
-          v-model="confirmPassword"
-          name="confirmPassword"
-          type="password"
-          autocomplete="new-password"
-          label="Подтвердите новый пароль"
-          :error="fieldErrors.confirmPassword"
-          required
-        />
-        <UiButton type="submit" :loading="saving">Сохранить</UiButton>
-      </form>
+        <form class="password-settings-form" @submit.prevent="save">
+          <UiInput
+            v-model="currentPassword"
+            name="currentPassword"
+            type="password"
+            autocomplete="current-password"
+            label="Текущий пароль"
+            :error="fieldErrors.currentPassword"
+            required
+          />
+          <UiInput
+            v-model="newPassword"
+            name="newPassword"
+            type="password"
+            autocomplete="new-password"
+            label="Новый пароль"
+            hint="Минимум 10 символов."
+            :error="fieldErrors.newPassword"
+            required
+          />
+          <UiInput
+            v-model="confirmPassword"
+            name="confirmPassword"
+            type="password"
+            autocomplete="new-password"
+            label="Подтвердите новый пароль"
+            :error="fieldErrors.confirmPassword"
+            required
+          />
+          <UiButton type="submit" :loading="saving">Сохранить</UiButton>
+        </form>
+      </UiCard>
     </template>
   </ReferencePageLayout>
 </template>

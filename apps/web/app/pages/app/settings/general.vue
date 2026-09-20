@@ -4,6 +4,7 @@ import { definePageMeta } from '#imports';
 
 import ReferencePageLayout from '../../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../../components/ui/Button.vue';
+import UiCard from '../../../components/ui/Card.vue';
 import UiEmptyState from '../../../components/ui/EmptyState.vue';
 import UiInfoTooltip from '../../../components/ui/InfoTooltip.vue';
 import UiInput from '../../../components/ui/Input.vue';
@@ -120,39 +121,41 @@ onMounted(() => {
       <UiButton variant="tertiary" to="/app/settings">← Настройки</UiButton>
     </template>
     <template #content>
-      <UiStatus
-        v-if="summary"
-        :label="summary"
-        :tone="Object.keys(fieldErrors).length ? 'danger' : 'success'"
-        aria-live="polite"
-      />
-      <form class="general-settings-form" @submit.prevent="save">
-        <UiInput
-          v-model="form.name"
-          name="name"
-          label="Название бюджета"
-          :error="getFieldError('name')"
-          required
+      <UiCard as="section">
+        <UiStatus
+          v-if="summary"
+          :label="summary"
+          :tone="Object.keys(fieldErrors).length ? 'danger' : 'success'"
+          aria-live="polite"
         />
-        <UiSelect
-          v-model="form.timezone"
-          name="timezone"
-          label="Часовой пояс"
-          searchable
-          :options="timezoneOptions"
-          tooltip="Часовой пояс используется для расчёта границ финансового месяца и определения «сегодня» на дашборде, в отчётах и планах."
-          :error="getFieldError('timezone')"
-          required
-        />
-        <label class="general-settings-form__checkbox">
-          <input v-model="form.allowNegativeBalance" type="checkbox" />
-          <span>Разрешить уходить в минус</span>
-          <UiInfoTooltip
-            text="Если выключено, HarmoFin не даст сохранить операцию, которая уведёт счёт или конверт в минус."
+        <form class="general-settings-form" @submit.prevent="save">
+          <UiInput
+            v-model="form.name"
+            name="name"
+            label="Название бюджета"
+            :error="getFieldError('name')"
+            required
           />
-        </label>
-        <UiButton type="submit" :loading="saving">Сохранить</UiButton>
-      </form>
+          <UiSelect
+            v-model="form.timezone"
+            name="timezone"
+            label="Часовой пояс"
+            searchable
+            :options="timezoneOptions"
+            tooltip="Часовой пояс используется для расчёта границ финансового месяца и определения «сегодня» на дашборде, в отчётах и планах."
+            :error="getFieldError('timezone')"
+            required
+          />
+          <label class="general-settings-form__checkbox">
+            <input v-model="form.allowNegativeBalance" type="checkbox" />
+            <span>Разрешить уходить в минус</span>
+            <UiInfoTooltip
+              text="Если выключено, HarmoFin не даст сохранить операцию, которая уведёт счёт или конверт в минус."
+            />
+          </label>
+          <UiButton type="submit" :loading="saving">Сохранить</UiButton>
+        </form>
+      </UiCard>
     </template>
   </ReferencePageLayout>
 </template>

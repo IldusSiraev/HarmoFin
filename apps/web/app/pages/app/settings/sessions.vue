@@ -4,6 +4,7 @@ import { definePageMeta, navigateTo } from '#imports';
 
 import ReferencePageLayout from '../../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../../components/ui/Button.vue';
+import UiCard from '../../../components/ui/Card.vue';
 import UiConfirmDialog from '../../../components/ui/ConfirmDialog.vue';
 import UiStatus from '../../../components/ui/Status.vue';
 import { type SessionView, useAuth } from '../../../composables/useAuth.js';
@@ -90,36 +91,38 @@ onMounted(() => {
       <UiButton variant="tertiary" to="/app/settings">← Настройки</UiButton>
     </template>
     <template #content>
-      <UiStatus v-if="loading" label="Загрузка сессий…" tone="info" aria-live="polite" />
-      <UiStatus v-else-if="loadError" :label="loadError" tone="danger" aria-live="polite" />
-      <template v-else>
-        <UiStatus v-if="actionError" :label="actionError" tone="danger" aria-live="assertive" />
-        <ul class="sessions-list">
-          <li v-for="session in sessions" :key="session.id" class="sessions-list__row">
-            <div>
-              <p class="sessions-list__device">
-                {{ session.userAgent ?? 'Неизвестное устройство' }}
-              </p>
-              <p class="sessions-list__meta">
-                Вход: {{ formatDate(session.createdAt) }} · Активность:
-                {{ formatDate(session.lastSeenAt) }}
-              </p>
-            </div>
-            <UiButton
-              variant="tertiary"
-              size="sm"
-              data-action="revoke-session"
-              :loading="revokingId === session.id"
-              @click="revoke(session.id)"
-            >
-              Завершить
-            </UiButton>
-          </li>
-        </ul>
-        <UiButton variant="danger" data-action="revoke-all" @click="confirmingRevokeAll = true">
-          Выйти отовсюду
-        </UiButton>
-      </template>
+      <UiCard as="section">
+        <UiStatus v-if="loading" label="Загрузка сессий…" tone="info" aria-live="polite" />
+        <UiStatus v-else-if="loadError" :label="loadError" tone="danger" aria-live="polite" />
+        <template v-else>
+          <UiStatus v-if="actionError" :label="actionError" tone="danger" aria-live="assertive" />
+          <ul class="sessions-list">
+            <li v-for="session in sessions" :key="session.id" class="sessions-list__row">
+              <div>
+                <p class="sessions-list__device">
+                  {{ session.userAgent ?? 'Неизвестное устройство' }}
+                </p>
+                <p class="sessions-list__meta">
+                  Вход: {{ formatDate(session.createdAt) }} · Активность:
+                  {{ formatDate(session.lastSeenAt) }}
+                </p>
+              </div>
+              <UiButton
+                variant="tertiary"
+                size="sm"
+                data-action="revoke-session"
+                :loading="revokingId === session.id"
+                @click="revoke(session.id)"
+              >
+                Завершить
+              </UiButton>
+            </li>
+          </ul>
+          <UiButton variant="danger" data-action="revoke-all" @click="confirmingRevokeAll = true">
+            Выйти отовсюду
+          </UiButton>
+        </template>
+      </UiCard>
     </template>
   </ReferencePageLayout>
   <UiConfirmDialog
