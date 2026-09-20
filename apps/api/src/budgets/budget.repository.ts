@@ -725,7 +725,7 @@ const EXPENSE_CATEGORY_GROUPS: readonly CategoryGroup[] = [
       {
         templateKey: 'expense-activities',
         name: 'Секции и кружки',
-        icon: 'dumbbell',
+        icon: 'volleyball',
         comment: 'секции, кружки, репетитор',
       },
     ],
