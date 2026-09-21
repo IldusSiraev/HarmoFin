@@ -13,6 +13,7 @@ const api = {
   listAccounts: vi.fn(),
   listCategories: vi.fn(),
   listEnvelopes: vi.fn(),
+  initializeTemplate: vi.fn(),
 };
 const auth = {
   currentData: {
@@ -60,6 +61,13 @@ const summary = {
     averageRemainingDailyLimitMinor: '1071',
   },
   warnings: [],
+  onboarding: {
+    categoriesSeeded: false,
+    cycleConfigured: false,
+    hasAccounts: false,
+    hasEnvelopeStartingBalances: false,
+    hasAllocatedIncome: false,
+  },
   upcomingObligations: [
     {
       occurrenceId: 'occurrence-id',
@@ -158,6 +166,11 @@ describe('dashboard page', () => {
         archivedAt: null,
       },
     ]);
+    api.initializeTemplate.mockResolvedValue({
+      categoriesCreated: 0,
+      envelopesCreated: 0,
+      cycleConfigured: false,
+    });
     useOperationDialogs().close();
   });
 
@@ -203,8 +216,10 @@ describe('dashboard page', () => {
     await flushPromises();
 
     const headings = wrapper.findAll('h2').map((heading) => heading.text());
-    expect(headings.slice(0, 4)).toEqual(['Можно потратить', 'Обязательства', 'Счета', 'Конверты']);
-    expect(headings[4]).toBe('Последние операции');
+    // First heading is the onboarding checklist (shown because not all steps are done)
+    expect(headings[0]).toBe('Начало работы: 0/5');
+    expect(headings.slice(1, 5)).toEqual(['Можно потратить', 'Обязательства', 'Счета', 'Конверты']);
+    expect(headings[5]).toBe('Последние операции');
   });
 
   it('shows skeletons while the summary is loading', async () => {
