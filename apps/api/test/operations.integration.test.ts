@@ -24,7 +24,7 @@ let ownerBudgetId: string;
 let foreignBudgetId: string;
 let incomeCategoryId: string;
 let expenseCategoryId: string;
-let repairEnvelopeId: string;
+let vacationEnvelopeId: string;
 
 type Session = {
   userId: string;
@@ -62,11 +62,11 @@ describe('operations API', () => {
       where: { budgetId: ownerBudgetId },
       select: { id: true, templateKey: true },
     });
-    incomeCategoryId = categories.find((item) => item.templateKey === 'income-shabashka')!.id;
+    incomeCategoryId = categories.find((item) => item.templateKey === 'income-salary')!.id;
     expenseCategoryId = categories.find((item) => item.templateKey === 'expense-groceries')!.id;
-    repairEnvelopeId = (
+    vacationEnvelopeId = (
       await prisma.envelope.findFirstOrThrow({
-        where: { budgetId: ownerBudgetId, templateKey: 'envelope-repair' },
+        where: { budgetId: ownerBudgetId, templateKey: 'envelope-vacation' },
       })
     ).id;
     await configureRule();
@@ -159,7 +159,7 @@ describe('operations API', () => {
 
     expect(income.statusCode).toBe(201);
     expect(incomeBody.allocationProposal).toMatchObject({
-      targetEnvelopeId: repairEnvelopeId,
+      targetEnvelopeId: vacationEnvelopeId,
       amountMinor: '10000',
     });
     const allocation = await createAllocation(
@@ -168,7 +168,7 @@ describe('operations API', () => {
         amount: '90.00',
         occurredOn: '2026-09-04',
         accountId: refs.accountId,
-        envelopeId: repairEnvelopeId,
+        envelopeId: vacationEnvelopeId,
         comment: 'Секретный комментарий',
       },
       'allocation-key',
@@ -179,7 +179,7 @@ describe('operations API', () => {
         amount: '20.00',
         occurredOn: '2026-09-04',
         accountId: refs.accountId,
-        envelopeId: repairEnvelopeId,
+        envelopeId: vacationEnvelopeId,
       },
       'allocation-overflow-key',
     );
@@ -380,7 +380,7 @@ describe('operations API', () => {
       payload: {
         incomeAllocationRuleEnabled: true,
         incomeAllocationSourceCategoryId: incomeCategoryId,
-        incomeAllocationTargetEnvelopeId: repairEnvelopeId,
+        incomeAllocationTargetEnvelopeId: vacationEnvelopeId,
       },
     });
   }

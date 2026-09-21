@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { definePageMeta } from '#imports';
 import { Archive, Pencil } from '@lucide/vue';
 
+import CategoryIconPicker from '../../components/categories/CategoryIconPicker.vue';
 import { categoryIcon } from '../../components/operations/category-icon.js';
 import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../components/ui/Button.vue';
@@ -28,7 +29,14 @@ import { useToast } from '../../composables/useToast.js';
 defineOptions({ name: 'AppCategoriesPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
 
-const categoryFields = ['name', 'categoryType', 'parentId', 'displayOrder', 'comment'] as const;
+const categoryFields = [
+  'name',
+  'categoryType',
+  'parentId',
+  'icon',
+  'displayOrder',
+  'comment',
+] as const;
 const { currentData, loadMe } = useAuth();
 const api = useBudgetReferenceData();
 const formHelper = useReferenceDataForm(categoryFields);
@@ -48,6 +56,7 @@ const form = reactive({
   name: '',
   categoryType: 'INCOME' as CategoryType,
   parentId: '',
+  icon: null as string | null,
   displayOrder: '0',
   comment: '',
 });
@@ -76,6 +85,7 @@ function resetForm() {
   form.name = '';
   form.categoryType = 'INCOME';
   form.parentId = '';
+  form.icon = null;
   form.displayOrder = '0';
   form.comment = '';
   fieldErrors.value = {};
@@ -92,6 +102,7 @@ function startEdit(category: CategoryDto) {
   form.name = category.name;
   form.categoryType = category.categoryType;
   form.parentId = category.parentId ?? '';
+  form.icon = category.icon;
   form.displayOrder = String(category.displayOrder);
   form.comment = category.comment ?? '';
   fieldErrors.value = {};
@@ -161,6 +172,10 @@ function childrenOf(parentId: string) {
   return categories.value.filter((category) => category.parentId === parentId);
 }
 
+function editingHasActiveChildren() {
+  return editingId.value ? childrenOf(editingId.value).some((child) => !child.archivedAt) : false;
+}
+
 function treeOfType(type: CategoryType): { category: CategoryDto; depth: 0 | 1 }[] {
   const rows: { category: CategoryDto; depth: 0 | 1 }[] = [];
   for (const root of rootCategoriesOfType(type)) {
@@ -188,6 +203,7 @@ async function saveCategory() {
       const input: UpdateCategoryInput = {
         name: form.name,
         parentId: form.parentId || null,
+        icon: editingHasActiveChildren() ? null : form.icon,
         displayOrder: Number(form.displayOrder),
         comment: optionalText(form.comment),
       };
@@ -200,6 +216,7 @@ async function saveCategory() {
         name: form.name,
         categoryType: form.categoryType,
         parentId: form.parentId || null,
+        icon: editingHasActiveChildren() ? null : form.icon,
         displayOrder: Number(form.displayOrder),
         comment: optionalText(form.comment),
       };
@@ -312,7 +329,7 @@ onMounted(() => {
               >
                 <span v-if="entry.depth > 0" class="category-row__icon">
                   <component
-                    :is="categoryIcon(entry.category.templateKey, entry.category.categoryType)"
+                    :is="categoryIcon(entry.category.icon, entry.category.categoryType)"
                     :size="16"
                     aria-hidden="true"
                   />
@@ -384,6 +401,7 @@ onMounted(() => {
           :options="parentOptions()"
           :error="getFieldError('parentId')"
         />
+        <CategoryIconPicker v-if="!editingHasActiveChildren()" v-model="form.icon" />
         <UiInput
           v-model="form.displayOrder"
           name="displayOrder"

@@ -24,6 +24,7 @@ export interface CategoryView {
   parentId: string | null;
   displayOrder: number;
   comment: string | null;
+  icon: string | null;
   archivedAt: string | null;
 }
 
@@ -71,6 +72,7 @@ export class CategoryApplicationService {
         parentId: input.parentId ?? null,
         displayOrder: input.displayOrder,
         comment: input.comment ?? null,
+        icon: input.icon ?? null,
       },
       requestId,
     );
@@ -91,6 +93,11 @@ export class CategoryApplicationService {
 
     if (input.parentId !== undefined) {
       await this.validateParent(userId, budgetId, current.categoryType, input.parentId, categoryId);
+    }
+    const resolvedIcon = input.icon !== undefined ? input.icon : current.icon;
+    if (resolvedIcon) {
+      const hasChildren = await this.repository.hasActiveChildren(userId, budgetId, categoryId);
+      if (hasChildren) throw invalidReference();
     }
 
     const category = await this.repository.update(
@@ -126,6 +133,7 @@ export class CategoryApplicationService {
       parentId: category.parentId,
       displayOrder: category.displayOrder,
       comment: category.comment,
+      icon: category.icon,
       archivedAt: category.archivedAt?.toISOString() ?? null,
     };
   }
@@ -170,5 +178,6 @@ function updateData(input: UpdateCategoryInput): CategoryUpdateData {
     ...(input.parentId !== undefined ? { parentId: input.parentId } : {}),
     ...(input.displayOrder !== undefined ? { displayOrder: input.displayOrder } : {}),
     ...(input.comment !== undefined ? { comment: input.comment } : {}),
+    ...(input.icon !== undefined ? { icon: input.icon } : {}),
   };
 }

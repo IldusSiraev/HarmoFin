@@ -292,6 +292,7 @@ model Category {
   parentId     String?      @map("parent_id") @db.Uuid
   displayOrder Int          @map("display_order")
   comment      String?      @db.VarChar(500)
+  icon         String?      @db.VarChar(40)
   archivedAt   DateTime?    @map("archived_at") @db.Timestamptz(3)
   createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)

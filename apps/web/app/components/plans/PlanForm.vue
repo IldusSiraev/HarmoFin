@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue';
 
-import type {
-  CategoryDto,
-  CreateRegularPlanInput,
-  EnvelopeDto,
-  RegularPlanDto,
-  UpdateRegularPlanInput,
+import {
+  selectableCategories,
+  type CategoryDto,
+  type CreateRegularPlanInput,
+  type EnvelopeDto,
+  type RegularPlanDto,
+  type UpdateRegularPlanInput,
 } from '../../composables/useBudgetReferenceData.js';
 import FinanceMoneyInput from '../finance/FinanceMoneyInput.vue';
 import UiButton from '../ui/Button.vue';
@@ -61,7 +62,7 @@ watch(
 );
 
 function categoryOptions() {
-  return props.categories
+  return selectableCategories(props.categories)
     .filter(
       (category) => category.categoryType === (form.planType === 'INCOME' ? 'INCOME' : 'EXPENSE'),
     )

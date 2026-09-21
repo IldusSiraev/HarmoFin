@@ -28,8 +28,8 @@ let otherBudgetId: string;
 
 const incomeKeys = [
   'income-salary',
-  'income-shabashka',
-  'income-other',
+  'income-advance',
+  'income-bonus',
   'income-cashback',
   'income-deposit-interest',
 ];
@@ -37,7 +37,7 @@ const envelopeKeys = [
   'envelope-current-10-24',
   'envelope-current-25-9',
   'envelope-mandatory',
-  'envelope-repair',
+  'envelope-vacation',
   'envelope-car',
   'envelope-free',
 ];
@@ -166,15 +166,15 @@ describe('reference template API', () => {
         where: { budgetId: ownerBudgetId },
         orderBy: { displayOrder: 'asc' },
       }),
-    ).toHaveLength(39);
+    ).toHaveLength(58);
     expect(
       await prisma.category.findFirst({
-        where: { budgetId: ownerBudgetId, name: 'Кэшбек', categoryType: 'INCOME' },
+        where: { budgetId: ownerBudgetId, name: 'Кэшбэк', categoryType: 'INCOME' },
       }),
     ).not.toBeNull();
     expect(
       await prisma.category.findFirst({
-        where: { budgetId: ownerBudgetId, name: 'Проценты от вкладов', categoryType: 'INCOME' },
+        where: { budgetId: ownerBudgetId, name: 'Проценты по вкладам', categoryType: 'INCOME' },
       }),
     ).not.toBeNull();
     expect(await prisma.envelope.count({ where: { budgetId: ownerBudgetId } })).toBe(6);
@@ -188,17 +188,42 @@ describe('reference template API', () => {
     expect(JSON.stringify(audit?.newValues)).not.toContain('comment');
   });
 
+  it('assigns an icon to every default leaf category and none to groups', async () => {
+    const groceries = await prisma.category.findFirstOrThrow({
+      where: { budgetId: ownerBudgetId, templateKey: 'expense-groceries' },
+    });
+    expect(groceries.icon).toBe('shopping-cart');
+
+    const salaryGroup = await prisma.category.findFirstOrThrow({
+      where: { budgetId: ownerBudgetId, templateKey: 'income-group-salary' },
+    });
+    expect(salaryGroup.icon).toBeNull();
+
+    // Scoped to templateKey (default) rows only — other tests in this shared-budget
+    // file create their own custom child categories with no icon, which is legitimate
+    // and must not be flagged here.
+    const templateLeavesWithoutIcon = await prisma.category.count({
+      where: {
+        budgetId: ownerBudgetId,
+        templateKey: { not: null },
+        parentId: { not: null },
+        icon: null,
+      },
+    });
+    expect(templateLeavesWithoutIcon).toBe(0);
+  });
+
   it('lists default categories by type and archive status', async () => {
     const income = await listCategories('INCOME', 'active');
     const expense = await listCategories('EXPENSE', 'active');
     const all = await listCategories(undefined, 'all');
 
     expect(income.statusCode).toBe(200);
-    expect(income.json()).toHaveLength(5);
+    expect(income.json()).toHaveLength(10);
     expect(expense.statusCode).toBe(200);
-    expect(expense.json()).toHaveLength(34);
+    expect(expense.json()).toHaveLength(48);
     expect(all.statusCode).toBe(200);
-    expect(all.json()).toHaveLength(39);
+    expect(all.json()).toHaveLength(58);
   });
 
   it('creates, updates, archives and scopes accounts', async () => {
@@ -526,6 +551,100 @@ describe('reference template API', () => {
     expect(reused.statusCode).toBe(201);
   });
 
+  it('validates icon against the allow-list and forbids it on categories with active children', async () => {
+    const unknownIcon = await createCategory({
+      name: `Неизвестная иконка ${randomUUID()}`,
+      icon: 'not-a-real-icon',
+    });
+    expect(unknownIcon.statusCode).toBe(400);
+    expect(unknownIcon.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
+
+    // A freshly created, childless category may have an icon even without a parent —
+    // it isn't a group yet (mirrors the pre-existing standalone `expense-other` default).
+    const rootWithIcon = await createCategory({
+      name: `Корневая с иконкой ${randomUUID()}`,
+      icon: 'shopping-cart',
+    });
+    expect(rootWithIcon.statusCode).toBe(201);
+    expect(rootWithIcon.json()).toMatchObject({ icon: 'shopping-cart' });
+
+    const parent = await createCategory({ name: `Родитель для иконки ${randomUUID()}` });
+    const parentCategory = parent.json<{ id: string }>();
+
+    // Keeps parentCategory "occupied" as a group with an active child through the rest
+    // of this test, independent of what happens to the other leaf below.
+    const keeper = await createCategory({
+      name: `Хранитель родителя ${randomUUID()}`,
+      parentId: parentCategory.id,
+    });
+    expect(keeper.statusCode).toBe(201);
+
+    const leafWithIcon = await createCategory({
+      name: `Лист с иконкой ${randomUUID()}`,
+      parentId: parentCategory.id,
+      icon: 'shopping-cart',
+    });
+    expect(leafWithIcon.statusCode).toBe(201);
+    expect(leafWithIcon.json()).toMatchObject({ icon: 'shopping-cart' });
+
+    const leafCategory = leafWithIcon.json<{ id: string }>();
+    const updated = await updateCategory(leafCategory.id, { icon: 'wallet' });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json()).toMatchObject({ icon: 'wallet' });
+
+    // Icon and parentId are independent: clearing this leaf's parent must not be blocked
+    // by, or clear, its icon (it still has no children of its own).
+    const clearParentKeepIcon = await updateCategory(leafCategory.id, { parentId: null });
+    expect(clearParentKeepIcon.statusCode).toBe(200);
+    expect(clearParentKeepIcon.json()).toMatchObject({ icon: 'wallet', parentId: null });
+
+    const clearIcon = await updateCategory(leafCategory.id, { icon: null });
+    expect(clearIcon.statusCode).toBe(200);
+    expect(clearIcon.json()).toMatchObject({ icon: null });
+
+    // parentCategory still has an active child (`keeper`), so it's a group in use —
+    // giving it an icon must be rejected.
+    const rejectIconOnGroup = await updateCategory(parentCategory.id, { icon: 'wallet' });
+    expect(rejectIconOnGroup.statusCode).toBe(400);
+    expect(rejectIconOnGroup.json()).toMatchObject({ code: 'REFERENCE_INVALID' });
+  });
+
+  it('allows updating the parentless default "Прочее" category without disturbing its icon', async () => {
+    const other = await prisma.category.findFirstOrThrow({
+      where: { budgetId: ownerBudgetId, templateKey: 'expense-other' },
+    });
+    expect(other.parentId).toBeNull();
+    expect(other.icon).toBe('ellipsis');
+
+    const response = await updateCategory(other.id, { comment: 'Обновлённый комментарий' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ icon: 'ellipsis', comment: 'Обновлённый комментарий' });
+  });
+
+  it('clears a category icon automatically when it gains a child', async () => {
+    const futureParent = await createCategory({
+      name: `Будущий родитель ${randomUUID()}`,
+      icon: 'utensils',
+    });
+    const futureParentCategory = futureParent.json<{ id: string; icon: string }>();
+    expect(futureParentCategory.icon).toBe('utensils');
+
+    const child = await createCategory({
+      name: `Новый ребёнок ${randomUUID()}`,
+      parentId: futureParentCategory.id,
+    });
+    expect(child.statusCode).toBe(201);
+
+    const parentAfter = await getCategory(futureParentCategory.id);
+    expect(parentAfter.json()).toMatchObject({ icon: null });
+
+    // The parent must now be freely updatable (no lockout) even without touching icon.
+    const rename = await updateCategory(futureParentCategory.id, {
+      name: `Переименован ${randomUUID()}`,
+    });
+    expect(rename.statusCode).toBe(200);
+  });
+
   it('creates, updates, archives and scopes envelopes', async () => {
     const defaults = await listEnvelopes('active');
     expect(defaults.statusCode).toBe(200);
@@ -712,10 +831,10 @@ describe('reference template API', () => {
   });
 
   it('never duplicates or resurrects manually archived defaults', async () => {
-    const repair = await prisma.envelope.findFirstOrThrow({
-      where: { budgetId: ownerBudgetId, templateKey: 'envelope-repair' },
+    const vacation = await prisma.envelope.findFirstOrThrow({
+      where: { budgetId: ownerBudgetId, templateKey: 'envelope-vacation' },
     });
-    await prisma.envelope.update({ where: { id: repair.id }, data: { archivedAt: new Date() } });
+    await prisma.envelope.update({ where: { id: vacation.id }, data: { archivedAt: new Date() } });
 
     const response = await initializeTemplate(ownerBudgetId, ownerCookie, ownerCsrf);
 
@@ -728,11 +847,11 @@ describe('reference template API', () => {
     });
     expect(
       await prisma.envelope.count({
-        where: { budgetId: ownerBudgetId, templateKey: 'envelope-repair' },
+        where: { budgetId: ownerBudgetId, templateKey: 'envelope-vacation' },
       }),
     ).toBe(1);
     expect(
-      (await prisma.envelope.findUniqueOrThrow({ where: { id: repair.id } })).archivedAt,
+      (await prisma.envelope.findUniqueOrThrow({ where: { id: vacation.id } })).archivedAt,
     ).not.toBeNull();
   });
 
@@ -755,11 +874,14 @@ describe('reference template API', () => {
     expect(foreignResponse.json()).toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
   });
 
-  it('rolls back all template writes when a required default conflicts', async () => {
+  it('adopts a pre-existing category or envelope with a default name instead of duplicating it', async () => {
+    // The database enforces case-insensitive name uniqueness per budget, so a default whose
+    // name the user (or an older template revision) already used must reuse that row rather
+    // than fail the whole transaction.
     const conflictBudget = await prisma.budget.create({
       data: { id: randomUUID(), workspaceId: ownerWorkspaceId, name: `Конфликт ${randomUUID()}` },
     });
-    await prisma.category.create({
+    const preexistingCategory = await prisma.category.create({
       data: {
         id: randomUUID(),
         budgetId: conflictBudget.id,
@@ -768,16 +890,67 @@ describe('reference template API', () => {
         displayOrder: 0,
       },
     });
+    const preexistingEnvelope = await prisma.envelope.create({
+      data: {
+        id: randomUUID(),
+        budgetId: conflictBudget.id,
+        name: 'Отпуск',
+        envelopeType: 'SAVINGS_GOAL',
+        startingBalanceMinor: 0n,
+        displayOrder: 0,
+      },
+    });
 
     const response = await initializeTemplate(conflictBudget.id, ownerCookie, ownerCsrf);
 
-    expect(response.statusCode).toBe(500);
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      createdCategoryKeys: expect.not.arrayContaining(['income-group-salary']),
+      existingCategoryKeys: expect.arrayContaining(['income-group-salary']),
+      createdEnvelopeKeys: expect.not.arrayContaining(['envelope-vacation']),
+      existingEnvelopeKeys: expect.arrayContaining(['envelope-vacation']),
+    });
     expect(
-      await prisma.category.count({
-        where: { budgetId: conflictBudget.id, templateKey: { not: null } },
-      }),
-    ).toBe(0);
-    expect(await prisma.envelope.count({ where: { budgetId: conflictBudget.id } })).toBe(0);
+      await prisma.category.count({ where: { budgetId: conflictBudget.id, name: 'Зарплата' } }),
+    ).toBe(1);
+    expect(
+      await prisma.category.findUniqueOrThrow({ where: { id: preexistingCategory.id } }),
+    ).toMatchObject({ templateKey: 'income-group-salary' });
+    expect(
+      await prisma.envelope.count({ where: { budgetId: conflictBudget.id, name: 'Отпуск' } }),
+    ).toBe(1);
+    expect(
+      await prisma.envelope.findUniqueOrThrow({ where: { id: preexistingEnvelope.id } }),
+    ).toMatchObject({ templateKey: 'envelope-vacation' });
+    const advance = await prisma.category.findFirstOrThrow({
+      where: { budgetId: conflictBudget.id, templateKey: 'income-advance' },
+    });
+    expect(advance.parentId).toBe(preexistingCategory.id);
+  });
+
+  it('persists an icon value directly on the category row', async () => {
+    const created = await prisma.category.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ownerBudgetId,
+        name: `Иконка-тест ${randomUUID()}`,
+        categoryType: 'EXPENSE',
+        displayOrder: 999,
+        icon: 'shopping-cart',
+      },
+    });
+    expect(created.icon).toBe('shopping-cart');
+
+    const withoutIcon = await prisma.category.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ownerBudgetId,
+        name: `Без иконки-тест ${randomUUID()}`,
+        categoryType: 'EXPENSE',
+        displayOrder: 998,
+      },
+    });
+    expect(withoutIcon.icon).toBeNull();
   });
 });
 

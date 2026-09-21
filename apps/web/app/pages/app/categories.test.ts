@@ -27,6 +27,7 @@ const income = {
   parentId: null,
   displayOrder: 0,
   comment: null,
+  icon: null,
   archivedAt: null,
 };
 const expense = { ...income, id: 'expense-id', name: 'Продукты', categoryType: 'EXPENSE' as const };
@@ -149,5 +150,67 @@ describe('categories page', () => {
     await wrapper.get('[data-confirm="archive-category"]').trigger('click');
     await flushPromises();
     expect(mocks.api.archiveCategory).toHaveBeenCalledWith('budget-id', 'income-id');
+  });
+
+  it('shows the icon picker when creating a category (a new category has no children yet)', async () => {
+    mocks.api.createCategory.mockResolvedValue(income);
+    wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-action="create-category"]').trigger('click');
+    await flushPromises();
+    expect(document.querySelector('.category-icon-picker')).not.toBeNull();
+
+    const walletButton = Array.from(document.querySelectorAll('.category-icon-picker button')).find(
+      (button) => button.getAttribute('aria-label') === 'Кошелёк',
+    ) as HTMLButtonElement;
+    walletButton.dispatchEvent(new Event('click', { bubbles: true }));
+    await flushPromises();
+
+    const nameInput = document.querySelector('input[name="name"]') as HTMLInputElement;
+    nameInput.value = 'Новая категория';
+    nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+
+    const form = document.querySelector('form[data-category-form]') as HTMLFormElement;
+    form.dispatchEvent(new Event('submit', { bubbles: true }));
+    await flushPromises();
+
+    expect(mocks.api.createCategory).toHaveBeenCalledWith(
+      'budget-id',
+      expect.objectContaining({ parentId: null, icon: 'wallet' }),
+    );
+  });
+
+  it('shows the icon picker when editing a leaf category with no children', async () => {
+    wrapper = mountPage();
+    await flushPromises();
+
+    const incomeRow = Array.from(document.querySelectorAll('.category-row')).find((row) =>
+      row.textContent?.includes('Зарплата'),
+    ) as HTMLElement;
+    incomeRow
+      .querySelector('[data-action="edit-category"]')!
+      .dispatchEvent(new Event('click', { bubbles: true }));
+    await flushPromises();
+
+    expect(document.querySelector('.category-icon-picker')).not.toBeNull();
+  });
+
+  it('hides the icon picker when editing a category that has active children', async () => {
+    const child = { ...expense, id: 'child-id', name: 'Кафе', parentId: 'expense-id' };
+    mocks.api.listCategories.mockResolvedValue([income, expense, child]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    const parentRow = Array.from(document.querySelectorAll('.category-row')).find((row) =>
+      row.textContent?.includes('Продукты'),
+    ) as HTMLElement;
+    parentRow
+      .querySelector('[data-action="edit-category"]')!
+      .dispatchEvent(new Event('click', { bubbles: true }));
+    await flushPromises();
+
+    expect(document.querySelector('.category-icon-picker')).toBeNull();
   });
 });

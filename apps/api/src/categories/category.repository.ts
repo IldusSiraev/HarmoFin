@@ -14,6 +14,7 @@ export interface CategoryRecord {
   parentId: string | null;
   displayOrder: number;
   comment: string | null;
+  icon: string | null;
   archivedAt: Date | null;
 }
 
@@ -24,6 +25,7 @@ export interface CategoryCreateData {
   parentId: string | null;
   displayOrder: number;
   comment: string | null;
+  icon: string | null;
 }
 
 export interface CategoryUpdateData {
@@ -31,6 +33,7 @@ export interface CategoryUpdateData {
   parentId?: string | null;
   displayOrder?: number;
   comment?: string | null;
+  icon?: string | null;
 }
 
 export class CategoryRepository {
@@ -145,6 +148,19 @@ export class CategoryRepository {
     return ancestorIds;
   }
 
+  async hasActiveChildren(userId: string, budgetId: string, categoryId: string): Promise<boolean> {
+    const child = await this.prisma.category.findFirst({
+      where: {
+        budgetId,
+        parentId: categoryId,
+        archivedAt: null,
+        budget: activeBudgetWhere(userId, budgetId),
+      },
+      select: { id: true },
+    });
+    return child !== null;
+  }
+
   async create(
     userId: string,
     input: CategoryCreateData,
@@ -159,6 +175,13 @@ export class CategoryRepository {
         if (!budget) return null;
 
         await validateParentInTransaction(tx, input.budgetId, input.categoryType, input.parentId);
+
+        if (input.parentId) {
+          await tx.category.updateMany({
+            where: { id: input.parentId, budgetId: input.budgetId, icon: { not: null } },
+            data: { icon: null },
+          });
+        }
 
         const category = await tx.category.create({
           data: { id: createUuidV7(), ...input },
@@ -213,6 +236,12 @@ export class CategoryRepository {
             input.parentId,
             categoryId,
           );
+          if (input.parentId) {
+            await tx.category.updateMany({
+              where: { id: input.parentId, budgetId, icon: { not: null } },
+              data: { icon: null },
+            });
+          }
         }
 
         const [budget, category] = await Promise.all([
@@ -390,5 +419,6 @@ const categorySelect = {
   parentId: true,
   displayOrder: true,
   comment: true,
+  icon: true,
   archivedAt: true,
 } as const;

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import { categoryIcon } from './category-icon.js';
+import { categoryIcon as categoryIconComponent } from './category-icon.js';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiListRow from '../ui/ListRow.vue';
 import UiStatus from '../ui/Status.vue';
@@ -12,7 +12,7 @@ defineOptions({ name: 'OperationRow' });
 const props = defineProps<{
   transaction: TransactionDto;
   categoryName: string;
-  categoryTemplateKey: string | null;
+  categoryIcon: string | null;
   accountName: string;
   envelopeName: string | null;
 }>();
@@ -20,7 +20,7 @@ const props = defineProps<{
 defineEmits<{ select: [] }>();
 
 const icon = computed(() =>
-  categoryIcon(props.categoryTemplateKey, props.transaction.transactionType),
+  categoryIconComponent(props.categoryIcon, props.transaction.transactionType),
 );
 
 const isIncome = computed(() => props.transaction.transactionType === 'INCOME');
