@@ -20,6 +20,7 @@ export type DashboardSummaryRecord = {
   accounts: BalanceItem[];
   envelopes: BalanceItem[];
   unallocatedIncomeMinor: bigint;
+  unassignedStartingBalanceMinor: bigint;
   periodEnvelope: {
     id: string;
     openingMinor: bigint;
@@ -65,8 +66,14 @@ export class DashboardRepository {
     asOf: Date,
   ): Promise<DashboardSummaryRecord> {
     return this.prisma.$transaction(async (tx) => {
-      const [accounts, envelopes, periodEnvelope, unallocatedIncomeMinor, upcomingObligations] =
-        await Promise.all([
+      const [
+        accounts,
+        envelopes,
+        periodEnvelope,
+        unallocatedIncomeMinor,
+        unassignedStartingBalanceMinor,
+        upcomingObligations,
+      ] = await Promise.all([
           tx.account.findMany({
             where: { budgetId, archivedAt: null, budget: activeBudgetWhere(userId, budgetId) },
             select: { id: true, name: true },
@@ -87,6 +94,7 @@ export class DashboardRepository {
             select: { id: true },
           }),
           unallocatedIncome(tx, budgetId),
+          unassignedStartingBalance(tx, budgetId),
           tx.planOccurrence.findMany({
             where: {
               budgetId,
@@ -149,6 +157,7 @@ export class DashboardRepository {
         accounts: accountBalances,
         envelopes: envelopeBalances,
         unallocatedIncomeMinor,
+        unassignedStartingBalanceMinor,
         periodEnvelope:
           periodEnvelope && periodValues ? { id: periodEnvelope.id, ...periodValues } : null,
         warnings,
@@ -182,6 +191,29 @@ async function unallocatedIncome(tx: Prisma.TransactionClient, budgetId: string)
         FROM "income_allocations" AS allocation
         WHERE allocation."budget_id" = ${budgetId}::uuid
           AND allocation."status" = 'CONFIRMED'
+      ), 0)
+    )::BIGINT AS "amountMinor"
+  `;
+  return rows[0]?.amountMinor ?? 0n;
+}
+
+async function unassignedStartingBalance(
+  tx: Prisma.TransactionClient,
+  budgetId: string,
+): Promise<bigint> {
+  const rows = await tx.$queryRaw<{ amountMinor: bigint }[]>`
+    SELECT (
+      COALESCE((
+        SELECT SUM(account."starting_balance_minor")
+        FROM "accounts" AS account
+        WHERE account."budget_id" = ${budgetId}::uuid
+          AND account."archived_at" IS NULL
+      ), 0)
+      - COALESCE((
+        SELECT SUM(envelope."starting_balance_minor")
+        FROM "envelopes" AS envelope
+        WHERE envelope."budget_id" = ${budgetId}::uuid
+          AND envelope."archived_at" IS NULL
       ), 0)
     )::BIGINT AS "amountMinor"
   `;

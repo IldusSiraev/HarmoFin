@@ -19,6 +19,7 @@ describe('DashboardApplicationService', () => {
         accounts: [{ id: 'account-id', name: 'Наличные', balanceMinor: 100_000n }],
         envelopes: [{ id: 'envelope-id', name: 'Текущие 10–24', balanceMinor: 8_000n }],
         unallocatedIncomeMinor: 0n,
+        unassignedStartingBalanceMinor: 0n,
         periodEnvelope: {
           id: 'envelope-id',
           openingMinor: 10_000n,
@@ -59,6 +60,7 @@ describe('DashboardApplicationService', () => {
         accounts: [],
         envelopes: [],
         unallocatedIncomeMinor: 0n,
+        unassignedStartingBalanceMinor: 0n,
         periodEnvelope: null,
         warnings: [],
         upcomingObligations: [
@@ -103,6 +105,7 @@ describe('DashboardApplicationService', () => {
         accounts: [],
         envelopes: [],
         unallocatedIncomeMinor: 0n,
+        unassignedStartingBalanceMinor: 0n,
         periodEnvelope: null,
         warnings: [],
         upcomingObligations: [],
@@ -112,6 +115,32 @@ describe('DashboardApplicationService', () => {
 
     await expect(service.summary(userId, budgetId, '2026-08-12')).resolves.toMatchObject({
       periodLimit: { state: 'unavailable' },
+    });
+  });
+
+  it('serializes a negative unassigned starting balance as a signed string', async () => {
+    const repository = {
+      findAccessible: vi.fn().mockResolvedValue({
+        id: budgetId,
+        cycleStartDay: 10,
+        periodBoundaryOffset: 15,
+        timezone: 'Europe/Moscow',
+      }),
+      summary: vi.fn().mockResolvedValue({
+        totalAccountMoneyMinor: 0n,
+        accounts: [],
+        envelopes: [],
+        unallocatedIncomeMinor: 0n,
+        unassignedStartingBalanceMinor: -3_000n,
+        periodEnvelope: null,
+        warnings: [],
+        upcomingObligations: [],
+      }),
+    };
+    const service = new DashboardApplicationService(repository as never);
+
+    await expect(service.summary(userId, budgetId, '2026-08-12')).resolves.toMatchObject({
+      unassignedStartingBalanceMinor: '-3000',
     });
   });
 });

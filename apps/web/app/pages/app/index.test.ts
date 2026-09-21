@@ -49,6 +49,7 @@ const summary = {
   accounts: [{ id: 'account-id', name: 'Наличные', balanceMinor: '100000' }],
   envelopes: [{ id: 'envelope-id', name: 'Текущие', balanceMinor: '7500' }],
   unallocatedIncomeMinor: '0',
+  unassignedStartingBalanceMinor: '0',
   periodLimit: {
     state: 'available',
     envelopeId: 'envelope-id',

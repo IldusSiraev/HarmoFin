@@ -563,6 +563,7 @@ export type DashboardSummaryDto = {
   accounts: DashboardBalance[];
   envelopes: DashboardBalance[];
   unallocatedIncomeMinor: string;
+  unassignedStartingBalanceMinor: string;
   periodLimit:
     | {
         state: 'available';

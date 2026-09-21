@@ -112,6 +112,9 @@ export class DashboardSummaryResponse {
   @ApiProperty({ type: String, pattern: '^-?\\d+$' })
   unallocatedIncomeMinor!: string;
 
+  @ApiProperty({ type: String, pattern: '^-?\\d+$' })
+  unassignedStartingBalanceMinor!: string;
+
   @ApiProperty({
     type: 'object',
     additionalProperties: true,

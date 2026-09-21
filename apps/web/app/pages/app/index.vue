@@ -208,6 +208,7 @@ async function loadDashboard() {
           :accounts="summary.accounts"
           :envelopes="summary.envelopes"
           :unallocated-income-minor="summary.unallocatedIncomeMinor"
+          :unassigned-starting-balance-minor="summary.unassignedStartingBalanceMinor"
         />
 
         <div class="dashboard-hero-row">

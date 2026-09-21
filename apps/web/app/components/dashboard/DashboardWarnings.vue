@@ -12,7 +12,7 @@ type DashboardBalance = DashboardSummaryDto['accounts'][number];
 
 type WarningRow = {
   key: string;
-  kind: 'balance' | 'income';
+  kind: 'balance' | 'income' | 'unassigned' | 'overassigned';
   text: string;
   amountMinor: string;
   href: string;
@@ -23,6 +23,7 @@ const props = defineProps<{
   accounts: ReadonlyArray<DashboardBalance>;
   envelopes: ReadonlyArray<DashboardBalance>;
   unallocatedIncomeMinor: string;
+  unassignedStartingBalanceMinor: string;
 }>();
 
 function warningText(warning: DashboardWarning): string {
@@ -51,6 +52,25 @@ const rows = computed<WarningRow[]>(() => {
     });
   }
 
+  const unassignedStartingBalanceMinor = BigInt(props.unassignedStartingBalanceMinor);
+  if (unassignedStartingBalanceMinor > 0n) {
+    result.push({
+      key: 'unassigned-starting-balance',
+      kind: 'unassigned',
+      text: 'Начальные остатки не распределены по конвертам',
+      amountMinor: props.unassignedStartingBalanceMinor,
+      href: '/app/envelopes',
+    });
+  } else if (unassignedStartingBalanceMinor < 0n) {
+    result.push({
+      key: 'unassigned-starting-balance',
+      kind: 'overassigned',
+      text: 'В конвертах указано больше денег, чем есть на счетах',
+      amountMinor: (-unassignedStartingBalanceMinor).toString(),
+      href: '/app/envelopes',
+    });
+  }
+
   return result;
 });
 </script>
@@ -67,7 +87,7 @@ const rows = computed<WarningRow[]>(() => {
     <ul class="dashboard-warnings__list">
       <li v-for="row in rows" :key="row.key" class="dashboard-warnings__row">
         <TriangleAlert
-          v-if="row.kind === 'balance'"
+          v-if="row.kind === 'balance' || row.kind === 'overassigned'"
           class="dashboard-warnings__icon dashboard-warnings__icon--danger"
           :size="20"
           aria-hidden="true"

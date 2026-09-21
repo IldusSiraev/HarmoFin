@@ -12,6 +12,7 @@ export type DashboardSummary = {
   accounts: Array<{ id: string; name: string; balanceMinor: string }>;
   envelopes: Array<{ id: string; name: string; balanceMinor: string }>;
   unallocatedIncomeMinor: string;
+  unassignedStartingBalanceMinor: string;
   periodLimit:
     | {
         state: 'available';
@@ -80,6 +81,7 @@ export class DashboardApplicationService {
         balanceMinor: formatMinorUnits(envelope.balanceMinor),
       })),
       unallocatedIncomeMinor: formatMinorUnits(values.unallocatedIncomeMinor),
+      unassignedStartingBalanceMinor: formatMinorUnits(values.unassignedStartingBalanceMinor),
       periodLimit,
       warnings: values.warnings.map((warning) => ({
         subject: warning.subject,
