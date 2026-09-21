@@ -60,6 +60,13 @@ describe('reports API', () => {
     editor = await register(`reports-editor-${randomUUID()}@harmofin.test`);
     viewer = await register(`reports-viewer-${randomUUID()}@harmofin.test`);
     foreign = await register(`reports-foreign-${randomUUID()}@harmofin.test`);
+    // This suite's fixture dates (10th/25th cycle boundaries) assume the
+    // pre-Task-1 cycle configuration; pin it explicitly now that new budgets
+    // default to a calendar-month cycle.
+    await prisma.budget.update({
+      where: { id: owner.budgetId },
+      data: { cycleStartDay: 10, periodBoundaryOffset: 15 },
+    });
     await prisma.workspaceMembership.createMany({
       data: [
         {

@@ -148,6 +148,20 @@ describe('workspace and budget API isolation', () => {
     ).not.toBeNull();
   });
 
+  it('defaults a new budget to a calendar-month cycle', async () => {
+    const response = await server.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${ownerBudgetId}`,
+      cookies: { harmofin_session: ownerCookie },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      cycleStartDay: 1,
+      periodBoundaryOffset: 15,
+    });
+  });
+
   it('returns 404 rather than revealing another user workspace or budget', async () => {
     const other = await login(otherEmail);
     const workspaceBudgets = await server.inject({

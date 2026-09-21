@@ -57,6 +57,11 @@ describe('cycles API', () => {
   });
 
   it('returns selected cycle and period from server budget settings', async () => {
+    await prisma.budget.update({
+      where: { id: owner.budgetId },
+      data: { cycleStartDay: 10, periodBoundaryOffset: 15 },
+    });
+
     const response = await server.inject({
       method: 'GET',
       url: `/api/v1/budgets/${owner.budgetId}/cycles?date=2026-09-09`,
