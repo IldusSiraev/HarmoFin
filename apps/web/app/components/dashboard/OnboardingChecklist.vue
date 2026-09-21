@@ -197,6 +197,7 @@ async function runInitializeTemplate(): Promise<void> {
         v-if="templateFailed"
         label="Не удалось выполнить действие. Повторите попытку."
         tone="danger"
+        aria-live="polite"
       />
     </template>
   </section>

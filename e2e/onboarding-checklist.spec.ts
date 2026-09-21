@@ -47,6 +47,8 @@ test('new owner completes every onboarding step from the dashboard checklist', a
   await expect(page.getByRole('button', { name: 'Применить предложение' })).toBeHidden();
 
   await page.goto('/app');
+  await expect(page.getByTestId('dashboard-loading')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Можно потратить' })).toBeVisible();
   await expect(page.getByTestId('onboarding-checklist')).toHaveCount(0);
 });
 

@@ -822,8 +822,8 @@ function buildDefaultCategories(): DefaultCategory[] {
 const DEFAULT_CATEGORIES: readonly DefaultCategory[] = buildDefaultCategories();
 
 const DEFAULT_ENVELOPES: readonly DefaultEnvelope[] = [
-  ['envelope-current-10-24', 'Первый период', EnvelopeType.CURRENT_EXPENSES, 0, 'FIRST', '10–24'],
-  ['envelope-current-25-9', 'Второй период', EnvelopeType.CURRENT_EXPENSES, 1, 'SECOND', '25–9'],
+  ['envelope-current-10-24', 'Первый период', EnvelopeType.CURRENT_EXPENSES, 0, 'FIRST', null],
+  ['envelope-current-25-9', 'Второй период', EnvelopeType.CURRENT_EXPENSES, 1, 'SECOND', null],
   ['envelope-mandatory', 'Обязательные', EnvelopeType.MANDATORY_EXPENSES, 2, null],
   ['envelope-car', 'Автомобиль', EnvelopeType.SAVINGS_GOAL, 3, null],
   ['envelope-vacation', 'Отпуск', EnvelopeType.SAVINGS_GOAL, 4, null],

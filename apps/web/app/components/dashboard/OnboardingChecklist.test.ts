@@ -77,6 +77,17 @@ describe('OnboardingChecklist', () => {
     expect(wrapper.find('[data-testid="onboarding-checklist"]').exists()).toBe(false);
   });
 
+  it('announces a template-init failure to screen readers', async () => {
+    const { wrapper } = mountChecklist(notStarted, vi.fn().mockRejectedValue(new Error('boom')));
+
+    await wrapper.get('[data-action="onboarding-initialize-template"]').trigger('click');
+    await flushPromises();
+
+    const status = wrapper.find('.ui-status--danger');
+    expect(status.text()).toBe('Не удалось выполнить действие. Повторите попытку.');
+    expect(status.attributes('aria-live')).toBe('polite');
+  });
+
   it('collapses to a progress pill and expands again', async () => {
     const { wrapper } = mountChecklist({ ...notStarted, hasAccounts: true });
 
