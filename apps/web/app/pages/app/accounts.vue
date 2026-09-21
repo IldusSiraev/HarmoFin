@@ -368,19 +368,26 @@ onMounted(() => {
           :error="getFieldError('accountType')"
           required
         />
-        <UiInput
-          v-model="form.bankName"
-          name="bankName"
-          label="Банк"
-          :error="getFieldError('bankName')"
-        />
-        <UiInput
-          v-model="form.lastFourDigits"
-          name="lastFourDigits"
-          label="Последние четыре цифры карты"
-          inputmode="numeric"
-          :error="getFieldError('lastFourDigits')"
-        />
+        <div class="reference-form__row">
+          <span class="reference-form__row-label">Справочно</span>
+          <div class="reference-form__row-fields">
+            <UiInput
+              v-model="form.bankName"
+              name="bankName"
+              label="Банк"
+              hint="Необязательно"
+              :error="getFieldError('bankName')"
+            />
+            <UiInput
+              v-model="form.lastFourDigits"
+              name="lastFourDigits"
+              label="Последние 4 цифры карты"
+              hint="Необязательно"
+              inputmode="numeric"
+              :error="getFieldError('lastFourDigits')"
+            />
+          </div>
+        </div>
         <UiInput
           v-model="form.startingBalance"
           name="startingBalance"
@@ -453,6 +460,25 @@ form[data-account-form] {
 .reference-form__field small {
   color: var(--hf-color-text-danger);
   font-weight: var(--hf-font-weight-regular);
+}
+.reference-form__row {
+  display: grid;
+  gap: var(--hf-space-2);
+}
+.reference-form__row-label {
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+  font-weight: var(--hf-font-weight-medium);
+}
+.reference-form__row-fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--hf-space-4);
+}
+@media (min-width: 480px) {
+  .reference-form__row-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 .reference-form__actions {
   display: flex;
