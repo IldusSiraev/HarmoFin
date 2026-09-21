@@ -113,7 +113,7 @@ async function runInitializeTemplate(): Promise<void> {
     v-if="!allDone"
     class="onboarding-checklist"
     data-testid="onboarding-checklist"
-    aria-labelledby="onboarding-checklist-title"
+    :aria-labelledby="collapsed ? undefined : 'onboarding-checklist-title'"
   >
     <button
       v-if="collapsed"
