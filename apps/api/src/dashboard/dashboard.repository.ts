@@ -81,50 +81,50 @@ export class DashboardRepository {
         onboarding,
         upcomingObligations,
       ] = await Promise.all([
-          tx.account.findMany({
-            where: { budgetId, archivedAt: null, budget: activeBudgetWhere(userId, budgetId) },
-            select: { id: true, name: true },
-            orderBy: [{ createdAt: 'asc' }],
-          }),
-          tx.envelope.findMany({
-            where: { budgetId, archivedAt: null, budget: activeBudgetWhere(userId, budgetId) },
-            select: { id: true, name: true },
-            orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
-          }),
-          tx.envelope.findFirst({
-            where: {
-              budgetId,
-              archivedAt: null,
-              periodSlot: period.id,
-              budget: activeBudgetWhere(userId, budgetId),
-            },
-            select: { id: true },
-          }),
-          unallocatedIncome(tx, budgetId),
-          unassignedStartingBalance(tx, budgetId),
-          onboardingStatus(tx, budgetId),
-          tx.planOccurrence.findMany({
-            where: {
-              budgetId,
-              planType: 'EXPENSE',
-              status: { in: ['PENDING', 'DUE'] },
-              scheduledOn: { gte: asOf },
-              budget: activeBudgetWhere(userId, budgetId),
-            },
-            select: {
-              id: true,
-              planName: true,
-              scheduledOn: true,
-              amountMinor: true,
-              currency: true,
-              scale: true,
-              status: true,
-              envelopeId: true,
-            },
-            orderBy: [{ scheduledOn: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
-            take: 5,
-          }),
-        ]);
+        tx.account.findMany({
+          where: { budgetId, archivedAt: null, budget: activeBudgetWhere(userId, budgetId) },
+          select: { id: true, name: true },
+          orderBy: [{ createdAt: 'asc' }],
+        }),
+        tx.envelope.findMany({
+          where: { budgetId, archivedAt: null, budget: activeBudgetWhere(userId, budgetId) },
+          select: { id: true, name: true },
+          orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+        }),
+        tx.envelope.findFirst({
+          where: {
+            budgetId,
+            archivedAt: null,
+            periodSlot: period.id,
+            budget: activeBudgetWhere(userId, budgetId),
+          },
+          select: { id: true },
+        }),
+        unallocatedIncome(tx, budgetId),
+        unassignedStartingBalance(tx, budgetId),
+        onboardingStatus(tx, budgetId),
+        tx.planOccurrence.findMany({
+          where: {
+            budgetId,
+            planType: 'EXPENSE',
+            status: { in: ['PENDING', 'DUE'] },
+            scheduledOn: { gte: asOf },
+            budget: activeBudgetWhere(userId, budgetId),
+          },
+          select: {
+            id: true,
+            planName: true,
+            scheduledOn: true,
+            amountMinor: true,
+            currency: true,
+            scale: true,
+            status: true,
+            envelopeId: true,
+          },
+          orderBy: [{ scheduledOn: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+          take: 5,
+        }),
+      ]);
       const accountBalances = await Promise.all(
         accounts.map(async (account) => ({
           ...account,

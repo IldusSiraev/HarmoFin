@@ -19,7 +19,9 @@ const notStarted = {
 
 function mountChecklist(
   onboarding: typeof notStarted,
-  initializeTemplate = vi.fn().mockResolvedValue({ createdCategoryKeys: [], existingCategoryKeys: [] }),
+  initializeTemplate = vi
+    .fn()
+    .mockResolvedValue({ createdCategoryKeys: [], existingCategoryKeys: [] }),
 ) {
   return {
     wrapper: mount(OnboardingChecklist, {
