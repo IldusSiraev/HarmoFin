@@ -12,6 +12,14 @@ export type DashboardSummary = {
   accounts: Array<{ id: string; name: string; balanceMinor: string }>;
   envelopes: Array<{ id: string; name: string; balanceMinor: string }>;
   unallocatedIncomeMinor: string;
+  unassignedStartingBalanceMinor: string;
+  onboarding: {
+    categoriesSeeded: boolean;
+    cycleConfigured: boolean;
+    hasAccounts: boolean;
+    hasEnvelopeStartingBalances: boolean;
+    hasAllocatedIncome: boolean;
+  };
   periodLimit:
     | {
         state: 'available';
@@ -80,6 +88,14 @@ export class DashboardApplicationService {
         balanceMinor: formatMinorUnits(envelope.balanceMinor),
       })),
       unallocatedIncomeMinor: formatMinorUnits(values.unallocatedIncomeMinor),
+      unassignedStartingBalanceMinor: formatMinorUnits(values.unassignedStartingBalanceMinor),
+      onboarding: {
+        categoriesSeeded: values.onboarding.categoriesSeeded,
+        cycleConfigured: budget.cycleStartDay !== 1 || budget.periodBoundaryOffset !== 15,
+        hasAccounts: values.onboarding.hasAccounts,
+        hasEnvelopeStartingBalances: values.onboarding.hasEnvelopeStartingBalances,
+        hasAllocatedIncome: values.onboarding.hasAllocatedIncome,
+      },
       periodLimit,
       warnings: values.warnings.map((warning) => ({
         subject: warning.subject,

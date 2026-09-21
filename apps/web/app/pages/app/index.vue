@@ -8,6 +8,7 @@ import { accountSubtitle, ACCOUNT_TYPE_ICONS } from '../../components/accounts/a
 import AvailableBudgetCard from '../../components/dashboard/AvailableBudgetCard.vue';
 import BalanceList from '../../components/dashboard/BalanceList.vue';
 import DashboardWarnings from '../../components/dashboard/DashboardWarnings.vue';
+import OnboardingChecklist from '../../components/dashboard/OnboardingChecklist.vue';
 import FinancialMonthTimeline from '../../components/dashboard/FinancialMonthTimeline.vue';
 import RecentOperations from '../../components/dashboard/RecentOperations.vue';
 import UpcomingObligations from '../../components/dashboard/UpcomingObligations.vue';
@@ -203,11 +204,19 @@ async function loadDashboard() {
       />
 
       <div class="dashboard-sections">
+        <OnboardingChecklist
+          :budget-id="activeBudget.id"
+          :onboarding="summary.onboarding"
+          :initialize-template="api.initializeTemplate"
+          @template-initialized="loadDashboard"
+        />
+
         <DashboardWarnings
           :warnings="summary.warnings"
           :accounts="summary.accounts"
           :envelopes="summary.envelopes"
           :unallocated-income-minor="summary.unallocatedIncomeMinor"
+          :unassigned-starting-balance-minor="summary.unassignedStartingBalanceMinor"
         />
 
         <div class="dashboard-hero-row">

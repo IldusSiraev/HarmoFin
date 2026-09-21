@@ -933,6 +933,9 @@
             },
             "type": "array"
           },
+          "onboarding": {
+            "$ref": "#/components/schemas/OnboardingResponse"
+          },
           "period": {
             "$ref": "#/components/schemas/PeriodRangeResponse"
           },
@@ -952,6 +955,10 @@
             "type": "string"
           },
           "unallocatedIncomeMinor": {
+            "pattern": "^-?\\d+$",
+            "type": "string"
+          },
+          "unassignedStartingBalanceMinor": {
             "pattern": "^-?\\d+$",
             "type": "string"
           },
@@ -975,6 +982,8 @@
           "accounts",
           "envelopes",
           "unallocatedIncomeMinor",
+          "unassignedStartingBalanceMinor",
+          "onboarding",
           "periodLimit",
           "warnings",
           "upcomingObligations"
@@ -1453,6 +1462,33 @@
           }
         },
         "required": ["id", "budgetId", "notificationType", "title", "body", "createdAt"],
+        "type": "object"
+      },
+      "OnboardingResponse": {
+        "properties": {
+          "categoriesSeeded": {
+            "type": "boolean"
+          },
+          "cycleConfigured": {
+            "type": "boolean"
+          },
+          "hasAccounts": {
+            "type": "boolean"
+          },
+          "hasAllocatedIncome": {
+            "type": "boolean"
+          },
+          "hasEnvelopeStartingBalances": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "categoriesSeeded",
+          "cycleConfigured",
+          "hasAccounts",
+          "hasEnvelopeStartingBalances",
+          "hasAllocatedIncome"
+        ],
         "type": "object"
       },
       "PeriodLimitAvailableResponse": {

@@ -17,6 +17,7 @@ type WarningsProps = {
   accounts: { id: string; name: string; balanceMinor: string }[];
   envelopes: { id: string; name: string; balanceMinor: string }[];
   unallocatedIncomeMinor: string;
+  unassignedStartingBalanceMinor: string;
 };
 
 const mountWarnings = (props: WarningsProps) =>
@@ -31,6 +32,7 @@ describe('DashboardWarnings', () => {
       accounts,
       envelopes,
       unallocatedIncomeMinor: '0',
+      unassignedStartingBalanceMinor: '0',
     });
 
     expect(wrapper.find('[data-testid="dashboard-warnings"]').exists()).toBe(false);
@@ -42,6 +44,7 @@ describe('DashboardWarnings', () => {
       accounts,
       envelopes,
       unallocatedIncomeMinor: '0',
+      unassignedStartingBalanceMinor: '0',
     });
 
     const text = normalize(wrapper.text());
@@ -56,6 +59,7 @@ describe('DashboardWarnings', () => {
       accounts,
       envelopes,
       unallocatedIncomeMinor: '0',
+      unassignedStartingBalanceMinor: '0',
     });
 
     expect(normalize(wrapper.text())).toContain('Ремонт');
@@ -68,6 +72,7 @@ describe('DashboardWarnings', () => {
       accounts,
       envelopes,
       unallocatedIncomeMinor: '1200000',
+      unassignedStartingBalanceMinor: '0',
     });
 
     const text = normalize(wrapper.text());
@@ -82,8 +87,39 @@ describe('DashboardWarnings', () => {
       accounts,
       envelopes,
       unallocatedIncomeMinor: '0',
+      unassignedStartingBalanceMinor: '0',
     });
 
     expect(wrapper.text()).toContain('Счёт');
+  });
+
+  it('reports unassigned starting balances as an informational warning', () => {
+    const wrapper = mountWarnings({
+      warnings: [],
+      accounts,
+      envelopes,
+      unallocatedIncomeMinor: '0',
+      unassignedStartingBalanceMinor: '900000',
+    });
+
+    const text = normalize(wrapper.text());
+    expect(text).toContain('Начальные остатки не распределены по конвертам');
+    expect(text).toContain('9 000,00 ₽');
+    expect(wrapper.get('a').attributes('href')).toBe('/app/envelopes');
+  });
+
+  it('flags envelopes that assign more money than accounts hold as a danger warning', () => {
+    const wrapper = mountWarnings({
+      warnings: [],
+      accounts,
+      envelopes,
+      unallocatedIncomeMinor: '0',
+      unassignedStartingBalanceMinor: '-900000',
+    });
+
+    const text = normalize(wrapper.text());
+    expect(text).toContain('В конвертах указано больше денег, чем есть на счетах');
+    expect(text).toContain('9 000,00 ₽');
+    expect(wrapper.get('a').attributes('href')).toBe('/app/envelopes');
   });
 });

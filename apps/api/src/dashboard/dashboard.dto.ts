@@ -35,6 +35,23 @@ class WarningResponse {
   balanceMinor!: string;
 }
 
+class OnboardingResponse {
+  @ApiProperty({ type: Boolean })
+  categoriesSeeded!: boolean;
+
+  @ApiProperty({ type: Boolean })
+  cycleConfigured!: boolean;
+
+  @ApiProperty({ type: Boolean })
+  hasAccounts!: boolean;
+
+  @ApiProperty({ type: Boolean })
+  hasEnvelopeStartingBalances!: boolean;
+
+  @ApiProperty({ type: Boolean })
+  hasAllocatedIncome!: boolean;
+}
+
 class UpcomingObligationResponse {
   @ApiProperty({ type: String, format: 'uuid' })
   occurrenceId!: string;
@@ -111,6 +128,12 @@ export class DashboardSummaryResponse {
 
   @ApiProperty({ type: String, pattern: '^-?\\d+$' })
   unallocatedIncomeMinor!: string;
+
+  @ApiProperty({ type: String, pattern: '^-?\\d+$' })
+  unassignedStartingBalanceMinor!: string;
+
+  @ApiProperty({ type: OnboardingResponse })
+  onboarding!: OnboardingResponse;
 
   @ApiProperty({
     type: 'object',

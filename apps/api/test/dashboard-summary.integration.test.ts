@@ -69,6 +69,7 @@ describe('dashboard summary API', () => {
     expect(response.json()).toMatchObject({
       totalAccountMoneyMinor: '14500',
       unallocatedIncomeMinor: '3000',
+      unassignedStartingBalanceMinor: '9000',
       periodLimit: {
         state: 'available',
         limitMinor: '3000',
@@ -84,6 +85,49 @@ describe('dashboard summary API', () => {
         }),
       ],
     });
+  });
+
+  it('reports onboarding progress from real budget data', async () => {
+    const response = await server.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${owner.budgetId}/summary`,
+      cookies: { harmofin_session: owner.cookie },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      onboarding: {
+        categoriesSeeded: true,
+        cycleConfigured: false,
+        hasAccounts: true,
+        hasEnvelopeStartingBalances: true,
+        hasAllocatedIncome: true,
+      },
+    });
+  });
+
+  it('reports every onboarding step as not started for a fresh budget', async () => {
+    const fresh = await register(`summary-fresh-${randomUUID()}@harmofin.test`);
+    try {
+      const response = await server.inject({
+        method: 'GET',
+        url: `/api/v1/budgets/${fresh.budgetId}/summary`,
+        cookies: { harmofin_session: fresh.cookie },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        onboarding: {
+          categoriesSeeded: false,
+          cycleConfigured: false,
+          hasAccounts: false,
+          hasEnvelopeStartingBalances: false,
+          hasAllocatedIncome: false,
+        },
+      });
+    } finally {
+      await cleanup(fresh);
+    }
   });
 
   it('hides foreign budget summary', async () => {
@@ -117,6 +161,17 @@ describe('dashboard summary API', () => {
         accountingStartDate: new Date(`${today}T00:00:00.000Z`),
       },
     });
+    await prisma.account.create({
+      data: {
+        id: randomUUID(),
+        budgetId: owner.budgetId,
+        name: 'Архивный счёт summary',
+        accountType: 'CASH',
+        startingBalanceMinor: 500n,
+        accountingStartDate: new Date(`${today}T00:00:00.000Z`),
+        archivedAt: new Date(),
+      },
+    });
     await prisma.category.createMany({
       data: [
         {
@@ -144,6 +199,17 @@ describe('dashboard summary API', () => {
         periodSlot: period.id,
         startingBalanceMinor: 1_000n,
         displayOrder: 0,
+      },
+    });
+    await prisma.envelope.create({
+      data: {
+        id: randomUUID(),
+        budgetId: owner.budgetId,
+        name: 'Архивный конверт summary',
+        envelopeType: 'CURRENT_EXPENSES',
+        startingBalanceMinor: 200n,
+        displayOrder: 1,
+        archivedAt: new Date(),
       },
     });
     await prisma.transaction.create({

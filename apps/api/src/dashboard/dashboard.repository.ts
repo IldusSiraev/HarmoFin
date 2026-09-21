@@ -20,6 +20,13 @@ export type DashboardSummaryRecord = {
   accounts: BalanceItem[];
   envelopes: BalanceItem[];
   unallocatedIncomeMinor: bigint;
+  unassignedStartingBalanceMinor: bigint;
+  onboarding: {
+    categoriesSeeded: boolean;
+    hasAccounts: boolean;
+    hasEnvelopeStartingBalances: boolean;
+    hasAllocatedIncome: boolean;
+  };
   periodEnvelope: {
     id: string;
     openingMinor: bigint;
@@ -65,50 +72,59 @@ export class DashboardRepository {
     asOf: Date,
   ): Promise<DashboardSummaryRecord> {
     return this.prisma.$transaction(async (tx) => {
-      const [accounts, envelopes, periodEnvelope, unallocatedIncomeMinor, upcomingObligations] =
-        await Promise.all([
-          tx.account.findMany({
-            where: { budgetId, archivedAt: null, budget: activeBudgetWhere(userId, budgetId) },
-            select: { id: true, name: true },
-            orderBy: [{ createdAt: 'asc' }],
-          }),
-          tx.envelope.findMany({
-            where: { budgetId, archivedAt: null, budget: activeBudgetWhere(userId, budgetId) },
-            select: { id: true, name: true },
-            orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
-          }),
-          tx.envelope.findFirst({
-            where: {
-              budgetId,
-              archivedAt: null,
-              periodSlot: period.id,
-              budget: activeBudgetWhere(userId, budgetId),
-            },
-            select: { id: true },
-          }),
-          unallocatedIncome(tx, budgetId),
-          tx.planOccurrence.findMany({
-            where: {
-              budgetId,
-              planType: 'EXPENSE',
-              status: { in: ['PENDING', 'DUE'] },
-              scheduledOn: { gte: asOf },
-              budget: activeBudgetWhere(userId, budgetId),
-            },
-            select: {
-              id: true,
-              planName: true,
-              scheduledOn: true,
-              amountMinor: true,
-              currency: true,
-              scale: true,
-              status: true,
-              envelopeId: true,
-            },
-            orderBy: [{ scheduledOn: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
-            take: 5,
-          }),
-        ]);
+      const [
+        accounts,
+        envelopes,
+        periodEnvelope,
+        unallocatedIncomeMinor,
+        unassignedStartingBalanceMinor,
+        onboarding,
+        upcomingObligations,
+      ] = await Promise.all([
+        tx.account.findMany({
+          where: { budgetId, archivedAt: null, budget: activeBudgetWhere(userId, budgetId) },
+          select: { id: true, name: true },
+          orderBy: [{ createdAt: 'asc' }],
+        }),
+        tx.envelope.findMany({
+          where: { budgetId, archivedAt: null, budget: activeBudgetWhere(userId, budgetId) },
+          select: { id: true, name: true },
+          orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+        }),
+        tx.envelope.findFirst({
+          where: {
+            budgetId,
+            archivedAt: null,
+            periodSlot: period.id,
+            budget: activeBudgetWhere(userId, budgetId),
+          },
+          select: { id: true },
+        }),
+        unallocatedIncome(tx, budgetId),
+        unassignedStartingBalance(tx, budgetId),
+        onboardingStatus(tx, budgetId),
+        tx.planOccurrence.findMany({
+          where: {
+            budgetId,
+            planType: 'EXPENSE',
+            status: { in: ['PENDING', 'DUE'] },
+            scheduledOn: { gte: asOf },
+            budget: activeBudgetWhere(userId, budgetId),
+          },
+          select: {
+            id: true,
+            planName: true,
+            scheduledOn: true,
+            amountMinor: true,
+            currency: true,
+            scale: true,
+            status: true,
+            envelopeId: true,
+          },
+          orderBy: [{ scheduledOn: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+          take: 5,
+        }),
+      ]);
       const accountBalances = await Promise.all(
         accounts.map(async (account) => ({
           ...account,
@@ -149,6 +165,8 @@ export class DashboardRepository {
         accounts: accountBalances,
         envelopes: envelopeBalances,
         unallocatedIncomeMinor,
+        unassignedStartingBalanceMinor,
+        onboarding,
         periodEnvelope:
           periodEnvelope && periodValues ? { id: periodEnvelope.id, ...periodValues } : null,
         warnings,
@@ -186,6 +204,89 @@ async function unallocatedIncome(tx: Prisma.TransactionClient, budgetId: string)
     )::BIGINT AS "amountMinor"
   `;
   return rows[0]?.amountMinor ?? 0n;
+}
+
+async function unassignedStartingBalance(
+  tx: Prisma.TransactionClient,
+  budgetId: string,
+): Promise<bigint> {
+  const rows = await tx.$queryRaw<{ amountMinor: bigint }[]>`
+    SELECT (
+      COALESCE((
+        SELECT SUM(account."starting_balance_minor")
+        FROM "accounts" AS account
+        WHERE account."budget_id" = ${budgetId}::uuid
+          AND account."archived_at" IS NULL
+      ), 0)
+      - COALESCE((
+        SELECT SUM(envelope."starting_balance_minor")
+        FROM "envelopes" AS envelope
+        WHERE envelope."budget_id" = ${budgetId}::uuid
+          AND envelope."archived_at" IS NULL
+      ), 0)
+    )::BIGINT AS "amountMinor"
+  `;
+  return rows[0]?.amountMinor ?? 0n;
+}
+
+async function onboardingStatus(
+  tx: Prisma.TransactionClient,
+  budgetId: string,
+): Promise<{
+  categoriesSeeded: boolean;
+  hasAccounts: boolean;
+  hasEnvelopeStartingBalances: boolean;
+  hasAllocatedIncome: boolean;
+}> {
+  const rows = await tx.$queryRaw<
+    Array<{
+      categoriesSeeded: boolean;
+      hasAccounts: boolean;
+      hasEnvelopeStartingBalances: boolean;
+      hasAllocatedIncome: boolean;
+    }>
+  >`
+    SELECT
+      (
+        EXISTS(
+          SELECT 1 FROM "categories"
+          WHERE "budget_id" = ${budgetId}::uuid AND "archived_at" IS NULL
+        )
+        OR EXISTS(
+          SELECT 1 FROM "envelopes"
+          WHERE "budget_id" = ${budgetId}::uuid AND "archived_at" IS NULL
+        )
+      ) AS "categoriesSeeded",
+      EXISTS(
+        SELECT 1 FROM "accounts"
+        WHERE "budget_id" = ${budgetId}::uuid AND "archived_at" IS NULL
+      ) AS "hasAccounts",
+      (
+        COALESCE((
+          SELECT SUM("starting_balance_minor")
+          FROM "envelopes"
+          WHERE "budget_id" = ${budgetId}::uuid AND "archived_at" IS NULL
+        ), 0) <> 0
+      ) AS "hasEnvelopeStartingBalances",
+      EXISTS(
+        SELECT 1
+        FROM "income_allocations" AS allocation
+        INNER JOIN "transactions" AS income
+          ON income."id" = allocation."income_transaction_id"
+          AND income."budget_id" = allocation."budget_id"
+        WHERE allocation."budget_id" = ${budgetId}::uuid
+          AND allocation."status" = 'CONFIRMED'
+          AND income."status" = 'CONFIRMED'
+      ) AS "hasAllocatedIncome"
+  `;
+  return (
+    rows[0] ?? {
+      categoriesSeeded: false,
+      hasAccounts: false,
+      hasEnvelopeStartingBalances: false,
+      hasAllocatedIncome: false,
+    }
+  );
 }
 
 async function periodEnvelopeSummary(

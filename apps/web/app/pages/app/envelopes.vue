@@ -485,29 +485,36 @@ onMounted(() => {
         <FinanceMoneyInput
           v-model="form.monthlyPlannedAmount"
           name="monthlyPlannedAmount"
-          label="План на месяц"
+          label="Плановая сумма в месяц"
+          tooltip="Сколько денег вы обычно выделяете на этот конверт за месяц. Используется, чтобы сравнивать план с фактическими тратами. Необязательно."
           :error="getFieldError('monthlyPlannedAmount')"
         />
         <FinanceMoneyInput
           v-model="form.targetAmount"
           name="targetAmount"
-          label="Целевая сумма"
+          label="Целевая сумма накоплений"
+          tooltip="Сумма, которую хотите накопить в этом конверте — например, на отпуск, ремонт или подушку безопасности. Необязательно."
           :error="getFieldError('targetAmount')"
         />
         <UiDatePicker
           v-model="form.targetDate"
           name="targetDate"
-          label="Дата цели"
+          label="Срок достижения цели"
+          tooltip="Дата, к которой хотите накопить целевую сумму. Необязательно."
           :error="getFieldError('targetDate')"
         />
-        <UiInput
-          v-model="form.displayOrder"
-          name="displayOrder"
-          label="Порядок отображения"
-          inputmode="numeric"
-          :error="getFieldError('displayOrder')"
-          required
-        />
+        <details class="reference-form__advanced">
+          <summary>Дополнительные настройки</summary>
+          <UiInput
+            v-model="form.displayOrder"
+            name="displayOrder"
+            label="Порядок в списке"
+            tooltip="Чем меньше число, тем выше конверт в списке. Можно оставить как есть."
+            inputmode="numeric"
+            :error="getFieldError('displayOrder')"
+            required
+          />
+        </details>
         <label class="reference-form__field">
           <span>Комментарий</span>
           <textarea
@@ -569,6 +576,18 @@ form[data-envelope-form] {
   margin: calc(var(--hf-space-4) * -1) 0 0;
   color: var(--hf-color-text-muted);
   font-size: 0.875rem;
+}
+.reference-form__advanced {
+  color: var(--hf-color-text);
+}
+.reference-form__advanced summary {
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+  font-weight: var(--hf-font-weight-medium);
+  cursor: pointer;
+}
+.reference-form__advanced > :not(summary) {
+  margin-top: var(--hf-space-3);
 }
 .reference-form__actions {
   display: flex;

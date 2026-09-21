@@ -226,7 +226,8 @@ async function createEnvelope(
   await page.getByRole('button', { name: 'Создать конверт' }).first().click();
   await page.getByLabel('Название конверта').fill(name);
   await page.getByLabel('Начальный баланс').fill(balance);
-  await page.getByLabel('Порядок отображения').fill(displayOrder);
+  await page.getByText('Дополнительные настройки').click();
+  await page.getByLabel('Порядок в списке').fill(displayOrder);
   await page.getByRole('button', { name: 'Сохранить конверт' }).click();
   await expect(page.getByText(name)).toBeVisible();
 }

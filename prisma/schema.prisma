@@ -225,7 +225,7 @@ model Budget {
   workspaceId                      String       @map("workspace_id") @db.Uuid
   name                             String       @db.VarChar(120)
   primaryCurrency                  String       @default("RUB") @map("primary_currency") @db.Char(3)
-  cycleStartDay                    Int          @default(10) @map("cycle_start_day") @db.SmallInt
+  cycleStartDay                    Int          @default(1) @map("cycle_start_day") @db.SmallInt
   periodBoundaryOffset             Int          @default(15) @map("period_boundary_offset") @db.SmallInt
   allowNegativeBalance             Boolean      @default(false) @map("allow_negative_balance")
   timezone                         String       @default("Europe/Moscow") @db.VarChar(64)
