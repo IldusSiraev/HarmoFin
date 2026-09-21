@@ -103,7 +103,8 @@ async function createEnvelope(page: Page, name: string, balance: string): Promis
   await page.getByRole('button', { name: 'Создать конверт' }).first().click();
   await page.getByLabel('Название конверта').fill(name);
   await page.getByLabel('Начальный баланс').fill(balance);
-  await page.getByLabel('Порядок отображения').fill('10');
+  await page.getByText('Дополнительные настройки').click();
+  await page.getByLabel('Порядок в списке').fill('10');
   await page.getByRole('button', { name: 'Сохранить конверт' }).click();
   await expect(page.getByText(name)).toBeVisible();
 }
