@@ -21,6 +21,12 @@ export type DashboardSummaryRecord = {
   envelopes: BalanceItem[];
   unallocatedIncomeMinor: bigint;
   unassignedStartingBalanceMinor: bigint;
+  onboarding: {
+    categoriesSeeded: boolean;
+    hasAccounts: boolean;
+    hasEnvelopeStartingBalances: boolean;
+    hasAllocatedIncome: boolean;
+  };
   periodEnvelope: {
     id: string;
     openingMinor: bigint;
@@ -72,6 +78,7 @@ export class DashboardRepository {
         periodEnvelope,
         unallocatedIncomeMinor,
         unassignedStartingBalanceMinor,
+        onboarding,
         upcomingObligations,
       ] = await Promise.all([
           tx.account.findMany({
@@ -95,6 +102,7 @@ export class DashboardRepository {
           }),
           unallocatedIncome(tx, budgetId),
           unassignedStartingBalance(tx, budgetId),
+          onboardingStatus(tx, budgetId),
           tx.planOccurrence.findMany({
             where: {
               budgetId,
@@ -158,6 +166,7 @@ export class DashboardRepository {
         envelopes: envelopeBalances,
         unallocatedIncomeMinor,
         unassignedStartingBalanceMinor,
+        onboarding,
         periodEnvelope:
           periodEnvelope && periodValues ? { id: periodEnvelope.id, ...periodValues } : null,
         warnings,
@@ -218,6 +227,66 @@ async function unassignedStartingBalance(
     )::BIGINT AS "amountMinor"
   `;
   return rows[0]?.amountMinor ?? 0n;
+}
+
+async function onboardingStatus(
+  tx: Prisma.TransactionClient,
+  budgetId: string,
+): Promise<{
+  categoriesSeeded: boolean;
+  hasAccounts: boolean;
+  hasEnvelopeStartingBalances: boolean;
+  hasAllocatedIncome: boolean;
+}> {
+  const rows = await tx.$queryRaw<
+    Array<{
+      categoriesSeeded: boolean;
+      hasAccounts: boolean;
+      hasEnvelopeStartingBalances: boolean;
+      hasAllocatedIncome: boolean;
+    }>
+  >`
+    SELECT
+      (
+        EXISTS(
+          SELECT 1 FROM "categories"
+          WHERE "budget_id" = ${budgetId}::uuid AND "archived_at" IS NULL
+        )
+        OR EXISTS(
+          SELECT 1 FROM "envelopes"
+          WHERE "budget_id" = ${budgetId}::uuid AND "archived_at" IS NULL
+        )
+      ) AS "categoriesSeeded",
+      EXISTS(
+        SELECT 1 FROM "accounts"
+        WHERE "budget_id" = ${budgetId}::uuid AND "archived_at" IS NULL
+      ) AS "hasAccounts",
+      (
+        COALESCE((
+          SELECT SUM("starting_balance_minor")
+          FROM "envelopes"
+          WHERE "budget_id" = ${budgetId}::uuid AND "archived_at" IS NULL
+        ), 0) <> 0
+      ) AS "hasEnvelopeStartingBalances",
+      EXISTS(
+        SELECT 1
+        FROM "income_allocations" AS allocation
+        INNER JOIN "transactions" AS income
+          ON income."id" = allocation."income_transaction_id"
+          AND income."budget_id" = allocation."budget_id"
+        WHERE allocation."budget_id" = ${budgetId}::uuid
+          AND allocation."status" = 'CONFIRMED'
+          AND income."status" = 'CONFIRMED'
+      ) AS "hasAllocatedIncome"
+  `;
+  return (
+    rows[0] ?? {
+      categoriesSeeded: false,
+      hasAccounts: false,
+      hasEnvelopeStartingBalances: false,
+      hasAllocatedIncome: false,
+    }
+  );
 }
 
 async function periodEnvelopeSummary(

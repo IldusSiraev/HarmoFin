@@ -29,6 +29,12 @@ describe('DashboardApplicationService', () => {
         },
         warnings: [],
         upcomingObligations: [],
+        onboarding: {
+          categoriesSeeded: false,
+          hasAccounts: false,
+          hasEnvelopeStartingBalances: false,
+          hasAllocatedIncome: false,
+        },
       }),
     };
     const service = new DashboardApplicationService(repository as never);
@@ -75,6 +81,12 @@ describe('DashboardApplicationService', () => {
             envelopeId: '00000000-0000-4000-8000-000000000004',
           },
         ],
+        onboarding: {
+          categoriesSeeded: false,
+          hasAccounts: false,
+          hasEnvelopeStartingBalances: false,
+          hasAllocatedIncome: false,
+        },
       }),
     };
     const service = new DashboardApplicationService(repository as never);
@@ -109,6 +121,12 @@ describe('DashboardApplicationService', () => {
         periodEnvelope: null,
         warnings: [],
         upcomingObligations: [],
+        onboarding: {
+          categoriesSeeded: false,
+          hasAccounts: false,
+          hasEnvelopeStartingBalances: false,
+          hasAllocatedIncome: false,
+        },
       }),
     };
     const service = new DashboardApplicationService(repository as never);
@@ -135,12 +153,88 @@ describe('DashboardApplicationService', () => {
         periodEnvelope: null,
         warnings: [],
         upcomingObligations: [],
+        onboarding: {
+          categoriesSeeded: false,
+          hasAccounts: false,
+          hasEnvelopeStartingBalances: false,
+          hasAllocatedIncome: false,
+        },
       }),
     };
     const service = new DashboardApplicationService(repository as never);
 
     await expect(service.summary(userId, budgetId, '2026-08-12')).resolves.toMatchObject({
       unassignedStartingBalanceMinor: '-3000',
+    });
+  });
+
+  it('reports onboarding progress from server-derived signals', async () => {
+    const repository = {
+      findAccessible: vi.fn().mockResolvedValue({
+        id: budgetId,
+        cycleStartDay: 1,
+        periodBoundaryOffset: 15,
+        timezone: 'Europe/Moscow',
+      }),
+      summary: vi.fn().mockResolvedValue({
+        totalAccountMoneyMinor: 0n,
+        accounts: [],
+        envelopes: [],
+        unallocatedIncomeMinor: 0n,
+        unassignedStartingBalanceMinor: 0n,
+        periodEnvelope: null,
+        warnings: [],
+        upcomingObligations: [],
+        onboarding: {
+          categoriesSeeded: true,
+          hasAccounts: true,
+          hasEnvelopeStartingBalances: false,
+          hasAllocatedIncome: false,
+        },
+      }),
+    };
+    const service = new DashboardApplicationService(repository as never);
+
+    await expect(service.summary(userId, budgetId, '2026-08-12')).resolves.toMatchObject({
+      onboarding: {
+        categoriesSeeded: true,
+        cycleConfigured: false,
+        hasAccounts: true,
+        hasEnvelopeStartingBalances: false,
+        hasAllocatedIncome: false,
+      },
+    });
+  });
+
+  it('treats a cycle changed away from the calendar-month default as configured', async () => {
+    const repository = {
+      findAccessible: vi.fn().mockResolvedValue({
+        id: budgetId,
+        cycleStartDay: 10,
+        periodBoundaryOffset: 15,
+        timezone: 'Europe/Moscow',
+      }),
+      summary: vi.fn().mockResolvedValue({
+        totalAccountMoneyMinor: 0n,
+        accounts: [],
+        envelopes: [],
+        unallocatedIncomeMinor: 0n,
+        unassignedStartingBalanceMinor: 0n,
+        periodEnvelope: null,
+        warnings: [],
+        upcomingObligations: [],
+        onboarding: {
+          categoriesSeeded: false,
+          hasAccounts: false,
+          hasEnvelopeStartingBalances: false,
+          hasAllocatedIncome: false,
+        },
+      }),
+    };
+    const service = new DashboardApplicationService(repository as never);
+
+    await expect(service.summary(userId, budgetId, '2026-08-12')).resolves.toMatchObject({
+      onboarding: { cycleConfigured: true },
     });
   });
 });

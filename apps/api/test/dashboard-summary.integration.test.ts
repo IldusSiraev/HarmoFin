@@ -87,6 +87,49 @@ describe('dashboard summary API', () => {
     });
   });
 
+  it('reports onboarding progress from real budget data', async () => {
+    const response = await server.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${owner.budgetId}/summary`,
+      cookies: { harmofin_session: owner.cookie },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      onboarding: {
+        categoriesSeeded: true,
+        cycleConfigured: false,
+        hasAccounts: true,
+        hasEnvelopeStartingBalances: true,
+        hasAllocatedIncome: true,
+      },
+    });
+  });
+
+  it('reports every onboarding step as not started for a fresh budget', async () => {
+    const fresh = await register(`summary-fresh-${randomUUID()}@harmofin.test`);
+    try {
+      const response = await server.inject({
+        method: 'GET',
+        url: `/api/v1/budgets/${fresh.budgetId}/summary`,
+        cookies: { harmofin_session: fresh.cookie },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        onboarding: {
+          categoriesSeeded: false,
+          cycleConfigured: false,
+          hasAccounts: false,
+          hasEnvelopeStartingBalances: false,
+          hasAllocatedIncome: false,
+        },
+      });
+    } finally {
+      await cleanup(fresh);
+    }
+  });
+
   it('hides foreign budget summary', async () => {
     const response = await server.inject({
       method: 'GET',
