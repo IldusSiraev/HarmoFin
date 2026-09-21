@@ -15,7 +15,11 @@ test('new owner completes every onboarding step from the dashboard checklist', a
   await expect(page.getByTestId('onboarding-step-done')).toHaveCount(1);
 
   // Step 2: financial cycle — change it away from the calendar-month default.
-  await page.getByText('Финансовый цикл').locator('..').getByRole('link', { name: 'Перейти' }).click();
+  await page
+    .getByTestId('onboarding-step')
+    .filter({ hasText: 'Финансовый цикл' })
+    .getByRole('link', { name: 'Перейти' })
+    .click();
   await expect(page).toHaveURL(/\/app\/settings$/);
   await page.getByLabel('Начало первого периода').fill('10');
   await page.getByLabel('Граница второго периода (дней от начала первого)').fill('15');
@@ -73,7 +77,6 @@ async function createEnvelope(page: Page, name: string, balance: string): Promis
   await page.getByRole('button', { name: 'Создать конверт' }).first().click();
   await page.getByLabel('Название конверта').fill(name);
   await page.getByLabel('Начальный баланс').fill(balance);
-  await page.getByLabel('Порядок отображения').fill('10');
   await page.getByRole('button', { name: 'Сохранить конверт' }).click();
   await expect(page.getByText(name)).toBeVisible();
 }
