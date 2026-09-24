@@ -30,6 +30,10 @@ const recurrenceLabel = computed(() => {
       return 'Ежегодно';
     case 'EVERY_N_MONTHS':
       return `Раз в ${props.plan.intervalMonths} мес.`;
+    default: {
+      const exhaustive: never = props.plan.recurrence;
+      return exhaustive;
+    }
   }
 });
 
