@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { apiV1 } from './env';
 
 const password = 'e2e-password-10';
 
@@ -87,8 +88,8 @@ test('replays same browser idempotency request once, cancels draft and deletes c
   await expect(page.getByText('Черновик', { exact: true })).toHaveCount(1);
 
   const replay = await page.evaluate(
-    async ({ url, body, idempotencyKey }) => {
-      const csrf = (await fetch('http://localhost:3001/api/v1/auth/csrf', {
+    async ({ api, url, body, idempotencyKey }) => {
+      const csrf = (await fetch(`${api}/auth/csrf`, {
         credentials: 'include',
       }).then((response) => response.json())) as { csrfToken: string };
       const response = await fetch(url, {
@@ -104,6 +105,7 @@ test('replays same browser idempotency request once, cancels draft and deletes c
       return { status: response.status, body: await response.json() };
     },
     {
+      api: apiV1,
       url: request.url(),
       body: request.postData() ?? '',
       idempotencyKey: request.headers()['idempotency-key'] ?? '',

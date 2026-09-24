@@ -1,12 +1,13 @@
 import { defineConfig } from '@playwright/test';
+import { apiOrigin, apiPort, webBaseUrl, webOrigin } from './env';
 
 const testEnvironment = {
   NODE_ENV: 'test',
   DATABASE_URL: 'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin',
-  WEB_ORIGIN: 'http://localhost:3000',
-  WEB_BASE_URL: 'http://localhost:3000',
-  API_URL: 'http://localhost:3001',
-  API_PORT: '3001',
+  WEB_ORIGIN: webOrigin,
+  WEB_BASE_URL: webBaseUrl,
+  API_URL: apiOrigin,
+  API_PORT: apiPort,
   AUTH_TOKEN_HASH_SECRET: 'test-only-secret-with-at-least-32-bytes',
   SMTP_HOST: '127.0.0.1',
   SMTP_PORT: '1025',
@@ -30,19 +31,19 @@ export default defineConfig({
   // to land on 1 in CI because that runner has 2 cores.
   workers: 1,
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: webBaseUrl,
     browserName: 'chromium',
   },
   webServer: [
     {
       command: 'pnpm --filter @harmofin/api dev',
-      url: 'http://localhost:3001/api/v1/health/live',
+      url: `${apiOrigin}/api/v1/health/live`,
       env: { ...process.env, ...testEnvironment },
       reuseExistingServer: !process.env.CI,
     },
     {
       command: 'pnpm --filter @harmofin/web dev',
-      url: 'http://localhost:3000/register',
+      url: `${webOrigin}/register`,
       env: { ...process.env, ...testEnvironment },
       reuseExistingServer: !process.env.CI,
     },

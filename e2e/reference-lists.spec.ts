@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { apiV1 } from './env';
 
 const password = 'e2e-password-10';
 
@@ -137,8 +138,7 @@ async function createDraftExpense(
   amount: string,
 ): Promise<void> {
   await page.evaluate(
-    async ({ account, envelope, merchant, amount }) => {
-      const api = 'http://localhost:3001/api/v1';
+    async ({ api, account, envelope, merchant, amount }) => {
       const me = (await fetch(`${api}/me`, { credentials: 'include' }).then((response) =>
         response.json(),
       )) as { workspaces: Array<{ budgets: Array<{ id: string }> }> };
@@ -185,6 +185,6 @@ async function createDraftExpense(
         }),
       });
     },
-    { account, envelope, merchant, amount },
+    { api: apiV1, account, envelope, merchant, amount },
   );
 }

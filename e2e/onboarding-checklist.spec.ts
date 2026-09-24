@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { apiV1 } from './env';
 
 const password = 'e2e-password-10';
 
@@ -84,8 +85,7 @@ async function createEnvelope(page: Page, name: string, balance: string): Promis
 }
 
 async function configureIncomeAllocationRule(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    const api = 'http://localhost:3001/api/v1';
+  await page.evaluate(async (api: string) => {
     const me = (await fetch(`${api}/me`, { credentials: 'include' }).then((response) =>
       response.json(),
     )) as { workspaces: Array<{ budgets: Array<{ id: string }> }> };
@@ -115,7 +115,7 @@ async function configureIncomeAllocationRule(page: Page): Promise<void> {
         incomeAllocationTargetEnvelopeId: envelope.id,
       }),
     });
-  });
+  }, apiV1);
 }
 
 async function fillOperationDate(page: Page): Promise<void> {
