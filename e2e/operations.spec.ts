@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { apiV1 } from './env';
 
 const password = 'e2e-password-10';
 
@@ -73,8 +74,8 @@ test('browser retry with same idempotency key creates one income', async ({ page
   await expect(page.getByTestId('toast-stack')).toContainText('Операция сохранена');
 
   const replay = await page.evaluate(
-    async ({ url, body, idempotencyKey }) => {
-      const csrf = (await fetch('http://localhost:3001/api/v1/auth/csrf', {
+    async ({ api, url, body, idempotencyKey }) => {
+      const csrf = (await fetch(`${api}/auth/csrf`, {
         credentials: 'include',
       }).then((response) => response.json())) as { csrfToken: string };
       const response = await fetch(url, {
@@ -90,6 +91,7 @@ test('browser retry with same idempotency key creates one income', async ({ page
       return { status: response.status, body: await response.json() };
     },
     {
+      api: apiV1,
       url: request.url(),
       body: request.postData() ?? '',
       idempotencyKey: request.headers()['idempotency-key'] ?? '',
@@ -208,8 +210,7 @@ async function createEnvelope(page: Page, name: string, balance: string): Promis
 }
 
 async function configureIncomeAllocationRule(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    const api = 'http://localhost:3001/api/v1';
+  await page.evaluate(async (api: string) => {
     const me = (await fetch(`${api}/me`, { credentials: 'include' }).then((response) =>
       response.json(),
     )) as { workspaces: Array<{ budgets: Array<{ id: string }> }> };
@@ -239,7 +240,7 @@ async function configureIncomeAllocationRule(page: Page): Promise<void> {
         incomeAllocationTargetEnvelopeId: envelope.id,
       }),
     });
-  });
+  }, apiV1);
 }
 
 // The row is one button; its "⋮" menu sits outside that button.
@@ -316,8 +317,7 @@ async function createDraftIncomeViaApi(
   source?: string,
 ): Promise<void> {
   await page.evaluate(
-    async ({ amount, categoryName, accountName, source }) => {
-      const api = 'http://localhost:3001/api/v1';
+    async ({ api, amount, categoryName, accountName, source }) => {
       const me = (await fetch(`${api}/me`, { credentials: 'include' }).then((response) =>
         response.json(),
       )) as { workspaces: Array<{ budgets: Array<{ id: string }> }> };
@@ -357,6 +357,6 @@ async function createDraftIncomeViaApi(
         }),
       });
     },
-    { amount, categoryName, accountName, source },
+    { api: apiV1, amount, categoryName, accountName, source },
   );
 }

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { mailpitOrigin } from './env';
 
 const email = `e2e-${Date.now()}@harmofin.test`;
 const password = 'e2e-password-10';
@@ -48,15 +49,13 @@ test('resets password through a Mailpit recovery link', async ({ page, request }
   await expect
     .poll(async () => {
       const messages = await request
-        .get('http://localhost:8025/api/v1/messages')
+        .get(`${mailpitOrigin}/api/v1/messages`)
         .then((response) => response.json());
       const message = messages.messages.find(
         (item: { To: Array<{ Address: string }>; Snippet: string }) =>
           item.To.some((recipient) => recipient.Address === email),
       ) as { Snippet: string } | undefined;
-      const match = message?.Snippet.match(
-        /http:\/\/localhost:3000(\/reset-password\?token=[^\s]+)/,
-      );
+      const match = message?.Snippet.match(/(\/reset-password\?token=[^\s]+)/);
       resetPath = match?.[1] ?? '';
       return resetPath;
     })
