@@ -1,12 +1,16 @@
 import * as path from 'node:path';
-import * as dotenv from 'dotenv';
 
-dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
+try {
+  process.loadEnvFile(path.resolve(__dirname, '..', '.env'));
+} catch {
+  // No .env file (e.g. CI, where these vars are set directly on the job).
+}
 
-const webBase = process.env.WEB_ORIGIN ?? process.env.WEB_BASE_URL ?? 'http://localhost:3000';
-const apiOrigin = process.env.API_URL ?? 'http://localhost:3001';
+export const webOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
+export const webBaseUrl = process.env.WEB_BASE_URL ?? webOrigin;
+export const apiOrigin = process.env.API_URL ?? 'http://localhost:3001';
+export const apiPort = process.env.API_PORT ?? '3001';
 const mailpitPort = process.env.MAILPIT_PORT ?? '8025';
 
-export { webBase };
 export const apiV1 = `${apiOrigin}/api/v1`;
 export const mailpitOrigin = `http://localhost:${mailpitPort}`;
