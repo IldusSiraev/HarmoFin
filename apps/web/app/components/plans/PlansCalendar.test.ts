@@ -65,4 +65,23 @@ describe('PlansCalendar', () => {
     await wrapper.get('[data-action="calendar-prev-month"]').trigger('click');
     expect(wrapper.emitted('change-month')?.[1]).toEqual(['2026-08-01']);
   });
+
+  it('builds an aria-label with full date context, tone, and plan status for each cell', () => {
+    const wrapper = mountCalendar({
+      '2026-09-10': { netMinor: 0n, dot: 'overdue' },
+      '2026-09-24': { netMinor: 10600000n, dot: 'none' },
+    });
+
+    const overdueLabel = wrapper.get('[data-date="2026-09-10"]').attributes('aria-label');
+    expect(overdueLabel).toContain('10 сентября 2026');
+    expect(overdueLabel).toContain('четверг');
+    expect(overdueLabel).toContain('просроченный платёж');
+
+    const todayLabel = wrapper.get('[data-date="2026-09-24"]').attributes('aria-label');
+    expect(todayLabel).toContain('24 сентября 2026');
+    expect(todayLabel).toContain('четверг');
+    expect(todayLabel).toContain('сегодня');
+    expect(todayLabel).toContain('выбрано');
+    expect(todayLabel).toContain('доход');
+  });
 });

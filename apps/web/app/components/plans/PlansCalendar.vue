@@ -50,6 +50,22 @@ function dotFor(date: string): 'none' | 'upcoming' | 'overdue' {
   return aggregateFor(date)?.dot ?? 'none';
 }
 
+function cellLabel(date: string): string {
+  const parts = [format(parsePlainDate(date), 'd MMMM yyyy, EEEE', { locale: ru })];
+
+  if (date === props.today) parts.push('сегодня');
+  if (date === props.selectedDate) parts.push('выбрано');
+
+  const tone = amountTone(date);
+  if (tone) parts.push(tone === 'income' ? 'доход' : 'расход');
+
+  const dot = dotFor(date);
+  if (dot === 'overdue') parts.push('просроченный платёж');
+  else if (dot === 'upcoming') parts.push('предстоящий платёж');
+
+  return parts.join(', ');
+}
+
 function goToPreviousMonth() {
   emit('change-month', format(subMonths(parsePlainDate(props.monthAnchor), 1), 'yyyy-MM-dd'));
 }
@@ -106,6 +122,7 @@ function parsePlainDate(value: string): Date {
           'plans-calendar__cell--today': cell.date === today,
           'plans-calendar__cell--selected': cell.date === selectedDate,
         }"
+        :aria-label="cellLabel(cell.date)"
         @click="emit('select-day', cell.date)"
       >
         <span class="plans-calendar__day-number">{{ Number(cell.date.slice(-2)) }}</span>
