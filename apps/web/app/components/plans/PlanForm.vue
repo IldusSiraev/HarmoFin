@@ -42,6 +42,7 @@ type FormModel = {
   planType: 'INCOME' | 'EXPENSE' | 'SAVINGS';
   amount: string;
   date: string;
+  anchorDate: string;
   endOn: string;
   recurrence: 'ONE_TIME' | 'MONTHLY' | 'EVERY_N_MONTHS' | 'YEARLY';
   intervalMonths: string;
@@ -85,11 +86,19 @@ function normalizeAmount(value: string): string {
 }
 
 function submit() {
+  // The single visible "Дата" field drives both anchorOn and startOn when
+  // creating. When editing a periodic plan we must preserve the stored anchor
+  // (the worker derives every future occurrence's day-of-month from it), so the
+  // optional "Опорная дата" field wins whenever it is set.
+  const anchorOn =
+    isEditing.value && form.recurrence !== 'ONE_TIME' && form.anchorDate
+      ? form.anchorDate
+      : form.date;
   const base = {
     name: form.name.trim(),
     planType: form.planType,
     amount: form.amount,
-    anchorOn: form.date,
+    anchorOn,
     startOn: form.date,
     endOn: form.endOn || null,
     recurrence: form.recurrence,
@@ -116,6 +125,7 @@ function fromPlan(plan: RegularPlanDto | null, defaultDate: string | undefined):
       planType: 'EXPENSE',
       amount: '',
       date: defaultDate ?? today,
+      anchorDate: '',
       endOn: '',
       recurrence: 'MONTHLY',
       intervalMonths: '',
@@ -131,6 +141,7 @@ function fromPlan(plan: RegularPlanDto | null, defaultDate: string | undefined):
     planType: plan.planType,
     amount: minorToDecimal(plan.amountMinor),
     date: plan.startOn,
+    anchorDate: plan.anchorOn,
     endOn: plan.endOn ?? '',
     recurrence: plan.recurrence,
     intervalMonths: plan.intervalMonths?.toString() ?? '',
@@ -244,6 +255,14 @@ function minorToDecimal(value: string): string {
 
     <details class="plan-form__advanced">
       <summary>Дополнительные настройки</summary>
+      <UiDatePicker
+        v-if="isEditing && form.recurrence !== 'ONE_TIME'"
+        v-model="form.anchorDate"
+        name="anchorDate"
+        label="Опорная дата"
+        hint="День (для годовых — день и месяц) регулярного повторения. Меняйте только при переносе даты платежа."
+        :error="errors.anchorOn"
+      />
       <UiDatePicker
         v-model="form.endOn"
         name="endOn"

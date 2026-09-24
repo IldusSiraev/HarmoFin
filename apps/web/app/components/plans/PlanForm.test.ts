@@ -118,6 +118,86 @@ describe('PlanForm', () => {
     });
   });
 
+  it('preserves a periodic plan anchorOn that differs from startOn when editing', async () => {
+    const wrapper = mount(PlanForm, {
+      props: {
+        accounts: [],
+        categories,
+        envelopes: [{ value: 'envelope-id', label: 'Обязательные' }],
+        plan: {
+          id: 'plan-id',
+          budgetId: 'budget-id',
+          name: 'Ипотека',
+          planType: 'EXPENSE',
+          amountMinor: '3600000',
+          currency: 'RUB',
+          scale: 2,
+          // The worker derives every future occurrence's day from anchorOn —
+          // editing the amount must not silently move it onto startOn.
+          anchorOn: '2026-08-26',
+          startOn: '2026-09-01',
+          endOn: null,
+          recurrence: 'MONTHLY',
+          intervalMonths: null,
+          accountId: null,
+          categoryId: 'expense-category',
+          envelopeId: 'envelope-id',
+          comment: null,
+          isActive: true,
+          disabledAt: null,
+          deletedAt: null,
+        },
+      },
+    });
+
+    expect(wrapper.find('[name="anchorDate"]').exists()).toBe(true);
+
+    await wrapper.get('[name="amount"]').setValue('37 000,00');
+    await wrapper.get('form').trigger('submit');
+
+    expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
+      amount: '37000.00',
+      anchorOn: '2026-08-26',
+      startOn: '2026-09-01',
+    });
+  });
+
+  it('hides the anchor date for one-time plans and when creating', async () => {
+    const created = mount(PlanForm, { props: { accounts: [], categories, envelopes: [] } });
+    expect(created.find('[name="anchorDate"]').exists()).toBe(false);
+
+    const editing = mount(PlanForm, {
+      props: {
+        accounts: [],
+        categories,
+        envelopes: [],
+        plan: {
+          id: 'plan-id',
+          budgetId: 'budget-id',
+          name: 'Разовый платёж',
+          planType: 'EXPENSE',
+          amountMinor: '100000',
+          currency: 'RUB',
+          scale: 2,
+          anchorOn: '2026-09-26',
+          startOn: '2026-09-26',
+          endOn: null,
+          recurrence: 'ONE_TIME',
+          intervalMonths: null,
+          accountId: null,
+          categoryId: 'expense-category',
+          envelopeId: null,
+          comment: null,
+          isActive: true,
+          disabledAt: null,
+          deletedAt: null,
+        },
+      },
+    });
+
+    expect(editing.find('[name="anchorDate"]').exists()).toBe(false);
+  });
+
   it('shows delete and the active toggle only in edit mode, and emits remove', async () => {
     const created = mount(PlanForm, { props: { accounts: [], categories, envelopes: [] } });
     expect(created.find('[data-action="delete-plan"]').exists()).toBe(false);
