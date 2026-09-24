@@ -45,7 +45,10 @@ const accounts = ref<Array<{ value: string; label: string }>>([]);
 const categories = ref<CategoryDto[]>([]);
 const envelopes = ref<Array<{ value: string; label: string; envelopeType?: EnvelopeType }>>([]);
 
-const loading = ref(true);
+const loading = ref(true); // gates only the very first full page load
+const rangeLoading = ref(false); // month-change reload; page content stays mounted
+let requestToken = 0;
+let deepLinkApplied = false;
 const hydrated = ref(false);
 const pending = ref(false);
 const error = ref('');
@@ -105,10 +108,10 @@ const selectedDayOccurrences = computed(() =>
 
 onMounted(() => {
   hydrated.value = true;
-  void load();
+  void loadAll();
 });
 
-async function load() {
+async function loadAll() {
   if (!budget.value) {
     try {
       await auth.loadMe();
@@ -123,48 +126,79 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const from = grid.value[0]?.date ?? monthAnchor.value;
-    const to = grid.value[41]?.date ?? monthAnchor.value;
-    const [
-      planData,
-      rangeOccurrenceData,
-      dueOccurrenceData,
-      pendingOccurrenceData,
-      transactionData,
-      accountData,
-      categoryData,
-      envelopeData,
-    ] = await Promise.all([
-      api.listRegularPlans(budget.value.id, 'all'),
-      api.listPlanOccurrences(budget.value.id, { from, to }),
-      api.listPlanOccurrences(budget.value.id, { status: 'DUE' }),
-      api.listPlanOccurrences(budget.value.id, { status: 'PENDING' }),
-      loadAllTransactions(budget.value.id, from, to),
-      api.listAccounts(budget.value.id, 'active'),
-      api.listCategories(budget.value.id, undefined, 'active'),
-      api.listEnvelopes(budget.value.id, 'active'),
-    ]);
-    plans.value = planData;
-    rangeOccurrences.value = rangeOccurrenceData;
-    upcomingOccurrences.value = [...dueOccurrenceData, ...pendingOccurrenceData];
-    rangeTransactions.value = transactionData;
-    accounts.value = accountData.map((account) => ({ value: account.id, label: account.name }));
-    categories.value = categoryData;
-    envelopes.value = envelopeData.map((envelope) => ({
-      value: envelope.id,
-      label: envelope.name,
-      envelopeType: envelope.envelopeType,
-    }));
-
-    const highlighted = String(route.query.occurrence ?? '');
-    const target =
-      rangeOccurrenceData.find((occurrence) => occurrence.id === highlighted) ??
-      upcomingOccurrences.value.find((occurrence) => occurrence.id === highlighted);
-    if (target) selectedDate.value = target.scheduledOn;
+    await Promise.all([loadReference(), loadRange()]);
   } catch {
     error.value = 'Не удалось загрузить планы. Повторите попытку.';
   } finally {
     loading.value = false;
+  }
+}
+
+// Reference data does not depend on the visible month — loaded on mount and
+// after mutations that change the plans list, never on month navigation.
+async function loadReference() {
+  if (!budget.value) return;
+  const [planData, accountData, categoryData, envelopeData] = await Promise.all([
+    api.listRegularPlans(budget.value.id, 'all'),
+    api.listAccounts(budget.value.id, 'active'),
+    api.listCategories(budget.value.id, undefined, 'active'),
+    api.listEnvelopes(budget.value.id, 'active'),
+  ]);
+  plans.value = planData;
+  accounts.value = accountData.map((account) => ({ value: account.id, label: account.name }));
+  categories.value = categoryData;
+  envelopes.value = envelopeData.map((envelope) => ({
+    value: envelope.id,
+    label: envelope.name,
+    envelopeType: envelope.envelopeType,
+  }));
+}
+
+async function loadRange(): Promise<void> {
+  if (!budget.value) return;
+  // Request token: two quick month clicks must not let the slower, older
+  // response overwrite the newer one.
+  const token = ++requestToken;
+  rangeLoading.value = true;
+  try {
+    const from = grid.value[0]?.date ?? monthAnchor.value;
+    const to = grid.value[41]?.date ?? monthAnchor.value;
+    const [rangeOccurrenceData, dueOccurrenceData, pendingOccurrenceData, transactionData] =
+      await Promise.all([
+        api.listPlanOccurrences(budget.value.id, { from, to }),
+        api.listPlanOccurrences(budget.value.id, { status: 'DUE' }),
+        api.listPlanOccurrences(budget.value.id, { status: 'PENDING' }),
+        loadAllTransactions(budget.value.id, from, to),
+      ]);
+    if (token !== requestToken) return;
+
+    rangeOccurrences.value = rangeOccurrenceData;
+    upcomingOccurrences.value = [...dueOccurrenceData, ...pendingOccurrenceData];
+    rangeTransactions.value = transactionData;
+
+    // A `?occurrence=` deep link is consumed once, on the first completed range
+    // load. `upcomingOccurrences` is not range-scoped, so re-running this on
+    // every reload would drag the user back to the linked month each time they
+    // tried to navigate away.
+    if (!deepLinkApplied) {
+      const highlighted = String(route.query.occurrence ?? '');
+      const target =
+        rangeOccurrenceData.find((occurrence) => occurrence.id === highlighted) ??
+        upcomingOccurrences.value.find((occurrence) => occurrence.id === highlighted);
+      deepLinkApplied = true;
+      if (target) {
+        const targetMonth = target.scheduledOn.slice(0, 7);
+        selectedDate.value = target.scheduledOn;
+        if (targetMonth !== monthAnchor.value.slice(0, 7)) {
+          monthAnchor.value = `${targetMonth}-01`;
+          return loadRange();
+        }
+      }
+    }
+  } catch {
+    error.value = 'Не удалось загрузить планы. Повторите попытку.';
+  } finally {
+    if (token === requestToken) rangeLoading.value = false;
   }
 }
 
@@ -196,7 +230,14 @@ function selectDay(date: string) {
 
 function changeMonth(nextMonthAnchor: string) {
   monthAnchor.value = nextMonthAnchor;
-  void load();
+  reconcileSelectedDate();
+  void loadRange();
+}
+
+function reconcileSelectedDate() {
+  const monthPrefix = monthAnchor.value.slice(0, 7);
+  if (selectedDate.value.startsWith(monthPrefix)) return;
+  selectedDate.value = today.startsWith(monthPrefix) ? today : `${monthPrefix}-01`;
 }
 
 function openCreate() {
@@ -236,7 +277,7 @@ async function savePlan(input: CreateRegularPlanInput | UpdateRegularPlanInput) 
     formOpen.value = false;
     selectedPlan.value = null;
     statusText.value = 'План сохранён.';
-    await load();
+    await Promise.all([loadReference(), loadRange()]);
   } catch (exception) {
     mapFormError(exception);
   } finally {
@@ -255,7 +296,7 @@ async function removePlan(planId: string) {
     formOpen.value = false;
     selectedPlan.value = null;
     statusText.value = 'План удалён.';
-    await load();
+    await Promise.all([loadReference(), loadRange()]);
   } catch (exception) {
     error.value = errorMessage(exception);
   } finally {
@@ -272,7 +313,7 @@ async function completeOccurrence(occurrence: PlanOccurrenceDto) {
     await api.completePlanOccurrence(budget.value.id, occurrence.id, keyFor(operation));
     mutationKeys.delete(operation);
     statusText.value = 'Данные обновлены на сервере.';
-    await load();
+    await loadRange();
   } catch (exception) {
     error.value = errorMessage(exception);
   } finally {
@@ -314,7 +355,7 @@ async function runConfirmation() {
       await api.skipPlanOccurrence(budget.value.id, current.occurrenceId, key);
       mutationKeys.delete(`skip:${current.occurrenceId}`);
       statusText.value = 'Данные обновлены на сервере.';
-      await load();
+      await loadRange();
     }
   } catch (exception) {
     error.value = errorMessage(exception);
@@ -373,6 +414,7 @@ function errorMessage(exception: unknown) {
               :selected-date="selectedDate"
               :today="today"
               :aggregates="aggregates"
+              :loading="rangeLoading"
               @select-day="selectDay"
               @change-month="changeMonth"
             />

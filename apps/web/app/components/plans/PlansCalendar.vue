@@ -1,21 +1,25 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { addMonths, format, subMonths } from 'date-fns';
+import { addDays, addMonths, format, startOfMonth, subMonths } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight } from '@lucide/vue';
 
 import { buildCalendarGrid } from './calendar-grid.js';
 import type { DayAggregate } from './day-aggregates.js';
-import { formatCompactSigned } from '../finance/money-format.js';
+import { formatCompactSigned, formatMinorUnits } from '../finance/money-format.js';
 
 defineOptions({ name: 'PlansCalendar' });
 
-const props = defineProps<{
-  monthAnchor: string;
-  selectedDate: string;
-  today: string;
-  aggregates: Record<string, DayAggregate>;
-}>();
+const props = withDefaults(
+  defineProps<{
+    monthAnchor: string;
+    selectedDate: string;
+    today: string;
+    aggregates: Record<string, DayAggregate>;
+    loading?: boolean;
+  }>(),
+  { loading: false },
+);
 
 const emit = defineEmits<{
   'select-day': [date: string];
@@ -29,6 +33,17 @@ const grid = computed(() => buildCalendarGrid(props.monthAnchor));
 const monthLabel = computed(() =>
   format(parsePlainDate(props.monthAnchor), 'LLLL yyyy', { locale: ru }),
 );
+
+// The worker only materialises plan occurrences up to today + 60 days
+// (apps/worker/src/plan-occurrence.handler.ts). Navigating past that horizon
+// would render an empty month that looks like "no plans at all".
+const OCCURRENCE_HORIZON_DAYS = 60;
+
+const nextMonthDisabled = computed(() => {
+  const nextMonthStart = startOfMonth(addMonths(parsePlainDate(props.monthAnchor), 1));
+  const horizon = addDays(parsePlainDate(props.today), OCCURRENCE_HORIZON_DAYS);
+  return nextMonthStart > horizon;
+});
 
 function aggregateFor(date: string): DayAggregate | undefined {
   return props.aggregates[date];
@@ -56,8 +71,14 @@ function cellLabel(date: string): string {
   if (date === props.today) parts.push('сегодня');
   if (date === props.selectedDate) parts.push('выбрано');
 
-  const tone = amountTone(date);
-  if (tone) parts.push(tone === 'income' ? 'доход' : 'расход');
+  // The visible cell text shows a compact amount (+106к), but an aria-label
+  // overrides the accessible name computed from that text — so the label has to
+  // carry the amount itself, not just its direction.
+  const aggregate = aggregateFor(date);
+  if (aggregate && aggregate.netMinor !== 0n) {
+    const tone = aggregate.netMinor > 0n ? 'доход' : 'расход';
+    parts.push(`${tone} ${formatMinorUnits(aggregate.netMinor.toString(), 'RUB', 2)}`);
+  }
 
   const dot = dotFor(date);
   if (dot === 'overdue') parts.push('просроченный платёж');
@@ -97,7 +118,12 @@ function parsePlainDate(value: string): Date {
         type="button"
         data-action="calendar-next-month"
         class="plans-calendar__nav"
-        aria-label="Следующий месяц"
+        :aria-label="
+          nextMonthDisabled
+            ? 'Следующий месяц недоступен: планы рассчитаны на 60 дней вперёд'
+            : 'Следующий месяц'
+        "
+        :disabled="nextMonthDisabled"
         @click="goToNextMonth"
       >
         <ChevronRight :size="20" aria-hidden="true" />
@@ -108,7 +134,7 @@ function parsePlainDate(value: string): Date {
       <span v-for="label in WEEKDAY_LABELS" :key="label">{{ label }}</span>
     </div>
 
-    <div class="plans-calendar__grid">
+    <div class="plans-calendar__grid" :aria-busy="loading">
       <button
         v-for="cell in grid"
         :key="cell.date"
@@ -193,11 +219,19 @@ function parsePlainDate(value: string): Date {
 .plans-calendar__nav:hover {
   background: var(--hf-color-action-secondary-hover);
 }
+.plans-calendar__nav:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .plans-calendar__weekdays,
 .plans-calendar__grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: var(--hf-space-1);
+}
+.plans-calendar__grid[aria-busy='true'] {
+  opacity: 0.6;
+  pointer-events: none;
 }
 .plans-calendar__weekdays span {
   color: var(--hf-color-text-muted);

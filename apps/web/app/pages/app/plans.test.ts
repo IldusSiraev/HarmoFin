@@ -194,4 +194,85 @@ describe('plans page', () => {
       'plans-calendar__cell--selected',
     );
   });
+
+  it('moves the calendar to the month of a deep-linked occurrence outside the default month', async () => {
+    route.query = { occurrence: 'occurrence-id' };
+    api.listPlanOccurrences.mockResolvedValue([{ ...occurrence, scheduledOn: '2026-11-05' }]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.get('[data-date="2026-11-05"]').classes()).toContain(
+      'plans-calendar__cell--selected',
+    );
+    expect(api.listPlanOccurrences).toHaveBeenCalledWith(
+      'budget-id',
+      expect.objectContaining({ from: expect.stringMatching(/^2026-10/) }),
+    );
+  });
+
+  it('lets the user navigate away from a deep-linked occurrence month', async () => {
+    route.query = { occurrence: 'occurrence-id' };
+    wrapper = mountPage();
+    await flushPromises();
+
+    // The DUE/PENDING lists that back "Ближайшие" are not range-scoped, so the
+    // linked occurrence stays visible to the highlight lookup forever — it must
+    // only be honoured once, otherwise every month change snaps back.
+    await wrapper.get('[data-action="calendar-next-month"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('[data-date="2026-10-15"]').exists()).toBe(true);
+    expect(wrapper.get('[data-date="2026-10-01"]').classes()).toContain(
+      'plans-calendar__cell--selected',
+    );
+  });
+
+  it('keeps the page mounted on month change and refetches only range data', async () => {
+    wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('.plans-page__main').exists()).toBe(true);
+    api.listRegularPlans.mockClear();
+    api.listAccounts.mockClear();
+    api.listCategories.mockClear();
+    api.listEnvelopes.mockClear();
+    api.listPlanOccurrences.mockClear();
+    api.listTransactions.mockClear();
+
+    // The old `load()` flipped the page-wide `loading` flag synchronously, which
+    // unmounted the whole calendar/day-panel/list block (and dropped keyboard
+    // focus) before the new data arrived. `trigger` awaits a render tick, so a
+    // regression would already be visible here.
+    await wrapper.get('[data-action="calendar-next-month"]').trigger('click');
+    expect(wrapper.find('.plans-page__main').exists()).toBe(true);
+    expect(wrapper.find('[data-hydrated]').exists()).toBe(true);
+
+    await flushPromises();
+
+    expect(wrapper.find('.plans-page__main').exists()).toBe(true);
+    expect(api.listPlanOccurrences).toHaveBeenCalled();
+    expect(api.listTransactions).toHaveBeenCalled();
+    expect(api.listRegularPlans).not.toHaveBeenCalled();
+    expect(api.listAccounts).not.toHaveBeenCalled();
+    expect(api.listCategories).not.toHaveBeenCalled();
+    expect(api.listEnvelopes).not.toHaveBeenCalled();
+  });
+
+  it('reconciles a selected day that falls outside the newly navigated month', async () => {
+    wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-date="2026-09-10"]').trigger('click');
+    expect(wrapper.get('[data-date="2026-09-10"]').classes()).toContain(
+      'plans-calendar__cell--selected',
+    );
+
+    await wrapper.get('[data-action="calendar-next-month"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.get('[data-date="2026-10-01"]').classes()).toContain(
+      'plans-calendar__cell--selected',
+    );
+    expect(wrapper.findAll('.plans-calendar__cell--selected')).toHaveLength(1);
+  });
 });

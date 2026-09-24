@@ -4,13 +4,17 @@ import { describe, expect, it } from 'vitest';
 import PlansCalendar from './PlansCalendar.vue';
 import type { DayAggregate } from './day-aggregates.js';
 
-function mountCalendar(aggregates: Record<string, DayAggregate> = {}) {
+function mountCalendar(
+  aggregates: Record<string, DayAggregate> = {},
+  overrides: Partial<{ monthAnchor: string; selectedDate: string; today: string }> = {},
+) {
   return mount(PlansCalendar, {
     props: {
       monthAnchor: '2026-09-01',
       selectedDate: '2026-09-24',
       today: '2026-09-24',
       aggregates,
+      ...overrides,
     },
   });
 }
@@ -84,6 +88,47 @@ describe('PlansCalendar', () => {
     expect(todayLabel).toContain('четверг');
     expect(todayLabel).toContain('сегодня');
     expect(todayLabel).toContain('выбрано');
-    expect(todayLabel).toContain('доход');
+    // The aria-label overrides the visible "+106к" text, so it must carry the
+    // exact amount, not just the direction. ru-RU groups with U+00A0 and
+    // separates the ₽ sign with U+00A0 as well.
+    expect(todayLabel).toContain('доход 106 000,00 ₽');
+  });
+
+  it('spells out a negative day total as an expense amount in the aria-label', () => {
+    const wrapper = mountCalendar({ '2026-09-13': { netMinor: -85000n, dot: 'none' } });
+
+    const label = wrapper.get('[data-date="2026-09-13"]').attributes('aria-label');
+    expect(label).toContain('расход');
+    expect(label).toContain('850,00 ₽');
+  });
+
+  it('disables next-month navigation beyond the 60-day occurrence horizon', () => {
+    const wrapper = mountCalendar({}, { monthAnchor: '2026-12-01', selectedDate: '2026-12-01' });
+
+    const next = wrapper.get('[data-action="calendar-next-month"]');
+    expect(next.attributes('disabled')).toBeDefined();
+    expect(next.attributes('aria-label')).toContain('недоступен');
+    expect(
+      wrapper.get('[data-action="calendar-prev-month"]').attributes('disabled'),
+    ).toBeUndefined();
+  });
+
+  it('keeps next-month navigation enabled inside the horizon', () => {
+    const wrapper = mountCalendar();
+
+    expect(
+      wrapper.get('[data-action="calendar-next-month"]').attributes('disabled'),
+    ).toBeUndefined();
+    expect(wrapper.get('[data-action="calendar-next-month"]').attributes('aria-label')).toBe(
+      'Следующий месяц',
+    );
+  });
+
+  it('marks the grid busy while the range reloads', async () => {
+    const wrapper = mountCalendar();
+
+    expect(wrapper.get('.plans-calendar__grid').attributes('aria-busy')).toBe('false');
+    await wrapper.setProps({ loading: true });
+    expect(wrapper.get('.plans-calendar__grid').attributes('aria-busy')).toBe('true');
   });
 });
