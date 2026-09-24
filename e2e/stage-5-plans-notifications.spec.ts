@@ -32,9 +32,8 @@ test.describe('Stage 5 plans and notifications (CI-only)', () => {
 
     const occurrence = await seedOccurrence(email, 'Ипотека Stage 5');
     await page.goto('/app/plans');
-    await expect(
-      page.getByLabel('Ближайшие платежи').getByRole('heading', { name: 'Ипотека Stage 5' }),
-    ).toBeVisible();
+    await expect(page.getByRole('tabpanel', { name: 'Ближайшие' })).toContainText('Ипотека Stage 5');
+    await page.getByTestId('action-menu-trigger').click();
     await expect(page.getByRole('button', { name: 'Создать черновик' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       375,
@@ -116,10 +115,10 @@ async function createExpensePlan(page: Page): Promise<void> {
   await expect(page.locator('input[name="name"]')).toBeVisible();
   await page.getByLabel('Название').fill('Ипотека Stage 5');
   await page.getByLabel('Сумма').fill('36 000,00');
-  await page.getByLabel('Счёт по умолчанию').selectOption({ label: 'Карта Stage 5' });
+  await page.getByLabel('Счёт').selectOption({ label: 'Карта Stage 5' });
   await page.getByLabel('Категория').selectOption({ label: 'Продукты' });
   await page.getByLabel('Конверт').selectOption({ label: 'Обязательства Stage 5' });
-  await page.getByRole('button', { name: 'Сохранить план' }).click();
+  await page.getByRole('button', { name: 'Добавить план' }).click();
   await expect(page.getByText('План сохранён.')).toBeVisible();
 }
 
