@@ -32,8 +32,13 @@ test.describe('Stage 5 plans and notifications (CI-only)', () => {
 
     const occurrence = await seedOccurrence(email, 'Ипотека Stage 5');
     await page.goto('/app/plans');
-    await expect(page.getByRole('tabpanel', { name: 'Ближайшие' })).toContainText('Ипотека Stage 5');
-    await page.getByTestId('action-menu-trigger').click();
+    await expect(page.getByRole('tabpanel', { name: 'Ближайшие' })).toContainText(
+      'Ипотека Stage 5',
+    );
+    await page
+      .getByRole('tabpanel', { name: 'Ближайшие' })
+      .getByTestId('action-menu-trigger')
+      .click();
     await expect(page.getByRole('button', { name: 'Создать черновик' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       375,
