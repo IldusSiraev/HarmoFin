@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue';
+import { computed, reactive, watch } from 'vue';
 
 import {
   selectableCategories,
@@ -18,6 +18,7 @@ import UiSelect from '../ui/Select.vue';
 const props = withDefaults(
   defineProps<{
     plan?: RegularPlanDto | null;
+    defaultDate?: string | undefined;
     accounts: ReadonlyArray<{ value: string; label: string }>;
     categories: ReadonlyArray<CategoryDto>;
     envelopes: ReadonlyArray<{
@@ -28,17 +29,19 @@ const props = withDefaults(
     errors?: Partial<Record<string, string>>;
     pending?: boolean;
   }>(),
-  { plan: null, errors: () => ({}), pending: false },
+  { plan: null, defaultDate: undefined, errors: () => ({}), pending: false },
 );
 
-const emit = defineEmits<{ submit: [input: CreateRegularPlanInput | UpdateRegularPlanInput] }>();
+const emit = defineEmits<{
+  submit: [input: CreateRegularPlanInput | UpdateRegularPlanInput];
+  remove: [];
+}>();
 
 type FormModel = {
   name: string;
   planType: 'INCOME' | 'EXPENSE' | 'SAVINGS';
   amount: string;
-  anchorOn: string;
-  startOn: string;
+  date: string;
   endOn: string;
   recurrence: 'ONE_TIME' | 'MONTHLY' | 'EVERY_N_MONTHS' | 'YEARLY';
   intervalMonths: string;
@@ -46,13 +49,15 @@ type FormModel = {
   categoryId: string;
   envelopeId: string;
   comment: string;
+  isActive: boolean;
 };
 
-const form = reactive<FormModel>(fromPlan(props.plan));
+const form = reactive<FormModel>(fromPlan(props.plan, props.defaultDate));
+const isEditing = computed(() => props.plan !== null);
 
 watch(
   () => props.plan,
-  (plan) => Object.assign(form, fromPlan(plan)),
+  (plan) => Object.assign(form, fromPlan(plan, props.defaultDate)),
 );
 watch(
   () => form.planType,
@@ -80,12 +85,12 @@ function normalizeAmount(value: string): string {
 }
 
 function submit() {
-  const input = {
+  const base = {
     name: form.name.trim(),
     planType: form.planType,
     amount: form.amount,
-    anchorOn: form.anchorOn,
-    startOn: form.startOn,
+    anchorOn: form.date,
+    startOn: form.date,
     endOn: form.endOn || null,
     recurrence: form.recurrence,
     intervalMonths: form.recurrence === 'EVERY_N_MONTHS' ? Number(form.intervalMonths) : null,
@@ -94,18 +99,23 @@ function submit() {
     envelopeId: form.planType === 'INCOME' ? null : form.envelopeId || null,
     comment: form.comment.trim() || null,
   } satisfies CreateRegularPlanInput;
+  // isActive only exists on UpdateRegularPlanInput — built as a separate step
+  // so the `satisfies CreateRegularPlanInput` above stays a real excess-
+  // property check on the fields every plan type shares.
+  const input: CreateRegularPlanInput | UpdateRegularPlanInput = isEditing.value
+    ? { ...base, isActive: form.isActive }
+    : base;
   emit('submit', input);
 }
 
-function fromPlan(plan: RegularPlanDto | null): FormModel {
+function fromPlan(plan: RegularPlanDto | null, defaultDate: string | undefined): FormModel {
   if (!plan) {
     const today = new Date().toISOString().slice(0, 10);
     return {
       name: '',
       planType: 'EXPENSE',
       amount: '',
-      anchorOn: today,
-      startOn: today,
+      date: defaultDate ?? today,
       endOn: '',
       recurrence: 'MONTHLY',
       intervalMonths: '',
@@ -113,14 +123,14 @@ function fromPlan(plan: RegularPlanDto | null): FormModel {
       categoryId: '',
       envelopeId: '',
       comment: '',
+      isActive: true,
     };
   }
   return {
     name: plan.name,
     planType: plan.planType,
     amount: minorToDecimal(plan.amountMinor),
-    anchorOn: plan.anchorOn,
-    startOn: plan.startOn,
+    date: plan.startOn,
     endOn: plan.endOn ?? '',
     recurrence: plan.recurrence,
     intervalMonths: plan.intervalMonths?.toString() ?? '',
@@ -128,6 +138,7 @@ function fromPlan(plan: RegularPlanDto | null): FormModel {
     categoryId: plan.categoryId ?? '',
     envelopeId: plan.envelopeId ?? '',
     comment: plan.comment ?? '',
+    isActive: plan.isActive,
   };
 }
 
@@ -141,46 +152,49 @@ function minorToDecimal(value: string): string {
 
 <template>
   <form class="plan-form" @submit.prevent="submit">
+    <div class="plan-form__type" role="radiogroup" aria-label="Тип плана">
+      <label
+        class="plan-form__type-option"
+        :class="{ 'plan-form__type-option--active': form.planType === 'EXPENSE' }"
+      >
+        <input v-model="form.planType" type="radio" name="planType" value="EXPENSE" />
+        Расход
+      </label>
+      <label
+        class="plan-form__type-option"
+        :class="{ 'plan-form__type-option--active': form.planType === 'INCOME' }"
+      >
+        <input v-model="form.planType" type="radio" name="planType" value="INCOME" />
+        Доход
+      </label>
+      <label
+        class="plan-form__type-option"
+        :class="{ 'plan-form__type-option--active': form.planType === 'SAVINGS' }"
+      >
+        <input v-model="form.planType" type="radio" name="planType" value="SAVINGS" />
+        Накопление
+      </label>
+    </div>
+
+    <div class="plan-form__hero-amount" :class="`plan-form__hero-amount--${form.planType.toLowerCase()}`">
+      <FinanceMoneyInput
+        :model-value="form.amount"
+        name="amount"
+        @update:model-value="form.amount = normalizeAmount($event)"
+        label="Сумма"
+        :error="errors.amount"
+        required
+      />
+    </div>
+
     <UiInput v-model="form.name" name="name" label="Название" :error="errors.name" required />
-    <UiSelect
-      v-model="form.planType"
-      name="planType"
-      label="Тип плана"
-      :options="[
-        { value: 'EXPENSE', label: 'Расход' },
-        { value: 'INCOME', label: 'Доход' },
-        { value: 'SAVINGS', label: 'Накопление' },
-      ]"
-      :error="errors.planType"
-      required
-    />
-    <FinanceMoneyInput
-      :model-value="form.amount"
-      name="amount"
-      @update:model-value="form.amount = normalizeAmount($event)"
-      label="Сумма"
-      :error="errors.amount"
-      required
-    />
-    <UiDatePicker
-      v-model="form.anchorOn"
-      name="anchorOn"
-      label="Опорная дата"
-      :error="errors.anchorOn"
-      required
-    />
-    <UiDatePicker
-      v-model="form.startOn"
-      name="startOn"
-      label="Дата начала"
-      :error="errors.startOn"
-      required
-    />
-    <UiDatePicker v-model="form.endOn" name="endOn" label="Дата окончания" :error="errors.endOn" />
+
+    <UiDatePicker v-model="form.date" name="date" label="Дата" :error="errors.anchorOn" required />
+
     <UiSelect
       v-model="form.recurrence"
       name="recurrence"
-      label="Периодичность"
+      label="Повторение"
       :options="[
         { value: 'ONE_TIME', label: 'Один раз' },
         { value: 'MONTHLY', label: 'Ежемесячно' },
@@ -199,10 +213,11 @@ function minorToDecimal(value: string): string {
       :error="errors.intervalMonths"
       required
     />
+
     <UiSelect
       v-model="form.accountId"
       name="accountId"
-      label="Счёт по умолчанию"
+      label="Счёт"
       :options="accounts"
       :error="errors.accountId"
     />
@@ -223,8 +238,33 @@ function minorToDecimal(value: string): string {
       :error="errors.envelopeId"
       required
     />
-    <UiInput v-model="form.comment" name="comment" label="Комментарий" :error="errors.comment" />
-    <UiButton type="submit" :loading="pending" :disabled="pending">Сохранить план</UiButton>
+
+    <details class="plan-form__advanced">
+      <summary>Дополнительные настройки</summary>
+      <UiDatePicker v-model="form.endOn" name="endOn" label="Дата окончания" :error="errors.endOn" />
+      <UiInput v-model="form.comment" name="comment" label="Заметка" :error="errors.comment" />
+    </details>
+
+    <label v-if="isEditing" class="plan-form__active">
+      <input v-model="form.isActive" type="checkbox" name="isActive" />
+      Активен
+    </label>
+
+    <div class="plan-form__actions">
+      <UiButton
+        v-if="isEditing"
+        type="button"
+        variant="danger"
+        data-action="delete-plan"
+        :disabled="pending"
+        @click="emit('remove')"
+      >
+        Удалить
+      </UiButton>
+      <UiButton type="submit" :loading="pending" :disabled="pending">
+        {{ isEditing ? 'Сохранить изменения' : 'Добавить план' }}
+      </UiButton>
+    </div>
   </form>
 </template>
 
@@ -234,9 +274,80 @@ function minorToDecimal(value: string): string {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--hf-space-4);
 }
-.plan-form > :last-child {
+.plan-form__type,
+.plan-form__hero-amount,
+.plan-form__advanced,
+.plan-form__active,
+.plan-form__actions {
   grid-column: 1 / -1;
-  justify-self: start;
+}
+.plan-form__type {
+  display: flex;
+  gap: var(--hf-space-2);
+}
+.plan-form__type-option {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--hf-control-height-md);
+  border: 1px solid var(--hf-color-border-strong);
+  border-radius: var(--hf-control-radius);
+  cursor: pointer;
+}
+.plan-form__type-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+.plan-form__type-option--active {
+  border-color: var(--hf-color-brand);
+  background: var(--hf-color-brand-soft);
+  color: var(--hf-color-brand);
+  font-weight: var(--hf-font-weight-semibold);
+}
+.plan-form__hero-amount {
+  border-bottom: 2px solid var(--hf-color-border-strong);
+  transition: border-color var(--hf-transition-fast);
+}
+.plan-form__hero-amount :deep(.ui-field__control) {
+  border: 0;
+  padding-inline: 0;
+  font-size: 2rem;
+  font-weight: var(--hf-font-weight-semibold);
+}
+.plan-form__hero-amount--expense {
+  border-color: var(--hf-color-status-danger);
+}
+.plan-form__hero-amount--income {
+  border-color: var(--hf-color-status-success);
+}
+.plan-form__hero-amount--savings {
+  border-color: var(--hf-color-brand);
+}
+.plan-form__advanced {
+  color: var(--hf-color-text);
+}
+.plan-form__advanced summary {
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+  font-weight: var(--hf-font-weight-medium);
+  cursor: pointer;
+}
+.plan-form__advanced > :not(summary) {
+  margin-top: var(--hf-space-3);
+}
+.plan-form__active {
+  display: flex;
+  align-items: center;
+  gap: var(--hf-space-2);
+}
+.plan-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hf-space-2);
 }
 @media (max-width: 47.9375rem) {
   .plan-form {
