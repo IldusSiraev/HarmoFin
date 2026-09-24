@@ -308,6 +308,10 @@ function minorToDecimal(value: string): string {
   color: var(--hf-color-brand);
   font-weight: var(--hf-font-weight-semibold);
 }
+.plan-form__type-option:focus-within {
+  outline: 2px solid var(--hf-color-action-primary);
+  outline-offset: 2px;
+}
 .plan-form__hero-amount {
   border-bottom: 2px solid var(--hf-color-border-strong);
   transition: border-color var(--hf-transition-fast);
