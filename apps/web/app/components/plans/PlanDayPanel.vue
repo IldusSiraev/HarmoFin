@@ -59,7 +59,9 @@ function netMinor(): string {
 }
 
 function signedMinor(operation: DayOperationView): string {
-  return operation.transactionType === 'INCOME' ? operation.amountMinor : `-${operation.amountMinor}`;
+  return operation.transactionType === 'INCOME'
+    ? operation.amountMinor
+    : `-${operation.amountMinor}`;
 }
 </script>
 

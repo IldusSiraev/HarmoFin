@@ -43,14 +43,19 @@ describe('PlanRow', () => {
 
   it('shows an interval label for EVERY_N_MONTHS plans', () => {
     const wrapper = mount(PlanRow, {
-      props: { plan: plan({ recurrence: 'EVERY_N_MONTHS', intervalMonths: 3 }), categoryIcon: null },
+      props: {
+        plan: plan({ recurrence: 'EVERY_N_MONTHS', intervalMonths: 3 }),
+        categoryIcon: null,
+      },
     });
 
     expect(wrapper.text()).toContain('Раз в 3 мес.');
   });
 
   it('marks a disabled plan', () => {
-    const wrapper = mount(PlanRow, { props: { plan: plan({ isActive: false }), categoryIcon: null } });
+    const wrapper = mount(PlanRow, {
+      props: { plan: plan({ isActive: false }), categoryIcon: null },
+    });
 
     expect(wrapper.text()).toContain('Отключён');
   });

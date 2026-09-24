@@ -176,7 +176,10 @@ function minorToDecimal(value: string): string {
       </label>
     </div>
 
-    <div class="plan-form__hero-amount" :class="`plan-form__hero-amount--${form.planType.toLowerCase()}`">
+    <div
+      class="plan-form__hero-amount"
+      :class="`plan-form__hero-amount--${form.planType.toLowerCase()}`"
+    >
       <FinanceMoneyInput
         :model-value="form.amount"
         name="amount"
@@ -241,7 +244,12 @@ function minorToDecimal(value: string): string {
 
     <details class="plan-form__advanced">
       <summary>Дополнительные настройки</summary>
-      <UiDatePicker v-model="form.endOn" name="endOn" label="Дата окончания" :error="errors.endOn" />
+      <UiDatePicker
+        v-model="form.endOn"
+        name="endOn"
+        label="Дата окончания"
+        :error="errors.endOn"
+      />
       <UiInput v-model="form.comment" name="comment" label="Заметка" :error="errors.comment" />
     </details>
 

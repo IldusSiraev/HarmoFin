@@ -2,7 +2,10 @@ import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 
 import PlanList from './PlanList.vue';
-import type { PlanOccurrenceDto, RegularPlanDto } from '../../composables/useBudgetReferenceData.js';
+import type {
+  PlanOccurrenceDto,
+  RegularPlanDto,
+} from '../../composables/useBudgetReferenceData.js';
 
 const occurrence: PlanOccurrenceDto = {
   id: 'occurrence-id',
@@ -91,7 +94,9 @@ describe('PlanList', () => {
       },
     });
 
-    expect(wrapper.findComponent({ name: 'PlanOccurrenceRow' }).props('categoryIcon')).toBe('house');
+    expect(wrapper.findComponent({ name: 'PlanOccurrenceRow' }).props('categoryIcon')).toBe(
+      'house',
+    );
 
     await wrapper.get('input[type="checkbox"]').setValue(true);
 

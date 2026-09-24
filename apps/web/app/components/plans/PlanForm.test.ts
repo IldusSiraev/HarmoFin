@@ -34,7 +34,11 @@ const categories = [
 describe('PlanForm', () => {
   it('defaults to expense and shows the envelope field', () => {
     const wrapper = mount(PlanForm, {
-      props: { accounts: [], categories, envelopes: [{ value: 'envelope-id', label: 'Обязательные' }] },
+      props: {
+        accounts: [],
+        categories,
+        envelopes: [{ value: 'envelope-id', label: 'Обязательные' }],
+      },
     });
 
     expect(
@@ -45,7 +49,11 @@ describe('PlanForm', () => {
 
   it('hides the envelope field for income and shows a third savings option', async () => {
     const wrapper = mount(PlanForm, {
-      props: { accounts: [], categories, envelopes: [{ value: 'envelope-id', label: 'Обязательные' }] },
+      props: {
+        accounts: [],
+        categories,
+        envelopes: [{ value: 'envelope-id', label: 'Обязательные' }],
+      },
     });
 
     await wrapper.get('input[name="planType"][value="INCOME"]').setValue();

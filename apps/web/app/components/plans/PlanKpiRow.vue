@@ -33,7 +33,12 @@ defineProps<{
     </article>
     <article class="plan-kpi-row__tile">
       <p class="plan-kpi-row__label">Баланс</p>
-      <FinanceMoney class="plan-kpi-row__value" :minor-units="balanceMinor" currency="RUB" :scale="2" />
+      <FinanceMoney
+        class="plan-kpi-row__value"
+        :minor-units="balanceMinor"
+        currency="RUB"
+        :scale="2"
+      />
     </article>
     <article class="plan-kpi-row__tile">
       <p class="plan-kpi-row__label">Всего планов</p>

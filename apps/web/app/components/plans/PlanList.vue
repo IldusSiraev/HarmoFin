@@ -5,7 +5,10 @@ import { groupByActive } from './group-by-active.js';
 import PlanOccurrenceRow from './PlanOccurrenceRow.vue';
 import PlanRow from './PlanRow.vue';
 import UiEmptyState from '../ui/EmptyState.vue';
-import type { PlanOccurrenceDto, RegularPlanDto } from '../../composables/useBudgetReferenceData.js';
+import type {
+  PlanOccurrenceDto,
+  RegularPlanDto,
+} from '../../composables/useBudgetReferenceData.js';
 
 defineOptions({ name: 'PlanList' });
 

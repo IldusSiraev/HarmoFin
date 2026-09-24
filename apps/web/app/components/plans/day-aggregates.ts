@@ -1,11 +1,17 @@
-import type { PlanOccurrenceDto, TransactionDto } from '../../composables/useBudgetReferenceData.js';
+import type {
+  PlanOccurrenceDto,
+  TransactionDto,
+} from '../../composables/useBudgetReferenceData.js';
 
 export interface DayAggregate {
   netMinor: bigint;
   dot: 'none' | 'upcoming' | 'overdue';
 }
 
-type TransactionForAggregate = Pick<TransactionDto, 'occurredOn' | 'amountMinor' | 'transactionType'>;
+type TransactionForAggregate = Pick<
+  TransactionDto,
+  'occurredOn' | 'amountMinor' | 'transactionType'
+>;
 type OccurrenceForAggregate = Pick<PlanOccurrenceDto, 'scheduledOn' | 'status'>;
 
 export function buildDayAggregates(

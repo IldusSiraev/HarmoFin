@@ -36,18 +36,20 @@ describe('PlansCalendar', () => {
       '2026-09-26': { netMinor: 0n, dot: 'upcoming' },
     });
 
-    expect(wrapper.get('[data-date="2026-09-10"]').find('.plans-calendar__dot--overdue').exists()).toBe(
-      true,
-    );
-    expect(wrapper.get('[data-date="2026-09-26"]').find('.plans-calendar__dot--upcoming').exists()).toBe(
-      true,
-    );
+    expect(
+      wrapper.get('[data-date="2026-09-10"]').find('.plans-calendar__dot--overdue').exists(),
+    ).toBe(true);
+    expect(
+      wrapper.get('[data-date="2026-09-26"]').find('.plans-calendar__dot--upcoming').exists(),
+    ).toBe(true);
   });
 
   it('emits select-day when a cell is clicked and marks the selected/today cells', () => {
     const wrapper = mountCalendar();
 
-    expect(wrapper.get('[data-date="2026-09-24"]').classes()).toContain('plans-calendar__cell--today');
+    expect(wrapper.get('[data-date="2026-09-24"]').classes()).toContain(
+      'plans-calendar__cell--today',
+    );
     expect(wrapper.get('[data-date="2026-09-24"]').classes()).toContain(
       'plans-calendar__cell--selected',
     );
