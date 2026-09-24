@@ -6,9 +6,7 @@ import { definePageMeta, navigateTo, useRoute } from '#imports';
 import { buildCalendarGrid } from '../../components/plans/calendar-grid.js';
 import { buildDayAggregates } from '../../components/plans/day-aggregates.js';
 import { computePlanKpi } from '../../components/plans/plan-kpi.js';
-import PlanDayPanel, {
-  type DayOperationView,
-} from '../../components/plans/PlanDayPanel.vue';
+import PlanDayPanel, { type DayOperationView } from '../../components/plans/PlanDayPanel.vue';
 import PlanForm from '../../components/plans/PlanForm.vue';
 import PlanKpiRow from '../../components/plans/PlanKpiRow.vue';
 import PlanList from '../../components/plans/PlanList.vue';
@@ -58,9 +56,11 @@ const listTab = ref<'upcoming' | 'all'>('upcoming');
 const monthAnchor = ref(today.slice(0, 8) + '01');
 const selectedDate = ref(today);
 const selectedPlan = ref<RegularPlanDto | null>(null);
-const confirmation = ref<null | { action: 'remove' | 'skip'; planId?: string; occurrenceId?: string }>(
-  null,
-);
+const confirmation = ref<null | {
+  action: 'remove' | 'skip';
+  planId?: string;
+  occurrenceId?: string;
+}>(null);
 const mutationKeys = new Map<string, string>();
 
 const budget = computed(() => auth.currentData.value?.workspaces[0]?.budgets[0] ?? null);
@@ -71,16 +71,17 @@ const aggregates = computed(() =>
 );
 
 const monthOccurrences = computed(() =>
-  rangeOccurrences.value.filter((occurrence) => occurrence.scheduledOn.startsWith(monthAnchor.value.slice(0, 7))),
-);
-const kpi = computed(() =>
-  computePlanKpi(
-    monthOccurrences.value,
-    plans.value.filter((plan) => plan.isActive).length,
+  rangeOccurrences.value.filter((occurrence) =>
+    occurrence.scheduledOn.startsWith(monthAnchor.value.slice(0, 7)),
   ),
 );
+const kpi = computed(() =>
+  computePlanKpi(monthOccurrences.value, plans.value.filter((plan) => plan.isActive).length),
+);
 
-const categoryById = computed(() => new Map(categories.value.map((category) => [category.id, category])));
+const categoryById = computed(
+  () => new Map(categories.value.map((category) => [category.id, category])),
+);
 const categoryIconById = computed<Record<string, string | null>>(() =>
   Object.fromEntries(categories.value.map((category) => [category.id, category.icon])),
 );
@@ -183,7 +184,7 @@ async function loadAllTransactions(
       cursor,
     });
     items.push(...page.items);
-    if (!page.nextCursor) break;
+    if (!page.nextCursor || page.nextCursor === cursor) break;
     cursor = page.nextCursor;
   }
   return items;
@@ -285,7 +286,11 @@ async function draftOccurrence(occurrence: PlanOccurrenceDto) {
   error.value = '';
   const operation = `draft:${occurrence.id}`;
   try {
-    const draft = await api.createPlanOccurrenceDraft(budget.value.id, occurrence.id, keyFor(operation));
+    const draft = await api.createPlanOccurrenceDraft(
+      budget.value.id,
+      occurrence.id,
+      keyFor(operation),
+    );
     await navigateTo(`/app/operations?draftId=${encodeURIComponent(draft.id)}`);
   } catch (exception) {
     error.value = errorMessage(exception);
@@ -380,9 +385,13 @@ function errorMessage(exception: unknown) {
               :pending="pending"
               @complete-occurrence="completeOccurrence"
               @draft-occurrence="draftOccurrence"
-              @skip-occurrence="(occurrence) => (confirmation = { action: 'skip', occurrenceId: occurrence.id })"
+              @skip-occurrence="
+                (occurrence) => (confirmation = { action: 'skip', occurrenceId: occurrence.id })
+              "
               @edit-occurrence="openEditOccurrence"
-              @remove-occurrence="(occurrence) => (confirmation = { action: 'remove', planId: occurrence.planId })"
+              @remove-occurrence="
+                (occurrence) => (confirmation = { action: 'remove', planId: occurrence.planId })
+              "
               @add-plan="
                 selectedPlan = null;
                 formErrors = {};
@@ -399,9 +408,13 @@ function errorMessage(exception: unknown) {
               @update:active-tab="listTab = $event"
               @complete-occurrence="completeOccurrence"
               @draft-occurrence="draftOccurrence"
-              @skip-occurrence="(occurrence) => (confirmation = { action: 'skip', occurrenceId: occurrence.id })"
+              @skip-occurrence="
+                (occurrence) => (confirmation = { action: 'skip', occurrenceId: occurrence.id })
+              "
               @edit-occurrence="openEditOccurrence"
-              @remove-occurrence="(occurrence) => (confirmation = { action: 'remove', planId: occurrence.planId })"
+              @remove-occurrence="
+                (occurrence) => (confirmation = { action: 'remove', planId: occurrence.planId })
+              "
               @edit-plan="openEditPlan"
               @remove-plan="(plan) => (confirmation = { action: 'remove', planId: plan.id })"
             />
