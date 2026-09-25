@@ -49,16 +49,16 @@ function aggregateFor(date: string): DayAggregate | undefined {
   return props.aggregates[date];
 }
 
-function compactAmount(date: string): string | null {
+function incomeAmount(date: string): string | null {
   const aggregate = aggregateFor(date);
-  if (!aggregate || aggregate.netMinor === 0n) return null;
-  return formatCompactSigned(aggregate.netMinor.toString(), 2);
+  if (!aggregate || aggregate.incomeMinor === 0n) return null;
+  return formatCompactSigned(aggregate.incomeMinor.toString(), 2);
 }
 
-function amountTone(date: string): 'income' | 'expense' | null {
+function expenseAmount(date: string): string | null {
   const aggregate = aggregateFor(date);
-  if (!aggregate || aggregate.netMinor === 0n) return null;
-  return aggregate.netMinor > 0n ? 'income' : 'expense';
+  if (!aggregate || aggregate.expenseMinor === 0n) return null;
+  return formatCompactSigned((-aggregate.expenseMinor).toString(), 2);
 }
 
 function dotFor(date: string): 'none' | 'upcoming' | 'overdue' {
@@ -71,13 +71,15 @@ function cellLabel(date: string): string {
   if (date === props.today) parts.push('сегодня');
   if (date === props.selectedDate) parts.push('выбрано');
 
-  // The visible cell text shows a compact amount (+106к), but an aria-label
+  // The visible cell text shows compact amounts (+106к), but an aria-label
   // overrides the accessible name computed from that text — so the label has to
-  // carry the amount itself, not just its direction.
+  // carry the amounts themselves, not just their direction.
   const aggregate = aggregateFor(date);
-  if (aggregate && aggregate.netMinor !== 0n) {
-    const tone = aggregate.netMinor > 0n ? 'доход' : 'расход';
-    parts.push(`${tone} ${formatMinorUnits(aggregate.netMinor.toString(), 'RUB', 2)}`);
+  if (aggregate?.incomeMinor) {
+    parts.push(`доход ${formatMinorUnits(aggregate.incomeMinor.toString(), 'RUB', 2)}`);
+  }
+  if (aggregate?.expenseMinor) {
+    parts.push(`расход ${formatMinorUnits(aggregate.expenseMinor.toString(), 'RUB', 2)}`);
   }
 
   const dot = dotFor(date);
@@ -153,11 +155,16 @@ function parsePlainDate(value: string): Date {
       >
         <span class="plans-calendar__day-number">{{ Number(cell.date.slice(-2)) }}</span>
         <span
-          v-if="compactAmount(cell.date)"
-          class="plans-calendar__amount"
-          :class="`plans-calendar__amount--${amountTone(cell.date)}`"
+          v-if="incomeAmount(cell.date)"
+          class="plans-calendar__amount plans-calendar__amount--income"
         >
-          {{ compactAmount(cell.date) }}
+          {{ incomeAmount(cell.date) }}
+        </span>
+        <span
+          v-if="expenseAmount(cell.date)"
+          class="plans-calendar__amount plans-calendar__amount--expense"
+        >
+          {{ expenseAmount(cell.date) }}
         </span>
         <span
           v-if="dotFor(cell.date) !== 'none'"

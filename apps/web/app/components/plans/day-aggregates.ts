@@ -4,6 +4,8 @@ import type {
 } from '../../composables/useBudgetReferenceData.js';
 
 export interface DayAggregate {
+  incomeMinor: bigint;
+  expenseMinor: bigint;
   netMinor: bigint;
   dot: 'none' | 'upcoming' | 'overdue';
 }
@@ -22,21 +24,28 @@ export function buildDayAggregates(
   const byDate: Record<string, DayAggregate> = {};
 
   for (const transaction of transactions) {
-    const signed =
-      transaction.transactionType === 'INCOME'
-        ? BigInt(transaction.amountMinor)
-        : -BigInt(transaction.amountMinor);
-    const existing = byDate[transaction.occurredOn] ?? { netMinor: 0n, dot: 'none' as const };
-    byDate[transaction.occurredOn] = { ...existing, netMinor: existing.netMinor + signed };
+    const amount = BigInt(transaction.amountMinor);
+    const isIncome = transaction.transactionType === 'INCOME';
+    const existing = byDate[transaction.occurredOn] ?? emptyAggregate();
+    byDate[transaction.occurredOn] = {
+      ...existing,
+      incomeMinor: existing.incomeMinor + (isIncome ? amount : 0n),
+      expenseMinor: existing.expenseMinor + (isIncome ? 0n : amount),
+      netMinor: existing.netMinor + (isIncome ? amount : -amount),
+    };
   }
 
   for (const occurrence of occurrences) {
     if (occurrence.status !== 'PENDING' && occurrence.status !== 'DUE') continue;
     const overdue = occurrence.status === 'DUE' && occurrence.scheduledOn < today;
-    const existing = byDate[occurrence.scheduledOn] ?? { netMinor: 0n, dot: 'none' as const };
+    const existing = byDate[occurrence.scheduledOn] ?? emptyAggregate();
     const dot = overdue || existing.dot === 'overdue' ? 'overdue' : 'upcoming';
     byDate[occurrence.scheduledOn] = { ...existing, dot };
   }
 
   return byDate;
+}
+
+function emptyAggregate(): DayAggregate {
+  return { incomeMinor: 0n, expenseMinor: 0n, netMinor: 0n, dot: 'none' };
 }

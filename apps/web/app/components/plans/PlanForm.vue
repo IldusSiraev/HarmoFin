@@ -9,7 +9,7 @@ import {
   type RegularPlanDto,
   type UpdateRegularPlanInput,
 } from '../../composables/useBudgetReferenceData.js';
-import FinanceMoneyInput from '../finance/FinanceMoneyInput.vue';
+import OperationAmountField from '../operations/OperationAmountField.vue';
 import UiButton from '../ui/Button.vue';
 import UiDatePicker from '../ui/DatePicker.vue';
 import UiInput from '../ui/Input.vue';
@@ -55,6 +55,24 @@ type FormModel = {
 
 const form = reactive<FormModel>(fromPlan(props.plan, props.defaultDate));
 const isEditing = computed(() => props.plan !== null);
+
+// Mirrors AppOperationEntryDialog's Расход/Доход/Перевод tabs — Накопление has
+// no direct equivalent there, so it takes the neutral "info" accent.
+const TYPE_TABS: ReadonlyArray<{
+  value: FormModel['planType'];
+  label: string;
+  modifier: string;
+}> = [
+  { value: 'EXPENSE', label: 'Расход', modifier: 'plan-form__type-tab--expense' },
+  { value: 'INCOME', label: 'Доход', modifier: 'plan-form__type-tab--income' },
+  { value: 'SAVINGS', label: 'Накопление', modifier: 'plan-form__type-tab--savings' },
+];
+
+const amountAccent = computed<'danger' | 'success' | 'info'>(() => {
+  if (form.planType === 'EXPENSE') return 'danger';
+  if (form.planType === 'INCOME') return 'success';
+  return 'info';
+});
 
 watch(
   () => props.plan,
@@ -163,43 +181,29 @@ function minorToDecimal(value: string): string {
 
 <template>
   <form class="plan-form" @submit.prevent="submit">
-    <div class="plan-form__type" role="radiogroup" aria-label="Тип плана">
-      <label
-        class="plan-form__type-option"
-        :class="{ 'plan-form__type-option--active': form.planType === 'EXPENSE' }"
+    <div class="plan-form__type" role="tablist" aria-label="Тип плана">
+      <button
+        v-for="tab in TYPE_TABS"
+        :key="tab.value"
+        type="button"
+        role="tab"
+        class="plan-form__type-tab"
+        :class="[tab.modifier, { 'plan-form__type-tab--active': form.planType === tab.value }]"
+        :aria-selected="form.planType === tab.value"
+        :data-plan-type="tab.value"
+        @click="form.planType = tab.value"
       >
-        <input v-model="form.planType" type="radio" name="planType" value="EXPENSE" />
-        Расход
-      </label>
-      <label
-        class="plan-form__type-option"
-        :class="{ 'plan-form__type-option--active': form.planType === 'INCOME' }"
-      >
-        <input v-model="form.planType" type="radio" name="planType" value="INCOME" />
-        Доход
-      </label>
-      <label
-        class="plan-form__type-option"
-        :class="{ 'plan-form__type-option--active': form.planType === 'SAVINGS' }"
-      >
-        <input v-model="form.planType" type="radio" name="planType" value="SAVINGS" />
-        Накопление
-      </label>
+        {{ tab.label }}
+      </button>
     </div>
 
-    <div
-      class="plan-form__hero-amount"
-      :class="`plan-form__hero-amount--${form.planType.toLowerCase()}`"
-    >
-      <FinanceMoneyInput
-        :model-value="form.amount"
-        name="amount"
-        @update:model-value="form.amount = normalizeAmount($event)"
-        label="Сумма"
-        :error="errors.amount"
-        required
-      />
-    </div>
+    <OperationAmountField
+      class="plan-form__amount"
+      :model-value="form.amount"
+      :accent="amountAccent"
+      :error="errors.amount"
+      @update:model-value="form.amount = normalizeAmount($event)"
+    />
 
     <UiInput v-model="form.name" name="name" label="Название" :error="errors.name" required />
 
@@ -302,7 +306,7 @@ function minorToDecimal(value: string): string {
   gap: var(--hf-space-4);
 }
 .plan-form__type,
-.plan-form__hero-amount,
+.plan-form__amount,
 .plan-form__advanced,
 .plan-form__active,
 .plan-form__actions {
@@ -310,53 +314,35 @@ function minorToDecimal(value: string): string {
 }
 .plan-form__type {
   display: flex;
-  gap: var(--hf-space-2);
-}
-.plan-form__type-option {
-  display: flex;
-  flex: 1;
-  align-items: center;
   justify-content: center;
-  min-height: var(--hf-control-height-md);
-  border: 1px solid var(--hf-color-border-strong);
-  border-radius: var(--hf-control-radius);
+  gap: var(--hf-space-1);
+}
+.plan-form__type-tab {
+  min-height: 2.25rem;
+  padding: 0 var(--hf-space-3);
+  border: none;
+  border-radius: var(--hf-radius-xl);
+  background: transparent;
+  color: var(--hf-color-text-muted);
+  font: inherit;
+  font-weight: var(--hf-font-weight-medium);
   cursor: pointer;
 }
-.plan-form__type-option input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-}
-.plan-form__type-option--active {
-  border-color: var(--hf-color-brand);
-  background: var(--hf-color-brand-soft);
-  color: var(--hf-color-brand);
-  font-weight: var(--hf-font-weight-semibold);
-}
-.plan-form__type-option:focus-within {
+.plan-form__type-tab:focus-visible {
   outline: 2px solid var(--hf-color-action-primary);
   outline-offset: 2px;
 }
-.plan-form__hero-amount {
-  border-bottom: 2px solid var(--hf-color-border-strong);
-  transition: border-color var(--hf-transition-fast);
+.plan-form__type-tab--expense.plan-form__type-tab--active {
+  background: var(--hf-color-status-danger-background);
+  color: var(--hf-color-status-danger);
 }
-.plan-form__hero-amount :deep(.ui-field__control) {
-  border: 0;
-  padding-inline: 0;
-  font-size: 2rem;
-  font-weight: var(--hf-font-weight-semibold);
+.plan-form__type-tab--income.plan-form__type-tab--active {
+  background: var(--hf-color-status-success-background);
+  color: var(--hf-color-status-success);
 }
-.plan-form__hero-amount--expense {
-  border-color: var(--hf-color-status-danger);
-}
-.plan-form__hero-amount--income {
-  border-color: var(--hf-color-status-success);
-}
-.plan-form__hero-amount--savings {
-  border-color: var(--hf-color-brand);
+.plan-form__type-tab--savings.plan-form__type-tab--active {
+  background: var(--hf-color-status-info-background);
+  color: var(--hf-color-status-info);
 }
 .plan-form__advanced {
   color: var(--hf-color-text);

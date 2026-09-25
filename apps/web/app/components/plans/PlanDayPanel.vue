@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+import { format } from 'date-fns';
+import { ru } from 'date-fns/locale';
+
 import { categoryIcon as resolveCategoryIcon } from '../operations/category-icon.js';
 import PlanOccurrenceRow from './PlanOccurrenceRow.vue';
 import FinanceMoney from '../finance/FinanceMoney.vue';
@@ -38,6 +42,15 @@ const emit = defineEmits<{
   'add-plan': [];
 }>();
 
+const formattedDate = computed(() =>
+  format(parsePlainDate(props.date), 'd MMMM yyyy', { locale: ru }),
+);
+
+function parsePlainDate(value: string): Date {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year as number, (month as number) - 1, day as number);
+}
+
 function operationIcon(operation: DayOperationView) {
   return resolveCategoryIcon(operation.categoryIcon, operation.transactionType);
 }
@@ -68,7 +81,7 @@ function signedMinor(operation: DayOperationView): string {
 <template>
   <section class="plan-day-panel" aria-label="Детали дня">
     <header class="plan-day-panel__header">
-      <h2>{{ date }}</h2>
+      <h2>{{ formattedDate }}</h2>
       <div v-if="operations.length > 0" class="plan-day-panel__net">
         <p class="plan-day-panel__net-label">
           {{ BigInt(netMinor()) >= 0n ? 'Доход' : 'Расход' }}
@@ -118,8 +131,13 @@ function signedMinor(operation: DayOperationView): string {
       description="Добавьте план или посмотрите другой день."
     />
 
-    <UiButton data-action="add-plan-on-day" variant="secondary" @click="emit('add-plan')">
-      + Добавить план на этот день
+    <UiButton
+      data-action="add-plan-on-day"
+      variant="secondary"
+      full-width
+      @click="emit('add-plan')"
+    >
+      + Добавить план
     </UiButton>
   </section>
 </template>
@@ -134,14 +152,13 @@ function signedMinor(operation: DayOperationView): string {
   box-shadow: var(--hf-shadow-card);
 }
 .plan-day-panel__header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--hf-space-3);
+  display: grid;
+  gap: var(--hf-space-1);
 }
 .plan-day-panel__header h2 {
   margin: 0;
-  font-size: 1.125rem;
+  font-size: 1.0625rem;
+  text-transform: capitalize;
 }
 .plan-day-panel__net {
   display: flex;

@@ -15,7 +15,28 @@ describe('buildDayAggregates', () => {
     );
 
     expect(aggregates['2026-09-13']?.netMinor).toBe(-435000n);
+    expect(aggregates['2026-09-13']?.expenseMinor).toBe(435000n);
+    expect(aggregates['2026-09-13']?.incomeMinor).toBe(0n);
     expect(aggregates['2026-09-10']?.netMinor).toBe(10600000n);
+    expect(aggregates['2026-09-10']?.incomeMinor).toBe(10600000n);
+  });
+
+  it('tracks income and expense separately on a day with both', () => {
+    const aggregates = buildDayAggregates(
+      [
+        { occurredOn: '2026-09-24', amountMinor: '60000', transactionType: 'INCOME' },
+        { occurredOn: '2026-09-24', amountMinor: '15000', transactionType: 'EXPENSE' },
+        { occurredOn: '2026-09-24', amountMinor: '700000', transactionType: 'EXPENSE' },
+      ],
+      [],
+      '2026-09-24',
+    );
+
+    expect(aggregates['2026-09-24']).toMatchObject({
+      incomeMinor: 60000n,
+      expenseMinor: 715000n,
+      netMinor: -655000n,
+    });
   });
 
   it('marks a past DUE occurrence overdue and a future PENDING one upcoming', () => {
@@ -57,6 +78,11 @@ describe('buildDayAggregates', () => {
       '2026-09-24',
     );
 
-    expect(aggregates['2026-09-10']).toEqual({ netMinor: 100n, dot: 'overdue' });
+    expect(aggregates['2026-09-10']).toEqual({
+      incomeMinor: 100n,
+      expenseMinor: 0n,
+      netMinor: 100n,
+      dot: 'overdue',
+    });
   });
 });

@@ -28,16 +28,33 @@ describe('PlansCalendar', () => {
   });
 
   it('shows a compact signed amount for a day with a net total', () => {
-    const wrapper = mountCalendar({ '2026-09-10': { netMinor: 10600000n, dot: 'none' } });
+    const wrapper = mountCalendar({
+      '2026-09-10': { incomeMinor: 10600000n, expenseMinor: 0n, netMinor: 10600000n, dot: 'none' },
+    });
 
     const cell = wrapper.get('[data-date="2026-09-10"]');
     expect(cell.text()).toContain('+106к');
   });
 
+  it('shows both an income and an expense amount on a day with both', () => {
+    const wrapper = mountCalendar({
+      '2026-09-24': {
+        incomeMinor: 60000000n,
+        expenseMinor: 3500000n,
+        netMinor: 56500000n,
+        dot: 'none',
+      },
+    });
+
+    const cell = wrapper.get('[data-date="2026-09-24"]');
+    expect(cell.text()).toContain('+600к');
+    expect(cell.text()).toContain('−35к');
+  });
+
   it('shows an overdue dot for a past DUE day and an upcoming dot for a future one', () => {
     const wrapper = mountCalendar({
-      '2026-09-10': { netMinor: 0n, dot: 'overdue' },
-      '2026-09-26': { netMinor: 0n, dot: 'upcoming' },
+      '2026-09-10': { incomeMinor: 0n, expenseMinor: 0n, netMinor: 0n, dot: 'overdue' },
+      '2026-09-26': { incomeMinor: 0n, expenseMinor: 0n, netMinor: 0n, dot: 'upcoming' },
     });
 
     expect(
@@ -74,8 +91,13 @@ describe('PlansCalendar', () => {
 
   it('builds an aria-label with full date context, tone, and plan status for each cell', () => {
     const wrapper = mountCalendar({
-      '2026-09-10': { netMinor: 0n, dot: 'overdue' },
-      '2026-09-24': { netMinor: 10600000n, dot: 'none' },
+      '2026-09-10': { incomeMinor: 0n, expenseMinor: 0n, netMinor: 0n, dot: 'overdue' },
+      '2026-09-24': {
+        incomeMinor: 10600000n,
+        expenseMinor: 0n,
+        netMinor: 10600000n,
+        dot: 'none',
+      },
     });
 
     const overdueLabel = wrapper.get('[data-date="2026-09-10"]').attributes('aria-label');
@@ -95,7 +117,9 @@ describe('PlansCalendar', () => {
   });
 
   it('spells out a negative day total as an expense amount in the aria-label', () => {
-    const wrapper = mountCalendar({ '2026-09-13': { netMinor: -85000n, dot: 'none' } });
+    const wrapper = mountCalendar({
+      '2026-09-13': { incomeMinor: 0n, expenseMinor: 85000n, netMinor: -85000n, dot: 'none' },
+    });
 
     const label = wrapper.get('[data-date="2026-09-13"]').attributes('aria-label');
     expect(label).toContain('расход');

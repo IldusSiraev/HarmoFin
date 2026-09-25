@@ -51,7 +51,7 @@ describe('PlanDayPanel', () => {
       props: { date: '2026-09-13', operations, occurrences: [], categoryIconById: {} },
     });
 
-    expect(wrapper.text()).toContain('2026-09-13');
+    expect(wrapper.text()).toContain('13 сентября 2026');
     expect(wrapper.text()).toContain('Бензин');
     expect(wrapper.text()).toContain('Кафе');
     expect(wrapper.findAll('.plan-day-panel__operation svg')).toHaveLength(2);

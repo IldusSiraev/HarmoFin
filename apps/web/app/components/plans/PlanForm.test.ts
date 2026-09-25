@@ -41,9 +41,7 @@ describe('PlanForm', () => {
       },
     });
 
-    expect(
-      wrapper.get<HTMLInputElement>('input[name="planType"][value="EXPENSE"]').element.checked,
-    ).toBe(true);
+    expect(wrapper.get('[data-plan-type="EXPENSE"]').attributes('aria-selected')).toBe('true');
     expect(wrapper.find('[name="envelopeId"]').exists()).toBe(true);
   });
 
@@ -56,10 +54,10 @@ describe('PlanForm', () => {
       },
     });
 
-    await wrapper.get('input[name="planType"][value="INCOME"]').setValue();
+    await wrapper.get('[data-plan-type="INCOME"]').trigger('click');
     expect(wrapper.find('[name="envelopeId"]').exists()).toBe(false);
 
-    await wrapper.get('input[name="planType"][value="SAVINGS"]').setValue();
+    await wrapper.get('[data-plan-type="SAVINGS"]').trigger('click');
     expect(wrapper.find('[name="envelopeId"]').exists()).toBe(true);
   });
 
