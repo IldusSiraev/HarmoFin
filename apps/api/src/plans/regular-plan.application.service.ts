@@ -24,6 +24,7 @@ import {
   type RegularPlanRecord,
   type RegularPlanUpdateData,
 } from './regular-plan.repository.js';
+import { collectPlanShapeIssues, type PlanShapeIssue } from './plans.schemas.js';
 import type {
   CreateRegularPlanInput,
   ListPlanOccurrencesInput,
@@ -474,20 +475,17 @@ export class RegularPlanApplicationService {
     const startOn = input.startOn ? parseDate(input.startOn) : current.startOn;
     const endOn =
       input.endOn === undefined ? current.endOn : input.endOn ? parseDate(input.endOn) : null;
-    if (endOn && endOn < startOn)
-      throw invalidPlan('endOn', 'Дата окончания не может быть раньше даты начала.');
-    if (recurrence === 'ONE_TIME' && anchorOn.getTime() !== startOn.getTime()) {
-      throw invalidPlan(
-        'anchorOn',
-        'Для разового плана опорная дата должна совпадать с датой начала.',
-      );
-    }
-    if (
-      (recurrence === 'EVERY_N_MONTHS' && !intervalMonths) ||
-      (recurrence !== 'EVERY_N_MONTHS' && intervalMonths !== null)
-    ) {
-      throw invalidPlan('intervalMonths', 'Укажите корректный интервал в месяцах.');
-    }
+    const shapeIssues = collectPlanShapeIssues({
+      planType,
+      startOn: dateValue(startOn),
+      endOn: endOn ? dateValue(endOn) : null,
+      recurrence,
+      intervalMonths,
+      anchorOn: dateValue(anchorOn),
+      categoryId,
+      envelopeId,
+    });
+    if (shapeIssues.length > 0) throw invalidPlanShape(shapeIssues);
     await this.validateReferences(
       tx,
       current.budgetId,
@@ -678,6 +676,18 @@ function invalidPlan(field: string, message: string): BadRequestException {
     code: 'VALIDATION_FAILED',
     detail: 'Некорректные данные плана.',
     fieldErrors: [{ field, message, code: 'invalid' }],
+  });
+}
+
+function invalidPlanShape(issues: PlanShapeIssue[]): BadRequestException {
+  return new BadRequestException({
+    code: 'VALIDATION_FAILED',
+    detail: 'Некорректные данные плана.',
+    fieldErrors: issues.map((issue) => ({
+      field: issue.path,
+      message: issue.message,
+      code: 'invalid',
+    })),
   });
 }
 

@@ -156,6 +156,37 @@ describe('regular plans API', () => {
     expect(invalidUpdate.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
   });
 
+  it('rejects switching an existing plan to one-time without aligning its anchor', async () => {
+    const create = await server.inject({
+      method: 'POST',
+      url: planPath(),
+      headers: mutationHeaders('create-monthly-plan-for-recurrence-switch'),
+      cookies: { harmofin_session: owner.cookie },
+      payload: {
+        name: 'Подписка',
+        planType: 'EXPENSE',
+        amount: '500.00',
+        anchorOn: '2026-09-05',
+        startOn: '2026-09-01',
+        recurrence: 'MONTHLY',
+        categoryId: expenseCategoryId,
+        envelopeId: mandatoryEnvelopeId,
+      },
+    });
+    const planId = create.json<{ id: string }>().id;
+
+    const invalidUpdate = await server.inject({
+      method: 'PATCH',
+      url: planPath(planId),
+      headers: mutationHeaders('update-recurrence-to-one-time-without-anchor'),
+      cookies: { harmofin_session: owner.cookie },
+      payload: { recurrence: 'ONE_TIME' },
+    });
+
+    expect(invalidUpdate.statusCode).toBe(400);
+    expect(invalidUpdate.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
+  });
+
   it('updates plan and cancels only future pending occurrences', async () => {
     const create = await server.inject({
       method: 'POST',
