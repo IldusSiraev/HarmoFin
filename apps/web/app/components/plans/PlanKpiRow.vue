@@ -55,6 +55,7 @@ defineProps<{
 }
 .plan-kpi-row__tile {
   display: grid;
+  min-width: 0;
   gap: var(--hf-space-1);
   padding: var(--hf-card-padding);
   border-radius: var(--hf-card-radius);
@@ -69,6 +70,7 @@ defineProps<{
   letter-spacing: 0.05em;
 }
 .plan-kpi-row__value {
+  min-width: 0;
   font-size: 1.5rem;
   font-weight: var(--hf-font-weight-semibold);
 }
@@ -81,6 +83,15 @@ defineProps<{
 @media (max-width: 47.9375rem) {
   .plan-kpi-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* Intl.NumberFormat('ru-RU') joins the thousands groups and the currency
+   symbol with non-breaking spaces, so a large value like "-36 000,00 ₽"
+   can't wrap — it needs a wide enough tile instead. Two tiles per row don't
+   leave room for that on a phone, so drop to one column below tablet width. */
+@media (max-width: 30rem) {
+  .plan-kpi-row {
+    grid-template-columns: 1fr;
   }
 }
 </style>
