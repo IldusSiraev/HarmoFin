@@ -131,25 +131,56 @@ function signedMinor(operation: DayOperationView): string {
       description="Добавьте план или посмотрите другой день."
     />
 
-    <UiButton
-      data-action="add-plan-on-day"
-      variant="secondary"
-      full-width
-      @click="emit('add-plan')"
-    >
-      + Добавить план
-    </UiButton>
+    <div class="plan-day-panel__footer">
+      <UiButton
+        data-action="add-plan-on-day"
+        variant="secondary"
+        full-width
+        @click="emit('add-plan')"
+      >
+        + Добавить план
+      </UiButton>
+    </div>
   </section>
 </template>
 
 <style scoped>
 .plan-day-panel {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--hf-space-4);
   padding: var(--hf-card-padding);
   border-radius: var(--hf-card-radius);
   background: var(--hf-color-surface);
   box-shadow: var(--hf-shadow-card);
+}
+/* Same narrow-column fix as PlanList.vue — force UiListRow's mobile stacked
+   layout (title/amount fight for space on one line otherwise) regardless of
+   viewport width. */
+.plan-day-panel :deep(.ui-list-row__select) {
+  display: grid;
+  grid-template-areas:
+    'leading body'
+    'leading trailing';
+  grid-template-columns: auto minmax(0, 1fr);
+  row-gap: 0.125rem;
+}
+.plan-day-panel :deep(.ui-list-row__leading) {
+  grid-area: leading;
+  align-self: start;
+}
+.plan-day-panel :deep(.ui-list-row__body) {
+  grid-area: body;
+}
+.plan-day-panel :deep(.ui-list-row__trailing) {
+  grid-area: trailing;
+}
+/* Pushes the "add plan" button to the bottom of the card once the card is
+   stretched taller than its own content (it matches the calendar's height
+   as a sibling grid item), instead of leaving it stranded right under a
+   short day's content. */
+.plan-day-panel__footer {
+  margin-top: auto;
 }
 .plan-day-panel__header {
   display: grid;

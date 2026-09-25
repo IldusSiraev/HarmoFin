@@ -36,15 +36,17 @@ describe('PlanOccurrenceRow', () => {
     expect(wrapper.emitted('complete')).toHaveLength(1);
   });
 
-  it('emits edit and remove from the always-visible icon buttons', async () => {
+  it('emits edit and remove from the overflow menu', async () => {
     const wrapper = mount(PlanOccurrenceRow, {
       props: { occurrence: occurrence(), categoryIcon: null },
     });
 
+    await wrapper.get('[data-testid="action-menu-trigger"]').trigger('click');
     await wrapper.get('[data-action="edit-occurrence-plan"]').trigger('click');
-    await wrapper.get('[data-action="remove-occurrence-plan"]').trigger('click');
-
     expect(wrapper.emitted('edit')).toHaveLength(1);
+
+    await wrapper.get('[data-testid="action-menu-trigger"]').trigger('click');
+    await wrapper.get('[data-action="remove-occurrence-plan"]').trigger('click');
     expect(wrapper.emitted('remove')).toHaveLength(1);
   });
 
@@ -78,7 +80,12 @@ describe('PlanOccurrenceRow', () => {
     const withTransaction = mount(PlanOccurrenceRow, {
       props: { occurrence: occurrence({ transactionId: 'transaction-id' }), categoryIcon: null },
     });
-    expect(withTransaction.find('[data-testid="action-menu-trigger"]').exists()).toBe(false);
+    // The menu itself stays (it still hosts Изменить/Удалить) — only the
+    // draft/skip items, which need no existing transaction, drop out.
+    await withTransaction.get('[data-testid="action-menu-trigger"]').trigger('click');
+    expect(withTransaction.find('[data-testid="row-draft"]').exists()).toBe(false);
+    expect(withTransaction.find('[data-testid="row-skip"]').exists()).toBe(false);
+    expect(withTransaction.find('[data-action="edit-occurrence-plan"]').exists()).toBe(true);
   });
 
   it('shows a status label with no actions for a completed occurrence', () => {

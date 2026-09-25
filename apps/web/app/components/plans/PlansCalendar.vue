@@ -247,13 +247,14 @@ function parsePlainDate(value: string): Date {
 }
 .plans-calendar__cell {
   display: grid;
+  align-content: start;
   gap: 0.125rem;
   justify-items: center;
-  aspect-ratio: 1;
+  min-height: 3.75rem;
   padding: var(--hf-space-1);
-  border: 1px solid transparent;
+  border: 1px solid var(--hf-color-border);
   border-radius: var(--hf-radius-md);
-  background: transparent;
+  background: var(--hf-color-surface);
   cursor: pointer;
 }
 .plans-calendar__cell:hover {
@@ -265,6 +266,7 @@ function parsePlainDate(value: string): Date {
 }
 .plans-calendar__cell--muted {
   color: var(--hf-color-text-subtle);
+  background: var(--hf-color-surface-subtle);
 }
 .plans-calendar__cell--today .plans-calendar__day-number {
   display: inline-flex;
@@ -322,6 +324,9 @@ function parsePlainDate(value: string): Date {
   gap: var(--hf-space-1);
 }
 @media (max-width: 47.9375rem) {
+  .plans-calendar__cell {
+    min-height: 3.25rem;
+  }
   .plans-calendar__day-number {
     font-size: 0.625rem;
   }

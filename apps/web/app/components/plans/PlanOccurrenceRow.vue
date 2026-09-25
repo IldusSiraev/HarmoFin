@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Pencil, X } from '@lucide/vue';
 
 import { categoryIcon as resolveCategoryIcon } from '../operations/category-icon.js';
 import FinanceMoney from '../finance/FinanceMoney.vue';
@@ -86,27 +85,15 @@ function handleCheckbox(event: Event) {
             @change="handleCheckbox"
           />
         </label>
-        <button
-          type="button"
-          data-action="edit-occurrence-plan"
-          class="plan-occurrence-row__icon-button"
-          aria-label="Изменить план"
-          :disabled="pending"
-          @click="$emit('edit')"
-        >
-          <Pencil :size="18" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          data-action="remove-occurrence-plan"
-          class="plan-occurrence-row__icon-button"
-          aria-label="Удалить план"
-          :disabled="pending"
-          @click="$emit('remove')"
-        >
-          <X :size="18" aria-hidden="true" />
-        </button>
-        <UiActionMenu v-if="canDraft || canSkip" label="Ещё действия с планом">
+        <UiActionMenu label="Действия с планом">
+          <button
+            type="button"
+            role="menuitem"
+            data-action="edit-occurrence-plan"
+            @click="$emit('edit')"
+          >
+            Изменить
+          </button>
           <button
             v-if="canDraft"
             type="button"
@@ -124,6 +111,14 @@ function handleCheckbox(event: Event) {
             @click="$emit('skip')"
           >
             Пропустить
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            data-action="remove-occurrence-plan"
+            @click="$emit('remove')"
+          >
+            Удалить
           </button>
         </UiActionMenu>
       </div>
@@ -162,29 +157,5 @@ function handleCheckbox(event: Event) {
 .plan-occurrence-row__complete input {
   width: 1.25rem;
   height: 1.25rem;
-}
-.plan-occurrence-row__icon-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  border: 0;
-  border-radius: var(--hf-radius-md);
-  background: transparent;
-  color: var(--hf-color-text-muted);
-  cursor: pointer;
-}
-.plan-occurrence-row__icon-button:hover:not(:disabled) {
-  background: var(--hf-color-action-secondary-hover);
-  color: var(--hf-color-text);
-}
-.plan-occurrence-row__icon-button:focus-visible {
-  outline: 2px solid var(--hf-color-action-primary);
-  outline-offset: 2px;
-}
-.plan-occurrence-row__icon-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 </style>

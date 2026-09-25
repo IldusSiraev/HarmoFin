@@ -34,7 +34,11 @@ describe('PlanRow', () => {
     const wrapper = mount(PlanRow, { props: { plan: plan(), categoryIcon: null } });
 
     expect(wrapper.text()).toContain('Ежемесячно');
+    // UiActionMenu closes itself on any menu-item click and only renders its
+    // slot while open (established convention, see PlanOccurrenceRow.test.ts).
+    await wrapper.get('[data-testid="action-menu-trigger"]').trigger('click');
     await wrapper.get('[data-action="edit-plan"]').trigger('click');
+    await wrapper.get('[data-testid="action-menu-trigger"]').trigger('click');
     await wrapper.get('[data-action="remove-plan"]').trigger('click');
 
     expect(wrapper.emitted('edit')).toHaveLength(1);

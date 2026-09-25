@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Pencil, X } from '@lucide/vue';
 
 import { categoryIcon as resolveCategoryIcon } from '../operations/category-icon.js';
 import FinanceMoney from '../finance/FinanceMoney.vue';
+import UiActionMenu from '../ui/ActionMenu.vue';
 import UiListRow from '../ui/ListRow.vue';
 import type { RegularPlanDto } from '../../composables/useBudgetReferenceData.js';
 
@@ -59,26 +59,26 @@ const rowLabel = computed(() => `План «${props.plan.name}»`);
     </template>
 
     <template #actions>
-      <button
-        type="button"
-        data-action="edit-plan"
-        class="plan-row__icon-button"
-        aria-label="Изменить план"
-        :disabled="pending"
-        @click="$emit('edit')"
-      >
-        <Pencil :size="18" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        data-action="remove-plan"
-        class="plan-row__icon-button"
-        aria-label="Удалить план"
-        :disabled="pending"
-        @click="$emit('remove')"
-      >
-        <X :size="18" aria-hidden="true" />
-      </button>
+      <UiActionMenu label="Действия с планом">
+        <button
+          type="button"
+          role="menuitem"
+          data-action="edit-plan"
+          :disabled="pending"
+          @click="$emit('edit')"
+        >
+          Изменить
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          data-action="remove-plan"
+          :disabled="pending"
+          @click="$emit('remove')"
+        >
+          Удалить
+        </button>
+      </UiActionMenu>
     </template>
   </UiListRow>
 </template>
@@ -97,29 +97,5 @@ const rowLabel = computed(() => `План «${props.plan.name}»`);
 .plan-row__amount {
   font-weight: var(--hf-font-weight-semibold);
   white-space: nowrap;
-}
-.plan-row__icon-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  border: 0;
-  border-radius: var(--hf-radius-md);
-  background: transparent;
-  color: var(--hf-color-text-muted);
-  cursor: pointer;
-}
-.plan-row__icon-button:hover:not(:disabled) {
-  background: var(--hf-color-action-secondary-hover);
-  color: var(--hf-color-text);
-}
-.plan-row__icon-button:focus-visible {
-  outline: 2px solid var(--hf-color-action-primary);
-  outline-offset: 2px;
-}
-.plan-row__icon-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 </style>

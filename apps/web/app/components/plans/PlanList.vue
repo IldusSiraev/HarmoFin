@@ -125,7 +125,34 @@ const planGroups = computed(() => groupByActive(props.allPlans));
 <style scoped>
 .plan-list {
   display: grid;
+  align-content: start;
   gap: var(--hf-space-4);
+  padding: var(--hf-card-padding);
+  border-radius: var(--hf-card-radius);
+  background: var(--hf-color-surface);
+  box-shadow: var(--hf-shadow-card);
+}
+/* This sidebar column is as narrow as UiListRow's own mobile breakpoint, so
+   the title/amount fight for space on one line and collapse to almost
+   nothing (e.g. "Продукты" renders as "П"). Force the same stacked layout
+   UiListRow already uses under 599px, regardless of viewport. */
+.plan-list :deep(.ui-list-row__select) {
+  display: grid;
+  grid-template-areas:
+    'leading body'
+    'leading trailing';
+  grid-template-columns: auto minmax(0, 1fr);
+  row-gap: 0.125rem;
+}
+.plan-list :deep(.ui-list-row__leading) {
+  grid-area: leading;
+  align-self: start;
+}
+.plan-list :deep(.ui-list-row__body) {
+  grid-area: body;
+}
+.plan-list :deep(.ui-list-row__trailing) {
+  grid-area: trailing;
 }
 .plan-list__tabs {
   display: flex;

@@ -515,7 +515,6 @@ function errorMessage(exception: unknown) {
 .plans-page__main {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
-  align-items: start;
   gap: var(--hf-space-4);
   margin-top: var(--hf-space-4);
 }
