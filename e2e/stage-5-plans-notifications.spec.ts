@@ -39,12 +39,12 @@ test.describe('Stage 5 plans and notifications (CI-only)', () => {
       .getByRole('tabpanel', { name: 'Ближайшие' })
       .getByTestId('action-menu-trigger')
       .click();
-    await expect(page.getByRole('button', { name: 'Создать черновик' })).toBeVisible();
+    await expect(page.getByTestId('row-draft')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       375,
     );
 
-    await page.getByRole('button', { name: 'Создать черновик' }).click();
+    await page.getByTestId('row-draft').click();
     await expect(page).toHaveURL(/\/app\/operations\?draftId=/);
     await page.getByLabel('Сумма').fill('37 000,00');
     await page.getByRole('button', { name: 'Сохранить изменения' }).click();
