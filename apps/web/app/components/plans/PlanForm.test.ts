@@ -32,37 +32,40 @@ const categories = [
 ];
 
 describe('PlanForm', () => {
-  it('defaults to expense and shows the envelope field', () => {
+  it('shows the envelope field for expense', () => {
     const wrapper = mount(PlanForm, {
       props: {
+        planType: 'EXPENSE',
         accounts: [],
         categories,
         envelopes: [{ value: 'envelope-id', label: 'Обязательные' }],
       },
     });
 
-    expect(wrapper.get('[data-plan-type="EXPENSE"]').attributes('aria-selected')).toBe('true');
     expect(wrapper.find('[name="envelopeId"]').exists()).toBe(true);
   });
 
-  it('hides the envelope field for income and shows a third savings option', async () => {
+  it('hides the envelope field for income and shows it again for savings', async () => {
     const wrapper = mount(PlanForm, {
       props: {
+        planType: 'EXPENSE',
         accounts: [],
         categories,
         envelopes: [{ value: 'envelope-id', label: 'Обязательные' }],
       },
     });
 
-    await wrapper.get('[data-plan-type="INCOME"]').trigger('click');
+    await wrapper.setProps({ planType: 'INCOME' });
     expect(wrapper.find('[name="envelopeId"]').exists()).toBe(false);
 
-    await wrapper.get('[data-plan-type="SAVINGS"]').trigger('click');
+    await wrapper.setProps({ planType: 'SAVINGS' });
     expect(wrapper.find('[name="envelopeId"]').exists()).toBe(true);
   });
 
   it('shows the interval field only for every-N-months recurrence', async () => {
-    const wrapper = mount(PlanForm, { props: { accounts: [], categories, envelopes: [] } });
+    const wrapper = mount(PlanForm, {
+      props: { planType: 'EXPENSE', accounts: [], categories, envelopes: [] },
+    });
 
     expect(wrapper.find('[name="intervalMonths"]').exists()).toBe(false);
     await wrapper.get('[name="recurrence"]').setValue('EVERY_N_MONTHS');
@@ -72,6 +75,7 @@ describe('PlanForm', () => {
   it('writes the single date field into both anchorOn and startOn on submit', async () => {
     const wrapper = mount(PlanForm, {
       props: {
+        planType: 'EXPENSE',
         accounts: [{ value: 'account-id', label: 'Счёт' }],
         categories,
         envelopes: [{ value: 'envelope-id', label: 'Обязательные' }],
@@ -99,6 +103,7 @@ describe('PlanForm', () => {
   it('pre-fills the date field from defaultDate when creating', async () => {
     const wrapper = mount(PlanForm, {
       props: {
+        planType: 'EXPENSE',
         accounts: [],
         categories,
         envelopes: [{ value: 'envelope-id', label: 'Обязательные' }],
@@ -119,6 +124,7 @@ describe('PlanForm', () => {
   it('preserves a periodic plan anchorOn that differs from startOn when editing', async () => {
     const wrapper = mount(PlanForm, {
       props: {
+        planType: 'EXPENSE',
         accounts: [],
         categories,
         envelopes: [{ value: 'envelope-id', label: 'Обязательные' }],
@@ -161,11 +167,14 @@ describe('PlanForm', () => {
   });
 
   it('hides the anchor date for one-time plans and when creating', async () => {
-    const created = mount(PlanForm, { props: { accounts: [], categories, envelopes: [] } });
+    const created = mount(PlanForm, {
+      props: { planType: 'EXPENSE', accounts: [], categories, envelopes: [] },
+    });
     expect(created.find('[name="anchorDate"]').exists()).toBe(false);
 
     const editing = mount(PlanForm, {
       props: {
+        planType: 'EXPENSE',
         accounts: [],
         categories,
         envelopes: [],
@@ -197,11 +206,14 @@ describe('PlanForm', () => {
   });
 
   it('shows delete and the active toggle only in edit mode, and emits remove', async () => {
-    const created = mount(PlanForm, { props: { accounts: [], categories, envelopes: [] } });
+    const created = mount(PlanForm, {
+      props: { planType: 'EXPENSE', accounts: [], categories, envelopes: [] },
+    });
     expect(created.find('[data-action="delete-plan"]').exists()).toBe(false);
 
     const editing = mount(PlanForm, {
       props: {
+        planType: 'EXPENSE',
         accounts: [],
         categories,
         envelopes: [{ value: 'envelope-id', label: 'Обязательные' }],

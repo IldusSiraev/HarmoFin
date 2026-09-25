@@ -18,6 +18,7 @@ import UiSelect from '../ui/Select.vue';
 const props = withDefaults(
   defineProps<{
     plan?: RegularPlanDto | null;
+    planType: 'INCOME' | 'EXPENSE' | 'SAVINGS';
     defaultDate?: string | undefined;
     accounts: ReadonlyArray<{ value: string; label: string }>;
     categories: ReadonlyArray<CategoryDto>;
@@ -39,7 +40,6 @@ const emit = defineEmits<{
 
 type FormModel = {
   name: string;
-  planType: 'INCOME' | 'EXPENSE' | 'SAVINGS';
   amount: string;
   date: string;
   anchorDate: string;
@@ -56,21 +56,9 @@ type FormModel = {
 const form = reactive<FormModel>(fromPlan(props.plan, props.defaultDate));
 const isEditing = computed(() => props.plan !== null);
 
-// Mirrors AppOperationEntryDialog's Расход/Доход/Перевод tabs — Накопление has
-// no direct equivalent there, so it takes the neutral "info" accent.
-const TYPE_TABS: ReadonlyArray<{
-  value: FormModel['planType'];
-  label: string;
-  modifier: string;
-}> = [
-  { value: 'EXPENSE', label: 'Расход', modifier: 'plan-form__type-tab--expense' },
-  { value: 'INCOME', label: 'Доход', modifier: 'plan-form__type-tab--income' },
-  { value: 'SAVINGS', label: 'Накопление', modifier: 'plan-form__type-tab--savings' },
-];
-
 const amountAccent = computed<'danger' | 'success' | 'info'>(() => {
-  if (form.planType === 'EXPENSE') return 'danger';
-  if (form.planType === 'INCOME') return 'success';
+  if (props.planType === 'EXPENSE') return 'danger';
+  if (props.planType === 'INCOME') return 'success';
   return 'info';
 });
 
@@ -79,7 +67,7 @@ watch(
   (plan) => Object.assign(form, fromPlan(plan, props.defaultDate)),
 );
 watch(
-  () => form.planType,
+  () => props.planType,
   (type) => {
     if (type === 'INCOME') form.envelopeId = '';
   },
@@ -88,14 +76,14 @@ watch(
 function categoryOptions() {
   return selectableCategories(props.categories)
     .filter(
-      (category) => category.categoryType === (form.planType === 'INCOME' ? 'INCOME' : 'EXPENSE'),
+      (category) => category.categoryType === (props.planType === 'INCOME' ? 'INCOME' : 'EXPENSE'),
     )
     .map((category) => ({ value: category.id, label: category.name }));
 }
 
 function envelopeOptions() {
   return props.envelopes
-    .filter((envelope) => form.planType !== 'SAVINGS' || envelope.envelopeType === 'SAVINGS_GOAL')
+    .filter((envelope) => props.planType !== 'SAVINGS' || envelope.envelopeType === 'SAVINGS_GOAL')
     .map((envelope) => ({ value: envelope.value, label: envelope.label }));
 }
 
@@ -114,7 +102,7 @@ function submit() {
       : form.date;
   const base = {
     name: form.name.trim(),
-    planType: form.planType,
+    planType: props.planType,
     amount: form.amount,
     anchorOn,
     startOn: form.date,
@@ -123,7 +111,7 @@ function submit() {
     intervalMonths: form.recurrence === 'EVERY_N_MONTHS' ? Number(form.intervalMonths) : null,
     accountId: form.accountId || null,
     categoryId: form.categoryId || null,
-    envelopeId: form.planType === 'INCOME' ? null : form.envelopeId || null,
+    envelopeId: props.planType === 'INCOME' ? null : form.envelopeId || null,
     comment: form.comment.trim() || null,
   } satisfies CreateRegularPlanInput;
   // isActive only exists on UpdateRegularPlanInput — built as a separate step
@@ -140,7 +128,6 @@ function fromPlan(plan: RegularPlanDto | null, defaultDate: string | undefined):
     const today = new Date().toISOString().slice(0, 10);
     return {
       name: '',
-      planType: 'EXPENSE',
       amount: '',
       date: defaultDate ?? today,
       anchorDate: '',
@@ -156,7 +143,6 @@ function fromPlan(plan: RegularPlanDto | null, defaultDate: string | undefined):
   }
   return {
     name: plan.name,
-    planType: plan.planType,
     amount: minorToDecimal(plan.amountMinor),
     date: plan.startOn,
     anchorDate: plan.anchorOn,
@@ -181,22 +167,6 @@ function minorToDecimal(value: string): string {
 
 <template>
   <form class="plan-form" @submit.prevent="submit">
-    <div class="plan-form__type" role="tablist" aria-label="Тип плана">
-      <button
-        v-for="tab in TYPE_TABS"
-        :key="tab.value"
-        type="button"
-        role="tab"
-        class="plan-form__type-tab"
-        :class="[tab.modifier, { 'plan-form__type-tab--active': form.planType === tab.value }]"
-        :aria-selected="form.planType === tab.value"
-        :data-plan-type="tab.value"
-        @click="form.planType = tab.value"
-      >
-        {{ tab.label }}
-      </button>
-    </div>
-
     <OperationAmountField
       class="plan-form__amount"
       :model-value="form.amount"
@@ -248,7 +218,7 @@ function minorToDecimal(value: string): string {
       required
     />
     <UiSelect
-      v-if="form.planType !== 'INCOME'"
+      v-if="planType !== 'INCOME'"
       v-model="form.envelopeId"
       name="envelopeId"
       label="Конверт"
@@ -305,44 +275,11 @@ function minorToDecimal(value: string): string {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--hf-space-4);
 }
-.plan-form__type,
 .plan-form__amount,
 .plan-form__advanced,
 .plan-form__active,
 .plan-form__actions {
   grid-column: 1 / -1;
-}
-.plan-form__type {
-  display: flex;
-  justify-content: center;
-  gap: var(--hf-space-1);
-}
-.plan-form__type-tab {
-  min-height: 2.25rem;
-  padding: 0 var(--hf-space-3);
-  border: none;
-  border-radius: var(--hf-radius-xl);
-  background: transparent;
-  color: var(--hf-color-text-muted);
-  font: inherit;
-  font-weight: var(--hf-font-weight-medium);
-  cursor: pointer;
-}
-.plan-form__type-tab:focus-visible {
-  outline: 2px solid var(--hf-color-action-primary);
-  outline-offset: 2px;
-}
-.plan-form__type-tab--expense.plan-form__type-tab--active {
-  background: var(--hf-color-status-danger-background);
-  color: var(--hf-color-status-danger);
-}
-.plan-form__type-tab--income.plan-form__type-tab--active {
-  background: var(--hf-color-status-success-background);
-  color: var(--hf-color-status-success);
-}
-.plan-form__type-tab--savings.plan-form__type-tab--active {
-  background: var(--hf-color-status-info-background);
-  color: var(--hf-color-status-info);
 }
 .plan-form__advanced {
   color: var(--hf-color-text);

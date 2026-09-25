@@ -142,8 +142,13 @@ function handleCheckbox(event: Event) {
   font-weight: var(--hf-font-weight-semibold);
   white-space: nowrap;
 }
+/* Column, not row: a narrow sidebar column has room for the select button's
+   own leading/body/trailing stack but not also a full checkbox-plus-menu row
+   next to it — stacking these two controls keeps their footprint to a single
+   44px-wide column instead of doubling it. */
 .plan-occurrence-row__controls {
   display: flex;
+  flex-direction: column;
   gap: var(--hf-space-1);
   align-items: center;
 }

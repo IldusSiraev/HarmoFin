@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { format } from 'date-fns';
+import { X } from '@lucide/vue';
 import { definePageMeta, navigateTo, useRoute } from '#imports';
 
 import { buildCalendarGrid } from '../../components/plans/calendar-grid.js';
@@ -59,6 +60,20 @@ const listTab = ref<'upcoming' | 'all'>('upcoming');
 const monthAnchor = ref(today.slice(0, 8) + '01');
 const selectedDate = ref(today);
 const selectedPlan = ref<RegularPlanDto | null>(null);
+const formPlanType = ref<'INCOME' | 'EXPENSE' | 'SAVINGS'>('EXPENSE');
+
+// Mirrors AppOperationEntryDialog's Расход/Доход/Перевод header tabs —
+// Накопление has no direct equivalent there, so it takes the neutral "info"
+// accent.
+const PLAN_TYPE_TABS: ReadonlyArray<{
+  value: 'INCOME' | 'EXPENSE' | 'SAVINGS';
+  label: string;
+  modifier: string;
+}> = [
+  { value: 'EXPENSE', label: 'Расход', modifier: 'plan-form-modal__tab--expense' },
+  { value: 'INCOME', label: 'Доход', modifier: 'plan-form-modal__tab--income' },
+  { value: 'SAVINGS', label: 'Накопление', modifier: 'plan-form-modal__tab--savings' },
+];
 const confirmation = ref<null | {
   action: 'remove' | 'skip';
   planId?: string;
@@ -242,12 +257,14 @@ function reconcileSelectedDate() {
 
 function openCreate() {
   selectedPlan.value = null;
+  formPlanType.value = 'EXPENSE';
   formErrors.value = {};
   formOpen.value = true;
 }
 
 function openEditPlan(plan: RegularPlanDto) {
   selectedPlan.value = plan;
+  formPlanType.value = plan.planType;
   formErrors.value = {};
   formOpen.value = true;
 }
@@ -434,11 +451,7 @@ function errorMessage(exception: unknown) {
               @remove-occurrence="
                 (occurrence) => (confirmation = { action: 'remove', planId: occurrence.planId })
               "
-              @add-plan="
-                selectedPlan = null;
-                formErrors = {};
-                formOpen = true;
-              "
+              @add-plan="openCreate"
             />
 
             <PlanList
@@ -470,8 +483,35 @@ function errorMessage(exception: unknown) {
       :title="selectedPlan ? 'Изменить план' : 'Новый план'"
       @close="formOpen = false"
     >
+      <template #header>
+        <div class="plan-form-modal__tabs" role="tablist" aria-label="Тип плана">
+          <button
+            v-for="tab in PLAN_TYPE_TABS"
+            :key="tab.value"
+            type="button"
+            role="tab"
+            class="plan-form-modal__tab"
+            :class="[tab.modifier, { 'plan-form-modal__tab--active': formPlanType === tab.value }]"
+            :aria-selected="formPlanType === tab.value"
+            :data-plan-type="tab.value"
+            @click="formPlanType = tab.value"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+        <button
+          type="button"
+          class="plan-form-modal__close"
+          aria-label="Закрыть"
+          @click="formOpen = false"
+        >
+          <X :size="20" aria-hidden="true" />
+        </button>
+      </template>
+
       <PlanForm
         :plan="selectedPlan"
+        :plan-type="formPlanType"
         :default-date="selectedDate"
         :accounts="accounts"
         :categories="categories"
@@ -522,5 +562,55 @@ function errorMessage(exception: unknown) {
   .plans-page__main {
     grid-template-columns: 1fr;
   }
+}
+.plan-form-modal__tabs {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  gap: var(--hf-space-1);
+}
+.plan-form-modal__tab {
+  min-height: 2.25rem;
+  padding: 0 var(--hf-space-3);
+  border: none;
+  border-radius: var(--hf-radius-xl);
+  background: transparent;
+  color: var(--hf-color-text-muted);
+  font: inherit;
+  font-weight: var(--hf-font-weight-medium);
+  cursor: pointer;
+}
+.plan-form-modal__tab:focus-visible {
+  outline: 2px solid var(--hf-color-action-primary);
+  outline-offset: 2px;
+}
+.plan-form-modal__tab--expense.plan-form-modal__tab--active {
+  background: var(--hf-color-status-danger-background);
+  color: var(--hf-color-status-danger);
+}
+.plan-form-modal__tab--income.plan-form-modal__tab--active {
+  background: var(--hf-color-status-success-background);
+  color: var(--hf-color-status-success);
+}
+.plan-form-modal__tab--savings.plan-form-modal__tab--active {
+  background: var(--hf-color-status-info-background);
+  color: var(--hf-color-status-info);
+}
+.plan-form-modal__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--hf-radius-md);
+  background: transparent;
+  color: var(--hf-color-text-muted);
+  cursor: pointer;
+}
+.plan-form-modal__close:hover {
+  background: var(--hf-color-action-secondary-hover);
+  color: var(--hf-color-text);
 }
 </style>
