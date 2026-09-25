@@ -123,7 +123,7 @@ async function createExpensePlan(page: Page): Promise<void> {
   await page.getByLabel('Счёт').selectOption({ label: 'Карта Stage 5' });
   await page.getByLabel('Категория').selectOption({ label: 'Продукты' });
   await page.getByLabel('Конверт').selectOption({ label: 'Обязательства Stage 5' });
-  await page.getByRole('button', { name: 'Добавить план' }).click();
+  await page.getByRole('button', { name: 'Добавить план', exact: true }).click();
   await expect(page.getByText('План сохранён.')).toBeVisible();
 }
 
