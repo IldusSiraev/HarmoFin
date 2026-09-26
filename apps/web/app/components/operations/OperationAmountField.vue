@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { ChevronDown, ChevronUp } from '@lucide/vue';
 
 defineOptions({ name: 'OperationAmountField' });
@@ -27,6 +28,11 @@ function handleInput(event: Event): void {
   emit('update:modelValue', (event.target as HTMLInputElement).value);
 }
 
+// Plain input elements don't grow with their value — a fixed width clips a
+// large amount instead of showing it in full. `ch` ties the width to the
+// field's own font size, so it grows and shrinks with what's actually typed.
+const inputWidth = computed(() => `${Math.max(4, props.modelValue.length + 1)}ch`);
+
 // A quick nudge for the common "round the amount up/down" adjustment — the
 // server re-validates the final decimal string, so this only needs to avoid
 // drifting through float rounding while the user taps the stepper.
@@ -48,6 +54,7 @@ function step(delta: 1 | -1): void {
         inputmode="decimal"
         name="amount"
         :value="modelValue"
+        :style="{ width: inputWidth }"
         :aria-invalid="error ? 'true' : undefined"
         @input="handleInput"
       />
@@ -90,7 +97,7 @@ function step(delta: 1 | -1): void {
 }
 
 .amount-field__input {
-  width: 8rem;
+  max-width: 100%;
   border: none;
   background: transparent;
   color: var(--amount-accent);

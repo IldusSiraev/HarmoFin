@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue';
+import { computed, reactive, watch } from 'vue';
 
 import {
   selectableCategories,
@@ -9,7 +9,7 @@ import {
   type RegularPlanDto,
   type UpdateRegularPlanInput,
 } from '../../composables/useBudgetReferenceData.js';
-import FinanceMoneyInput from '../finance/FinanceMoneyInput.vue';
+import OperationAmountField from '../operations/OperationAmountField.vue';
 import UiButton from '../ui/Button.vue';
 import UiDatePicker from '../ui/DatePicker.vue';
 import UiInput from '../ui/Input.vue';
@@ -18,6 +18,8 @@ import UiSelect from '../ui/Select.vue';
 const props = withDefaults(
   defineProps<{
     plan?: RegularPlanDto | null;
+    planType: 'INCOME' | 'EXPENSE' | 'SAVINGS';
+    defaultDate?: string | undefined;
     accounts: ReadonlyArray<{ value: string; label: string }>;
     categories: ReadonlyArray<CategoryDto>;
     envelopes: ReadonlyArray<{
@@ -28,17 +30,19 @@ const props = withDefaults(
     errors?: Partial<Record<string, string>>;
     pending?: boolean;
   }>(),
-  { plan: null, errors: () => ({}), pending: false },
+  { plan: null, defaultDate: undefined, errors: () => ({}), pending: false },
 );
 
-const emit = defineEmits<{ submit: [input: CreateRegularPlanInput | UpdateRegularPlanInput] }>();
+const emit = defineEmits<{
+  submit: [input: CreateRegularPlanInput | UpdateRegularPlanInput];
+  remove: [];
+}>();
 
 type FormModel = {
   name: string;
-  planType: 'INCOME' | 'EXPENSE' | 'SAVINGS';
   amount: string;
-  anchorOn: string;
-  startOn: string;
+  date: string;
+  anchorDate: string;
   endOn: string;
   recurrence: 'ONE_TIME' | 'MONTHLY' | 'EVERY_N_MONTHS' | 'YEARLY';
   intervalMonths: string;
@@ -46,16 +50,24 @@ type FormModel = {
   categoryId: string;
   envelopeId: string;
   comment: string;
+  isActive: boolean;
 };
 
-const form = reactive<FormModel>(fromPlan(props.plan));
+const form = reactive<FormModel>(fromPlan(props.plan, props.defaultDate));
+const isEditing = computed(() => props.plan !== null);
+
+const amountAccent = computed<'danger' | 'success' | 'info'>(() => {
+  if (props.planType === 'EXPENSE') return 'danger';
+  if (props.planType === 'INCOME') return 'success';
+  return 'info';
+});
 
 watch(
   () => props.plan,
-  (plan) => Object.assign(form, fromPlan(plan)),
+  (plan) => Object.assign(form, fromPlan(plan, props.defaultDate)),
 );
 watch(
-  () => form.planType,
+  () => props.planType,
   (type) => {
     if (type === 'INCOME') form.envelopeId = '';
   },
@@ -64,14 +76,14 @@ watch(
 function categoryOptions() {
   return selectableCategories(props.categories)
     .filter(
-      (category) => category.categoryType === (form.planType === 'INCOME' ? 'INCOME' : 'EXPENSE'),
+      (category) => category.categoryType === (props.planType === 'INCOME' ? 'INCOME' : 'EXPENSE'),
     )
     .map((category) => ({ value: category.id, label: category.name }));
 }
 
 function envelopeOptions() {
   return props.envelopes
-    .filter((envelope) => form.planType !== 'SAVINGS' || envelope.envelopeType === 'SAVINGS_GOAL')
+    .filter((envelope) => props.planType !== 'SAVINGS' || envelope.envelopeType === 'SAVINGS_GOAL')
     .map((envelope) => ({ value: envelope.value, label: envelope.label }));
 }
 
@@ -80,32 +92,45 @@ function normalizeAmount(value: string): string {
 }
 
 function submit() {
-  const input = {
+  // The single visible "Дата" field drives both anchorOn and startOn when
+  // creating. When editing a periodic plan we must preserve the stored anchor
+  // (the worker derives every future occurrence's day-of-month from it), so the
+  // optional "Опорная дата" field wins whenever it is set.
+  const anchorOn =
+    isEditing.value && form.recurrence !== 'ONE_TIME' && form.anchorDate
+      ? form.anchorDate
+      : form.date;
+  const base = {
     name: form.name.trim(),
-    planType: form.planType,
+    planType: props.planType,
     amount: form.amount,
-    anchorOn: form.anchorOn,
-    startOn: form.startOn,
+    anchorOn,
+    startOn: form.date,
     endOn: form.endOn || null,
     recurrence: form.recurrence,
     intervalMonths: form.recurrence === 'EVERY_N_MONTHS' ? Number(form.intervalMonths) : null,
     accountId: form.accountId || null,
     categoryId: form.categoryId || null,
-    envelopeId: form.planType === 'INCOME' ? null : form.envelopeId || null,
+    envelopeId: props.planType === 'INCOME' ? null : form.envelopeId || null,
     comment: form.comment.trim() || null,
   } satisfies CreateRegularPlanInput;
+  // isActive only exists on UpdateRegularPlanInput — built as a separate step
+  // so the `satisfies CreateRegularPlanInput` above stays a real excess-
+  // property check on the fields every plan type shares.
+  const input: CreateRegularPlanInput | UpdateRegularPlanInput = isEditing.value
+    ? { ...base, isActive: form.isActive }
+    : base;
   emit('submit', input);
 }
 
-function fromPlan(plan: RegularPlanDto | null): FormModel {
+function fromPlan(plan: RegularPlanDto | null, defaultDate: string | undefined): FormModel {
   if (!plan) {
     const today = new Date().toISOString().slice(0, 10);
     return {
       name: '',
-      planType: 'EXPENSE',
       amount: '',
-      anchorOn: today,
-      startOn: today,
+      date: defaultDate ?? today,
+      anchorDate: '',
       endOn: '',
       recurrence: 'MONTHLY',
       intervalMonths: '',
@@ -113,14 +138,14 @@ function fromPlan(plan: RegularPlanDto | null): FormModel {
       categoryId: '',
       envelopeId: '',
       comment: '',
+      isActive: true,
     };
   }
   return {
     name: plan.name,
-    planType: plan.planType,
     amount: minorToDecimal(plan.amountMinor),
-    anchorOn: plan.anchorOn,
-    startOn: plan.startOn,
+    date: plan.startOn,
+    anchorDate: plan.anchorOn,
     endOn: plan.endOn ?? '',
     recurrence: plan.recurrence,
     intervalMonths: plan.intervalMonths?.toString() ?? '',
@@ -128,6 +153,7 @@ function fromPlan(plan: RegularPlanDto | null): FormModel {
     categoryId: plan.categoryId ?? '',
     envelopeId: plan.envelopeId ?? '',
     comment: plan.comment ?? '',
+    isActive: plan.isActive,
   };
 }
 
@@ -141,46 +167,22 @@ function minorToDecimal(value: string): string {
 
 <template>
   <form class="plan-form" @submit.prevent="submit">
-    <UiInput v-model="form.name" name="name" label="Название" :error="errors.name" required />
-    <UiSelect
-      v-model="form.planType"
-      name="planType"
-      label="Тип плана"
-      :options="[
-        { value: 'EXPENSE', label: 'Расход' },
-        { value: 'INCOME', label: 'Доход' },
-        { value: 'SAVINGS', label: 'Накопление' },
-      ]"
-      :error="errors.planType"
-      required
-    />
-    <FinanceMoneyInput
+    <OperationAmountField
+      class="plan-form__amount"
       :model-value="form.amount"
-      name="amount"
-      @update:model-value="form.amount = normalizeAmount($event)"
-      label="Сумма"
+      :accent="amountAccent"
       :error="errors.amount"
-      required
+      @update:model-value="form.amount = normalizeAmount($event)"
     />
-    <UiDatePicker
-      v-model="form.anchorOn"
-      name="anchorOn"
-      label="Опорная дата"
-      :error="errors.anchorOn"
-      required
-    />
-    <UiDatePicker
-      v-model="form.startOn"
-      name="startOn"
-      label="Дата начала"
-      :error="errors.startOn"
-      required
-    />
-    <UiDatePicker v-model="form.endOn" name="endOn" label="Дата окончания" :error="errors.endOn" />
+
+    <UiInput v-model="form.name" name="name" label="Название" :error="errors.name" required />
+
+    <UiDatePicker v-model="form.date" name="date" label="Дата" :error="errors.anchorOn" required />
+
     <UiSelect
       v-model="form.recurrence"
       name="recurrence"
-      label="Периодичность"
+      label="Повторение"
       :options="[
         { value: 'ONE_TIME', label: 'Один раз' },
         { value: 'MONTHLY', label: 'Ежемесячно' },
@@ -199,10 +201,11 @@ function minorToDecimal(value: string): string {
       :error="errors.intervalMonths"
       required
     />
+
     <UiSelect
       v-model="form.accountId"
       name="accountId"
-      label="Счёт по умолчанию"
+      label="Счёт"
       :options="accounts"
       :error="errors.accountId"
     />
@@ -215,7 +218,7 @@ function minorToDecimal(value: string): string {
       required
     />
     <UiSelect
-      v-if="form.planType !== 'INCOME'"
+      v-if="planType !== 'INCOME'"
       v-model="form.envelopeId"
       name="envelopeId"
       label="Конверт"
@@ -223,8 +226,46 @@ function minorToDecimal(value: string): string {
       :error="errors.envelopeId"
       required
     />
-    <UiInput v-model="form.comment" name="comment" label="Комментарий" :error="errors.comment" />
-    <UiButton type="submit" :loading="pending" :disabled="pending">Сохранить план</UiButton>
+
+    <details class="plan-form__advanced">
+      <summary>Дополнительные настройки</summary>
+      <UiDatePicker
+        v-if="isEditing && form.recurrence !== 'ONE_TIME'"
+        v-model="form.anchorDate"
+        name="anchorDate"
+        label="Опорная дата"
+        hint="День (для годовых — день и месяц) регулярного повторения. Меняйте только при переносе даты платежа."
+        :error="errors.anchorOn"
+      />
+      <UiDatePicker
+        v-model="form.endOn"
+        name="endOn"
+        label="Дата окончания"
+        :error="errors.endOn"
+      />
+      <UiInput v-model="form.comment" name="comment" label="Заметка" :error="errors.comment" />
+    </details>
+
+    <label v-if="isEditing" class="plan-form__active">
+      <input v-model="form.isActive" type="checkbox" name="isActive" />
+      Активен
+    </label>
+
+    <div class="plan-form__actions">
+      <UiButton
+        v-if="isEditing"
+        type="button"
+        variant="danger"
+        data-action="delete-plan"
+        :disabled="pending"
+        @click="emit('remove')"
+      >
+        Удалить
+      </UiButton>
+      <UiButton type="submit" :loading="pending" :disabled="pending">
+        {{ isEditing ? 'Сохранить изменения' : 'Добавить план' }}
+      </UiButton>
+    </div>
   </form>
 </template>
 
@@ -234,9 +275,33 @@ function minorToDecimal(value: string): string {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--hf-space-4);
 }
-.plan-form > :last-child {
+.plan-form__amount,
+.plan-form__advanced,
+.plan-form__active,
+.plan-form__actions {
   grid-column: 1 / -1;
-  justify-self: start;
+}
+.plan-form__advanced {
+  color: var(--hf-color-text);
+}
+.plan-form__advanced summary {
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+  font-weight: var(--hf-font-weight-medium);
+  cursor: pointer;
+}
+.plan-form__advanced > :not(summary) {
+  margin-top: var(--hf-space-3);
+}
+.plan-form__active {
+  display: flex;
+  align-items: center;
+  gap: var(--hf-space-2);
+}
+.plan-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hf-space-2);
 }
 @media (max-width: 47.9375rem) {
   .plan-form {

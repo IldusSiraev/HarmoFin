@@ -662,7 +662,12 @@ export interface BudgetReferenceDataApi {
   ): Promise<RegularPlanDto>;
   listPlanOccurrences(
     budgetId: string,
-    input?: { planId?: string | undefined; status?: PlanOccurrenceStatus | undefined },
+    input?: {
+      planId?: string | undefined;
+      status?: PlanOccurrenceStatus | undefined;
+      from?: string | undefined;
+      to?: string | undefined;
+    },
   ): Promise<PlanOccurrenceDto[]>;
   skipPlanOccurrence(
     budgetId: string,

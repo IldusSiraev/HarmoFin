@@ -163,6 +163,17 @@ describe('plans API client', () => {
       { method: 'POST', headers: { 'Idempotency-Key': 'draft-key' } },
     );
   });
+
+  it('forwards a scheduled-date range when listing occurrences', async () => {
+    const request = vi.fn().mockResolvedValue({ items: [] });
+    const data = createBudgetReferenceData({ request, requestBlob: vi.fn() });
+
+    await data.listPlanOccurrences('budget-id', { from: '2026-09-01', to: '2026-09-30' });
+
+    expect(request).toHaveBeenCalledWith(
+      '/api/v1/budgets/budget-id/plans/occurrences?from=2026-09-01&to=2026-09-30',
+    );
+  });
 });
 
 describe('notifications API client', () => {

@@ -35,3 +35,26 @@ export function formatMinorUnits(
     })
     .join('');
 }
+
+export function formatCompactSigned(signedMinor: string, scale: number): string {
+  if (!/^-?\d+$/.test(signedMinor)) {
+    throw new TypeError('signedMinor must be an integer string');
+  }
+  if (!Number.isSafeInteger(scale) || scale < 0) {
+    throw new TypeError('scale must be a non-negative safe integer');
+  }
+
+  const value = BigInt(signedMinor);
+  const negative = value < 0n;
+  const magnitude = negative ? -value : value;
+  const divisor = 10n ** BigInt(scale);
+  const whole = magnitude / divisor;
+  const sign = negative ? '−' : '+';
+
+  if (whole < 1000n) {
+    return `${sign}${whole}`;
+  }
+
+  const thousands = (whole + 500n) / 1000n;
+  return `${sign}${thousands}к`;
+}

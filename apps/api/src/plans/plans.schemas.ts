@@ -73,59 +73,61 @@ export const listPlanOccurrencesSchema = z
     }
   });
 
-function validatePlanShape(
-  input: z.output<typeof createRegularPlanSchema>,
-  context: z.RefinementCtx,
-) {
+export type PlanShapeInput = {
+  planType: 'INCOME' | 'EXPENSE' | 'SAVINGS';
+  startOn: string;
+  endOn?: string | null | undefined;
+  recurrence: 'ONE_TIME' | 'MONTHLY' | 'EVERY_N_MONTHS' | 'YEARLY';
+  intervalMonths?: number | null | undefined;
+  anchorOn: string;
+  categoryId?: string | null | undefined;
+  envelopeId?: string | null | undefined;
+};
+
+export type PlanShapeIssue = { path: string; message: string };
+
+export function collectPlanShapeIssues(input: PlanShapeInput): PlanShapeIssue[] {
+  const issues: PlanShapeIssue[] = [];
   if (input.endOn && input.endOn < input.startOn) {
-    context.addIssue({
-      code: 'custom',
-      path: ['endOn'],
+    issues.push({
+      path: 'endOn',
       message: 'Дата окончания не может быть раньше даты начала.',
     });
   }
   if (input.recurrence === 'ONE_TIME' && input.anchorOn !== input.startOn) {
-    context.addIssue({
-      code: 'custom',
-      path: ['anchorOn'],
+    issues.push({
+      path: 'anchorOn',
       message: 'Для разового плана опорная дата должна совпадать с датой начала.',
     });
   }
   if (input.recurrence === 'EVERY_N_MONTHS') {
     if (!input.intervalMonths) {
-      context.addIssue({
-        code: 'custom',
-        path: ['intervalMonths'],
-        message: 'Укажите интервал в месяцах.',
-      });
+      issues.push({ path: 'intervalMonths', message: 'Укажите интервал в месяцах.' });
     }
   } else if (input.intervalMonths !== undefined && input.intervalMonths !== null) {
-    context.addIssue({
-      code: 'custom',
-      path: ['intervalMonths'],
+    issues.push({
+      path: 'intervalMonths',
       message: 'Интервал в месяцах допустим только для периода «раз в несколько месяцев».',
     });
   }
   if (!input.categoryId) {
-    context.addIssue({
-      code: 'custom',
-      path: ['categoryId'],
-      message: 'Укажите категорию.',
-    });
+    issues.push({ path: 'categoryId', message: 'Укажите категорию.' });
   }
   if (input.planType === 'INCOME' && input.envelopeId !== undefined && input.envelopeId !== null) {
-    context.addIssue({
-      code: 'custom',
-      path: ['envelopeId'],
-      message: 'План дохода не использует конверт.',
-    });
+    issues.push({ path: 'envelopeId', message: 'План дохода не использует конверт.' });
   }
   if (input.planType !== 'INCOME' && !input.envelopeId) {
-    context.addIssue({
-      code: 'custom',
-      path: ['envelopeId'],
-      message: 'Укажите конверт.',
-    });
+    issues.push({ path: 'envelopeId', message: 'Укажите конверт.' });
+  }
+  return issues;
+}
+
+function validatePlanShape(
+  input: z.output<typeof createRegularPlanSchema>,
+  context: z.RefinementCtx,
+) {
+  for (const issue of collectPlanShapeIssues(input)) {
+    context.addIssue({ code: 'custom', path: [issue.path], message: issue.message });
   }
 }
 
