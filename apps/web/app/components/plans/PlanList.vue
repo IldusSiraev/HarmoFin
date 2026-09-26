@@ -74,7 +74,12 @@ const planGroups = computed(() => groupByActive(props.allPlans));
       </button>
     </div>
 
-    <div v-if="activeTab === 'upcoming'" role="tabpanel" aria-label="Ближайшие">
+    <div
+      v-if="activeTab === 'upcoming'"
+      class="plan-list__panel"
+      role="tabpanel"
+      aria-label="Ближайшие"
+    >
       <UiEmptyState
         v-if="sortedUpcoming.length === 0"
         title="Ближайших платежей пока нет"
@@ -96,7 +101,7 @@ const planGroups = computed(() => groupByActive(props.allPlans));
       </ul>
     </div>
 
-    <div v-else role="tabpanel" aria-label="Все">
+    <div v-else class="plan-list__panel" role="tabpanel" aria-label="Все">
       <UiEmptyState
         v-if="planGroups.length === 0"
         title="Планов пока нет"
@@ -176,6 +181,26 @@ const planGroups = computed(() => groupByActive(props.allPlans));
 .plan-list__tab:focus-visible {
   outline: 2px solid var(--hf-color-action-primary);
   outline-offset: 2px;
+}
+/* Caps the list instead of letting a long "Ближайшие"/"Все" list stretch the
+   whole card — and with it the calendar and day panel, which share this
+   row's height via the default grid stretch. */
+.plan-list__panel {
+  max-height: 28rem;
+  padding-right: var(--hf-space-2);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hf-color-border) transparent;
+}
+.plan-list__panel::-webkit-scrollbar {
+  width: 0.375rem;
+}
+.plan-list__panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+.plan-list__panel::-webkit-scrollbar-thumb {
+  background: var(--hf-color-border);
+  border-radius: var(--hf-radius-sm);
 }
 .plan-list__group + .plan-list__group {
   margin-top: var(--hf-space-4);

@@ -212,9 +212,27 @@ function signedMinor(operation: DayOperationView): string {
 .plan-day-panel__items {
   display: grid;
   gap: var(--hf-space-2);
+  max-height: 12rem;
   margin: 0;
   padding: 0;
+  padding-right: var(--hf-space-2);
+  overflow-y: auto;
   list-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hf-color-border) transparent;
+}
+.plan-day-panel__operations::-webkit-scrollbar,
+.plan-day-panel__items::-webkit-scrollbar {
+  width: 0.375rem;
+}
+.plan-day-panel__operations::-webkit-scrollbar-track,
+.plan-day-panel__items::-webkit-scrollbar-track {
+  background: transparent;
+}
+.plan-day-panel__operations::-webkit-scrollbar-thumb,
+.plan-day-panel__items::-webkit-scrollbar-thumb {
+  background: var(--hf-color-border);
+  border-radius: var(--hf-radius-sm);
 }
 .plan-day-panel__operation {
   display: flex;
