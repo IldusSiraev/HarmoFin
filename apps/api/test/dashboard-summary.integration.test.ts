@@ -141,6 +141,93 @@ describe('dashboard summary API', () => {
     expect(response.json()).toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
   });
 
+  it('reports a previous-period leftover and reflects a reallocation in the period limit', async () => {
+    const session = await register(`summary-leftover-${randomUUID()}@harmofin.test`);
+    try {
+      const budget = await prisma.budget.findUniqueOrThrow({ where: { id: session.budgetId } });
+      const today = todayInTimezone(new Date(), budget.timezone);
+      const period = cycleAndPeriodFor(budget, today).period;
+      const otherSlot = period.id === 'FIRST' ? 'SECOND' : 'FIRST';
+      const currentEnvelopeId = randomUUID();
+      const previousEnvelopeId = randomUUID();
+
+      await prisma.envelope.create({
+        data: {
+          id: currentEnvelopeId,
+          budgetId: session.budgetId,
+          name: 'Текущий период leftover',
+          envelopeType: 'CURRENT_EXPENSES',
+          periodSlot: period.id,
+          startingBalanceMinor: 0n,
+          displayOrder: 0,
+        },
+      });
+      await prisma.envelope.create({
+        data: {
+          id: previousEnvelopeId,
+          budgetId: session.budgetId,
+          name: 'Прошлый период leftover',
+          envelopeType: 'CURRENT_EXPENSES',
+          periodSlot: otherSlot,
+          startingBalanceMinor: 5_000n,
+          displayOrder: 1,
+        },
+      });
+
+      const before = await server.inject({
+        method: 'GET',
+        url: `/api/v1/budgets/${session.budgetId}/summary`,
+        cookies: { harmofin_session: session.cookie },
+      });
+      expect(before.json()).toMatchObject({
+        previousPeriodLeftover: {
+          envelopeId: previousEnvelopeId,
+          envelopeName: 'Прошлый период leftover',
+          balanceMinor: '5000',
+          currentPeriodEnvelopeId: currentEnvelopeId,
+        },
+        periodLimit: { state: 'available', limitMinor: '0' },
+      });
+
+      const csrf = (
+        await server.inject({
+          method: 'GET',
+          url: '/api/v1/auth/csrf',
+          cookies: { harmofin_session: session.cookie },
+        })
+      ).json<{ csrfToken: string }>();
+      const reallocated = await server.inject({
+        method: 'POST',
+        url: `/api/v1/budgets/${session.budgetId}/envelope-reallocations`,
+        headers: {
+          origin,
+          'x-csrf-token': csrf.csrfToken,
+          'idempotency-key': 'summary-leftover-move',
+        },
+        cookies: { harmofin_session: session.cookie },
+        payload: {
+          sourceEnvelopeId: previousEnvelopeId,
+          destinationEnvelopeId: currentEnvelopeId,
+          amount: '50.00',
+          occurredOn: today,
+        },
+      });
+      expect(reallocated.statusCode).toBe(201);
+
+      const after = await server.inject({
+        method: 'GET',
+        url: `/api/v1/budgets/${session.budgetId}/summary`,
+        cookies: { harmofin_session: session.cookie },
+      });
+      expect(after.json()).toMatchObject({
+        previousPeriodLeftover: null,
+        periodLimit: { state: 'available', limitMinor: '5000' },
+      });
+    } finally {
+      await cleanup(session);
+    }
+  });
+
   async function seedSummaryData() {
     const budget = await prisma.budget.findUniqueOrThrow({ where: { id: owner.budgetId } });
     const today = todayInTimezone(new Date(), budget.timezone);
@@ -345,6 +432,7 @@ describe('dashboard summary API', () => {
     await prisma.regularPlan.deleteMany({ where: { budgetId: { in: budgetIds } } });
     await prisma.idempotencyRecord.deleteMany({ where: { budgetId: { in: budgetIds } } });
     await prisma.transferPart.deleteMany({ where: { budgetId: { in: budgetIds } } });
+    await prisma.envelopeReallocation.deleteMany({ where: { budgetId: { in: budgetIds } } });
     await prisma.transfer.deleteMany({ where: { budgetId: { in: budgetIds } } });
     await prisma.incomeAllocation.deleteMany({ where: { budgetId: { in: budgetIds } } });
     await prisma.transaction.deleteMany({ where: { budgetId: { in: budgetIds } } });
