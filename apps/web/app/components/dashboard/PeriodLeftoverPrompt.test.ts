@@ -17,7 +17,7 @@ const envelopes = [
   { id: 'savings-envelope-id', name: 'Отпуск' },
 ];
 
-const normalize = (value: string): string => value.replace(/[  ]/g, ' ');
+const normalize = (value: string): string => value.replace(/[\u00A0\u202F]/g, ' ');
 
 describe('PeriodLeftoverPrompt', () => {
   it('renders nothing without a leftover', () => {
