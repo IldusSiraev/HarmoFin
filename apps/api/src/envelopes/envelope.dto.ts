@@ -176,3 +176,58 @@ export class EnvelopeSummaryResponse {
   @ApiProperty({ type: [EnvelopeSummaryGroupResponse] })
   byType!: EnvelopeSummaryGroupResponse[];
 }
+
+export class EnvelopeReallocationSummaryResponse {
+  @ApiProperty({ type: String, format: 'uuid' })
+  reallocationId!: string;
+
+  @ApiProperty({ enum: ['IN', 'OUT'] })
+  direction!: 'IN' | 'OUT';
+
+  @ApiProperty({ type: String, format: 'uuid' })
+  otherEnvelopeId!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  otherEnvelopeName!: string | null;
+
+  @ApiProperty({ type: String, pattern: '^\\d+$' })
+  amountMinor!: string;
+
+  @ApiProperty({ type: String, format: 'date' })
+  occurredOn!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  comment!: string | null;
+}
+
+export class EnvelopeBalanceSummaryResponse {
+  @ApiProperty({ type: EnvelopeResponse })
+  envelope!: EnvelopeResponse;
+
+  @ApiProperty({ enum: ['RUB'] })
+  currency!: 'RUB';
+
+  @ApiProperty({ type: Number, enum: [2] })
+  scale!: 2;
+
+  @ApiProperty({ type: String, pattern: '^-?\\d+$' })
+  startingBalanceMinor!: string;
+
+  @ApiProperty({ type: String, pattern: '^-?\\d+$' })
+  incomeAllocatedMinor!: string;
+
+  @ApiProperty({ type: String, pattern: '^-?\\d+$' })
+  expensesMinor!: string;
+
+  @ApiProperty({ type: String, pattern: '^-?\\d+$' })
+  envelopeTransfersNetMinor!: string;
+
+  @ApiProperty({ type: String, pattern: '^-?\\d+$' })
+  reallocationsNetMinor!: string;
+
+  @ApiProperty({ type: String, pattern: '^-?\\d+$' })
+  currentBalanceMinor!: string;
+
+  @ApiProperty({ type: [EnvelopeReallocationSummaryResponse] })
+  reallocations!: EnvelopeReallocationSummaryResponse[];
+}

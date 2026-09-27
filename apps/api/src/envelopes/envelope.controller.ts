@@ -29,6 +29,7 @@ import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import { EnvelopeApplicationService } from './envelope.application.service.js';
 import {
   CreateEnvelopeRequest,
+  EnvelopeBalanceSummaryResponse,
   EnvelopeResponse,
   EnvelopeSummaryResponse,
   UpdateEnvelopeRequest,
@@ -106,6 +107,18 @@ export class EnvelopeController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.service.get(contextOf(request).userId, budgetId, envelopeId);
+  }
+
+  @Get('budgets/:budgetId/envelopes/:envelopeId/balance-summary')
+  @ApiOkResponse({ type: EnvelopeBalanceSummaryResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  balanceSummary(
+    @Param('budgetId') budgetId: string,
+    @Param('envelopeId') envelopeId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.balanceSummary(contextOf(request).userId, budgetId, envelopeId);
   }
 
   @Patch('budgets/:budgetId/envelopes/:envelopeId')
