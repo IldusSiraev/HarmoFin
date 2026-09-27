@@ -75,6 +75,7 @@ const balanceSummary = ref<EnvelopeBalanceSummaryDto | null>(null);
 const balanceSummaryLoading = ref(false);
 const balanceSummaryError = ref('');
 const editingEnvelope = ref<EnvelopeDto | null>(null);
+let summarySeq = 0;
 // The archive filter lives in the URL so the view survives a reload and can be shared.
 const status = ref<ReferenceStatus>(route.query.status === 'archived' ? 'archived' : 'active');
 const fieldErrors = ref<Partial<Record<(typeof envelopeFields)[number], string>>>({});
@@ -187,22 +188,27 @@ async function loadPage() {
 
 async function loadBalanceSummary(envelope: EnvelopeDto) {
   const id = budgetId.value;
+  const seq = ++summarySeq;
   balanceSummary.value = null;
   balanceSummaryError.value = '';
   if (!id) return;
   balanceSummaryLoading.value = true;
   try {
-    balanceSummary.value = await api.getEnvelopeBalanceSummary(id, envelope.id);
+    const result = await api.getEnvelopeBalanceSummary(id, envelope.id);
+    if (summarySeq !== seq) return;
+    balanceSummary.value = result;
   } catch {
+    if (summarySeq !== seq) return;
     balanceSummaryError.value =
       'Не удалось показать, из чего сложился остаток. Закройте карточку и откройте её снова.';
   } finally {
-    balanceSummaryLoading.value = false;
+    if (summarySeq === seq) balanceSummaryLoading.value = false;
   }
 }
 
 watch(detailed, (envelope) => {
   if (!envelope) {
+    summarySeq++;
     balanceSummary.value = null;
     balanceSummaryLoading.value = false;
     balanceSummaryError.value = '';
