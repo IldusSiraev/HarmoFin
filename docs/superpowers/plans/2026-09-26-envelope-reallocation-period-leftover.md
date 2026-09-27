@@ -3014,17 +3014,17 @@ git commit -m "test(e2e): cover the period-leftover reallocation prompt"
 
 **Files:** none (verification only).
 
-- [ ] **Step 1: Full lint, typecheck and unit/integration suite**
+- [x] **Step 1: Full lint, typecheck and unit/integration suite**
 
 Run: `pnpm lint && pnpm typecheck && pnpm test && pnpm test:integration`
 Expected: all green.
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 Run: `pnpm build`
 Expected: succeeds for both `apps/api` and `apps/web`.
 
-- [ ] **Step 3: Report**
+- [x] **Step 3: Report**
 
 Summarize which commands were run and their results; do not create a PR or push unless the user asks.
 
