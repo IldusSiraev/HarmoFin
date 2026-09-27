@@ -60,6 +60,29 @@ export interface EnvelopeSummaryView {
   }>;
 }
 
+export interface EnvelopeReallocationSummaryRow {
+  reallocationId: string;
+  direction: 'IN' | 'OUT';
+  otherEnvelopeId: string;
+  otherEnvelopeName: string | null;
+  amountMinor: string;
+  occurredOn: string;
+  comment: string | null;
+}
+
+export interface EnvelopeBalanceSummaryView {
+  envelope: EnvelopeView;
+  currency: 'RUB';
+  scale: 2;
+  startingBalanceMinor: string;
+  incomeAllocatedMinor: string;
+  expensesMinor: string;
+  envelopeTransfersNetMinor: string;
+  reallocationsNetMinor: string;
+  currentBalanceMinor: string;
+  reallocations: EnvelopeReallocationSummaryRow[];
+}
+
 @Injectable()
 export class EnvelopeApplicationService {
   constructor(
@@ -117,6 +140,43 @@ export class EnvelopeApplicationService {
     const envelope = await this.repository.find(userId, budgetId, envelopeId);
     if (!envelope) throw resourceNotFound();
     return this.toView(envelope);
+  }
+
+  async balanceSummary(
+    userId: string,
+    budgetId: string,
+    envelopeId: string,
+  ): Promise<EnvelopeBalanceSummaryView> {
+    const record = await this.repository.balanceSummary(userId, budgetId, envelopeId);
+    if (!record) throw resourceNotFound();
+    const { envelope, terms, reallocations } = record;
+    const currentBalanceMinor =
+      terms.startingBalanceMinor +
+      terms.incomeAllocatedMinor -
+      terms.expensesMinor +
+      terms.envelopeTransfersNetMinor +
+      terms.reallocationsNetMinor;
+
+    return {
+      envelope: this.toView({ ...envelope, currentBalanceMinor }),
+      currency: 'RUB',
+      scale: 2,
+      startingBalanceMinor: formatMinorUnits(terms.startingBalanceMinor),
+      incomeAllocatedMinor: formatMinorUnits(terms.incomeAllocatedMinor),
+      expensesMinor: formatMinorUnits(terms.expensesMinor),
+      envelopeTransfersNetMinor: formatMinorUnits(terms.envelopeTransfersNetMinor),
+      reallocationsNetMinor: formatMinorUnits(terms.reallocationsNetMinor),
+      currentBalanceMinor: formatMinorUnits(currentBalanceMinor),
+      reallocations: reallocations.map((row) => ({
+        reallocationId: row.reallocationId,
+        direction: row.direction,
+        otherEnvelopeId: row.otherEnvelopeId,
+        otherEnvelopeName: row.otherEnvelopeName,
+        amountMinor: formatMinorUnits(row.amountMinor),
+        occurredOn: row.occurredOn.slice(0, 10),
+        comment: row.comment,
+      })),
+    };
   }
 
   async create(
