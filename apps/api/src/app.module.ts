@@ -20,6 +20,7 @@ import { PlansModule } from './plans/plans.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
 import { TransferModule } from './transfers/transfer.module.js';
+import { EnvelopeReallocationModule } from './envelope-reallocations/envelope-reallocation.module.js';
 import { WorkspaceModule } from './workspaces/workspace.module.js';
 
 @Module({})
@@ -42,6 +43,7 @@ export class AppModule {
         TransactionModule.register(),
         IncomeAllocationModule.register(),
         TransferModule.register(),
+        EnvelopeReallocationModule.register(),
         PlansModule.register(),
         NotificationsModule.register(),
         ReportModule.register(),
