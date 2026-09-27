@@ -34,6 +34,13 @@ export type DashboardSummaryRecord = {
     reallocatedMinor: bigint;
     spentMinor: bigint;
   } | null;
+  previousPeriodLeftover: {
+    envelopeId: string;
+    envelopeName: string;
+    balanceMinor: bigint;
+    currentPeriodEnvelopeId: string;
+    currentPeriodEnvelopeName: string;
+  } | null;
   warnings: Array<{ subject: 'ACCOUNT' | 'ENVELOPE'; id: string; balanceMinor: bigint }>;
   upcomingObligations: Array<{
     occurrenceId: string;
@@ -61,6 +68,7 @@ export class DashboardRepository {
         cycleStartDay: true,
         periodBoundaryOffset: true,
         timezone: true,
+        allowNegativeBalance: true,
       },
     });
   }
@@ -76,6 +84,7 @@ export class DashboardRepository {
         accounts,
         envelopes,
         periodEnvelope,
+        otherPeriodEnvelope,
         unallocatedIncomeMinor,
         unassignedStartingBalanceMinor,
         onboarding,
@@ -96,6 +105,15 @@ export class DashboardRepository {
             budgetId,
             archivedAt: null,
             periodSlot: period.id,
+            budget: activeBudgetWhere(userId, budgetId),
+          },
+          select: { id: true },
+        }),
+        tx.envelope.findFirst({
+          where: {
+            budgetId,
+            archivedAt: null,
+            periodSlot: period.id === 'FIRST' ? 'SECOND' : 'FIRST',
             budget: activeBudgetWhere(userId, budgetId),
           },
           select: { id: true },
@@ -137,6 +155,15 @@ export class DashboardRepository {
           balanceMinor: await this.balances.envelopeBalance(tx, budgetId, envelope.id),
         })),
       );
+      const envelopeBalanceById = new Map(
+        envelopeBalances.map((envelope) => [envelope.id, envelope]),
+      );
+      const previousPeriodEnvelope = otherPeriodEnvelope
+        ? (envelopeBalanceById.get(otherPeriodEnvelope.id) ?? null)
+        : null;
+      const currentPeriodEnvelopeForLeftover = periodEnvelope
+        ? (envelopeBalanceById.get(periodEnvelope.id) ?? null)
+        : null;
       const periodValues = periodEnvelope
         ? await periodEnvelopeSummary(tx, budgetId, periodEnvelope.id, period.start, asOf)
         : null;
@@ -169,6 +196,16 @@ export class DashboardRepository {
         onboarding,
         periodEnvelope:
           periodEnvelope && periodValues ? { id: periodEnvelope.id, ...periodValues } : null,
+        previousPeriodLeftover:
+          previousPeriodEnvelope && currentPeriodEnvelopeForLeftover
+            ? {
+                envelopeId: previousPeriodEnvelope.id,
+                envelopeName: previousPeriodEnvelope.name,
+                balanceMinor: previousPeriodEnvelope.balanceMinor,
+                currentPeriodEnvelopeId: currentPeriodEnvelopeForLeftover.id,
+                currentPeriodEnvelopeName: currentPeriodEnvelopeForLeftover.name,
+              }
+            : null,
         warnings,
         upcomingObligations: upcomingObligations.map((occurrence) => ({
           occurrenceId: occurrence.id,
