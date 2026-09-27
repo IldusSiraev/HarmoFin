@@ -397,6 +397,32 @@ export interface TransferListResult {
   nextCursor: string | null;
 }
 
+export type EnvelopeReallocationStatus = 'CONFIRMED' | 'DELETED';
+
+export interface EnvelopeReallocationDto {
+  id: string;
+  budgetId: string;
+  status: EnvelopeReallocationStatus;
+  sourceEnvelopeId: string;
+  destinationEnvelopeId: string;
+  amountMinor: string;
+  currency: 'RUB';
+  scale: 2;
+  occurredOn: string;
+  comment: string | null;
+  deletedAt: string | null;
+  sourceEnvelopeCurrentBalanceMinor: string;
+  destinationEnvelopeCurrentBalanceMinor: string;
+}
+
+export interface CreateEnvelopeReallocationInput {
+  sourceEnvelopeId: string;
+  destinationEnvelopeId: string;
+  amount: string;
+  occurredOn: string;
+  comment?: string | null | undefined;
+}
+
 export interface CreateTransactionInput {
   transactionType: TransactionType;
   status: 'DRAFT' | 'CONFIRMED';
@@ -582,6 +608,13 @@ export type DashboardSummaryDto = {
         averageRemainingDailyLimitMinor: string;
       }
     | { state: 'unavailable' };
+  previousPeriodLeftover: {
+    envelopeId: string;
+    envelopeName: string;
+    balanceMinor: string;
+    currentPeriodEnvelopeId: string;
+    currentPeriodEnvelopeName: string;
+  } | null;
   warnings: DashboardWarning[];
   upcomingObligations: UpcomingObligationDto[];
 };
@@ -751,6 +784,11 @@ export interface BudgetReferenceDataApi {
     transferId: string,
     idempotencyKey: string,
   ): Promise<TransferDto>;
+  createEnvelopeReallocation(
+    budgetId: string,
+    input: CreateEnvelopeReallocationInput,
+    idempotencyKey: string,
+  ): Promise<EnvelopeReallocationDto>;
   createIncomeAllocation(
     budgetId: string,
     transactionId: string,
@@ -810,6 +848,10 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
   function transferPath(budgetId: string, transferId?: string) {
     const path = `${budgetPath(budgetId)}/transfers`;
     return transferId ? `${path}/${encodeURIComponent(transferId)}` : path;
+  }
+
+  function envelopeReallocationPath(budgetId: string) {
+    return `${budgetPath(budgetId)}/envelope-reallocations`;
   }
 
   function allocationPath(budgetId: string, transactionId: string) {
@@ -1069,6 +1111,12 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
       api.request<TransferDto>(transferPath(budgetId, transferId), {
         method: 'DELETE',
         headers: idempotent(idempotencyKey),
+      }),
+    createEnvelopeReallocation: (budgetId, input, idempotencyKey) =>
+      api.request<EnvelopeReallocationDto>(envelopeReallocationPath(budgetId), {
+        method: 'POST',
+        headers: idempotent(idempotencyKey),
+        body: JSON.stringify(input),
       }),
     createIncomeAllocation: (budgetId, transactionId, input, idempotencyKey) =>
       api.request<IncomeAllocationDto>(allocationPath(budgetId, transactionId), {

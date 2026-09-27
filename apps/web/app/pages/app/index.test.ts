@@ -14,6 +14,7 @@ const api = {
   listCategories: vi.fn(),
   listEnvelopes: vi.fn(),
   initializeTemplate: vi.fn(),
+  createEnvelopeReallocation: vi.fn(),
 };
 const auth = {
   currentData: {
@@ -61,6 +62,7 @@ const summary = {
     averageRemainingDailyLimitMinor: '1071',
   },
   warnings: [],
+  previousPeriodLeftover: null,
   onboarding: {
     categoriesSeeded: false,
     cycleConfigured: false,
@@ -295,5 +297,28 @@ describe('dashboard page', () => {
     expect(wrapper.text()).toContain('Можно потратить');
     expect(wrapper.text()).toContain('Операций пока нет.');
     expect(wrapper.text()).not.toContain('Не удалось загрузить сводку');
+  });
+
+  it('shows the period leftover prompt when the summary reports one', async () => {
+    api.getDashboardSummary.mockResolvedValue({
+      ...summary,
+      previousPeriodLeftover: {
+        envelopeId: 'previous-envelope-id',
+        envelopeName: 'Текущие 10–24',
+        balanceMinor: '350000',
+        currentPeriodEnvelopeId: 'envelope-id',
+        currentPeriodEnvelopeName: 'Текущие 25–9',
+      },
+    });
+    api.listTransactions.mockResolvedValue({ items: [], nextCursor: null });
+    api.getAccountsSummary.mockResolvedValue({ totalMinor: '0' });
+    api.getEnvelopesSummary.mockResolvedValue({ totalMinor: '0' });
+
+    const wrapper = mount(DashboardPage, {
+      global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } },
+    });
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="period-leftover-prompt"]').exists()).toBe(true);
   });
 });

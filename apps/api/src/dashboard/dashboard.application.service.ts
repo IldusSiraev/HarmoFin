@@ -31,6 +31,13 @@ export type DashboardSummary = {
         averageRemainingDailyLimitMinor: string;
       }
     | { state: 'unavailable' };
+  previousPeriodLeftover: {
+    envelopeId: string;
+    envelopeName: string;
+    balanceMinor: string;
+    currentPeriodEnvelopeId: string;
+    currentPeriodEnvelopeName: string;
+  } | null;
   warnings: Array<{ subject: 'ACCOUNT' | 'ENVELOPE'; id: string; balanceMinor: string }>;
   upcomingObligations: Array<{
     occurrenceId: string;
@@ -97,6 +104,10 @@ export class DashboardApplicationService {
         hasAllocatedIncome: values.onboarding.hasAllocatedIncome,
       },
       periodLimit,
+      previousPeriodLeftover: previousPeriodLeftoverView(
+        values.previousPeriodLeftover,
+        budget.allowNegativeBalance,
+      ),
       warnings: values.warnings.map((warning) => ({
         subject: warning.subject,
         id: warning.id,
@@ -139,6 +150,28 @@ function periodLimitView(
     averageRemainingDailyLimitMinor: formatMinorUnits(
       daysUntilBoundary > 0 ? remainingMinor / BigInt(daysUntilBoundary) : remainingMinor,
     ),
+  };
+}
+
+function previousPeriodLeftoverView(
+  value: {
+    envelopeId: string;
+    envelopeName: string;
+    balanceMinor: bigint;
+    currentPeriodEnvelopeId: string;
+    currentPeriodEnvelopeName: string;
+  } | null,
+  allowNegativeBalance: boolean,
+) {
+  if (!value) return null;
+  const worthShowing = value.balanceMinor > 0n || (allowNegativeBalance && value.balanceMinor < 0n);
+  if (!worthShowing) return null;
+  return {
+    envelopeId: value.envelopeId,
+    envelopeName: value.envelopeName,
+    balanceMinor: formatMinorUnits(value.balanceMinor),
+    currentPeriodEnvelopeId: value.currentPeriodEnvelopeId,
+    currentPeriodEnvelopeName: value.currentPeriodEnvelopeName,
   };
 }
 

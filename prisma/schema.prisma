@@ -88,6 +88,11 @@ enum TransferStatus {
   DELETED
 }
 
+enum EnvelopeReallocationStatus {
+  CONFIRMED
+  DELETED
+}
+
 enum RegularPlanType {
   INCOME
   EXPENSE
@@ -244,6 +249,7 @@ model Budget {
   transactions       Transaction[]
   incomeAllocations  IncomeAllocation[]
   transfers          Transfer[]
+  envelopeReallocations EnvelopeReallocation[]
   idempotencyRecords IdempotencyRecord[]
   regularPlans       RegularPlan[]
   occurrences        PlanOccurrence[]
@@ -333,6 +339,8 @@ model Envelope {
   incomeAllocations          IncomeAllocation[]
   transferPartsAsSource      TransferPart[]     @relation("TransferPartSourceEnvelope")
   transferPartsAsDestination TransferPart[]     @relation("TransferPartDestinationEnvelope")
+  envelopeReallocationsAsSource      EnvelopeReallocation[] @relation("EnvelopeReallocationSource")
+  envelopeReallocationsAsDestination EnvelopeReallocation[] @relation("EnvelopeReallocationDestination")
   regularPlans               RegularPlan[]      @relation("RegularPlanEnvelope")
   occurrenceSnapshots        PlanOccurrence[]   @relation("PlanOccurrenceEnvelope")
 
@@ -463,6 +471,34 @@ model TransferPart {
   @@index([budgetId, sourceEnvelopeId])
   @@index([budgetId, destinationEnvelopeId])
   @@map("transfer_parts")
+}
+
+model EnvelopeReallocation {
+  id                    String                     @id @db.Uuid
+  budgetId              String                     @map("budget_id") @db.Uuid
+  status                EnvelopeReallocationStatus @default(CONFIRMED)
+  sourceEnvelopeId      String                     @map("source_envelope_id") @db.Uuid
+  destinationEnvelopeId String                     @map("destination_envelope_id") @db.Uuid
+  amountMinor           BigInt                     @map("amount_minor")
+  currency              String                     @default("RUB") @db.Char(3)
+  scale                 Int                        @default(2) @db.SmallInt
+  occurredOn            DateTime                   @map("occurred_on") @db.Date
+  comment               String?                    @db.VarChar(500)
+  deletedAt             DateTime?                  @map("deleted_at") @db.Timestamptz(3)
+  createdByUserId       String                     @map("created_by_user_id") @db.Uuid
+  updatedByUserId       String                     @map("updated_by_user_id") @db.Uuid
+  createdAt             DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  budget              Budget   @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  sourceEnvelope      Envelope @relation("EnvelopeReallocationSource", fields: [sourceEnvelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  destinationEnvelope Envelope @relation("EnvelopeReallocationDestination", fields: [destinationEnvelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([id, budgetId])
+  @@index([budgetId, sourceEnvelopeId])
+  @@index([budgetId, destinationEnvelopeId])
+  @@index([budgetId, occurredOn])
+  @@map("envelope_reallocations")
 }
 
 model RegularPlan {

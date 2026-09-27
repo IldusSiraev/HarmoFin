@@ -104,6 +104,20 @@ export class FinancialBalanceRepository {
               AND part."destination_envelope_id" = ${envelopeId}::uuid
               AND transfer."status" = 'CONFIRMED'
           ), 0)
+          - COALESCE((
+            SELECT SUM(reallocation."amount_minor")
+            FROM "envelope_reallocations" AS reallocation
+            WHERE reallocation."budget_id" = ${budgetId}::uuid
+              AND reallocation."source_envelope_id" = ${envelopeId}::uuid
+              AND reallocation."status" = 'CONFIRMED'
+          ), 0)
+          + COALESCE((
+            SELECT SUM(reallocation."amount_minor")
+            FROM "envelope_reallocations" AS reallocation
+            WHERE reallocation."budget_id" = ${budgetId}::uuid
+              AND reallocation."destination_envelope_id" = ${envelopeId}::uuid
+              AND reallocation."status" = 'CONFIRMED'
+          ), 0)
         )::BIGINT
         FROM "envelopes" AS envelope
         WHERE envelope."id" = ${envelopeId}::uuid

@@ -27,6 +27,7 @@ describe('DashboardApplicationService', () => {
           reallocatedMinor: 0n,
           spentMinor: 2_500n,
         },
+        previousPeriodLeftover: null,
         warnings: [],
         upcomingObligations: [],
         onboarding: {
@@ -68,6 +69,7 @@ describe('DashboardApplicationService', () => {
         unallocatedIncomeMinor: 0n,
         unassignedStartingBalanceMinor: 0n,
         periodEnvelope: null,
+        previousPeriodLeftover: null,
         warnings: [],
         upcomingObligations: [
           {
@@ -119,6 +121,7 @@ describe('DashboardApplicationService', () => {
         unallocatedIncomeMinor: 0n,
         unassignedStartingBalanceMinor: 0n,
         periodEnvelope: null,
+        previousPeriodLeftover: null,
         warnings: [],
         upcomingObligations: [],
         onboarding: {
@@ -151,6 +154,7 @@ describe('DashboardApplicationService', () => {
         unallocatedIncomeMinor: 0n,
         unassignedStartingBalanceMinor: -3_000n,
         periodEnvelope: null,
+        previousPeriodLeftover: null,
         warnings: [],
         upcomingObligations: [],
         onboarding: {
@@ -183,6 +187,7 @@ describe('DashboardApplicationService', () => {
         unallocatedIncomeMinor: 0n,
         unassignedStartingBalanceMinor: 0n,
         periodEnvelope: null,
+        previousPeriodLeftover: null,
         warnings: [],
         upcomingObligations: [],
         onboarding: {
@@ -221,6 +226,7 @@ describe('DashboardApplicationService', () => {
         unallocatedIncomeMinor: 0n,
         unassignedStartingBalanceMinor: 0n,
         periodEnvelope: null,
+        previousPeriodLeftover: null,
         warnings: [],
         upcomingObligations: [],
         onboarding: {
@@ -235,6 +241,97 @@ describe('DashboardApplicationService', () => {
 
     await expect(service.summary(userId, budgetId, '2026-08-12')).resolves.toMatchObject({
       onboarding: { cycleConfigured: true },
+    });
+  });
+
+  it('surfaces a previous-period leftover that is worth moving', async () => {
+    const repository = {
+      findAccessible: vi.fn().mockResolvedValue({
+        id: budgetId,
+        cycleStartDay: 10,
+        periodBoundaryOffset: 15,
+        timezone: 'Europe/Moscow',
+        allowNegativeBalance: false,
+      }),
+      summary: vi.fn().mockResolvedValue({
+        totalAccountMoneyMinor: 0n,
+        accounts: [],
+        envelopes: [],
+        unallocatedIncomeMinor: 0n,
+        unassignedStartingBalanceMinor: 0n,
+        periodEnvelope: null,
+        previousPeriodLeftover: {
+          envelopeId: 'previous-envelope-id',
+          envelopeName: 'Текущие 10–24',
+          balanceMinor: 3_500_00n,
+          currentPeriodEnvelopeId: 'current-envelope-id',
+          currentPeriodEnvelopeName: 'Текущие 25–9',
+        },
+        warnings: [],
+        upcomingObligations: [],
+        onboarding: {
+          categoriesSeeded: false,
+          hasAccounts: false,
+          hasEnvelopeStartingBalances: false,
+          hasAllocatedIncome: false,
+        },
+      }),
+    };
+    const service = new DashboardApplicationService(repository as never);
+
+    await expect(service.summary(userId, budgetId, '2026-08-25')).resolves.toMatchObject({
+      previousPeriodLeftover: {
+        envelopeId: 'previous-envelope-id',
+        envelopeName: 'Текущие 10–24',
+        balanceMinor: '350000',
+        currentPeriodEnvelopeId: 'current-envelope-id',
+        currentPeriodEnvelopeName: 'Текущие 25–9',
+      },
+    });
+  });
+
+  it('hides a negative previous-period leftover unless the budget allows negative balances', async () => {
+    const repositoryFor = (allowNegativeBalance: boolean) => ({
+      findAccessible: vi.fn().mockResolvedValue({
+        id: budgetId,
+        cycleStartDay: 10,
+        periodBoundaryOffset: 15,
+        timezone: 'Europe/Moscow',
+        allowNegativeBalance,
+      }),
+      summary: vi.fn().mockResolvedValue({
+        totalAccountMoneyMinor: 0n,
+        accounts: [],
+        envelopes: [],
+        unallocatedIncomeMinor: 0n,
+        unassignedStartingBalanceMinor: 0n,
+        periodEnvelope: null,
+        previousPeriodLeftover: {
+          envelopeId: 'previous-envelope-id',
+          envelopeName: 'Текущие 10–24',
+          balanceMinor: -1_000n,
+          currentPeriodEnvelopeId: 'current-envelope-id',
+          currentPeriodEnvelopeName: 'Текущие 25–9',
+        },
+        warnings: [],
+        upcomingObligations: [],
+        onboarding: {
+          categoriesSeeded: false,
+          hasAccounts: false,
+          hasEnvelopeStartingBalances: false,
+          hasAllocatedIncome: false,
+        },
+      }),
+    });
+
+    const hidden = new DashboardApplicationService(repositoryFor(false) as never);
+    await expect(hidden.summary(userId, budgetId, '2026-08-25')).resolves.toMatchObject({
+      previousPeriodLeftover: null,
+    });
+
+    const shown = new DashboardApplicationService(repositoryFor(true) as never);
+    await expect(shown.summary(userId, budgetId, '2026-08-25')).resolves.toMatchObject({
+      previousPeriodLeftover: { balanceMinor: '-1000' },
     });
   });
 });

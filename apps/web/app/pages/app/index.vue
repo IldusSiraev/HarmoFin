@@ -9,6 +9,7 @@ import AvailableBudgetCard from '../../components/dashboard/AvailableBudgetCard.
 import BalanceList from '../../components/dashboard/BalanceList.vue';
 import DashboardWarnings from '../../components/dashboard/DashboardWarnings.vue';
 import OnboardingChecklist from '../../components/dashboard/OnboardingChecklist.vue';
+import PeriodLeftoverPrompt from '../../components/dashboard/PeriodLeftoverPrompt.vue';
 import FinancialMonthTimeline from '../../components/dashboard/FinancialMonthTimeline.vue';
 import RecentOperations from '../../components/dashboard/RecentOperations.vue';
 import UpcomingObligations from '../../components/dashboard/UpcomingObligations.vue';
@@ -217,6 +218,14 @@ async function loadDashboard() {
           :envelopes="summary.envelopes"
           :unallocated-income-minor="summary.unallocatedIncomeMinor"
           :unassigned-starting-balance-minor="summary.unassignedStartingBalanceMinor"
+        />
+
+        <PeriodLeftoverPrompt
+          :leftover="summary.previousPeriodLeftover"
+          :budget-id="activeBudget.id"
+          :envelopes="envelopeDetails"
+          :create-reallocation="api.createEnvelopeReallocation"
+          @reallocated="loadDashboard"
         />
 
         <div class="dashboard-hero-row">
