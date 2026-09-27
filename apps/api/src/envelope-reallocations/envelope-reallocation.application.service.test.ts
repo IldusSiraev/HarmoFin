@@ -112,9 +112,9 @@ describe('EnvelopeReallocationApplicationService', () => {
     repository.findForMutation.mockResolvedValueOnce(record({ status: 'DELETED' }));
     const service = createService(repository);
 
-    await expect(
-      service.delete(ownerId, budgetId, recordId, 'delete-key'),
-    ).resolves.toMatchObject({ status: 'DELETED' });
+    await expect(service.delete(ownerId, budgetId, recordId, 'delete-key')).resolves.toMatchObject({
+      status: 'DELETED',
+    });
     await expect(
       service.delete(ownerId, budgetId, recordId, 'delete-again-key'),
     ).rejects.toMatchObject({

@@ -283,7 +283,13 @@ function activeBudgetWhere(userId: string, budgetId: string) {
 
 type EnvelopeReallocationAuditRecord = Pick<
   EnvelopeReallocationRecord,
-  'id' | 'budgetId' | 'status' | 'sourceEnvelopeId' | 'destinationEnvelopeId' | 'amountMinor' | 'occurredOn'
+  | 'id'
+  | 'budgetId'
+  | 'status'
+  | 'sourceEnvelopeId'
+  | 'destinationEnvelopeId'
+  | 'amountMinor'
+  | 'occurredOn'
 >;
 
 function auditValues(record: EnvelopeReallocationAuditRecord) {

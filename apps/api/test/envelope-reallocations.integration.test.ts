@@ -101,9 +101,9 @@ describe('envelope reallocations API', () => {
     });
     await expectEnvelopeBalance(refs.sourceEnvelopeId, '35000');
     await expectEnvelopeBalance(refs.destinationEnvelopeId, '15000');
-    expect(
-      (await listReallocations()).json<{ items: Array<{ id: string }> }>().items,
-    ).toEqual(expect.arrayContaining([expect.objectContaining({ id: created.json<{ id: string }>().id })]));
+    expect((await listReallocations()).json<{ items: Array<{ id: string }> }>().items).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: created.json<{ id: string }>().id })]),
+    );
   });
 
   it('rejects identical envelopes, archived or foreign references, and insufficient capacity', async () => {
@@ -132,7 +132,9 @@ describe('envelope reallocations API', () => {
     );
 
     expect(sameEnvelope.statusCode).toBe(400);
-    expect(sameEnvelope.json()).toMatchObject({ code: 'ENVELOPE_REALLOCATION_ENVELOPES_MUST_DIFFER' });
+    expect(sameEnvelope.json()).toMatchObject({
+      code: 'ENVELOPE_REALLOCATION_ENVELOPES_MUST_DIFFER',
+    });
     expect(insufficient.statusCode).toBe(422);
     expect(insufficient.json()).toMatchObject({ code: 'INSUFFICIENT_BALANCE' });
     expect(archived.statusCode).toBe(400);
@@ -206,7 +208,12 @@ describe('envelope reallocations API', () => {
   });
 
   async function createReferences(suffix: string, session = owner): Promise<References> {
-    const sourceEnvelope = await createEnvelope(session, `Источник переноса ${suffix}`, '500.00', 0);
+    const sourceEnvelope = await createEnvelope(
+      session,
+      `Источник переноса ${suffix}`,
+      '500.00',
+      0,
+    );
     const destinationEnvelope = await createEnvelope(
       session,
       `Назначение переноса ${suffix}`,

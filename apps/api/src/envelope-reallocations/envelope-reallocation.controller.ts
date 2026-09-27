@@ -130,13 +130,7 @@ export class EnvelopeReallocationController {
     @Headers('idempotency-key') key: string | undefined,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.service.delete(
-      contextOf(request).userId,
-      budgetId,
-      id,
-      validKey(key),
-      request.id,
-    );
+    return this.service.delete(contextOf(request).userId, budgetId, id, validKey(key), request.id);
   }
 }
 
