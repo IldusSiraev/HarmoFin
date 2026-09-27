@@ -346,6 +346,22 @@ async function periodEnvelopeSummary(
             AND part."destination_envelope_id" = ${envelopeId}::uuid
             AND transfer."occurred_on" < ${periodStart}::date
         ), 0)
+        + COALESCE((
+          SELECT SUM(reallocation."amount_minor")
+          FROM "envelope_reallocations" AS reallocation
+          WHERE reallocation."budget_id" = ${budgetId}::uuid
+            AND reallocation."destination_envelope_id" = ${envelopeId}::uuid
+            AND reallocation."status" = 'CONFIRMED'
+            AND reallocation."occurred_on" < ${periodStart}::date
+        ), 0)
+        - COALESCE((
+          SELECT SUM(reallocation."amount_minor")
+          FROM "envelope_reallocations" AS reallocation
+          WHERE reallocation."budget_id" = ${budgetId}::uuid
+            AND reallocation."source_envelope_id" = ${envelopeId}::uuid
+            AND reallocation."status" = 'CONFIRMED'
+            AND reallocation."occurred_on" < ${periodStart}::date
+        ), 0)
       )::BIGINT AS "openingMinor",
       COALESCE((
         SELECT SUM(allocation."amount_minor")
@@ -382,6 +398,24 @@ async function periodEnvelopeSummary(
             AND part."source_envelope_id" <> part."destination_envelope_id"
             AND transfer."occurred_on" >= ${periodStart}::date
             AND transfer."occurred_on" <= ${asOf}::date
+        ), 0)
+        + COALESCE((
+          SELECT SUM(reallocation."amount_minor")
+          FROM "envelope_reallocations" AS reallocation
+          WHERE reallocation."budget_id" = ${budgetId}::uuid
+            AND reallocation."destination_envelope_id" = ${envelopeId}::uuid
+            AND reallocation."status" = 'CONFIRMED'
+            AND reallocation."occurred_on" >= ${periodStart}::date
+            AND reallocation."occurred_on" <= ${asOf}::date
+        ), 0)
+        - COALESCE((
+          SELECT SUM(reallocation."amount_minor")
+          FROM "envelope_reallocations" AS reallocation
+          WHERE reallocation."budget_id" = ${budgetId}::uuid
+            AND reallocation."source_envelope_id" = ${envelopeId}::uuid
+            AND reallocation."status" = 'CONFIRMED'
+            AND reallocation."occurred_on" >= ${periodStart}::date
+            AND reallocation."occurred_on" <= ${asOf}::date
         ), 0)
       )::BIGINT AS "reallocatedMinor",
       COALESCE((
