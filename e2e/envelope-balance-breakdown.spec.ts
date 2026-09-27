@@ -12,10 +12,7 @@ test('explains where the envelope balance comes from and lists reallocation move
   await page.goto('/app/envelopes');
   await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
 
-  await page
-    .getByTestId('list-row-select')
-    .filter({ hasText: 'Ремонт breakdown' })
-    .click();
+  await page.getByTestId('list-row-select').filter({ hasText: 'Ремонт breakdown' }).click();
 
   await expect(page.getByTestId('envelope-drawer-breakdown')).toBeVisible();
   await expect(page.getByTestId('envelope-drawer-breakdown')).toContainText('Откуда остаток');
@@ -43,11 +40,9 @@ async function registerAndSeedBreakdown(page: Page) {
       )) as { workspaces: Array<{ budgets: Array<{ id: string }> }> };
       const budgetId = me.workspaces[0]?.budgets[0]?.id ?? '';
 
-      const csrf = (
-        await fetch(`${api}/auth/csrf`, { credentials: 'include' }).then((response) =>
-          response.json(),
-        )
-      ) as { csrfToken: string };
+      const csrf = (await fetch(`${api}/auth/csrf`, { credentials: 'include' }).then((response) =>
+        response.json(),
+      )) as { csrfToken: string };
 
       const mutationHeaders = {
         'Content-Type': 'application/json',

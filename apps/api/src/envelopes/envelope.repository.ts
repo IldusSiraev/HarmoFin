@@ -285,13 +285,15 @@ export class EnvelopeRepository {
     });
     if (!envelope) return null;
 
-    const [termsRow] = await this.prisma.$queryRaw<{
-      startingBalanceMinor: bigint;
-      incomeAllocatedMinor: bigint;
-      expensesMinor: bigint;
-      envelopeTransfersNetMinor: bigint;
-      reallocationsNetMinor: bigint;
-    }[]>`
+    const [termsRow] = await this.prisma.$queryRaw<
+      {
+        startingBalanceMinor: bigint;
+        incomeAllocatedMinor: bigint;
+        expensesMinor: bigint;
+        envelopeTransfersNetMinor: bigint;
+        reallocationsNetMinor: bigint;
+      }[]
+    >`
       SELECT
         envelope."starting_balance_minor" AS "startingBalanceMinor",
         COALESCE((
