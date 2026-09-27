@@ -71,6 +71,7 @@ onBeforeUnmount(() => {
           <div class="modal__content">
             <slot />
           </div>
+          <div class="modal__footer"><slot name="footer" /></div>
         </div>
       </div>
     </Transition>
@@ -164,6 +165,13 @@ onBeforeUnmount(() => {
   .modal__content {
     max-height: calc(100vh - 5rem);
   }
+}
+
+.modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--hf-space-2);
+  padding-top: var(--hf-space-3);
 }
 
 .modal-enter-active,
