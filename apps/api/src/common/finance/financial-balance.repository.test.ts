@@ -30,6 +30,7 @@ describe('FinancialBalanceRepository', () => {
     expect(accountSql).toContain('::uuid');
     expect(envelopeSql).toContain('"income_allocations"');
     expect(envelopeSql).toContain('"transfer_parts"');
+    expect(envelopeSql).toContain('"envelope_reallocations"');
     expect(envelopeSql).toContain('"source_envelope_id"');
     expect(envelopeSql).toContain('"destination_envelope_id"');
     expect(envelopeSql).toContain('"status" = \'CONFIRMED\'');
