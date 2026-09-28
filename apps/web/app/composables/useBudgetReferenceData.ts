@@ -57,6 +57,29 @@ export interface EnvelopeSummaryDto extends ReferenceSummaryDto {
   byType: EnvelopeSummaryGroupDto[];
 }
 
+export type EnvelopeReallocationSummaryDto = {
+  reallocationId: string;
+  direction: 'IN' | 'OUT';
+  otherEnvelopeId: string;
+  otherEnvelopeName: string | null;
+  amountMinor: string;
+  occurredOn: string;
+  comment: string | null;
+};
+
+export type EnvelopeBalanceSummaryDto = {
+  envelope: EnvelopeDto;
+  currency: 'RUB';
+  scale: 2;
+  startingBalanceMinor: string;
+  incomeAllocatedMinor: string;
+  expensesMinor: string;
+  envelopeTransfersNetMinor: string;
+  reallocationsNetMinor: string;
+  currentBalanceMinor: string;
+  reallocations: EnvelopeReallocationSummaryDto[];
+};
+
 export interface AccountDto {
   id: string;
   budgetId: string;
@@ -652,6 +675,10 @@ export interface BudgetReferenceDataApi {
   archiveCategory(budgetId: string, categoryId: string): Promise<CategoryDto>;
   listEnvelopes(budgetId: string, status?: ReferenceStatus): Promise<EnvelopeDto[]>;
   getEnvelope(budgetId: string, envelopeId: string): Promise<EnvelopeDto>;
+  getEnvelopeBalanceSummary(
+    budgetId: string,
+    envelopeId: string,
+  ): Promise<EnvelopeBalanceSummaryDto>;
   createEnvelope(budgetId: string, input: CreateEnvelopeInput): Promise<EnvelopeDto>;
   updateEnvelope(
     budgetId: string,
@@ -933,6 +960,10 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
       api.request<EnvelopeDto[]>(withQuery(envelopePath(budgetId), { status })),
     getEnvelope: (budgetId, envelopeId) =>
       api.request<EnvelopeDto>(envelopePath(budgetId, envelopeId)),
+    getEnvelopeBalanceSummary: (budgetId, envelopeId) =>
+      api.request<EnvelopeBalanceSummaryDto>(
+        `${envelopePath(budgetId, envelopeId)}/balance-summary`,
+      ),
     createEnvelope: (budgetId, input) =>
       api.request<EnvelopeDto>(envelopePath(budgetId), {
         method: 'POST',

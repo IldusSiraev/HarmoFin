@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
     getBudget: vi.fn(),
     listEnvelopes: vi.fn(),
     getEnvelopesSummary: vi.fn(),
+    getEnvelopeBalanceSummary: vi.fn(),
     createEnvelope: vi.fn(),
     updateEnvelope: vi.fn(),
     archiveEnvelope: vi.fn(),
@@ -239,5 +240,51 @@ describe('envelopes page', () => {
 
     expect(mocks.api.listEnvelopes).toHaveBeenLastCalledWith('budget-id', 'archived');
     expect(mocks.api.getEnvelopesSummary).toHaveBeenLastCalledWith('budget-id', 'archived');
+  });
+
+  it('loads the balance breakdown when the envelope drawer opens', async () => {
+    mocks.api.listEnvelopes.mockResolvedValue([envelope]);
+    mocks.api.getEnvelopeBalanceSummary.mockResolvedValue({
+      envelope,
+      currency: 'RUB',
+      scale: 2,
+      startingBalanceMinor: '0',
+      incomeAllocatedMinor: '12345',
+      expensesMinor: '0',
+      envelopeTransfersNetMinor: '0',
+      reallocationsNetMinor: '0',
+      currentBalanceMinor: '12345',
+      reallocations: [],
+    });
+    wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="list-row-select"]').trigger('click');
+    await flushPromises();
+
+    expect(mocks.api.getEnvelopeBalanceSummary).toHaveBeenCalledWith('budget-id', 'envelope-id');
+    expect(wrapper.text()).toContain('Откуда остаток');
+  });
+
+  it('previews the resulting balance when the starting balance is changed', async () => {
+    mocks.api.listEnvelopes.mockResolvedValue([envelope]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="row-actions-envelope-id"]').trigger('click');
+    await wrapper.get('[data-testid="row-edit"]').trigger('click');
+    await flushPromises();
+
+    const startingBalanceInput = document.querySelector(
+      'input[name="startingBalance"]',
+    ) as HTMLInputElement;
+    startingBalanceInput.value = '50';
+    startingBalanceInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+
+    const preview = document.querySelector(
+      '[data-testid="starting-balance-preview"]',
+    ) as HTMLElement;
+    expect(normalize(preview.textContent ?? '')).toContain('173,45 ₽');
   });
 });

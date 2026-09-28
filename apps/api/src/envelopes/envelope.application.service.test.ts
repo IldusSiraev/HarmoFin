@@ -113,6 +113,67 @@ describe('EnvelopeApplicationService', () => {
     expect(repository.list).not.toHaveBeenCalled();
   });
 
+  it('maps the balance summary and reallocation rows to decimal-safe strings', async () => {
+    const repository = repositoryDouble();
+    const service = createService(repository);
+    repository.balanceSummary.mockResolvedValue({
+      envelope: { ...envelope() },
+      terms: {
+        startingBalanceMinor: 10_000n,
+        incomeAllocatedMinor: 5_000n,
+        expensesMinor: 1_500n,
+        envelopeTransfersNetMinor: -700n,
+        reallocationsNetMinor: 5_000n,
+      },
+      reallocations: [
+        {
+          reallocationId: '00000000-0000-4000-8000-000000000005',
+          direction: 'IN' as const,
+          otherEnvelopeId: '00000000-0000-4000-8000-000000000006',
+          otherEnvelopeName: 'Первая половина',
+          amountMinor: 5_000n,
+          occurredOn: '2026-09-01',
+          comment: null,
+        },
+      ],
+    });
+
+    const summary = await service.balanceSummary(ownerId, budgetId, envelope().id);
+
+    expect(summary).toMatchObject({
+      currency: 'RUB',
+      scale: 2,
+      startingBalanceMinor: '10000',
+      incomeAllocatedMinor: '5000',
+      expensesMinor: '1500',
+      envelopeTransfersNetMinor: '-700',
+      reallocationsNetMinor: '5000',
+      currentBalanceMinor: '17800',
+      reallocations: [
+        expect.objectContaining({
+          reallocationId: '00000000-0000-4000-8000-000000000005',
+          direction: 'IN',
+          otherEnvelopeName: 'Первая половина',
+          amountMinor: '5000',
+          occurredOn: '2026-09-01',
+        }),
+      ],
+    });
+    expect(summary.envelope.currentBalanceMinor).toBe('17800');
+  });
+
+  it('hides the balance summary of a budget the user cannot reach', async () => {
+    const repository = repositoryDouble();
+    const service = createService(repository);
+    repository.balanceSummary.mockResolvedValue(null);
+
+    await expect(
+      service.balanceSummary(ownerId, budgetId, '00000000-0000-4000-8000-000000000007'),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'RESOURCE_NOT_FOUND' }),
+    });
+  });
+
   function createService(repository: ReturnType<typeof repositoryDouble>) {
     return new EnvelopeApplicationService(
       repository as unknown as EnvelopeRepository,
@@ -124,6 +185,7 @@ describe('EnvelopeApplicationService', () => {
     return {
       findAccessibleWithRole: vi.fn(),
       list: vi.fn(),
+      balanceSummary: vi.fn(),
     };
   }
 

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { definePageMeta, navigateTo, useRoute } from '#imports';
 
 import EnvelopeDrawer from '../../components/envelopes/EnvelopeDrawer.vue';
 import EnvelopeRow from '../../components/envelopes/EnvelopeRow.vue';
 import { groupByType } from '../../components/envelopes/group-by-type.js';
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
+import { formatMinorUnits } from '../../components/finance/money-format.js';
 import FinanceMoneyInput from '../../components/finance/FinanceMoneyInput.vue';
 import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiActionMenu from '../../components/ui/ActionMenu.vue';
@@ -24,6 +25,7 @@ import { useOperationReferenceData } from '../../composables/useOperationReferen
 import {
   type BudgetDto,
   type CreateEnvelopeInput,
+  type EnvelopeBalanceSummaryDto,
   type EnvelopeDto,
   type EnvelopeSummaryDto,
   type EnvelopeType,
@@ -69,6 +71,11 @@ const formVisible = ref(false);
 const editingId = ref<string | null>(null);
 const archiveTarget = ref<EnvelopeDto | null>(null);
 const hydrated = ref(false);
+const balanceSummary = ref<EnvelopeBalanceSummaryDto | null>(null);
+const balanceSummaryLoading = ref(false);
+const balanceSummaryError = ref('');
+const editingEnvelope = ref<EnvelopeDto | null>(null);
+let summarySeq = 0;
 // The archive filter lives in the URL so the view survives a reload and can be shared.
 const status = ref<ReferenceStatus>(route.query.status === 'archived' ? 'archived' : 'active');
 const fieldErrors = ref<Partial<Record<(typeof envelopeFields)[number], string>>>({});
@@ -118,6 +125,7 @@ function resetForm() {
 function startCreate() {
   resetForm();
   editingId.value = null;
+  editingEnvelope.value = null;
   formVisible.value = true;
   statusMessage.value = '';
 }
@@ -134,6 +142,7 @@ function startEdit(envelope: EnvelopeDto) {
   form.comment = envelope.comment ?? '';
   fieldErrors.value = {};
   editingId.value = envelope.id;
+  editingEnvelope.value = envelope;
   // Close the drawer first, otherwise the modal opens stacked on top of it.
   detailed.value = null;
   formVisible.value = true;
@@ -143,6 +152,7 @@ function startEdit(envelope: EnvelopeDto) {
 function cancelForm() {
   formVisible.value = false;
   editingId.value = null;
+  editingEnvelope.value = null;
   resetForm();
 }
 
@@ -176,6 +186,37 @@ async function loadPage() {
   }
 }
 
+async function loadBalanceSummary(envelope: EnvelopeDto) {
+  const id = budgetId.value;
+  const seq = ++summarySeq;
+  balanceSummary.value = null;
+  balanceSummaryError.value = '';
+  if (!id) return;
+  balanceSummaryLoading.value = true;
+  try {
+    const result = await api.getEnvelopeBalanceSummary(id, envelope.id);
+    if (summarySeq !== seq) return;
+    balanceSummary.value = result;
+  } catch {
+    if (summarySeq !== seq) return;
+    balanceSummaryError.value =
+      'Не удалось показать, из чего сложился остаток. Закройте карточку и откройте её снова.';
+  } finally {
+    if (summarySeq === seq) balanceSummaryLoading.value = false;
+  }
+}
+
+watch(detailed, (envelope) => {
+  if (!envelope) {
+    summarySeq++;
+    balanceSummary.value = null;
+    balanceSummaryLoading.value = false;
+    balanceSummaryError.value = '';
+    return;
+  }
+  void loadBalanceSummary(envelope);
+});
+
 async function toggleArchived(): Promise<void> {
   status.value = status.value === 'archived' ? 'active' : 'archived';
   await navigateTo(
@@ -196,6 +237,35 @@ function optionalText(value: string) {
 function optionalMoney(value: string) {
   return value.trim() ? formHelper.normalizeDecimal(value) : null;
 }
+
+const startingBalanceTooltip = computed(() =>
+  editingId.value
+    ? 'Если изменить эту сумму, остаток конверта станет больше или меньше на ту же разницу — прошедшие операции не удалятся. Прозрачнее изменить остаток доходом или переносом между конвертами.'
+    : 'Сумма, с которой конверт начинает жизнь. Дальше остаток меняется только операциями: доход, расходы, переносы между конвертами.',
+);
+
+const startingBalanceHint = computed(() =>
+  editingId.value ? 'Можно оставить пустым — остаток конверта не изменится.' : '',
+);
+
+function parseMoneyInput(value: string): bigint | null {
+  const match = /^([+-]?)(\d+)(?:[.,](\d{1,2}))?$/.exec(value.trim());
+  if (!match) return null;
+  const fraction = (match[3] ?? '').padEnd(2, '0');
+  const sign = match[1] === '-' ? '-' : '';
+  return BigInt(`${sign}${match[2]}${fraction}`);
+}
+
+const startingBalancePreview = computed<string | null>(() => {
+  const envelope = editingEnvelope.value;
+  const input = form.startingBalance.trim();
+  if (!envelope || !input) return null;
+  const requested = parseMoneyInput(input);
+  if (requested === null) return null;
+  const nextCurrent =
+    BigInt(envelope.currentBalanceMinor) + requested - BigInt(envelope.startingBalanceMinor);
+  return formatMinorUnits(nextCurrent, envelope.currency, envelope.scale);
+});
 
 function changeEnvelopeType(value: string) {
   form.envelopeType = value as EnvelopeType;
@@ -430,6 +500,9 @@ onMounted(() => {
 
     <EnvelopeDrawer
       :envelope="detailed"
+      :balance-summary="balanceSummary"
+      :balance-summary-loading="balanceSummaryLoading"
+      :balance-summary-error="balanceSummaryError"
       @close="detailed = null"
       @edit="startEdit"
       @archive="requestArchive"
@@ -474,11 +547,18 @@ onMounted(() => {
           v-model="form.startingBalance"
           name="startingBalance"
           label="Начальный баланс"
-          tooltip="Сумма в конверте на дату начала учёта — используется только один раз, при создании конверта."
-          hint="Оставьте пустым при редактировании, чтобы сохранить текущий баланс."
+          :tooltip="startingBalanceTooltip"
+          :hint="startingBalanceHint"
           :error="getFieldError('startingBalance')"
           :required="!editingId"
         />
+        <p
+          v-if="startingBalancePreview !== null"
+          class="reference-form__note"
+          data-testid="starting-balance-preview"
+        >
+          После сохранения останется: {{ startingBalancePreview }}
+        </p>
         <p v-if="negativeBalanceAllowed()" class="reference-form__note">
           Отрицательный баланс разрешён настройками бюджета.
         </p>
