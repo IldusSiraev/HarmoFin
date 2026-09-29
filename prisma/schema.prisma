@@ -93,6 +93,17 @@ enum EnvelopeReallocationStatus {
   DELETED
 }
 
+enum EnvelopeAssignmentType {
+  INCOME
+  OPENING
+  FREE
+}
+
+enum EnvelopeLedgerStatus {
+  CONFIRMED
+  DELETED
+}
+
 enum TargetStatus {
   UNSET
   DRAFT
@@ -265,10 +276,12 @@ model Budget {
   transactions       Transaction[]
   incomeAllocations  IncomeAllocation[]
   transfers          Transfer[]
-   envelopeReallocations EnvelopeReallocation[]
-   envelopePeriods      EnvelopePeriod[]
-   envelopeFundingRules EnvelopeFundingRule[]
-   budgetCycleRevisions BudgetCycleRevision[]
+    envelopeReallocations EnvelopeReallocation[]
+    envelopePeriods      EnvelopePeriod[]
+    envelopeFundingRules EnvelopeFundingRule[]
+    envelopeAssignments   EnvelopeAssignment[]
+    envelopeMovements     EnvelopeMovement[]
+    budgetCycleRevisions BudgetCycleRevision[]
    idempotencyRecords IdempotencyRecord[]
    regularPlans       RegularPlan[]
    occurrences        PlanOccurrence[]
@@ -364,6 +377,9 @@ model Envelope {
   envelopeFundingRules       EnvelopeFundingRule[] @relation("EnvelopeFundingRuleEnvelope")
   regularPlans               RegularPlan[]         @relation("RegularPlanEnvelope")
   occurrenceSnapshots        PlanOccurrence[]      @relation("PlanOccurrenceEnvelope")
+  envelopeAssignments        EnvelopeAssignment[]
+  movementsAsSource          EnvelopeMovement[]  @relation("MovementSourceEnvelope")
+  movementsAsDestination     EnvelopeMovement[]  @relation("MovementDestinationEnvelope")
 
   @@unique([id, budgetId])
   @@index([budgetId, archivedAt])
@@ -401,6 +417,7 @@ model Transaction {
   category    Category           @relation(fields: [categoryId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
   envelope       Envelope?          @relation(fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
   allocations    IncomeAllocation[]
+  envelopeAssignments EnvelopeAssignment[]
   planOccurrence PlanOccurrence?    @relation("PlanOccurrenceTransaction")
 
   @@unique([id, budgetId])
@@ -541,6 +558,10 @@ model EnvelopePeriod {
   budget   Budget   @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   envelope Envelope @relation("EnvelopePeriodEnvelope", fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
 
+  assignments            EnvelopeAssignment[]
+  movementsAsSource      EnvelopeMovement[] @relation("MovementSourcePeriod")
+  movementsAsDestination EnvelopeMovement[] @relation("MovementDestinationPeriod")
+
   @@unique([id, budgetId])
   @@unique([id, budgetId, envelopeId])
   @@unique([budgetId, envelopeId, startsOn])
@@ -565,8 +586,62 @@ model EnvelopeFundingRule {
   envelope Envelope @relation("EnvelopeFundingRuleEnvelope", fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([id, budgetId])
-  @@index([budgetId, envelopeId, priority])
+  @@index([budgetId, envelopeId])
   @@map("envelope_funding_rules")
+}
+
+model EnvelopeAssignment {
+  id                        String               @id @db.Uuid
+  budgetId                  String               @map("budget_id") @db.Uuid
+  envelopeId                String               @map("envelope_id") @db.Uuid
+  type                      EnvelopeAssignmentType
+  amountMinor               BigInt               @map("amount_minor")
+  effectiveOn               DateTime             @map("effective_on") @db.Date
+  periodId                  String?              @map("period_id") @db.Uuid
+  sourceIncomeTransactionId String?              @map("source_income_transaction_id") @db.Uuid
+  status                    EnvelopeLedgerStatus @default(CONFIRMED)
+  createdAt                 DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  budget                  Budget        @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  envelope                Envelope      @relation(fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  period                  EnvelopePeriod? @relation(fields: [periodId, budgetId, envelopeId], references: [id, budgetId, envelopeId], onDelete: Restrict, onUpdate: Cascade)
+  sourceIncomeTransaction Transaction?  @relation(fields: [sourceIncomeTransactionId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([id, budgetId])
+  @@index([budgetId, envelopeId, effectiveOn])
+  @@index([budgetId, status, effectiveOn])
+  @@index([budgetId, periodId])
+  @@index([budgetId, sourceIncomeTransactionId])
+  @@map("envelope_assignments")
+}
+
+model EnvelopeMovement {
+  id                    String               @id @db.Uuid
+  budgetId              String               @map("budget_id") @db.Uuid
+  sourceEnvelopeId      String               @map("source_envelope_id") @db.Uuid
+  sourcePeriodId        String?              @map("source_period_id") @db.Uuid
+  destinationEnvelopeId String?              @map("destination_envelope_id") @db.Uuid
+  destinationPeriodId   String?              @map("destination_period_id") @db.Uuid
+  amountMinor           BigInt               @map("amount_minor")
+  effectiveOn           DateTime             @map("effective_on") @db.Date
+  status                EnvelopeLedgerStatus @default(CONFIRMED)
+  createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  budget                Budget          @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  sourceEnvelope        Envelope        @relation("MovementSourceEnvelope", fields: [sourceEnvelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  sourcePeriod          EnvelopePeriod? @relation("MovementSourcePeriod", fields: [sourcePeriodId, budgetId, sourceEnvelopeId], references: [id, budgetId, envelopeId], onDelete: Restrict, onUpdate: Cascade)
+  destinationEnvelope   Envelope?       @relation("MovementDestinationEnvelope", fields: [destinationEnvelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  destinationPeriod     EnvelopePeriod? @relation("MovementDestinationPeriod", fields: [destinationPeriodId, budgetId, destinationEnvelopeId], references: [id, budgetId, envelopeId], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([id, budgetId])
+  @@index([budgetId, sourceEnvelopeId, effectiveOn])
+  @@index([budgetId, destinationEnvelopeId, effectiveOn])
+  @@index([budgetId, sourcePeriodId])
+  @@index([budgetId, destinationPeriodId])
+  @@index([budgetId, status, effectiveOn])
+  @@map("envelope_movements")
 }
 
 model BudgetCycleRevision {
