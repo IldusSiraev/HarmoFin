@@ -21,10 +21,16 @@ export type AssignmentCreateParams = {
   actorUserId: string;
   envelopeId: string;
   periodId: string | null;
-  sourceKind: 'OPENING' | 'FREE';
+  sourceKind: 'OPENING' | 'FREE' | 'INCOME';
   amountMinor: bigint;
   effectiveOn: Date;
+  sourceIncomeTransactionId: string | null;
   requestId?: string | undefined;
+};
+
+export type IncomeRecord = {
+  id: string;
+  amountMinor: bigint;
 };
 
 export class AssignmentRepository {
@@ -45,6 +51,57 @@ export class AssignmentRepository {
       throw resourceNotFound();
     }
     return budget.timezone;
+  }
+
+  async lockIncome(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    incomeId: string,
+  ): Promise<void> {
+    const rows = await tx.$queryRaw`
+      SELECT "id" FROM "transactions"
+      WHERE "id" = ${incomeId}::uuid AND "budget_id" = ${budgetId}::uuid
+      FOR UPDATE
+    `;
+    if ((rows as unknown as unknown[]).length === 0) {
+      throw resourceNotFound();
+    }
+  }
+
+  async requireIncome(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    incomeId: string,
+  ): Promise<IncomeRecord> {
+    const income = await tx.transaction.findFirst({
+      where: { id: incomeId, budgetId },
+      select: { id: true, amountMinor: true, transactionType: true, status: true, deletedAt: true },
+    });
+    if (
+      !income ||
+      income.deletedAt ||
+      income.transactionType !== 'INCOME' ||
+      income.status !== 'CONFIRMED'
+    ) {
+      throw resourceNotFound();
+    }
+    return { id: income.id, amountMinor: income.amountMinor };
+  }
+
+  async sumIncomeAssigned(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    incomeId: string,
+  ): Promise<bigint> {
+    const [row] = (await tx.$queryRaw`
+      SELECT COALESCE(SUM(e."amount_minor"), 0) AS assigned
+      FROM "envelope_assignments" e
+      WHERE e."budget_id" = ${budgetId}::uuid
+        AND e."source_income_transaction_id" = ${incomeId}::uuid
+        AND e."type" = 'INCOME'
+        AND e."status" = 'CONFIRMED'
+    `) as unknown as Array<{ assigned: string | bigint | number }>;
+    return BigInt(String((row ?? { assigned: 0n }).assigned));
   }
 
   async requireEnvelope(
@@ -139,7 +196,7 @@ export class AssignmentRepository {
         amountMinor: params.amountMinor,
         effectiveOn: params.effectiveOn,
         periodId: params.periodId,
-        sourceIncomeTransactionId: null,
+        sourceIncomeTransactionId: params.sourceIncomeTransactionId,
         status: 'CONFIRMED',
       },
       select: { id: true },
@@ -159,6 +216,7 @@ export class AssignmentRepository {
           envelopeId: params.envelopeId,
           periodId: params.periodId,
           type: params.sourceKind,
+          sourceIncomeTransactionId: params.sourceIncomeTransactionId,
           amountMinor: params.amountMinor.toString(),
           effectiveOn: params.effectiveOn.toISOString(),
         },

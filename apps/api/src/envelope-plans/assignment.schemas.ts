@@ -14,3 +14,14 @@ export const createEnvelopeAssignmentSchema = z
   .strict();
 
 export type CreateEnvelopeAssignmentInput = z.output<typeof createEnvelopeAssignmentSchema>;
+
+export const createIncomeAssignmentSchema = z
+  .object({
+    incomeTransactionId: uuid,
+    envelopeId: uuid,
+    periodId,
+    amount,
+  })
+  .strict();
+
+export type CreateIncomeAssignmentInput = z.output<typeof createIncomeAssignmentSchema>;
