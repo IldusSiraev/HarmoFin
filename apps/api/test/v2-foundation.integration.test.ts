@@ -23,6 +23,9 @@ let otherId: string;
 let ownerCookie: string;
 let otherWorkspaceId: string;
 let otherBudgetId: string;
+let ownBudgetId: string;
+let ownerEnvelopeId: string;
+let foreignEnvelopeId: string;
 
 describe('v2 foundation: URI versioning and budget model version', () => {
   beforeAll(async () => {
@@ -51,6 +54,9 @@ describe('v2 foundation: URI versioning and budget model version', () => {
     otherId = other.user.id;
     otherWorkspaceId = other.workspace.id;
     otherBudgetId = other.budget.id;
+    ownBudgetId = owner.budget.id;
+    ownerEnvelopeId = await createTestEnvelope(ownBudgetId, 'F02 owner envelope');
+    foreignEnvelopeId = await createTestEnvelope(otherBudgetId, 'F02 foreign envelope');
   });
 
   afterAll(async () => {
@@ -149,6 +155,76 @@ describe('v2 foundation: URI versioning and budget model version', () => {
     expect(body.planModelVersion).toBe(2);
     expect(body.planModelActivatedOn).toBe('2026-09-29');
   });
+
+  it('rejects a duplicate envelope_period for the same (budgetId, envelopeId, startsOn)', async () => {
+    const periodData = {
+      budgetId: ownBudgetId,
+      envelopeId: ownerEnvelopeId,
+      startsOn: new Date('2026-10-01T00:00:00Z'),
+      endsOn: new Date('2026-10-31T00:00:00Z'),
+    };
+    const first = await prisma.envelopePeriod.create({
+      data: {
+        id: randomUUID(),
+        ...periodData,
+      },
+    });
+    expect(first.targetStatus).toBe('UNSET');
+
+    await expect(
+      prisma.envelopePeriod.create({
+        data: {
+          id: randomUUID(),
+          ...periodData,
+        },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('rejects an envelope_period whose envelope belongs to another budget (composite FK)', async () => {
+    await expect(
+      prisma.envelopePeriod.create({
+        data: {
+          id: randomUUID(),
+          budgetId: ownBudgetId,
+          envelopeId: foreignEnvelopeId,
+          startsOn: new Date('2026-11-01T00:00:00Z'),
+          endsOn: new Date('2026-11-30T00:00:00Z'),
+        },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('keeps an untouched v1 budget on planModelVersion=1 after the additive migration', async () => {
+    const budget = await prisma.budget.findUniqueOrThrow({ where: { id: otherBudgetId } });
+    expect(budget.planModelVersion).toBe(1);
+  });
+
+  it('creates an envelope_funding_rule and a budget_cycle_revision for the budget', async () => {
+    const rule = await prisma.envelopeFundingRule.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ownBudgetId,
+        envelopeId: ownerEnvelopeId,
+        type: 'FIXED_PER_PERIOD',
+        priority: 1,
+        fixedMinor: 5000n,
+      },
+    });
+    expect(rule.type).toBe('FIXED_PER_PERIOD');
+
+    const revision = await prisma.budgetCycleRevision.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ownBudgetId,
+        effectiveOn: new Date('2026-10-01T00:00:00Z'),
+        cycleStartDay: 15,
+        periodBoundaryOffset: 15,
+        timezone: 'Europe/Moscow',
+      },
+    });
+    expect(revision.cycleStartDay).toBe(15);
+  });
 });
 
 async function getOwnV1BudgetId(userId: string): Promise<string> {
@@ -185,6 +261,20 @@ type OpenApiDocument = {
   };
 };
 
+async function createTestEnvelope(budgetId: string, name: string): Promise<string> {
+  const envelope = await prisma.envelope.create({
+    data: {
+      id: randomUUID(),
+      budgetId,
+      name,
+      envelopeType: 'CUSTOM',
+      startingBalanceMinor: 0n,
+      displayOrder: 900,
+    },
+  });
+  return envelope.id;
+}
+
 async function register(email: string) {
   const response = await server.inject({
     method: 'POST',
@@ -215,6 +305,9 @@ async function cleanupUser(userId: string) {
   });
   await prisma.workspaceMembership.deleteMany({ where: { userId } });
   for (const { workspaceId } of memberships) {
+    await prisma.envelopePeriod.deleteMany({ where: { budget: { workspaceId } } });
+    await prisma.envelopeFundingRule.deleteMany({ where: { budget: { workspaceId } } });
+    await prisma.budgetCycleRevision.deleteMany({ where: { budget: { workspaceId } } });
     await prisma.budget.updateMany({
       where: { workspaceId },
       data: {

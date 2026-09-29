@@ -93,6 +93,20 @@ enum EnvelopeReallocationStatus {
   DELETED
 }
 
+enum TargetStatus {
+  UNSET
+  DRAFT
+  CONFIRMED
+}
+
+enum FundingRuleType {
+  MANUAL
+  SUM_OF_PLANS
+  FIXED_PER_PERIOD
+  SUGGESTED_FIXED
+  PERCENT_OF_INCOME
+}
+
 enum RegularPlanType {
   INCOME
   EXPENSE
@@ -251,11 +265,14 @@ model Budget {
   transactions       Transaction[]
   incomeAllocations  IncomeAllocation[]
   transfers          Transfer[]
-  envelopeReallocations EnvelopeReallocation[]
-  idempotencyRecords IdempotencyRecord[]
-  regularPlans       RegularPlan[]
-  occurrences        PlanOccurrence[]
-  notifications      Notification[]
+   envelopeReallocations EnvelopeReallocation[]
+   envelopePeriods      EnvelopePeriod[]
+   envelopeFundingRules EnvelopeFundingRule[]
+   budgetCycleRevisions BudgetCycleRevision[]
+   idempotencyRecords IdempotencyRecord[]
+   regularPlans       RegularPlan[]
+   occurrences        PlanOccurrence[]
+   notifications      Notification[]
 
   @@unique([id, workspaceId])
   @@index([workspaceId, status])
@@ -339,12 +356,14 @@ model Envelope {
   budget                     Budget             @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   transactions               Transaction[]
   incomeAllocations          IncomeAllocation[]
-  transferPartsAsSource      TransferPart[]     @relation("TransferPartSourceEnvelope")
-  transferPartsAsDestination TransferPart[]     @relation("TransferPartDestinationEnvelope")
+  transferPartsAsSource      TransferPart[]        @relation("TransferPartSourceEnvelope")
+  transferPartsAsDestination TransferPart[]        @relation("TransferPartDestinationEnvelope")
   envelopeReallocationsAsSource      EnvelopeReallocation[] @relation("EnvelopeReallocationSource")
   envelopeReallocationsAsDestination EnvelopeReallocation[] @relation("EnvelopeReallocationDestination")
-  regularPlans               RegularPlan[]      @relation("RegularPlanEnvelope")
-  occurrenceSnapshots        PlanOccurrence[]   @relation("PlanOccurrenceEnvelope")
+  envelopePeriods            EnvelopePeriod[]      @relation("EnvelopePeriodEnvelope")
+  envelopeFundingRules       EnvelopeFundingRule[] @relation("EnvelopeFundingRuleEnvelope")
+  regularPlans               RegularPlan[]         @relation("RegularPlanEnvelope")
+  occurrenceSnapshots        PlanOccurrence[]      @relation("PlanOccurrenceEnvelope")
 
   @@unique([id, budgetId])
   @@index([budgetId, archivedAt])
@@ -502,6 +521,70 @@ model EnvelopeReallocation {
   @@index([budgetId, destinationEnvelopeId])
   @@index([budgetId, occurredOn])
   @@map("envelope_reallocations")
+}
+
+model EnvelopePeriod {
+  id                String       @id @db.Uuid
+  budgetId          String       @map("budget_id") @db.Uuid
+  envelopeId        String       @map("envelope_id") @db.Uuid
+  startsOn          DateTime     @map("starts_on") @db.Date
+  endsOn            DateTime     @map("ends_on") @db.Date
+  targetMinor       BigInt?      @map("target_minor")
+  targetStatus      TargetStatus @default(UNSET) @map("target_status")
+  confirmedByUserId String?      @map("confirmed_by_user_id") @db.Uuid
+  confirmedAt       DateTime?    @map("confirmed_at") @db.Timestamptz(3)
+  createdByUserId   String?      @map("created_by_user_id") @db.Uuid
+  updatedByUserId   String?      @map("updated_by_user_id") @db.Uuid
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  budget   Budget   @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  envelope Envelope @relation("EnvelopePeriodEnvelope", fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([id, budgetId])
+  @@unique([id, budgetId, envelopeId])
+  @@unique([budgetId, envelopeId, startsOn])
+  @@index([budgetId, startsOn, endsOn])
+  @@map("envelope_periods")
+}
+
+model EnvelopeFundingRule {
+  id                 String          @id @db.Uuid
+  budgetId           String          @map("budget_id") @db.Uuid
+  envelopeId         String          @map("envelope_id") @db.Uuid
+  type               FundingRuleType @map("type")
+  priority           Int             @default(0)
+  fixedMinor         BigInt?         @map("fixed_minor")
+  percentBasisPoints Int?            @map("percent_basis_points")
+  createdByUserId    String?         @map("created_by_user_id") @db.Uuid
+  updatedByUserId    String?         @map("updated_by_user_id") @db.Uuid
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  budget   Budget   @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  envelope Envelope @relation("EnvelopeFundingRuleEnvelope", fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([id, budgetId])
+  @@index([budgetId, envelopeId, priority])
+  @@map("envelope_funding_rules")
+}
+
+model BudgetCycleRevision {
+  id                   String   @id @db.Uuid
+  budgetId             String   @map("budget_id") @db.Uuid
+  effectiveOn          DateTime @map("effective_on") @db.Date
+  cycleStartDay        Int      @map("cycle_start_day") @db.SmallInt
+  periodBoundaryOffset Int      @map("period_boundary_offset")
+  timezone             String   @default("Europe/Moscow") @db.VarChar(64)
+  createdByUserId      String?  @map("created_by_user_id") @db.Uuid
+  updatedByUserId      String?  @map("updated_by_user_id") @db.Uuid
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  budget Budget @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([budgetId, effectiveOn])
+  @@map("budget_cycle_revisions")
 }
 
 model RegularPlan {
