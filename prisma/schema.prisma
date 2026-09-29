@@ -238,6 +238,8 @@ model Budget {
   incomeAllocationSourceCategoryId String?      @map("income_allocation_source_category_id") @db.Uuid
   incomeAllocationTargetEnvelopeId String?      @map("income_allocation_target_envelope_id") @db.Uuid
   status                           BudgetStatus @default(ACTIVE)
+  planModelVersion                 Int          @default(1) @map("plan_model_version")
+  planModelActivatedOn             DateTime?    @map("plan_model_activated_on") @db.Date
   createdAt                        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -354,6 +356,7 @@ model Transaction {
   budgetId          String            @map("budget_id") @db.Uuid
   transactionType   TransactionType   @map("transaction_type")
   status            TransactionStatus @default(DRAFT)
+  accountingModelVersion Int          @default(1) @map("accounting_model_version")
   amountMinor       BigInt            @map("amount_minor")
   currency          String            @default("RUB") @db.Char(3)
   scale             Int               @default(2) @db.SmallInt

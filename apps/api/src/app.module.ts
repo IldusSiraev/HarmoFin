@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { AccountModule } from './accounts/account.module.js';
 import { BudgetModule } from './budgets/budget.module.js';
 import { CategoryModule } from './categories/category.module.js';
+import { PlanModelModule } from './common/plan-model/plan-model.module.js';
 import { API_CONFIG } from './common/security/security.constants.js';
 import type { ApiConfig } from './config/env.js';
 import { CycleModule } from './cycles/cycle.module.js';
@@ -32,6 +33,7 @@ export class AppModule {
         DatabaseModule.register(config),
         HealthModule,
         AuthModule.register(config),
+        PlanModelModule.register(),
         AuditModule.register(),
         WorkspaceModule.register(),
         BudgetModule.register(),
