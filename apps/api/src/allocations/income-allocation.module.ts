@@ -1,6 +1,7 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
+import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { IncomeAllocationApplicationService } from './income-allocation.application.service.js';
 import { IncomeAllocationController } from './income-allocation.controller.js';
@@ -20,9 +21,13 @@ export class IncomeAllocationModule {
         },
         {
           provide: IncomeAllocationApplicationService,
-          useFactory: (repository: IncomeAllocationRepository) =>
-            new IncomeAllocationApplicationService(repository, new IdempotencyService()),
-          inject: [IncomeAllocationRepository],
+          useFactory: (repository: IncomeAllocationRepository, prisma: PrismaService) =>
+            new IncomeAllocationApplicationService(
+              repository,
+              new IdempotencyService(),
+              new PlanModelPolicy(prisma),
+            ),
+          inject: [IncomeAllocationRepository, PrismaService],
         },
       ],
     };

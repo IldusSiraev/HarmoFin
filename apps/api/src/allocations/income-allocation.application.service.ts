@@ -4,6 +4,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
+import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import {
   forbidden,
   invalidReference,
@@ -51,6 +52,7 @@ export class IncomeAllocationApplicationService {
   constructor(
     private readonly repository: IncomeAllocationRepository,
     private readonly idempotency: IdempotencyService,
+    private readonly planModelPolicy?: PlanModelPolicy,
   ) {}
 
   async create(
@@ -62,6 +64,7 @@ export class IncomeAllocationApplicationService {
     requestId?: string,
   ): Promise<IncomeAllocationView> {
     await this.requireMutationBudget(userId, budgetId);
+    await this.requireBudgetPlanModel(userId, budgetId);
     return this.repository.runTransaction(async (tx) => {
       const result = await this.idempotency.execute<IncomeAllocationView>(
         tx,
@@ -92,6 +95,7 @@ export class IncomeAllocationApplicationService {
     requestId?: string,
   ): Promise<IncomeAllocationView> {
     await this.requireMutationBudget(userId, budgetId);
+    await this.requireBudgetPlanModel(userId, budgetId);
     return this.repository.runTransaction(async (tx) => {
       const result = await this.idempotency.execute<IncomeAllocationView>(
         tx,
@@ -120,6 +124,7 @@ export class IncomeAllocationApplicationService {
     requestId?: string,
   ): Promise<IncomeAllocationView> {
     await this.requireMutationBudget(userId, budgetId);
+    await this.requireBudgetPlanModel(userId, budgetId);
     return this.repository.runTransaction(async (tx) => {
       const result = await this.idempotency.execute<IncomeAllocationView>(
         tx,
@@ -143,6 +148,7 @@ export class IncomeAllocationApplicationService {
     requestId?: string,
   ): Promise<IncomeAllocationView> {
     await this.requireOwnerBudget(userId, budgetId);
+    await this.requireBudgetPlanModel(userId, budgetId);
     return this.repository.runTransaction(async (tx) => {
       const result = await this.idempotency.execute<IncomeAllocationView>(
         tx,
@@ -344,6 +350,11 @@ export class IncomeAllocationApplicationService {
     if (!budget) throw resourceNotFound();
     const role = budget.workspace.memberships[0]?.role;
     if (role !== 'OWNER' && role !== 'EDITOR') throw forbidden();
+  }
+
+  private async requireBudgetPlanModel(userId: string, budgetId: string): Promise<void> {
+    const policy = this.planModelPolicy;
+    if (policy) await policy.requireModel(userId, budgetId, 1);
   }
 }
 

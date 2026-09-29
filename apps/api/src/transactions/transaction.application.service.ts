@@ -6,6 +6,7 @@ import { IncomeAllocationRepository } from '../allocations/income-allocation.rep
 import { cycleAndPeriodFor } from '../cycles/cycle-period.domain.js';
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
+import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import {
   forbidden,
   invalidReference,
@@ -69,6 +70,7 @@ export class TransactionApplicationService {
     private readonly idempotency: IdempotencyService,
     private readonly allocations?: IncomeAllocationRepository,
     private readonly occurrences?: PlanOccurrenceRepository,
+    private readonly planModelPolicy?: PlanModelPolicy,
   ) {}
 
   async list(
@@ -107,6 +109,7 @@ export class TransactionApplicationService {
     requestId?: string,
   ): Promise<TransactionView> {
     const budget = await this.requireMutationBudget(userId, budgetId);
+    await this.requireBudgetPlanModel(userId, budgetId);
     return this.repository.runTransaction(async (tx) => {
       const result = await this.idempotency.execute<TransactionView>(
         tx,
@@ -136,6 +139,7 @@ export class TransactionApplicationService {
     requestId?: string,
   ): Promise<TransactionView> {
     const budget = await this.requireMutationBudget(userId, budgetId);
+    await this.requireBudgetPlanModel(userId, budgetId);
     return this.repository.runTransaction(async (tx) => {
       const result = await this.idempotency.execute<TransactionView>(
         tx,
@@ -186,6 +190,7 @@ export class TransactionApplicationService {
     requestId?: string,
   ): Promise<TransactionView> {
     const budget = await this.requireMutationBudget(userId, budgetId);
+    await this.requireBudgetPlanModel(userId, budgetId);
     return this.repository.runTransaction(async (tx) => {
       const result = await this.idempotency.execute<TransactionView>(
         tx,
@@ -232,6 +237,7 @@ export class TransactionApplicationService {
     requestId?: string,
   ): Promise<TransactionView> {
     await this.requireMutationBudget(userId, budgetId);
+    await this.requireBudgetPlanModel(userId, budgetId);
     return this.repository.runTransaction(async (tx) => {
       const result = await this.idempotency.execute<TransactionView>(
         tx,
@@ -261,6 +267,7 @@ export class TransactionApplicationService {
     requestId?: string,
   ): Promise<TransactionView> {
     await this.requireMutationBudget(userId, budgetId);
+    await this.requireBudgetPlanModel(userId, budgetId);
     return this.repository.runTransaction(async (tx) => {
       const result = await this.idempotency.execute<TransactionView>(
         tx,
@@ -296,6 +303,7 @@ export class TransactionApplicationService {
     requestId?: string,
   ): Promise<TransactionView> {
     await this.requireMutationBudget(userId, budgetId);
+    await this.requireBudgetPlanModel(userId, budgetId);
     const allocations = this.allocations;
     if (!allocations) throw new Error('Income allocation repository is required.');
     return this.repository.runTransaction(async (tx) => {
@@ -355,6 +363,7 @@ export class TransactionApplicationService {
     requestId?: string,
   ): Promise<TransactionView> {
     const budget = await this.requireOwnerBudget(userId, budgetId);
+    await this.requireBudgetPlanModel(userId, budgetId);
     return this.repository.runTransaction(async (tx) => {
       const result = await this.idempotency.execute<TransactionView>(
         tx,
@@ -487,6 +496,11 @@ export class TransactionApplicationService {
     const role = budget.workspace.memberships[0]?.role;
     if (role !== 'OWNER' && role !== 'EDITOR') throw forbidden();
     return budget;
+  }
+
+  private async requireBudgetPlanModel(userId: string, budgetId: string): Promise<void> {
+    const policy = this.planModelPolicy;
+    if (policy) await policy.requireModel(userId, budgetId, 1);
   }
 
   private async requireMutableTransaction(

@@ -1,6 +1,7 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
+import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { EnvelopeReallocationApplicationService } from './envelope-reallocation.application.service.js';
 import { EnvelopeReallocationController } from './envelope-reallocation.controller.js';
@@ -20,9 +21,13 @@ export class EnvelopeReallocationModule {
         },
         {
           provide: EnvelopeReallocationApplicationService,
-          useFactory: (repository: EnvelopeReallocationRepository) =>
-            new EnvelopeReallocationApplicationService(repository, new IdempotencyService()),
-          inject: [EnvelopeReallocationRepository],
+          useFactory: (repository: EnvelopeReallocationRepository, prisma: PrismaService) =>
+            new EnvelopeReallocationApplicationService(
+              repository,
+              new IdempotencyService(),
+              new PlanModelPolicy(prisma),
+            ),
+          inject: [EnvelopeReallocationRepository, PrismaService],
         },
       ],
     };
