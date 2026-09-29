@@ -586,7 +586,7 @@ model EnvelopeFundingRule {
   envelope Envelope @relation("EnvelopeFundingRuleEnvelope", fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([id, budgetId])
-  @@index([budgetId, envelopeId])
+  @@index([budgetId, envelopeId, priority])
   @@map("envelope_funding_rules")
 }
 

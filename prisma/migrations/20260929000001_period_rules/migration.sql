@@ -78,19 +78,19 @@ CREATE UNIQUE INDEX "envelope_funding_rules_id_budget_id_key" ON "envelope_fundi
 CREATE UNIQUE INDEX "budget_cycle_revisions_budget_id_effective_on_key" ON "budget_cycle_revisions"("budget_id", "effective_on");
 
 -- AddForeignKey
-ALTER TABLE "envelope_periods" ADD CONSTRAINT "envelope_periods_budget_id_fkey" FOREIGN KEY ("budget_id") REFERENCES "budgets"("id");
+ALTER TABLE "envelope_periods" ADD CONSTRAINT "envelope_periods_budget_id_fkey" FOREIGN KEY ("budget_id") REFERENCES "budgets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "envelope_periods" ADD CONSTRAINT "envelope_periods_envelope_id_budget_id_fkey" FOREIGN KEY ("envelope_id", "budget_id") REFERENCES "envelopes"("id", "budget_id");
+ALTER TABLE "envelope_periods" ADD CONSTRAINT "envelope_periods_envelope_id_budget_id_fkey" FOREIGN KEY ("envelope_id", "budget_id") REFERENCES "envelopes"("id", "budget_id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "envelope_funding_rules" ADD CONSTRAINT "envelope_funding_rules_budget_id_fkey" FOREIGN KEY ("budget_id") REFERENCES "budgets"("id");
+ALTER TABLE "envelope_funding_rules" ADD CONSTRAINT "envelope_funding_rules_budget_id_fkey" FOREIGN KEY ("budget_id") REFERENCES "budgets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "envelope_funding_rules" ADD CONSTRAINT "envelope_funding_rules_envelope_id_budget_id_fkey" FOREIGN KEY ("envelope_id", "budget_id") REFERENCES "envelopes"("id", "budget_id");
+ALTER TABLE "envelope_funding_rules" ADD CONSTRAINT "envelope_funding_rules_envelope_id_budget_id_fkey" FOREIGN KEY ("envelope_id", "budget_id") REFERENCES "envelopes"("id", "budget_id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "budget_cycle_revisions" ADD CONSTRAINT "budget_cycle_revisions_budget_id_fkey" FOREIGN KEY ("budget_id") REFERENCES "budgets"("id");
+ALTER TABLE "budget_cycle_revisions" ADD CONSTRAINT "budget_cycle_revisions_budget_id_fkey" FOREIGN KEY ("budget_id") REFERENCES "budgets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AlterTable
 ALTER TABLE "envelope_periods" ADD CONSTRAINT "envelope_periods_ends_check" CHECK ("ends_on" >= "starts_on");
