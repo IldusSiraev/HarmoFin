@@ -125,8 +125,15 @@ describe('calculateSpendable', () => {
   });
 
   it('spec example in minor units: cash 10 000 000, current 6 500 000 => spendable 5 500 000', () => {
-    expect(calculateSpendable({ cash: 10_000_000n, current: 6_500_000n, mandatory: 3_500_000n,
-      mandatoryDue: 4_500_000n, otherBalances: [] }).spendableNow).toBe(5_500_000n);
+    expect(
+      calculateSpendable({
+        cash: 10_000_000n,
+        current: 6_500_000n,
+        mandatory: 3_500_000n,
+        mandatoryDue: 4_500_000n,
+        otherBalances: [],
+      }).spendableNow,
+    ).toBe(5_500_000n);
   });
 });
 
@@ -152,15 +159,13 @@ describe('overflow guard (PostgreSQL BIGINT range)', () => {
     });
     expect(() => calculateSpendable(spendable({ cash: above }))).toThrow(V2MoneyOverflowError);
     expect(() => calculateSpendable(spendable({ current: below }))).toThrow(V2MoneyOverflowError);
-    expect(() =>
-      calculateSpendable(spendable({ mandatory: above })),
-    ).toThrow(V2MoneyOverflowError);
-    expect(() =>
-      calculateSpendable(spendable({ mandatoryDue: below })),
-    ).toThrow(V2MoneyOverflowError);
-    expect(() =>
-      calculateSpendable(spendable({ otherBalances: [above] })),
-    ).toThrow(V2MoneyOverflowError);
+    expect(() => calculateSpendable(spendable({ mandatory: above }))).toThrow(V2MoneyOverflowError);
+    expect(() => calculateSpendable(spendable({ mandatoryDue: below }))).toThrow(
+      V2MoneyOverflowError,
+    );
+    expect(() => calculateSpendable(spendable({ otherBalances: [above] }))).toThrow(
+      V2MoneyOverflowError,
+    );
   });
 
   it('rejects sums that exceed the BIGINT range even with in-range inputs', () => {
@@ -168,10 +173,22 @@ describe('overflow guard (PostgreSQL BIGINT range)', () => {
     expect(() => periodFunded(BIGINT_MAX, 0n, 1n, 0n)).toThrow(V2MoneyOverflowError);
     expect(() => assignmentBalance(-BIGINT_MAX - 1n, 1n)).toThrow(V2MoneyOverflowError);
     expect(() =>
-      calculateSpendable({ cash: 0n, current: BIGINT_MAX, mandatory: 1n, mandatoryDue: 0n, otherBalances: [] }),
+      calculateSpendable({
+        cash: 0n,
+        current: BIGINT_MAX,
+        mandatory: 1n,
+        mandatoryDue: 0n,
+        otherBalances: [],
+      }),
     ).toThrow(V2MoneyOverflowError);
     expect(() =>
-      calculateSpendable({ cash: 0n, current: 0n, mandatory: 0n, mandatoryDue: 0n, otherBalances: [BIGINT_MAX, 1n] }),
+      calculateSpendable({
+        cash: 0n,
+        current: 0n,
+        mandatory: 0n,
+        mandatoryDue: 0n,
+        otherBalances: [BIGINT_MAX, 1n],
+      }),
     ).toThrow(V2MoneyOverflowError);
   });
 
@@ -179,7 +196,15 @@ describe('overflow guard (PostgreSQL BIGINT range)', () => {
     expect(periodFunded(0n, BIGINT_MAX, 0n, 0n)).toBe(BIGINT_MAX);
     expect(periodFunded(-BIGINT_MAX, -1n, 0n, 0n)).toBe(-BIGINT_MAX - 1n);
     expect(assignmentBalance(-BIGINT_MAX, 1n)).toBe(-BIGINT_MAX - 1n);
-    expect(calculateSpendable({ cash: BIGINT_MAX, current: BIGINT_MAX, mandatory: 0n, mandatoryDue: 0n, otherBalances: [] }).spendableNow).toBe(BIGINT_MAX);
+    expect(
+      calculateSpendable({
+        cash: BIGINT_MAX,
+        current: BIGINT_MAX,
+        mandatory: 0n,
+        mandatoryDue: 0n,
+        otherBalances: [],
+      }).spendableNow,
+    ).toBe(BIGINT_MAX);
   });
 });
 
@@ -189,10 +214,22 @@ describe('non-bigint money input', () => {
     expect(() => periodFunded(0n, 1.5 as unknown as bigint, 0n, 0n)).toThrow(TypeError);
     expect(() => assignmentBalance(65 as unknown as bigint, 20n)).toThrow(TypeError);
     expect(() =>
-      calculateSpendable({ cash: 1 as unknown as bigint, current: 0n, mandatory: 0n, mandatoryDue: 0n, otherBalances: [] }),
+      calculateSpendable({
+        cash: 1 as unknown as bigint,
+        current: 0n,
+        mandatory: 0n,
+        mandatoryDue: 0n,
+        otherBalances: [],
+      }),
     ).toThrow(TypeError);
     expect(() =>
-      calculateSpendable({ cash: 0n, current: 0n, mandatory: 0n, mandatoryDue: 0n, otherBalances: [1n, 1.5 as unknown as bigint] }),
+      calculateSpendable({
+        cash: 0n,
+        current: 0n,
+        mandatory: 0n,
+        mandatoryDue: 0n,
+        otherBalances: [1n, 1.5 as unknown as bigint],
+      }),
     ).toThrow(TypeError);
   });
 });

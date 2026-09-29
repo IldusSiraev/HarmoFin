@@ -32,13 +32,13 @@ export class TransactionModule {
             prisma: PrismaService,
             occurrences: PlanOccurrenceRepository,
           ) =>
-             new TransactionApplicationService(
-               repository,
-               new IdempotencyService(),
-               new IncomeAllocationRepository(prisma),
-               occurrences,
-               new PlanModelPolicy(prisma),
-             ),
+            new TransactionApplicationService(
+              repository,
+              new IdempotencyService(),
+              new IncomeAllocationRepository(prisma),
+              occurrences,
+              new PlanModelPolicy(prisma),
+            ),
           inject: [TransactionRepository, PrismaService, PlanOccurrenceRepository],
         },
       ],

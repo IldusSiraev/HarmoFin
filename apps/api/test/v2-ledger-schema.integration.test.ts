@@ -9,7 +9,8 @@ import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
 
 const databaseUrl =
-  process.env.DATABASE_URL ?? 'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin_v22_test';
+  process.env.DATABASE_URL ??
+  'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin_v22_test';
 const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
 const origin = 'http://localhost:3000';
 const password = 'correct-password-10';
@@ -63,13 +64,43 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
     ownerEnvelopeBId = await createEnvelope(ownerBudgetId, 'F03 конверт B');
     foreignEnvelopeId = await createEnvelope(otherBudgetId, 'F03 чужой конверт');
 
-    ownerPeriodAId = await createPeriod(ownerBudgetId, ownerEnvelopeAId, '2026-10-01', '2026-10-31');
-    ownerPeriodBId = await createPeriod(ownerBudgetId, ownerEnvelopeAId, '2026-11-01', '2026-11-30');
-    ownerEnvelopeBPeriodId = await createPeriod(ownerBudgetId, ownerEnvelopeBId, '2026-10-01', '2026-10-31');
-    foreignPeriodId = await createPeriod(otherBudgetId, foreignEnvelopeId, '2026-10-01', '2026-10-31');
+    ownerPeriodAId = await createPeriod(
+      ownerBudgetId,
+      ownerEnvelopeAId,
+      '2026-10-01',
+      '2026-10-31',
+    );
+    ownerPeriodBId = await createPeriod(
+      ownerBudgetId,
+      ownerEnvelopeAId,
+      '2026-11-01',
+      '2026-11-30',
+    );
+    ownerEnvelopeBPeriodId = await createPeriod(
+      ownerBudgetId,
+      ownerEnvelopeBId,
+      '2026-10-01',
+      '2026-10-31',
+    );
+    foreignPeriodId = await createPeriod(
+      otherBudgetId,
+      foreignEnvelopeId,
+      '2026-10-01',
+      '2026-10-31',
+    );
 
-    ownerIncomeTransactionId = await createIncomeTransaction(ownerBudgetId, ownerId, '2026-10-05', 100000n);
-    foreignIncomeTransactionId = await createIncomeTransaction(otherBudgetId, otherId, '2026-10-05', 50000n);
+    ownerIncomeTransactionId = await createIncomeTransaction(
+      ownerBudgetId,
+      ownerId,
+      '2026-10-05',
+      100000n,
+    );
+    foreignIncomeTransactionId = await createIncomeTransaction(
+      otherBudgetId,
+      otherId,
+      '2026-10-05',
+      50000n,
+    );
   });
 
   afterAll(async () => {
@@ -214,7 +245,9 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
       )`,
     ).rejects.toThrow();
 
-    expect(await prisma.envelopeMovement.count({ where: { budgetId: ownerBudgetId } })).toBe(before);
+    expect(await prisma.envelopeMovement.count({ where: { budgetId: ownerBudgetId } })).toBe(
+      before,
+    );
   });
 
   it('rejects a movement whose source envelope belongs to another budget (scoped FK)', async () => {

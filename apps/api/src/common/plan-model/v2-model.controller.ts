@@ -1,19 +1,5 @@
-import {
-  Controller,
-  Get,
-  Inject,
-  Param,
-  Patch,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
-import {
-  ApiCookieAuth,
-  ApiOkResponse,
-  ApiResponse,
-  ApiProperty,
-  ApiTags,
-} from '@nestjs/swagger';
+import { Controller, Get, Inject, Param, Patch, Req, UseGuards } from '@nestjs/common';
+import { ApiCookieAuth, ApiOkResponse, ApiResponse, ApiProperty, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 
 import { SessionAuthGuard } from '../../auth/session-auth.guard.js';

@@ -24,7 +24,12 @@ export type SpendableResult = {
   unbackedAssignments: bigint;
 };
 
-export function periodFunded(opening: bigint, assigned: bigint, movedIn: bigint, movedOut: bigint): bigint {
+export function periodFunded(
+  opening: bigint,
+  assigned: bigint,
+  movedIn: bigint,
+  movedOut: bigint,
+): bigint {
   const safeOpening = readMinorUnits(opening);
   const safeAssigned = readMinorUnits(assigned);
   const safeMovedIn = readMinorUnits(movedIn);

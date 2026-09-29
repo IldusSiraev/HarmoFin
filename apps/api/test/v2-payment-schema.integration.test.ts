@@ -9,7 +9,8 @@ import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
 
 const databaseUrl =
-  process.env.DATABASE_URL ?? 'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin_v22_test';
+  process.env.DATABASE_URL ??
+  'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin_v22_test';
 const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
 const origin = 'http://localhost:3000';
 const password = 'correct-password-10';
@@ -277,7 +278,11 @@ describe('v2 payment schema: direct transfer and plan payments', () => {
       }),
     ).resolves.toHaveProperty('transactionId', ownerTransactionBId);
 
-    expect(await prisma.planPayment.count({ where: { budgetId: ownerBudgetId, occurrenceId: ownerOccurrenceId } })).toBe(2);
+    expect(
+      await prisma.planPayment.count({
+        where: { budgetId: ownerBudgetId, occurrenceId: ownerOccurrenceId },
+      }),
+    ).toBe(2);
   });
 
   it('rejects a second plan payment linked to the same transaction (UNIQUE budget_id + transaction_id)', async () => {
@@ -292,7 +297,11 @@ describe('v2 payment schema: direct transfer and plan payments', () => {
       }),
     ).rejects.toThrow();
 
-    expect(await prisma.planPayment.count({ where: { budgetId: ownerBudgetId, occurrenceId: ownerOccurrenceId } })).toBe(2);
+    expect(
+      await prisma.planPayment.count({
+        where: { budgetId: ownerBudgetId, occurrenceId: ownerOccurrenceId },
+      }),
+    ).toBe(2);
   });
 
   it('rejects a plan payment whose transaction belongs to another budget (composite FK)', async () => {
@@ -323,7 +332,11 @@ async function createAccount(budgetId: string, name: string): Promise<string> {
   return account.id;
 }
 
-async function createCategory(budgetId: string, name: string, categoryType: 'INCOME' | 'EXPENSE'): Promise<string> {
+async function createCategory(
+  budgetId: string,
+  name: string,
+  categoryType: 'INCOME' | 'EXPENSE',
+): Promise<string> {
   const category = await prisma.category.create({
     data: {
       id: randomUUID(),
