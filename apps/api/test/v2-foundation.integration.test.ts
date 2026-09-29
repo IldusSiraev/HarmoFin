@@ -9,7 +9,8 @@ import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
 
 const databaseUrl =
-  process.env.DATABASE_URL ?? 'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin_v22_test';
+  process.env.DATABASE_URL ??
+  'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin_v22_test';
 const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
 const origin = 'http://localhost:3000';
 const password = 'correct-password-10';
@@ -113,7 +114,7 @@ describe('v2 foundation: URI versioning and budget model version', () => {
 
   it('keeps a legacy budget on model version 1 without an activation date', async () => {
     const row = (await prisma.budget.findUniqueOrThrow({
-      where: { id: (await getOwnV1BudgetId(ownerId)) },
+      where: { id: await getOwnV1BudgetId(ownerId) },
     })) as unknown as Record<string, unknown>;
 
     expect(row['planModelVersion']).toBe(1);
@@ -812,12 +813,16 @@ describe('v1 financial recordings are blocked for a budget on model version 2', 
       destinationAccountId: controlRefs.accounts[1],
       parts: [{ sourceEnvelopeId: controlRefs.envelopes[0], amount: '100.00' }],
     });
-    await post(`/api/v1/budgets/${control.budgetId}/envelope-reallocations`, 'f06-v1-reallocation', {
-      sourceEnvelopeId: controlRefs.envelopes[0],
-      destinationEnvelopeId: controlRefs.envelopes[1],
-      amount: '50.00',
-      occurredOn: '2026-10-10',
-    });
+    await post(
+      `/api/v1/budgets/${control.budgetId}/envelope-reallocations`,
+      'f06-v1-reallocation',
+      {
+        sourceEnvelopeId: controlRefs.envelopes[0],
+        destinationEnvelopeId: controlRefs.envelopes[1],
+        amount: '50.00',
+        occurredOn: '2026-10-10',
+      },
+    );
   });
 });
 
@@ -848,8 +853,14 @@ describe('v1 envelope money reads are blocked for a budget on model version 2', 
     f06bServer = f06bApp.getHttpAdapter().getInstance() as FastifyInstance;
     await f06bServer.ready();
 
-    f06bBlocked = await registerF06(f06bServer, `v2-block-read-owner-${randomUUID()}@harmofin.test`);
-    f06bControl = await registerF06(f06bServer, `v2-block-read-control-${randomUUID()}@harmofin.test`);
+    f06bBlocked = await registerF06(
+      f06bServer,
+      `v2-block-read-owner-${randomUUID()}@harmofin.test`,
+    );
+    f06bControl = await registerF06(
+      f06bServer,
+      `v2-block-read-control-${randomUUID()}@harmofin.test`,
+    );
     f06bBlockedRefs = await createF06Refs(f06bServer, f06bBlocked);
     f06bControlRefs = await createF06Refs(f06bServer, f06bControl);
     await prisma.budget.update({
@@ -947,7 +958,8 @@ describe('v1 envelope money reads are blocked for a budget on model version 2', 
       cookies: { harmofin_session: f06bControl.cookie },
     });
     expect(envelopeList.statusCode).toBe(200);
-    const envelopes = envelopeList.json<Array<{ id: string; name: string; currentBalanceMinor: string }>>();
+    const envelopes =
+      envelopeList.json<Array<{ id: string; name: string; currentBalanceMinor: string }>>();
     expect(envelopes).toHaveLength(2);
     expect(envelopes[0]?.name).toBeTruthy();
     expect(envelopes[0]?.currentBalanceMinor).toBe('200000');
@@ -974,7 +986,9 @@ describe('v1 envelope money reads are blocked for a budget on model version 2', 
       cookies: { harmofin_session: f06bControl.cookie },
     });
     expect(balanceSummary.statusCode).toBe(200);
-    expect(balanceSummary.json<{ currentBalanceMinor: string }>().currentBalanceMinor).toBe('200000');
+    expect(balanceSummary.json<{ currentBalanceMinor: string }>().currentBalanceMinor).toBe(
+      '200000',
+    );
 
     const dashboard = await f06bServer.inject({
       method: 'GET',
@@ -995,7 +1009,10 @@ describe('v1 envelope money reads are blocked for a budget on model version 2', 
       cookies: { harmofin_session: f06bControl.cookie },
     });
     expect(report.statusCode).toBe(200);
-    const reportBody = report.json<{ key: string; rows: Array<{ envelopeId: string; balanceMinor: string }> }>();
+    const reportBody = report.json<{
+      key: string;
+      rows: Array<{ envelopeId: string; balanceMinor: string }>;
+    }>();
     expect(reportBody.key).toBe('envelope-balances');
     expect(reportBody.rows).toHaveLength(2);
     expect(reportBody.rows[0]?.balanceMinor).toBe('200000');
@@ -1011,3 +1028,208 @@ describe('v1 envelope money reads are blocked for a budget on model version 2', 
     expect(exportResponse.body).toContain('ID');
   });
 });
+
+describe('v1 plans, reference template and cycle settings are blocked for a budget on model version 2', () => {
+  let f06cApp: NestFastifyApplication;
+  let f06cServer: FastifyInstance;
+  let f06cBlocked: F06Session;
+  let f06cBlockedRefs: F06Refs;
+  let f06cControl: F06Session;
+  let f06cControlRefs: F06Refs;
+
+  beforeAll(async () => {
+    f06cApp = await createApiApp(
+      loadApiConfig({
+        ...process.env,
+        NODE_ENV: 'test',
+        DATABASE_URL: databaseUrl,
+        WEB_ORIGIN: origin,
+        AUTH_TOKEN_HASH_SECRET: 'test-only-secret-with-at-least-32-bytes',
+        SMTP_HOST: '127.0.0.1',
+        SMTP_PORT: '1025',
+        MAIL_FROM: 'no-reply@harmofin.test',
+        WEB_BASE_URL: origin,
+        LOG_LEVEL: 'silent',
+      }),
+    );
+    await f06cApp.init();
+    f06cServer = f06cApp.getHttpAdapter().getInstance() as FastifyInstance;
+    await f06cServer.ready();
+
+    f06cBlocked = await registerF06(
+      f06cServer,
+      `v2-block-plan-owner-${randomUUID()}@harmofin.test`,
+    );
+    f06cControl = await registerF06(
+      f06cServer,
+      `v2-block-plan-control-${randomUUID()}@harmofin.test`,
+    );
+    f06cBlockedRefs = await createF06Refs(f06cServer, f06cBlocked);
+    f06cControlRefs = await createF06Refs(f06cServer, f06cControl);
+    await prisma.budget.update({
+      where: { id: f06cBlocked.budgetId },
+      data: { planModelVersion: 2, planModelActivatedOn: new Date('2026-09-29T00:00:00Z') },
+    });
+  });
+
+  afterAll(async () => {
+    if (f06cBlocked) await cleanupF06cUser(f06cBlocked.userId, f06cBlocked.workspaceId);
+    if (f06cControl) await cleanupF06cUser(f06cControl.userId, f06cControl.workspaceId);
+    if (f06cApp) await f06cApp.close();
+  });
+
+  async function f06cBlockedMutation(
+    method: 'POST' | 'PATCH',
+    url: string,
+    key: string | undefined,
+    payload?: Record<string, unknown>,
+  ): Promise<void> {
+    const response = await f06cServer.inject({
+      method,
+      url,
+      headers: {
+        origin,
+        'x-csrf-token': f06cBlocked.csrfToken,
+        ...(key ? { 'Idempotency-Key': key } : {}),
+      },
+      cookies: { harmofin_session: f06cBlocked.cookie },
+      ...(payload === undefined ? {} : { payload }),
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({ code: 'MODEL_VERSION_MISMATCH' });
+  }
+
+  it('blocks POST /reference-template on a v2 budget and creates no template category or envelope', async () => {
+    await f06cBlockedMutation(
+      'POST',
+      `/api/v1/budgets/${f06cBlocked.budgetId}/reference-template`,
+      undefined,
+    );
+
+    expect(await prisma.envelope.count({ where: { budgetId: f06cBlocked.budgetId } })).toBe(2);
+    expect(
+      await prisma.envelope.count({
+        where: { budgetId: f06cBlocked.budgetId, envelopeType: 'FREE_MONEY' },
+      }),
+    ).toBe(0);
+    expect(await prisma.category.count({ where: { budgetId: f06cBlocked.budgetId } })).toBe(1);
+  });
+
+  it('blocks PATCH cycle settings on a v2 budget and keeps the cycle settings unchanged', async () => {
+    const before = await prisma.budget.findUniqueOrThrow({ where: { id: f06cBlocked.budgetId } });
+
+    await f06cBlockedMutation('PATCH', `/api/v1/budgets/${f06cBlocked.budgetId}`, undefined, {
+      cycleStartDay: 15,
+      periodBoundaryOffset: 15,
+    });
+
+    const after = await prisma.budget.findUniqueOrThrow({ where: { id: f06cBlocked.budgetId } });
+    expect(after.cycleStartDay).toBe(before.cycleStartDay);
+    expect(after.periodBoundaryOffset).toBe(before.periodBoundaryOffset);
+    expect(after.timezone).toBe(before.timezone);
+  });
+
+  it('blocks POST plans create on a v2 budget and creates no plan or occurrences', async () => {
+    await f06cBlockedMutation(
+      'POST',
+      `/api/v1/budgets/${f06cBlocked.budgetId}/plans`,
+      'f06c-v2-plan-create',
+      {
+        name: 'F06c план дохода',
+        planType: 'INCOME',
+        amount: '10.00',
+        anchorOn: '2026-10-10',
+        startOn: '2026-10-10',
+        recurrence: 'ONE_TIME',
+        categoryId: f06cBlockedRefs.incomeCategoryId,
+      },
+    );
+
+    expect(await prisma.regularPlan.count({ where: { budgetId: f06cBlocked.budgetId } })).toBe(0);
+    expect(await prisma.planOccurrence.count({ where: { budgetId: f06cBlocked.budgetId } })).toBe(
+      0,
+    );
+  });
+
+  it('keeps GET budgets/:id and GET plans open for a v2 budget', async () => {
+    const budget = await f06cServer.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${f06cBlocked.budgetId}`,
+      cookies: { harmofin_session: f06cBlocked.cookie },
+    });
+    expect(budget.statusCode).toBe(200);
+    expect(budget.json<{ id: string }>().id).toBe(f06cBlocked.budgetId);
+
+    const plans = await f06cServer.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${f06cBlocked.budgetId}/plans`,
+      cookies: { harmofin_session: f06cBlocked.cookie },
+    });
+    expect(plans.statusCode).toBe(200);
+    expect(plans.json<{ items: Array<{ id: string }> }>().items).toHaveLength(0);
+  });
+
+  it('keeps v1 reference template, cycle PATCH and plan create working on a model-1 budget', async () => {
+    const controlMutation = async (
+      method: 'POST' | 'PATCH',
+      url: string,
+      key: string | undefined,
+      payload: Record<string, unknown>,
+    ) =>
+      f06cServer.inject({
+        method,
+        url,
+        headers: {
+          origin,
+          'x-csrf-token': f06cControl.csrfToken,
+          ...(key ? { 'Idempotency-Key': key } : {}),
+        },
+        cookies: { harmofin_session: f06cControl.cookie },
+        payload,
+      });
+
+    const template = await controlMutation(
+      'POST',
+      `/api/v1/budgets/${f06cControl.budgetId}/reference-template`,
+      undefined,
+      {},
+    );
+    expect(template.statusCode).toBe(200);
+
+    const cycle = await controlMutation(
+      'PATCH',
+      `/api/v1/budgets/${f06cControl.budgetId}`,
+      undefined,
+      { cycleStartDay: 15, periodBoundaryOffset: 15 },
+    );
+    expect(cycle.statusCode).toBe(200);
+    const cycleBudget = await prisma.budget.findUniqueOrThrow({
+      where: { id: f06cControl.budgetId },
+    });
+    expect(cycleBudget.cycleStartDay).toBe(15);
+    expect(cycleBudget.periodBoundaryOffset).toBe(15);
+
+    const plan = await controlMutation(
+      'POST',
+      `/api/v1/budgets/${f06cControl.budgetId}/plans`,
+      'f06c-v1-plan-create',
+      {
+        name: 'F06c план дохода',
+        planType: 'INCOME',
+        amount: '10.00',
+        anchorOn: '2026-10-10',
+        startOn: '2026-10-10',
+        recurrence: 'ONE_TIME',
+        categoryId: f06cControlRefs.incomeCategoryId,
+      },
+    );
+    expect(plan.statusCode).toBe(201);
+    expect(await prisma.regularPlan.count({ where: { budgetId: f06cControl.budgetId } })).toBe(1);
+  });
+});
+
+async function cleanupF06cUser(userId: string, workspaceId: string) {
+  await prisma.planOccurrence.deleteMany({ where: { budget: { workspaceId } } });
+  await prisma.regularPlan.deleteMany({ where: { budget: { workspaceId } } });
+  await cleanupF06User(userId, workspaceId);
+}

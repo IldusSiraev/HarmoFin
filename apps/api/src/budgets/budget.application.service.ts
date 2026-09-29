@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 
+import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { RolePolicy } from '../common/policies/role-policy.js';
 import { invalidReference } from '../common/reference-data/reference-data.errors.js';
 import {
@@ -14,6 +15,7 @@ export class BudgetApplicationService {
   constructor(
     private readonly repository: BudgetRepository,
     private readonly rolePolicy: RolePolicy,
+    private readonly planModelPolicy?: PlanModelPolicy,
   ) {}
 
   async get(userId: string, budgetId: string): Promise<BudgetView> {
@@ -50,6 +52,7 @@ export class BudgetApplicationService {
     if (!accessible) throw notFound();
     const role = accessible.workspace.memberships[0]?.role;
     if (!role || !this.rolePolicy.canManage(role)) throw forbidden();
+    await this.requireBudgetPlanModel(userId, budgetId);
 
     const updatedInput = mergeSettings(accessible, input);
     if (
@@ -65,11 +68,17 @@ export class BudgetApplicationService {
     return updated;
   }
 
+  private async requireBudgetPlanModel(userId: string, budgetId: string): Promise<void> {
+    const policy = this.planModelPolicy;
+    if (policy) await policy.requireModel(userId, budgetId, 1);
+  }
+
   async initializeReferenceTemplate(userId: string, budgetId: string, requestId?: string) {
     const accessible = await this.repository.findAccessibleWithRole(userId, budgetId);
     if (!accessible) throw notFound();
     const role = accessible.workspace.memberships[0]?.role;
     if (!role || !this.rolePolicy.canManage(role)) throw forbidden();
+    await this.requireBudgetPlanModel(userId, budgetId);
 
     const result = await this.repository.initializeReferenceTemplate(userId, budgetId, requestId);
     if (!result) throw notFound();

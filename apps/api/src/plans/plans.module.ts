@@ -1,6 +1,7 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
+import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { TransactionRepository } from '../transactions/transaction.repository.js';
 import { PlanOccurrenceRepository } from './plan-occurrence.repository.js';
@@ -31,9 +32,19 @@ export class PlansModule {
         },
         {
           provide: RegularPlanApplicationService,
-          useFactory: (repository: RegularPlanRepository, transactions: TransactionRepository) =>
-            new RegularPlanApplicationService(repository, transactions, new IdempotencyService()),
-          inject: [RegularPlanRepository, TransactionRepository],
+          useFactory: (
+            repository: RegularPlanRepository,
+            transactions: TransactionRepository,
+            prisma: PrismaService,
+          ) =>
+            new RegularPlanApplicationService(
+              repository,
+              transactions,
+              new IdempotencyService(),
+              undefined,
+              new PlanModelPolicy(prisma),
+            ),
+          inject: [RegularPlanRepository, TransactionRepository, PrismaService],
         },
       ],
       exports: [PlanOccurrenceRepository],

@@ -1,5 +1,6 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 
+import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { RolePolicy } from '../common/policies/role-policy.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { BudgetApplicationService } from './budget.application.service.js';
@@ -21,9 +22,12 @@ export class BudgetModule {
         },
         {
           provide: BudgetApplicationService,
-          useFactory: (repository: BudgetRepository, rolePolicy: RolePolicy) =>
-            new BudgetApplicationService(repository, rolePolicy),
-          inject: [BudgetRepository, RolePolicy],
+          useFactory: (
+            repository: BudgetRepository,
+            rolePolicy: RolePolicy,
+            prisma: PrismaService,
+          ) => new BudgetApplicationService(repository, rolePolicy, new PlanModelPolicy(prisma)),
+          inject: [BudgetRepository, RolePolicy, PrismaService],
         },
       ],
     };
