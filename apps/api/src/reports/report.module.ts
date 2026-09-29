@@ -1,5 +1,6 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 
+import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { ReportApplicationService } from './report.application.service.js';
 import { ReportController } from './report.controller.js';
@@ -19,8 +20,9 @@ export class ReportModule {
         },
         {
           provide: ReportApplicationService,
-          useFactory: (repository: ReportRepository) => new ReportApplicationService(repository),
-          inject: [ReportRepository],
+          useFactory: (repository: ReportRepository, prisma: PrismaService) =>
+            new ReportApplicationService(repository, new PlanModelPolicy(prisma)),
+          inject: [ReportRepository, PrismaService],
         },
       ],
     };

@@ -1,6 +1,7 @@
 import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 
 import { formatMinorUnits } from '../common/money/minor-units.js';
+import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import { MetricsRegistry } from '../observability/observability.js';
 import { listQuery } from '../transactions/transaction.application.service.js';
@@ -42,6 +43,7 @@ export class CsvExportApplicationService {
   constructor(
     private readonly repository: CsvExportRepository,
     private readonly metrics: MetricsRegistry,
+    private readonly planModelPolicy?: PlanModelPolicy,
   ) {}
 
   async exportTransactions(
@@ -49,6 +51,7 @@ export class CsvExportApplicationService {
     budgetId: string,
     input: ExportTransactionsInput,
   ): Promise<CsvExportResult> {
+    await this.requireBudgetPlanModel(userId, budgetId);
     const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
     if (!budget) throw resourceNotFound();
     if (budget.workspace.memberships[0]?.role !== 'OWNER') throw forbidden();
@@ -88,6 +91,11 @@ export class CsvExportApplicationService {
         ]),
       ),
     };
+  }
+
+  private async requireBudgetPlanModel(userId: string, budgetId: string): Promise<void> {
+    const policy = this.planModelPolicy;
+    if (policy) await policy.requireModel(userId, budgetId, 1);
   }
 }
 

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { cycleAndPeriodFor, todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { formatMinorUnits } from '../common/money/minor-units.js';
+import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import { DashboardRepository } from './dashboard.repository.js';
 
@@ -54,15 +55,20 @@ export type DashboardSummary = {
 
 @Injectable()
 export class DashboardApplicationService {
-  constructor(private readonly repository: DashboardRepository) {}
+  constructor(
+    private readonly repository: DashboardRepository,
+    private readonly planModelPolicy?: PlanModelPolicy,
+  ) {}
 
   async currentSummary(userId: string, budgetId: string): Promise<DashboardSummary> {
+    await this.requireBudgetPlanModel(userId, budgetId);
     const budget = await this.repository.findAccessible(userId, budgetId);
     if (!budget) throw resourceNotFound();
     return this.summary(userId, budgetId, todayInTimezone(new Date(), budget.timezone));
   }
 
   async summary(userId: string, budgetId: string, asOf: string): Promise<DashboardSummary> {
+    await this.requireBudgetPlanModel(userId, budgetId);
     const budget = await this.repository.findAccessible(userId, budgetId);
     if (!budget) throw resourceNotFound();
     const range = cycleAndPeriodFor(budget, asOf);
@@ -125,6 +131,11 @@ export class DashboardApplicationService {
         actionPath: `/app/plans?occurrence=${occurrence.occurrenceId}`,
       })),
     };
+  }
+
+  private async requireBudgetPlanModel(userId: string, budgetId: string): Promise<void> {
+    const policy = this.planModelPolicy;
+    if (policy) await policy.requireModel(userId, budgetId, 1);
   }
 }
 

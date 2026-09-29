@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { cycleAndPeriodFor, todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { formatMinorUnits } from '../common/money/minor-units.js';
+import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import { ReportRepository } from './report.repository.js';
 import type { ReportFilters, ReportKey } from './report.schemas.js';
@@ -13,7 +14,10 @@ export type ReportResponse = {
 
 @Injectable()
 export class ReportApplicationService {
-  constructor(private readonly repository: ReportRepository) {}
+  constructor(
+    private readonly repository: ReportRepository,
+    private readonly planModelPolicy?: PlanModelPolicy,
+  ) {}
 
   async get(
     userId: string,
@@ -21,6 +25,7 @@ export class ReportApplicationService {
     key: ReportKey,
     filters: ReportFilters,
   ): Promise<ReportResponse> {
+    await this.requireBudgetPlanModel(userId, budgetId);
     const budget = await this.repository.findAccessible(userId, budgetId);
     if (!budget) throw resourceNotFound();
     if (!(await this.repository.validateReferences(budgetId, filters))) throw resourceNotFound();
@@ -64,6 +69,11 @@ export class ReportApplicationService {
       return { key, rows: savingsReallocationByCycle(transferParts, budget) };
     }
     return { key, rows: netCashFlow(transactions, budget) };
+  }
+
+  private async requireBudgetPlanModel(userId: string, budgetId: string): Promise<void> {
+    const policy = this.planModelPolicy;
+    if (policy) await policy.requireModel(userId, budgetId, 1);
   }
 }
 

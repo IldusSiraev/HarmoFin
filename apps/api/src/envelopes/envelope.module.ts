@@ -1,5 +1,6 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 
+import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { RolePolicy } from '../common/policies/role-policy.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { EnvelopeApplicationService } from './envelope.application.service.js';
@@ -21,9 +22,12 @@ export class EnvelopeModule {
         },
         {
           provide: EnvelopeApplicationService,
-          useFactory: (repository: EnvelopeRepository, rolePolicy: RolePolicy) =>
-            new EnvelopeApplicationService(repository, rolePolicy),
-          inject: [EnvelopeRepository, RolePolicy],
+          useFactory: (
+            repository: EnvelopeRepository,
+            rolePolicy: RolePolicy,
+            prisma: PrismaService,
+          ) => new EnvelopeApplicationService(repository, rolePolicy, new PlanModelPolicy(prisma)),
+          inject: [EnvelopeRepository, RolePolicy, PrismaService],
         },
       ],
     };

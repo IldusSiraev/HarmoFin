@@ -2,6 +2,7 @@ import { type EnvelopeType, type PeriodSlot } from '@prisma/client';
 import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
+import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { RolePolicy } from '../common/policies/role-policy.js';
 import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import type { ReferenceDataStatus } from '../common/reference-data/reference-data.types.js';
@@ -88,6 +89,7 @@ export class EnvelopeApplicationService {
   constructor(
     private readonly repository: EnvelopeRepository,
     private readonly rolePolicy: RolePolicy,
+    private readonly planModelPolicy?: PlanModelPolicy,
   ) {}
 
   async list(
@@ -95,6 +97,7 @@ export class EnvelopeApplicationService {
     budgetId: string,
     status: ReferenceDataStatus,
   ): Promise<EnvelopeView[]> {
+    await this.requireBudgetPlanModel(userId, budgetId);
     const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
     if (!budget) throw resourceNotFound();
     return (await this.repository.list(userId, budgetId, status)).map((envelope) =>
@@ -107,6 +110,7 @@ export class EnvelopeApplicationService {
     budgetId: string,
     status: ReferenceDataStatus,
   ): Promise<EnvelopeSummaryView> {
+    await this.requireBudgetPlanModel(userId, budgetId);
     const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
     if (!budget) throw resourceNotFound();
     const envelopes = await this.repository.list(userId, budgetId, status);
@@ -137,6 +141,7 @@ export class EnvelopeApplicationService {
   }
 
   async get(userId: string, budgetId: string, envelopeId: string): Promise<EnvelopeView> {
+    await this.requireBudgetPlanModel(userId, budgetId);
     const envelope = await this.repository.find(userId, budgetId, envelopeId);
     if (!envelope) throw resourceNotFound();
     return this.toView(envelope);
@@ -147,6 +152,7 @@ export class EnvelopeApplicationService {
     budgetId: string,
     envelopeId: string,
   ): Promise<EnvelopeBalanceSummaryView> {
+    await this.requireBudgetPlanModel(userId, budgetId);
     const record = await this.repository.balanceSummary(userId, budgetId, envelopeId);
     if (!record) throw resourceNotFound();
     const { envelope, terms, reallocations } = record;
@@ -185,6 +191,7 @@ export class EnvelopeApplicationService {
     input: CreateEnvelopeInput,
     requestId?: string,
   ): Promise<EnvelopeView> {
+    await this.requireBudgetPlanModel(userId, budgetId);
     const budget = await this.requireOwnerBudget(userId, budgetId);
     const envelope = await this.repository.create(
       userId,
@@ -202,6 +209,7 @@ export class EnvelopeApplicationService {
     input: UpdateEnvelopeInput,
     requestId?: string,
   ): Promise<EnvelopeView> {
+    await this.requireBudgetPlanModel(userId, budgetId);
     const budget = await this.requireOwnerBudget(userId, budgetId);
     const current = await this.repository.find(userId, budgetId, envelopeId);
     if (!current || current.archivedAt) throw resourceNotFound();
@@ -223,6 +231,7 @@ export class EnvelopeApplicationService {
     envelopeId: string,
     requestId?: string,
   ): Promise<EnvelopeView> {
+    await this.requireBudgetPlanModel(userId, budgetId);
     await this.requireOwnerBudget(userId, budgetId);
     const envelope = await this.repository.archive(userId, budgetId, envelopeId, requestId);
     if (!envelope) throw resourceNotFound();
@@ -261,6 +270,11 @@ export class EnvelopeApplicationService {
     const role = budget.workspace.memberships[0]?.role;
     if (!role || !this.rolePolicy.canManage(role)) throw forbidden();
     return budget;
+  }
+
+  private async requireBudgetPlanModel(userId: string, budgetId: string): Promise<void> {
+    const policy = this.planModelPolicy;
+    if (policy) await policy.requireModel(userId, budgetId, 1);
   }
 
   private createData(

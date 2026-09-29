@@ -820,3 +820,194 @@ describe('v1 financial recordings are blocked for a budget on model version 2', 
     });
   });
 });
+
+describe('v1 envelope money reads are blocked for a budget on model version 2', () => {
+  let f06bApp: NestFastifyApplication;
+  let f06bServer: FastifyInstance;
+  let f06bBlocked: F06Session;
+  let f06bBlockedRefs: F06Refs;
+  let f06bControl: F06Session;
+  let f06bControlRefs: F06Refs;
+
+  beforeAll(async () => {
+    f06bApp = await createApiApp(
+      loadApiConfig({
+        ...process.env,
+        NODE_ENV: 'test',
+        DATABASE_URL: databaseUrl,
+        WEB_ORIGIN: origin,
+        AUTH_TOKEN_HASH_SECRET: 'test-only-secret-with-at-least-32-bytes',
+        SMTP_HOST: '127.0.0.1',
+        SMTP_PORT: '1025',
+        MAIL_FROM: 'no-reply@harmofin.test',
+        WEB_BASE_URL: origin,
+        LOG_LEVEL: 'silent',
+      }),
+    );
+    await f06bApp.init();
+    f06bServer = f06bApp.getHttpAdapter().getInstance() as FastifyInstance;
+    await f06bServer.ready();
+
+    f06bBlocked = await registerF06(f06bServer, `v2-block-read-owner-${randomUUID()}@harmofin.test`);
+    f06bControl = await registerF06(f06bServer, `v2-block-read-control-${randomUUID()}@harmofin.test`);
+    f06bBlockedRefs = await createF06Refs(f06bServer, f06bBlocked);
+    f06bControlRefs = await createF06Refs(f06bServer, f06bControl);
+    await prisma.budget.update({
+      where: { id: f06bBlocked.budgetId },
+      data: { planModelVersion: 2, planModelActivatedOn: new Date('2026-09-29T00:00:00Z') },
+    });
+  });
+
+  afterAll(async () => {
+    if (f06bBlocked) await cleanupF06User(f06bBlocked.userId, f06bBlocked.workspaceId);
+    if (f06bControl) await cleanupF06User(f06bControl.userId, f06bControl.workspaceId);
+    if (f06bApp) await f06bApp.close();
+  });
+
+  async function f06bBlockedRead(url: string): Promise<void> {
+    const response = await f06bServer.inject({
+      method: 'GET',
+      url,
+      cookies: { harmofin_session: f06bBlocked.cookie },
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({ code: 'MODEL_VERSION_MISMATCH' });
+  }
+
+  async function f06bBlockedMutation(
+    method: 'POST' | 'PATCH',
+    url: string,
+    key: string,
+    payload?: Record<string, unknown>,
+  ): Promise<void> {
+    const response = await f06bServer.inject({
+      method,
+      url,
+      headers: { origin, 'x-csrf-token': f06bBlocked.csrfToken, 'Idempotency-Key': key },
+      cookies: { harmofin_session: f06bBlocked.cookie },
+      ...(payload === undefined ? {} : { payload }),
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({ code: 'MODEL_VERSION_MISMATCH' });
+  }
+
+  it('blocks v1 envelope, dashboard, report and export money reads on a v2 budget', async () => {
+    await f06bBlockedRead(`/api/v1/budgets/${f06bBlocked.budgetId}/envelopes?status=active`);
+    await f06bBlockedRead(`/api/v1/budgets/${f06bBlocked.budgetId}/envelopes/summary`);
+    await f06bBlockedRead(
+      `/api/v1/budgets/${f06bBlocked.budgetId}/envelopes/${f06bBlockedRefs.envelopes[0]}`,
+    );
+    await f06bBlockedRead(
+      `/api/v1/budgets/${f06bBlocked.budgetId}/envelopes/${f06bBlockedRefs.envelopes[0]}/balance-summary`,
+    );
+    await f06bBlockedRead(`/api/v1/budgets/${f06bBlocked.budgetId}/summary`);
+    await f06bBlockedRead(`/api/v1/budgets/${f06bBlocked.budgetId}/reports/envelope-balances`);
+    await f06bBlockedRead(`/api/v1/budgets/${f06bBlocked.budgetId}/exports/transactions.csv`);
+  });
+
+  it('blocks v1 envelope create, update and archive on a v2 budget and keeps the seeded envelopes', async () => {
+    await f06bBlockedMutation(
+      'POST',
+      `/api/v1/budgets/${f06bBlocked.budgetId}/envelopes`,
+      'f06b-v2-envelope-create',
+      {
+        name: 'F06b новый конверт',
+        envelopeType: 'CUSTOM',
+        currency: 'RUB',
+        startingBalance: '10.00',
+        displayOrder: 0,
+      },
+    );
+    await f06bBlockedMutation(
+      'PATCH',
+      `/api/v1/budgets/${f06bBlocked.budgetId}/envelopes/${f06bBlockedRefs.envelopes[0]}`,
+      'f06b-v2-envelope-update',
+      { name: 'F06b переименован' },
+    );
+    await f06bBlockedMutation(
+      'POST',
+      `/api/v1/budgets/${f06bBlocked.budgetId}/envelopes/${f06bBlockedRefs.envelopes[0]}/archive`,
+      'f06b-v2-envelope-archive',
+    );
+
+    expect(await prisma.envelope.count({ where: { budgetId: f06bBlocked.budgetId } })).toBe(2);
+    const envelopes = await prisma.envelope.findMany({
+      where: { budgetId: f06bBlocked.budgetId },
+      select: { id: true, archivedAt: true, name: true },
+    });
+    const byId = new Map(envelopes.map((row) => [row.id, row]));
+    expect(byId.get(f06bBlockedRefs.envelopes[0])?.archivedAt).toBeNull();
+    expect(byId.get(f06bBlockedRefs.envelopes[0])?.name).not.toBe('F06b переименован');
+  });
+
+  it('keeps v1 envelope, dashboard, report and export money reads on a model-1 budget', async () => {
+    const envelopeList = await f06bServer.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${f06bControl.budgetId}/envelopes?status=active`,
+      cookies: { harmofin_session: f06bControl.cookie },
+    });
+    expect(envelopeList.statusCode).toBe(200);
+    const envelopes = envelopeList.json<Array<{ id: string; name: string; currentBalanceMinor: string }>>();
+    expect(envelopes).toHaveLength(2);
+    expect(envelopes[0]?.name).toBeTruthy();
+    expect(envelopes[0]?.currentBalanceMinor).toBe('200000');
+
+    const envelopeSummary = await f06bServer.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${f06bControl.budgetId}/envelopes/summary`,
+      cookies: { harmofin_session: f06bControl.cookie },
+    });
+    expect(envelopeSummary.statusCode).toBe(200);
+    expect(envelopeSummary.json<{ totalMinor: string }>().totalMinor).toBe('400000');
+
+    const oneEnvelope = await f06bServer.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${f06bControl.budgetId}/envelopes/${f06bControlRefs.envelopes[0]}`,
+      cookies: { harmofin_session: f06bControl.cookie },
+    });
+    expect(oneEnvelope.statusCode).toBe(200);
+    expect(oneEnvelope.json<{ id: string }>().id).toBe(f06bControlRefs.envelopes[0]);
+
+    const balanceSummary = await f06bServer.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${f06bControl.budgetId}/envelopes/${f06bControlRefs.envelopes[0]}/balance-summary`,
+      cookies: { harmofin_session: f06bControl.cookie },
+    });
+    expect(balanceSummary.statusCode).toBe(200);
+    expect(balanceSummary.json<{ currentBalanceMinor: string }>().currentBalanceMinor).toBe('200000');
+
+    const dashboard = await f06bServer.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${f06bControl.budgetId}/summary`,
+      cookies: { harmofin_session: f06bControl.cookie },
+    });
+    expect(dashboard.statusCode).toBe(200);
+    const dashboardBody = dashboard.json<{
+      totalAccountMoneyMinor: string;
+      envelopes: Array<{ id: string; balanceMinor: string }>;
+    }>();
+    expect(dashboardBody.totalAccountMoneyMinor).toBe('200000');
+    expect(dashboardBody.envelopes).toHaveLength(2);
+
+    const report = await f06bServer.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${f06bControl.budgetId}/reports/envelope-balances`,
+      cookies: { harmofin_session: f06bControl.cookie },
+    });
+    expect(report.statusCode).toBe(200);
+    const reportBody = report.json<{ key: string; rows: Array<{ envelopeId: string; balanceMinor: string }> }>();
+    expect(reportBody.key).toBe('envelope-balances');
+    expect(reportBody.rows).toHaveLength(2);
+    expect(reportBody.rows[0]?.balanceMinor).toBe('200000');
+
+    const exportResponse = await f06bServer.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${f06bControl.budgetId}/exports/transactions.csv`,
+      cookies: { harmofin_session: f06bControl.cookie },
+    });
+    expect(exportResponse.statusCode).toBe(200);
+    expect(exportResponse.headers['content-type']).toContain('text/csv');
+    expect(exportResponse.headers['content-disposition']).toContain('harmofin-operations.csv');
+    expect(exportResponse.body).toContain('ID');
+  });
+});
