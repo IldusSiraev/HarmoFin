@@ -34,6 +34,8 @@ const emails = {
   income: `v2-assign-income-${randomUUID()}@harmofin.test`,
   incomeConcurrent: `v2-assign-income-concurrent-${randomUUID()}@harmofin.test`,
   incomeAccess: `v2-assign-income-access-${randomUUID()}@harmofin.test`,
+  revise: `v2-assign-revise-${randomUUID()}@harmofin.test`,
+  deps: `v2-assign-deps-${randomUUID()}@harmofin.test`,
 };
 
 type RegisteredUser = { userId: string; workspaceId: string; budgetId: string };
@@ -640,6 +642,208 @@ describe('v2 envelope assignments: assignIncome', () => {
   });
 });
 
+describe('v2 envelope assignments: revise/cancel', () => {
+  beforeAll(async () => {
+    const reviseBudgetId = ctx.revise?.budgetId;
+    reviseAccountId = await createAccount(reviseBudgetId, 0n);
+    reviseCategoryId = await createCategory(reviseBudgetId, 'Доход', 'INCOME');
+    reviseEnvelopeN1 = await createEnvelope(reviseBudgetId, 'N1');
+    reviseEnvelopeN2 = await createEnvelope(reviseBudgetId, 'N2');
+    reviseIncomeId = await createIncome(
+      reviseBudgetId,
+      reviseAccountId!,
+      reviseCategoryId!,
+      ctx.revise!.userId,
+      10_600_000n,
+      d(-7),
+    );
+
+    const depsBudgetId = ctx.deps?.budgetId;
+    depsAccountId = await createAccount(depsBudgetId, 0n);
+    depsCategoryId = await createCategory(depsBudgetId, 'Доход', 'INCOME');
+    depsEnvelopeN3 = await createEnvelope(depsBudgetId, 'N3');
+    depsIncomeId = await createIncome(
+      depsBudgetId,
+      depsAccountId!,
+      depsCategoryId!,
+      ctx.deps!.userId,
+      10_000_000n,
+      d(-7),
+    );
+  });
+
+  it('уменьшение и отмена исходного назначения освобождают источник без изменения счёта', async () => {
+    const user = ctx.revise!;
+    const cashBefore = await cashOf(user.budgetId);
+
+    const first = await service!.assignIncome(
+      user.userId,
+      user.budgetId,
+      { incomeTransactionId: reviseIncomeId!, envelopeId: reviseEnvelopeN1!, amount: '40000' },
+      'rev-a',
+    );
+    expect(first.status).toBe(201);
+    reviseA1Id = first.body.assignmentId;
+
+    const second = await service!.assignIncome(
+      user.userId,
+      user.budgetId,
+      { incomeTransactionId: reviseIncomeId!, envelopeId: reviseEnvelopeN2!, amount: '66000' },
+      'rev-b',
+    );
+    expect(second.status).toBe(201);
+    reviseA2Id = second.body.assignmentId;
+    const beforeRevise = await prisma.envelopeAssignment.findUnique({
+      where: { id: reviseA2Id },
+    });
+
+    for (const amount of ['0', '66000', '70000']) {
+      const error = await expectError(
+        service!.reviseAssignment(
+          user.userId,
+          user.budgetId,
+          reviseA2Id!,
+          { amount },
+          `rev-invalid-${amount}`,
+        ),
+      );
+      expect(error.status).toBe(400);
+    }
+
+    const canceled = await service!.cancelAssignment(
+      user.userId,
+      user.budgetId,
+      reviseA1Id!,
+      'rev-c',
+    );
+    expect(canceled.status).toBe(200);
+    expect(canceled.body.assignmentId).toBe(reviseA1Id);
+    expect(await confirmedIncomeAssignmentTotal(user.budgetId, reviseIncomeId!)).toBe(6_600_000n);
+    expect(await cashOf(user.budgetId)).toBe(cashBefore);
+
+    const revised = await service!.reviseAssignment(
+      user.userId,
+      user.budgetId,
+      reviseA2Id!,
+      { amount: '50000' },
+      'rev-d',
+    );
+    expect(revised.status).toBe(200);
+    expect(revised.body.amountMinor).toBe('5000000');
+    expect(await confirmedIncomeAssignmentTotal(user.budgetId, reviseIncomeId!)).toBe(5_000_000n);
+    expect(await cashOf(user.budgetId)).toBe(cashBefore);
+
+    const afterRevise = await prisma.envelopeAssignment.findUnique({
+      where: { id: reviseA2Id },
+    });
+    expect(afterRevise?.amountMinor).toBe(5_000_000n);
+    expect(afterRevise?.effectiveOn).toEqual(beforeRevise?.effectiveOn);
+
+    const replayedCancel = await service!.cancelAssignment(
+      user.userId,
+      user.budgetId,
+      reviseA1Id!,
+      'rev-c',
+    );
+    expect(replayedCancel.status).toBe(200);
+    const replayedRevise = await service!.reviseAssignment(
+      user.userId,
+      user.budgetId,
+      reviseA2Id!,
+      { amount: '50000' },
+      'rev-d',
+    );
+    expect(replayedRevise.status).toBe(200);
+    expect(replayedRevise.body.amountMinor).toBe('5000000');
+
+    const deletedRow = await prisma.envelopeAssignment.findUnique({
+      where: { id: reviseA1Id },
+    });
+    expect(deletedRow?.status).toBe('DELETED');
+    expect(await confirmedIncomeAssignmentTotal(user.budgetId, reviseIncomeId!)).toBe(5_000_000n);
+    expect(await cashOf(user.budgetId)).toBe(cashBefore);
+  });
+
+  it('чужой assignment и отсутствующий → 404', async () => {
+    const user = ctx.incomeAccess!;
+
+    const otherCancel = await expectError(
+      service!.cancelAssignment(user.userId, user.budgetId, reviseA1Id!, 'rev-x1'),
+    );
+    expect(otherCancel.status).toBe(404);
+
+    const otherRevise = await expectError(
+      service!.reviseAssignment(
+        user.userId,
+        user.budgetId,
+        reviseA2Id!,
+        { amount: '40000' },
+        'rev-x2',
+      ),
+    );
+    expect(otherRevise.status).toBe(404);
+
+    const missing = await expectError(
+      service!.cancelAssignment(user.userId, user.budgetId, randomUUID(), 'rev-x3'),
+    );
+    expect(missing.status).toBe(404);
+  });
+
+  it('уменьшение или отмена при зависимых движениях, уводящие источник в минус → 409', async () => {
+    const user = ctx.deps!;
+    const assigned = await service!.assignIncome(
+      user.userId,
+      user.budgetId,
+      { incomeTransactionId: depsIncomeId!, envelopeId: depsEnvelopeN3!, amount: '10000' },
+      'dep-a',
+    );
+    expect(assigned.status).toBe(201);
+    const assignmentId = assigned.body.assignmentId;
+
+    await prisma.envelopeMovement.create({
+      data: {
+        id: randomUUID(),
+        budgetId: user.budgetId,
+        sourceEnvelopeId: depsEnvelopeN3!,
+        amountMinor: 500_000n,
+        effectiveOn: d(0),
+        status: 'CONFIRMED',
+      },
+    });
+
+    const blockedRevise = await expectError(
+      service!.reviseAssignment(
+        user.userId,
+        user.budgetId,
+        assignmentId,
+        { amount: '2000' },
+        'dep-b',
+      ),
+    );
+    expect(blockedRevise.status).toBe(409);
+    expect(blockedRevise.code).toBe('ASSIGNMENT_HAS_DEPENDENCIES');
+    expect(await confirmedIncomeAssignmentTotal(user.budgetId, depsIncomeId!)).toBe(1_000_000n);
+
+    const allowed = await service!.reviseAssignment(
+      user.userId,
+      user.budgetId,
+      assignmentId,
+      { amount: '6000' },
+      'dep-c',
+    );
+    expect(allowed.status).toBe(200);
+    expect(allowed.body.amountMinor).toBe('600000');
+
+    const blockedCancel = await expectError(
+      service!.cancelAssignment(user.userId, user.budgetId, assignmentId, 'dep-d'),
+    );
+    expect(blockedCancel.status).toBe(409);
+    expect(blockedCancel.code).toBe('ASSIGNMENT_HAS_DEPENDENCIES');
+    const row = await prisma.envelopeAssignment.findUnique({ where: { id: assignmentId } });
+    expect(row?.status).toBe('CONFIRMED');
+  });
+});
+
 afterAll(async () => {
   const viewer = ctx.viewer;
   if (viewer) {
@@ -691,6 +895,17 @@ let accessEnvelopeM4: string;
 let draftIncomeId: string;
 let deletedIncomeId: string;
 let wrongTypeExpenseId: string;
+let reviseAccountId: string;
+let reviseCategoryId: string;
+let reviseEnvelopeN1: string;
+let reviseEnvelopeN2: string;
+let reviseIncomeId: string;
+let reviseA1Id: string;
+let reviseA2Id: string;
+let depsAccountId: string;
+let depsCategoryId: string;
+let depsEnvelopeN3: string;
+let depsIncomeId: string;
 
 async function cashOf(budgetId: string): Promise<bigint> {
   const asOf = new Date();

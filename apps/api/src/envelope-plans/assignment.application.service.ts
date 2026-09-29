@@ -14,11 +14,14 @@ import { AssignmentRepository } from './assignment.repository.js';
 import type {
   CreateEnvelopeAssignmentInput,
   CreateIncomeAssignmentInput,
+  ReviseAssignmentInput,
 } from './assignment.schemas.js';
 
 const RUB_SCALE = 2;
 const ASSIGN_FREE_OPERATION = 'ASSIGN_FREE';
 const ASSIGN_INCOME_OPERATION = 'ASSIGN_INCOME';
+const REVISE_ASSIGNMENT_OPERATION = 'REVISE_ASSIGNMENT';
+const CANCEL_ASSIGNMENT_OPERATION = 'CANCEL_ASSIGNMENT';
 
 export type AssignFreeResult = {
   status: number;
@@ -66,6 +69,26 @@ export type AssignIncomeResult = {
     freeToAssignMinor: string;
   };
 };
+
+export type ModifyAssignmentResult = {
+  status: number;
+  body: {
+    assignmentId: string;
+    amountMinor: string;
+    fundedMinor: string;
+    spentMinor: string;
+    balanceMinor: string;
+    freeToAssignMinor: string;
+  };
+};
+
+function assignmentHasDependencies(): ConflictException {
+  return new ConflictException({
+    code: 'ASSIGNMENT_HAS_DEPENDENCIES',
+    detail:
+      'Сумма меньше последующих подтверждённых движений из этого конверта; сначала уменьшите или обратным действием верните эти движения.',
+  });
+}
 
 @Injectable()
 export class AssignmentApplicationService {
@@ -337,6 +360,222 @@ export class AssignmentApplicationService {
               spentMinor: formatMinorUnits(spentAfter),
               balanceMinor: formatMinorUnits(balanceAfter),
               freeToAssignMinor: formatMinorUnits(freeToAssignAfter),
+            },
+          };
+        },
+      );
+    });
+  }
+
+  async reviseAssignment(
+    userId: string,
+    budgetId: string,
+    assignmentId: string,
+    input: ReviseAssignmentInput,
+    idempotencyKey: string,
+    requestId?: string,
+  ): Promise<ModifyAssignmentResult> {
+    const amountMinor = parseDecimalToMinorUnits(input.amount, RUB_SCALE, false);
+    if (amountMinor === 0n) {
+      throw validationFailed('Сумма назначения должна быть больше нуля.');
+    }
+
+    const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
+
+    const requestHash = createHash('sha256')
+      .update(JSON.stringify({ assignmentId, amountMinor: amountMinor.toString() }))
+      .digest('hex');
+
+    return this.prisma.$transaction(async (tx) => {
+      await this.repository.lockBudget(tx, budgetId);
+      const locked = await this.repository.lockAssignment(tx, budgetId, assignmentId);
+      if (locked.sourceIncomeTransactionId) {
+        await this.repository.lockIncome(tx, budgetId, locked.sourceIncomeTransactionId);
+        await this.repository.requireIncome(tx, budgetId, locked.sourceIncomeTransactionId);
+      }
+
+      return this.idempotency.execute(
+        tx,
+        {
+          budgetId,
+          actorUserId: userId,
+          key: idempotencyKey,
+          operation: REVISE_ASSIGNMENT_OPERATION,
+          requestHash,
+        },
+        async () => {
+          const membership = await tx.workspaceMembership.findFirst({
+            where: { workspaceId: model.workspaceId, userId, isActive: true },
+            select: { role: true },
+          });
+          if (!membership || !this.rolePolicy.canManage(membership.role)) {
+            throw forbidden();
+          }
+
+          if (locked.status !== 'CONFIRMED') {
+            throw validationFailed('Назначение уже отменено; скорректируйте сумму до отмены.');
+          }
+          if (amountMinor >= locked.amountMinor) {
+            throw validationFailed(
+              'Сумму существующего назначения можно только уменьшить; для увеличения создайте новое назначение.',
+            );
+          }
+
+          const timezone = await this.repository.requireBudgetTimezone(tx, budgetId);
+          const asOfDate = new Date(`${todayInTimezone(new Date(), timezone)}T00:00:00Z`);
+
+          const { balance: balanceBefore } = await this.balances.balance(
+            tx,
+            budgetId,
+            locked.envelopeId,
+            locked.periodId,
+            asOfDate,
+          );
+          const newBalance = balanceBefore + amountMinor - locked.amountMinor;
+          if (
+            newBalance < 0n &&
+            (await this.repository.hasOutboundMovementsAfter(
+              tx,
+              budgetId,
+              locked.envelopeId,
+              locked.periodId,
+              locked.effectiveOn,
+            ))
+          ) {
+            throw assignmentHasDependencies();
+          }
+
+          await this.repository.reviseAssignmentAmount(tx, {
+            budgetId,
+            workspaceId: model.workspaceId,
+            actorUserId: userId,
+            assignmentId,
+            oldAmountMinor: locked.amountMinor,
+            newAmountMinor: amountMinor,
+            requestId,
+          });
+
+          const cash = await this.repository.cashAt(tx, budgetId, asOfDate);
+          const rows = await this.balances.allBalances(tx, budgetId, asOfDate);
+          const targetRow =
+            rows.find(
+              (row) => row.envelopeId === locked.envelopeId && row.periodId === locked.periodId,
+            ) ?? null;
+          const protectedAfter = rows.reduce((sum, row) => sum + positive(row.balance), 0n);
+          const fundedAfter = targetRow?.funded ?? 0n;
+          const spentAfter = targetRow?.spent ?? 0n;
+          const balanceAfter = fundedAfter - spentAfter;
+
+          return {
+            status: 200,
+            body: {
+              assignmentId: locked.id,
+              amountMinor: formatMinorUnits(amountMinor),
+              fundedMinor: formatMinorUnits(fundedAfter),
+              spentMinor: formatMinorUnits(spentAfter),
+              balanceMinor: formatMinorUnits(balanceAfter),
+              freeToAssignMinor: formatMinorUnits(cash - protectedAfter),
+            },
+          };
+        },
+      );
+    });
+  }
+
+  async cancelAssignment(
+    userId: string,
+    budgetId: string,
+    assignmentId: string,
+    idempotencyKey: string,
+    requestId?: string,
+  ): Promise<ModifyAssignmentResult> {
+    const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
+
+    const requestHash = createHash('sha256').update(JSON.stringify({ assignmentId })).digest('hex');
+
+    return this.prisma.$transaction(async (tx) => {
+      await this.repository.lockBudget(tx, budgetId);
+      const locked = await this.repository.lockAssignment(tx, budgetId, assignmentId);
+      if (locked.sourceIncomeTransactionId) {
+        await this.repository.lockIncome(tx, budgetId, locked.sourceIncomeTransactionId);
+        await this.repository.requireIncome(tx, budgetId, locked.sourceIncomeTransactionId);
+      }
+
+      return this.idempotency.execute(
+        tx,
+        {
+          budgetId,
+          actorUserId: userId,
+          key: idempotencyKey,
+          operation: CANCEL_ASSIGNMENT_OPERATION,
+          requestHash,
+        },
+        async () => {
+          const membership = await tx.workspaceMembership.findFirst({
+            where: { workspaceId: model.workspaceId, userId, isActive: true },
+            select: { role: true },
+          });
+          if (!membership || !this.rolePolicy.canManage(membership.role)) {
+            throw forbidden();
+          }
+
+          if (locked.status !== 'CONFIRMED') {
+            throw validationFailed('Назначение уже отменено.');
+          }
+
+          const timezone = await this.repository.requireBudgetTimezone(tx, budgetId);
+          const asOfDate = new Date(`${todayInTimezone(new Date(), timezone)}T00:00:00Z`);
+
+          const { balance: balanceBefore } = await this.balances.balance(
+            tx,
+            budgetId,
+            locked.envelopeId,
+            locked.periodId,
+            asOfDate,
+          );
+          const newBalance = balanceBefore - locked.amountMinor;
+          if (
+            newBalance < 0n &&
+            (await this.repository.hasOutboundMovementsAfter(
+              tx,
+              budgetId,
+              locked.envelopeId,
+              locked.periodId,
+              locked.effectiveOn,
+            ))
+          ) {
+            throw assignmentHasDependencies();
+          }
+
+          await this.repository.cancelAssignmentStatus(tx, {
+            budgetId,
+            workspaceId: model.workspaceId,
+            actorUserId: userId,
+            assignmentId,
+            oldAmountMinor: locked.amountMinor,
+            requestId,
+          });
+
+          const cash = await this.repository.cashAt(tx, budgetId, asOfDate);
+          const rows = await this.balances.allBalances(tx, budgetId, asOfDate);
+          const targetRow =
+            rows.find(
+              (row) => row.envelopeId === locked.envelopeId && row.periodId === locked.periodId,
+            ) ?? null;
+          const protectedAfter = rows.reduce((sum, row) => sum + positive(row.balance), 0n);
+          const fundedAfter = targetRow?.funded ?? 0n;
+          const spentAfter = targetRow?.spent ?? 0n;
+          const balanceAfter = fundedAfter - spentAfter;
+
+          return {
+            status: 200,
+            body: {
+              assignmentId: locked.id,
+              amountMinor: formatMinorUnits(locked.amountMinor),
+              fundedMinor: formatMinorUnits(fundedAfter),
+              spentMinor: formatMinorUnits(spentAfter),
+              balanceMinor: formatMinorUnits(balanceAfter),
+              freeToAssignMinor: formatMinorUnits(cash - protectedAfter),
             },
           };
         },

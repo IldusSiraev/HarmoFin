@@ -25,3 +25,11 @@ export const createIncomeAssignmentSchema = z
   .strict();
 
 export type CreateIncomeAssignmentInput = z.output<typeof createIncomeAssignmentSchema>;
+
+export const reviseAssignmentSchema = z
+  .object({
+    amount,
+  })
+  .strict();
+
+export type ReviseAssignmentInput = z.output<typeof reviseAssignmentSchema>;

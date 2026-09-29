@@ -33,6 +33,41 @@ export type IncomeRecord = {
   amountMinor: bigint;
 };
 
+export type AssignmentModifyParams = {
+  budgetId: string;
+  workspaceId: string;
+  actorUserId: string;
+  assignmentId: string;
+  oldAmountMinor: bigint;
+  requestId?: string | undefined;
+};
+
+export type LockedAssignment = {
+  id: string;
+  amountMinor: bigint;
+  status: 'CONFIRMED' | 'DELETED';
+  type: 'OPENING' | 'FREE' | 'INCOME';
+  effectiveOn: Date;
+  envelopeId: string;
+  periodId: string | null;
+  sourceIncomeTransactionId: string | null;
+};
+
+type RawLockedAssignment = {
+  id: unknown;
+  amount_minor: string | bigint | number;
+  status: string;
+  type: string;
+  effective_on: string | Date;
+  envelope_id: unknown;
+  period_id: string | null;
+  source_income_transaction_id: string | null;
+};
+
+function toDate(value: string | Date): Date {
+  return value instanceof Date ? value : new Date(`${value}T00:00:00Z`);
+}
+
 export class AssignmentRepository {
   async lockBudget(tx: Prisma.TransactionClient, budgetId: string): Promise<void> {
     await tx.$queryRaw`
@@ -223,5 +258,111 @@ export class AssignmentRepository {
       },
     });
     return assignment;
+  }
+
+  async lockAssignment(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    assignmentId: string,
+  ): Promise<LockedAssignment> {
+    const rows = await tx.$queryRaw`
+      SELECT e."id", e."amount_minor", e."status", e."type", e."effective_on",
+             e."envelope_id", e."period_id", e."source_income_transaction_id"
+      FROM "envelope_assignments" e
+      WHERE e."id" = ${assignmentId}::uuid
+        AND e."budget_id" = ${budgetId}::uuid
+      FOR UPDATE
+    `;
+    const row = (rows as unknown as Array<RawLockedAssignment>)[0];
+    if (!row) {
+      throw resourceNotFound();
+    }
+    return {
+      id: String(row.id),
+      amountMinor: BigInt(String(row.amount_minor)),
+      status: row.status as LockedAssignment['status'],
+      type: row.type as LockedAssignment['type'],
+      effectiveOn: toDate(row.effective_on),
+      envelopeId: String(row.envelope_id),
+      periodId: row.period_id ? String(row.period_id) : null,
+      sourceIncomeTransactionId: row.source_income_transaction_id
+        ? String(row.source_income_transaction_id)
+        : null,
+    };
+  }
+
+  async hasOutboundMovementsAfter(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    envelopeId: string,
+    periodId: string | null,
+    fromOn: Date,
+  ): Promise<boolean> {
+    const [row] = (await tx.$queryRaw`
+      SELECT EXISTS(
+        SELECT 1
+        FROM "envelope_movements" m
+        WHERE m."budget_id" = ${budgetId}::uuid
+          AND m."source_envelope_id" = ${envelopeId}::uuid
+          AND m."status" = 'CONFIRMED'
+          AND (${periodId}::uuid IS NULL
+            OR m."source_period_id" IS NOT DISTINCT FROM ${periodId}::uuid)
+          AND m."effective_on" >= ${fromOn}::date
+      ) AS "has_movement"
+    `) as unknown as Array<{ has_movement: boolean }>;
+    return (row ?? { has_movement: false }).has_movement;
+  }
+
+  async reviseAssignmentAmount(
+    tx: Prisma.TransactionClient,
+    params: AssignmentModifyParams & { newAmountMinor: bigint },
+  ): Promise<void> {
+    await tx.envelopeAssignment.update({
+      where: { id: params.assignmentId },
+      data: { amountMinor: params.newAmountMinor },
+    });
+    await tx.auditEvent.create({
+      data: {
+        id: createUuidV7(),
+        actorUserId: params.actorUserId,
+        workspaceId: params.workspaceId,
+        budgetId: params.budgetId,
+        entityType: 'envelope-assignment',
+        entityId: params.assignmentId,
+        action: 'AMOUNT_REVISED',
+        source: 'API',
+        requestId: params.requestId ?? null,
+        oldValues: { amountMinor: params.oldAmountMinor.toString() },
+        newValues: { amountMinor: params.newAmountMinor.toString() },
+      },
+    });
+  }
+
+  async cancelAssignmentStatus(
+    tx: Prisma.TransactionClient,
+    params: AssignmentModifyParams,
+  ): Promise<void> {
+    await tx.envelopeAssignment.update({
+      where: { id: params.assignmentId },
+      data: { status: 'DELETED' },
+    });
+    await tx.auditEvent.create({
+      data: {
+        id: createUuidV7(),
+        actorUserId: params.actorUserId,
+        workspaceId: params.workspaceId,
+        budgetId: params.budgetId,
+        entityType: 'envelope-assignment',
+        entityId: params.assignmentId,
+        action: 'DELETED',
+        source: 'API',
+        requestId: params.requestId ?? null,
+        oldValues: {
+          amountMinor: params.oldAmountMinor.toString(),
+          status: 'CONFIRMED',
+        },
+        newValues: { status: 'DELETED' },
+      },
+    });
   }
 }
