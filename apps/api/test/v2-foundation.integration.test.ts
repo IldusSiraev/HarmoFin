@@ -22,7 +22,6 @@ let server: FastifyInstance;
 let ownerId: string;
 let otherId: string;
 let ownerCookie: string;
-let otherWorkspaceId: string;
 let otherBudgetId: string;
 let ownBudgetId: string;
 let ownerEnvelopeId: string;
@@ -53,7 +52,6 @@ describe('v2 foundation: URI versioning and budget model version', () => {
     ownerCookie = owner.cookie;
     const other = await register(otherEmail);
     otherId = other.user.id;
-    otherWorkspaceId = other.workspace.id;
     otherBudgetId = other.budget.id;
     ownBudgetId = owner.budget.id;
     ownerEnvelopeId = await createTestEnvelope(ownBudgetId, 'F02 owner envelope');
