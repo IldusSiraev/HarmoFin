@@ -88,6 +88,11 @@ enum TransferStatus {
   DELETED
 }
 
+enum TransferMode {
+  LEGACY_PARTS
+  ACCOUNT_ONLY
+}
+
 enum EnvelopeReallocationStatus {
   CONFIRMED
   DELETED
@@ -282,10 +287,11 @@ model Budget {
     envelopeAssignments   EnvelopeAssignment[]
     envelopeMovements     EnvelopeMovement[]
     budgetCycleRevisions BudgetCycleRevision[]
-   idempotencyRecords IdempotencyRecord[]
-   regularPlans       RegularPlan[]
-   occurrences        PlanOccurrence[]
-   notifications      Notification[]
+    idempotencyRecords IdempotencyRecord[]
+    regularPlans       RegularPlan[]
+    occurrences        PlanOccurrence[]
+    planPayments       PlanPayment[]
+    notifications      Notification[]
 
   @@unique([id, workspaceId])
   @@index([workspaceId, status])
@@ -313,6 +319,8 @@ model Account {
   incomeAllocations          IncomeAllocation[]
   transferPartsAsSource      TransferPart[]     @relation("TransferPartSourceAccount")
   transferPartsAsDestination TransferPart[]     @relation("TransferPartDestinationAccount")
+  directTransfersAsSource    Transfer[]         @relation("TransferSourceAccount")
+  directTransfersAsDestination Transfer[]       @relation("TransferDestinationAccount")
   regularPlans               RegularPlan[]      @relation("RegularPlanDefaultAccount")
   occurrenceSnapshots        PlanOccurrence[]   @relation("PlanOccurrenceDefaultAccount")
 
@@ -419,6 +427,7 @@ model Transaction {
   allocations    IncomeAllocation[]
   envelopeAssignments EnvelopeAssignment[]
   planOccurrence PlanOccurrence?    @relation("PlanOccurrenceTransaction")
+  planPayments   PlanPayment[]      @relation("PlanPaymentTransaction")
 
   @@unique([id, budgetId])
   @@index([budgetId, occurredOn, createdAt])
@@ -460,28 +469,35 @@ model IncomeAllocation {
 }
 
 model Transfer {
-  id              String         @id @db.Uuid
-  budgetId        String         @map("budget_id") @db.Uuid
-  status          TransferStatus @default(DRAFT)
-  totalMinor      BigInt         @map("total_minor")
-  currency        String         @default("RUB") @db.Char(3)
-  scale           Int            @default(2) @db.SmallInt
-  occurredOn      DateTime       @map("occurred_on") @db.Date
-  comment         String?        @db.VarChar(500)
-  confirmedAt     DateTime?      @map("confirmed_at") @db.Timestamptz(3)
-  cancelledAt     DateTime?      @map("cancelled_at") @db.Timestamptz(3)
-  deletedAt       DateTime?      @map("deleted_at") @db.Timestamptz(3)
-  createdByUserId String         @map("created_by_user_id") @db.Uuid
-  updatedByUserId String         @map("updated_by_user_id") @db.Uuid
-  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                 String         @id @db.Uuid
+  budgetId           String         @map("budget_id") @db.Uuid
+  status             TransferStatus @default(DRAFT)
+  mode               TransferMode   @default(LEGACY_PARTS)
+  totalMinor         BigInt         @map("total_minor")
+  currency           String         @default("RUB") @map("currency") @db.Char(3)
+  scale              Int            @default(2) @db.SmallInt
+  occurredOn         DateTime       @map("occurred_on") @db.Date
+  comment            String?        @db.VarChar(500)
+  confirmedAt        DateTime?      @map("confirmed_at") @db.Timestamptz(3)
+  cancelledAt        DateTime?      @map("cancelled_at") @db.Timestamptz(3)
+  deletedAt          DateTime?      @map("deleted_at") @db.Timestamptz(3)
+  sourceAccountId    String?        @map("source_account_id") @db.Uuid
+  destinationAccountId String?      @map("destination_account_id") @db.Uuid
+  createdByUserId    String         @map("created_by_user_id") @db.Uuid
+  updatedByUserId    String         @map("updated_by_user_id") @db.Uuid
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  budget Budget         @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  parts  TransferPart[]
+  budget             Budget         @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  parts              TransferPart[]
+  sourceAccount      Account?       @relation("TransferSourceAccount", fields: [sourceAccountId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  destinationAccount Account?       @relation("TransferDestinationAccount", fields: [destinationAccountId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([id, budgetId])
   @@index([budgetId, occurredOn, createdAt])
   @@index([budgetId, status, occurredOn])
+  @@index([budgetId, sourceAccountId])
+  @@index([budgetId, destinationAccountId])
   @@map("transfers")
 }
 
@@ -510,6 +526,23 @@ model TransferPart {
   @@index([budgetId, sourceEnvelopeId])
   @@index([budgetId, destinationEnvelopeId])
   @@map("transfer_parts")
+}
+
+model PlanPayment {
+  id            String   @id @db.Uuid
+  budgetId      String   @map("budget_id") @db.Uuid
+  occurrenceId  String   @map("occurrence_id") @db.Uuid
+  transactionId String   @map("transaction_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  budget      Budget         @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  occurrence  PlanOccurrence @relation(fields: [occurrenceId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  transaction Transaction    @relation("PlanPaymentTransaction", fields: [transactionId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([budgetId, transactionId])
+  @@index([budgetId, occurrenceId])
+  @@map("plan_payments")
 }
 
 model EnvelopeReallocation {
@@ -737,6 +770,7 @@ model PlanOccurrence {
   transaction    Transaction?   @relation("PlanOccurrenceTransaction", fields: [transactionId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
   actedBy        User?          @relation("PlanOccurrenceActor", fields: [actedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   notifications  Notification[] @relation("OccurrenceNotifications")
+  payments       PlanPayment[]
 
   @@unique([id, budgetId])
   @@unique([transactionId, budgetId])
