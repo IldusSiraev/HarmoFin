@@ -113,6 +113,42 @@ describe('v2 foundation: URI versioning and budget model version', () => {
     expect(row['planModelVersion']).toBe(1);
     expect(row['planModelActivatedOn']).toBeNull();
   });
+
+  it('rejects a v2 budget without planModelActivatedOn with MODEL_VERSION_MISMATCH', async () => {
+    const budgetId = await getOwnV1BudgetId(ownerId);
+    await prisma.budget.update({
+      where: { id: budgetId },
+      data: { planModelVersion: 2, planModelActivatedOn: null },
+    });
+
+    const response = await server.inject({
+      method: 'GET',
+      url: `/api/v2/budgets/${budgetId}/model`,
+      cookies: { harmofin_session: ownerCookie },
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({ code: 'MODEL_VERSION_MISMATCH' });
+    expect(typeof response.json()?.detail).toBe('string');
+    expect((response.json()?.detail as string).length).toBeGreaterThan(0);
+  });
+
+  it('returns the current model for an activated v2 budget', async () => {
+    const budgetId = await getOwnV1BudgetId(ownerId);
+    await prisma.budget.update({
+      where: { id: budgetId },
+      data: { planModelVersion: 2, planModelActivatedOn: new Date('2026-09-29T00:00:00Z') },
+    });
+
+    const response = await server.inject({
+      method: 'GET',
+      url: `/api/v2/budgets/${budgetId}/model`,
+      cookies: { harmofin_session: ownerCookie },
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ planModelVersion: number; planModelActivatedOn: string | null }>();
+    expect(body.planModelVersion).toBe(2);
+    expect(body.planModelActivatedOn).toBe('2026-09-29');
+  });
 });
 
 async function getOwnV1BudgetId(userId: string): Promise<string> {

@@ -52,6 +52,12 @@ export class PlanModelPolicy {
           'Бюджет работает на другой версии модели плана. Используйте соответствующую версию API.',
       });
     }
+    if (version === 2 && !budget.planModelActivatedOn) {
+      throw new ConflictException({
+        code: 'MODEL_VERSION_MISMATCH',
+        detail: 'Бюджет версии 2 без даты активации неактивен.',
+      });
+    }
     return {
       id: budget.id,
       workspaceId: budget.workspaceId,
