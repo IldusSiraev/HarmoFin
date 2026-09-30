@@ -24,6 +24,7 @@ export type DirectTransferCreateParams = {
   destinationAccountId: string;
   amountMinor: bigint;
   occurredOn: Date;
+  comment?: string | null;
   requestId?: string | undefined;
 };
 
@@ -105,6 +106,7 @@ export class DirectTransferRepository {
         mode: 'ACCOUNT_ONLY',
         totalMinor: params.amountMinor,
         occurredOn: params.occurredOn,
+        comment: params.comment ?? null,
         sourceAccountId: params.sourceAccountId,
         destinationAccountId: params.destinationAccountId,
         confirmedAt: new Date(),

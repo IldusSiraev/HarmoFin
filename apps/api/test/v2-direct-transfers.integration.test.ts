@@ -115,8 +115,6 @@ describe('v2 прямые переводы между счетами без ко
     for (const key of Object.keys(emails) as Array<keyof typeof emails>) {
       await cleanupUser(ctx[key]?.userId ?? '');
     }
-    await app.close();
-    await prisma.$disconnect();
   });
 
   const today = todayInTimezone(new Date(), 'UTC');
@@ -468,6 +466,624 @@ describe('v2 прямые переводы между счетами без ко
       expect(amountError.code).toBe('VALIDATION_FAILED');
     }
   });
+});
+
+describe('v2 прямого перевод — HTTP-контракт', () => {
+  const fixtureEmails = {
+    fixtureOwner: `v2-direct-http-owner-${randomUUID()}@harmofin.test`,
+    fixtureViewer: `v2-direct-http-viewer-${randomUUID()}@harmofin.test`,
+    fixtureOutsider: `v2-direct-http-outsider-${randomUUID()}@harmofin.test`,
+    fixturePager: `v2-direct-http-pager-${randomUUID()}@harmofin.test`,
+  };
+
+  type FixtureUser = {
+    userId: string;
+    workspaceId: string;
+    budgetId: string;
+    cookie: string;
+    csrfToken: string;
+  };
+  const fCtx: Partial<Record<keyof typeof fixtureEmails, FixtureUser>> = {};
+
+  const dayMs = 86_400_000;
+  const f = (delta: number) => new Date(Date.now() + delta * dayMs);
+
+  let fixtureSrcAccount: string;
+  let fixtureDestAccount: string;
+  let fixtureEnvelope: string;
+  let fixtureEnvelopeB: string;
+  let fixtureLegacyTransferId: string;
+  let pagerSrcAccount: string;
+  let pagerDestAccount: string;
+  const fixtureSrcMinor = 100n;
+
+  type TransferPartItem = {
+    id: string;
+    amountMinor: string;
+    sourceEnvelopeId: string;
+    destinationEnvelopeId: string | null;
+  };
+
+  type TransferItem = {
+    id: string;
+    budgetId: string;
+    status: string;
+    mode: 'ACCOUNT_ONLY' | 'LEGACY_PARTS';
+    totalMinor: string;
+    comment: string | null;
+    occurredOn: string;
+    sourceAccountId: string | null;
+    destinationAccountId: string | null;
+    parts?: TransferPartItem[];
+  };
+
+  type ListResponse = { items: TransferItem[]; nextCursor: string | null };
+
+  function authCookieHeaders(user: FixtureUser | undefined): Record<string, string> {
+    return { origin, cookie: `harmofin_session=${user?.cookie ?? ''}` };
+  }
+
+  function mutationHeaders(
+    user: FixtureUser | undefined,
+    idempotencyKey: string,
+  ): Record<string, string> {
+    return {
+      ...authCookieHeaders(user),
+      'x-csrf-token': user?.csrfToken ?? '',
+      'idempotency-key': idempotencyKey,
+    };
+  }
+
+  function transferUrl(id?: string): string {
+    const base = `/api/v2/budgets/${fixtureOwnerBudgetId()}/transfers`;
+    return id ? `${base}/${id}` : base;
+  }
+
+  // Отдельный бюджет-«пагинатор»: в нём ровно 3 transfer (создаются в #8),
+  // чтобы union-asserts не пересекались с переводами owner-бюджета.
+  function pagerTransferUrl(id?: string): string {
+    const base = `/api/v2/budgets/${fCtx.fixturePager!.budgetId}/transfers`;
+    return id ? `${base}/${id}` : base;
+  }
+
+  function fixtureOwnerBudgetId(): string {
+    return fCtx.fixtureOwner!.budgetId;
+  }
+
+  async function registerFixture(email: string): Promise<FixtureUser> {
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/auth/register',
+      headers: { origin },
+      payload: { email, password },
+    });
+    expect(response.statusCode).toBe(201);
+    const body = response.json<{
+      user: { id: string };
+      workspace: { id: string };
+      budget: { id: string };
+      csrfToken: string;
+    }>();
+    const setCookieRaw = response.headers['set-cookie'];
+    const setCookie = Array.isArray(setCookieRaw) ? setCookieRaw.join('; ') : (setCookieRaw ?? '');
+    const match = /harmofin_session=([^;]+)/.exec(setCookie);
+    const cookie = match ? decodeURIComponent(match[1]!) : '';
+    expect(cookie).not.toHaveLength(0);
+    return {
+      userId: body.user.id,
+      workspaceId: body.workspace.id,
+      budgetId: body.budget.id,
+      cookie,
+      csrfToken: body.csrfToken,
+    };
+  }
+
+  const accountBalance = (accountId: string) =>
+    prisma.$transaction((tx) =>
+      balances.accountBalance(tx, fCtx.fixtureOwner!.budgetId, accountId),
+    );
+
+  beforeAll(async () => {
+    for (const key of Object.keys(fixtureEmails) as Array<keyof typeof fixtureEmails>) {
+      fCtx[key] = await registerFixture(fixtureEmails[key]);
+    }
+    await prisma.budget.updateMany({
+      where: {
+        id: {
+          in: [
+            fCtx.fixtureOwner!.budgetId,
+            fCtx.fixtureOutsider!.budgetId,
+            fCtx.fixturePager!.budgetId,
+          ],
+        },
+      },
+      data: { planModelVersion: 2, planModelActivatedOn: f(-60), timezone: 'UTC' },
+    });
+    await prisma.workspaceMembership.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: fCtx.fixtureOwner!.workspaceId,
+        userId: fCtx.fixtureViewer!.userId,
+        role: 'VIEWER',
+      },
+    });
+
+    fixtureSrcAccount = await createRawAccount(fCtx.fixtureOwner!.budgetId, 'RUB', 10_000_000n);
+    fixtureDestAccount = await createRawAccount(fCtx.fixtureOwner!.budgetId, 'RUB', 0n);
+    pagerSrcAccount = await createRawAccount(fCtx.fixturePager!.budgetId, 'RUB', 10_000_000n);
+    pagerDestAccount = await createRawAccount(fCtx.fixturePager!.budgetId, 'RUB', 0n);
+
+    const fixtureDate = f(-7);
+    fixtureLegacyTransferId = randomUUID();
+    await prisma.transfer.create({
+      data: {
+        id: fixtureLegacyTransferId,
+        budgetId: fCtx.fixtureOwner!.budgetId,
+        status: 'CONFIRMED',
+        mode: 'LEGACY_PARTS',
+        totalMinor: fixtureSrcMinor,
+        occurredOn: fixtureDate,
+        confirmedAt: new Date(),
+        sourceAccountId: null,
+        destinationAccountId: null,
+        createdByUserId: fCtx.fixtureOwner!.userId,
+        updatedByUserId: fCtx.fixtureOwner!.userId,
+      },
+    });
+    fixtureEnvelope = await createEnvelope(fCtx.fixtureOwner!.budgetId, 'H-SRC');
+    fixtureEnvelopeB = await createEnvelope(fCtx.fixtureOwner!.budgetId, 'H-DST');
+
+    await prisma.transferPart.create({
+      data: {
+        id: randomUUID(),
+        transferId: fixtureLegacyTransferId,
+        budgetId: fCtx.fixtureOwner!.budgetId,
+        sourceAccountId: fixtureSrcAccount,
+        destinationAccountId: fixtureDestAccount,
+        sourceEnvelopeId: fixtureEnvelope,
+        destinationEnvelopeId: fixtureEnvelopeB,
+        amountMinor: 40n,
+      },
+    });
+    await prisma.transferPart.create({
+      data: {
+        id: randomUUID(),
+        transferId: fixtureLegacyTransferId,
+        budgetId: fCtx.fixtureOwner!.budgetId,
+        sourceAccountId: fixtureSrcAccount,
+        destinationAccountId: fixtureDestAccount,
+        sourceEnvelopeId: fixtureEnvelope,
+        destinationEnvelopeId: fixtureEnvelopeB,
+        amountMinor: 60n,
+      },
+    });
+  });
+
+  afterAll(async () => {
+    const viewer = fCtx.fixtureViewer;
+    if (viewer) {
+      await prisma.workspaceMembership.deleteMany({
+        where: { userId: viewer.userId, workspaceId: { not: viewer.workspaceId } },
+      });
+    }
+    for (const key of Object.keys(fixtureEmails) as Array<keyof typeof fixtureEmails>) {
+      await cleanupUser(fCtx[key]?.userId ?? '');
+    }
+  });
+
+  it('#1 POST создаёт ACCOUNT_ONLY прямого перевода: статус 201, comment записан, parts undefined, балансы сдвинулись', async () => {
+    const beforeSrc = await accountBalance(fixtureSrcAccount);
+    const beforeDst = await accountBalance(fixtureDestAccount);
+
+    const res = await server.inject({
+      method: 'POST',
+      url: transferUrl(),
+      headers: mutationHeaders(fCtx.fixtureOwner, 'http-ct'),
+      payload: {
+        sourceAccountId: fixtureSrcAccount,
+        destinationAccountId: fixtureDestAccount,
+        amount: '5',
+        occurredOn: todayInTimezone(new Date(), 'UTC'),
+        comment: 'HTTP test comment',
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = res.json<Record<string, unknown>>();
+    expect(body.mode).toBe('ACCOUNT_ONLY');
+    expect(body.parts).toBeUndefined();
+    expect(body.comment).toBe('HTTP test comment');
+    expect(typeof body.totalMinor).toBe('string');
+
+    expect(body.sourceAccountId).toBe(fixtureSrcAccount);
+    expect(body.destinationAccountId).toBe(fixtureDestAccount);
+
+    expect(await accountBalance(fixtureSrcAccount)).toBe(beforeSrc - 500n);
+    expect(await accountBalance(fixtureDestAccount)).toBe(beforeDst + 500n);
+
+    expect(
+      await prisma.transfer.count({
+        where: { budgetId: fixtureOwnerBudgetId(), mode: 'ACCOUNT_ONLY' },
+      }),
+    ).toBeGreaterThan(0);
+  });
+
+  it('#2 replay того же ключа — 201 тот же id (1 ACCOUNT_ONLY запись для этой пары)', async () => {
+    const res1 = await server.inject({
+      method: 'POST',
+      url: transferUrl(),
+      headers: mutationHeaders(fCtx.fixtureOwner, 'http-ct'),
+      payload: {
+        sourceAccountId: fixtureSrcAccount,
+        destinationAccountId: fixtureDestAccount,
+        amount: '5',
+        occurredOn: todayInTimezone(new Date(), 'UTC'),
+        comment: 'HTTP test comment',
+      },
+    });
+    res1.json(); // parse
+
+    const res2 = await server.inject({
+      method: 'POST',
+      url: transferUrl(),
+      headers: mutationHeaders(fCtx.fixtureOwner, 'http-ct'),
+      payload: {
+        sourceAccountId: fixtureSrcAccount,
+        destinationAccountId: fixtureDestAccount,
+        amount: '5',
+        occurredOn: todayInTimezone(new Date(), 'UTC'),
+        comment: 'HTTP test comment',
+      },
+    });
+    expect(res2.statusCode).toBe(201);
+    const b2 = res2.json<Record<string, unknown>>();
+    const b1 = res1.json<Record<string, unknown>>();
+    expect(b2.id).toBe(b1.id);
+  });
+
+  it('#3 POST без Idempotency-Key → 400', async () => {
+    const res = await server.inject({
+      method: 'POST',
+      url: transferUrl(),
+      headers: {
+        ...authCookieHeaders(fCtx.fixtureOwner),
+        'x-csrf-token': fCtx.fixtureOwner?.csrfToken ?? '',
+      },
+      payload: {
+        sourceAccountId: fixtureSrcAccount,
+        destinationAccountId: fixtureDestAccount,
+        amount: '5',
+        occurredOn: todayInTimezone(new Date(), 'UTC'),
+      },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('#4 POST viewer → 403', async () => {
+    const res = await server.inject({
+      method: 'POST',
+      url: transferUrl(),
+      headers: mutationHeaders(fCtx.fixtureViewer, 'http-viewer'),
+      payload: {
+        sourceAccountId: fixtureSrcAccount,
+        destinationAccountId: fixtureDestAccount,
+        amount: '5',
+        occurredOn: todayInTimezone(new Date(), 'UTC'),
+      },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('#5 POST outsider budgetId → 404', async () => {
+    const outsiderAccountId = await createRawAccount(
+      fCtx.fixtureOutsider!.budgetId,
+      'RUB',
+      10_000_000n,
+    );
+    const res = await server.inject({
+      method: 'POST',
+      url: transferUrl(),
+      headers: mutationHeaders(fCtx.fixtureOwner, 'http-outsider'),
+      payload: {
+        sourceAccountId: outsiderAccountId,
+        destinationAccountId: fixtureSrcAccount,
+        amount: '5',
+        occurredOn: todayInTimezone(new Date(), 'UTC'),
+      },
+    });
+    expect(res.statusCode).toBe(404);
+    await prisma.account.deleteMany({ where: { id: outsiderAccountId } });
+  });
+
+  it('#6 POST на v1-бюджет для v2-budget → 409 MODEL_VERSION_MISMATCH', async () => {
+    const res = await server.inject({
+      method: 'POST',
+      url: `/api/v1/budgets/${fCtx.fixtureOwner!.budgetId}/transfers`,
+      headers: {
+        ...authCookieHeaders(fCtx.fixtureOwner),
+        'x-csrf-token': fCtx.fixtureOwner?.csrfToken ?? '',
+        origin,
+        'idempotency-key': 'http-v1-mismatch',
+      },
+      payload: {
+        total: '5.00',
+        sourceAccountId: fixtureSrcAccount,
+        destinationAccountId: fixtureDestAccount,
+        parts: [
+          {
+            sourceEnvelopeId: fixtureEnvelope,
+            destinationEnvelopeId: fixtureEnvelopeB,
+            amount: '5.00',
+          },
+        ],
+        occurredOn: todayInTimezone(new Date(), 'UTC'),
+      },
+    });
+    expect(res.statusCode).toBe(409);
+    const body = res.json<Record<string, unknown>>();
+    expect(body.code).toBe('MODEL_VERSION_MISMATCH');
+  });
+
+  it('#7 GET list → 200 ACCOUNT_ONLY + LEGACY', async () => {
+    const res = await server.inject({
+      method: 'GET',
+      url: transferUrl(),
+      headers: authCookieHeaders(fCtx.fixtureOwner),
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<ListResponse>();
+
+    const acItems = body.items.filter((i) => i.mode === 'ACCOUNT_ONLY');
+    expect(acItems.length).toBeGreaterThan(0);
+    for (const item of acItems) {
+      expect(typeof item.sourceAccountId).toBe('string');
+      expect(item.parts).toBeUndefined();
+      expect(typeof item.totalMinor).toBe('string');
+    }
+
+    const legacyItem = body.items.find((i) => i.mode === 'LEGACY_PARTS');
+    expect(legacyItem).toBeDefined();
+    if (legacyItem === undefined) {
+      throw new Error('legacy transfer expected in list');
+    }
+    expect(legacyItem.sourceAccountId).toBeNull();
+    expect(legacyItem.parts).toBeDefined();
+    if (legacyItem.parts === undefined) {
+      throw new Error('legacy parts expected');
+    }
+    expect(legacyItem.parts.length).toBe(2);
+    const amounts = legacyItem.parts.map((p) => p.amountMinor);
+    expect(amounts).toContain('40');
+    expect(amounts).toContain('60');
+  });
+
+  it('#8a GET list ?limit=2: page1 = 2, page2 = остаток, nextCursor → null; union = ровно 3 id', async () => {
+    const pagerHeaders = authCookieHeaders(fCtx.fixturePager);
+
+    // Ровно 3 transfer в бюджете пагинатора, occurredOn desc: A (f(-1)) → B (f(-2)) → C (f(-3))
+    const postIds: string[] = [];
+    for (const [index, delta] of [-1, -2, -3].entries()) {
+      const post = await server.inject({
+        method: 'POST',
+        url: pagerTransferUrl(),
+        headers: mutationHeaders(fCtx.fixturePager, `pager-transfer-${index}`),
+        payload: {
+          sourceAccountId: pagerSrcAccount,
+          destinationAccountId: pagerDestAccount,
+          amount: '5',
+          occurredOn: f(delta).toISOString().slice(0, 10),
+        },
+      });
+      expect(post.statusCode).toBe(201);
+      postIds.push(post.json<{ id: string }>().id);
+    }
+    const idA = postIds[0]!;
+    const idB = postIds[1]!;
+    const idC = postIds[2]!;
+
+    const res1 = await server.inject({
+      method: 'GET',
+      url: `${pagerTransferUrl()}?limit=2`,
+      headers: pagerHeaders,
+    });
+    expect(res1.statusCode).toBe(200);
+    const b1 = res1.json<ListResponse>();
+    expect(b1.items.map((i) => i.id)).toEqual([idA, idB]);
+    expect(b1.nextCursor).not.toBeNull();
+
+    const res2 = await server.inject({
+      method: 'GET',
+      url: `${pagerTransferUrl()}?limit=2&cursor=${b1.nextCursor}`,
+      headers: pagerHeaders,
+    });
+    expect(res2.statusCode).toBe(200);
+    const b2 = res2.json<ListResponse>();
+    expect(b2.items.map((i) => i.id)).toEqual([idC]);
+    expect(b2.nextCursor).toBeNull();
+
+    // Полнота: union всех страниц = ровно все 3 id (no dup, no gap: и B, и C возвращены)
+    const union = [...b1.items, ...b2.items].map((i) => i.id);
+    expect(union).toHaveLength(3);
+    expect(new Set(union)).toEqual(new Set([idA, idB, idC]));
+  });
+
+  it('#8b GET list ?limit=1: 3 страницы (2-я/3-я через cursor); union = ровно 3 id', async () => {
+    const pagerHeaders = authCookieHeaders(fCtx.fixturePager);
+
+    const p1 = await server.inject({
+      method: 'GET',
+      url: `${pagerTransferUrl()}?limit=1`,
+      headers: pagerHeaders,
+    });
+    expect(p1.statusCode).toBe(200);
+    const pb1 = p1.json<ListResponse>();
+    expect(pb1.items.map((i) => i.id)).toHaveLength(1);
+    expect(pb1.nextCursor).not.toBeNull();
+
+    const p2 = await server.inject({
+      method: 'GET',
+      url: `${pagerTransferUrl()}?limit=1&cursor=${pb1.nextCursor}`,
+      headers: pagerHeaders,
+    });
+    expect(p2.statusCode).toBe(200);
+    const pb2 = p2.json<ListResponse>();
+    expect(pb2.items.map((i) => i.id)).toHaveLength(1);
+    expect(pb2.nextCursor).not.toBeNull();
+    expect(pb2.items[0]!.id).not.toEqual(pb1.items[0]!.id);
+
+    const p3 = await server.inject({
+      method: 'GET',
+      url: `${pagerTransferUrl()}?limit=1&cursor=${pb2.nextCursor}`,
+      headers: pagerHeaders,
+    });
+    expect(p3.statusCode).toBe(200);
+    const pb3 = p3.json<ListResponse>();
+    expect(pb3.items.map((i) => i.id)).toHaveLength(1);
+    expect(pb3.items[0]!.id).not.toEqual(pb2.items[0]!.id);
+
+    // Полнота: 3 страницы без дублей покрывают ровно все 3 transfer
+    const union = [...pb1.items, ...pb2.items, ...pb3.items].map((i) => i.id);
+    expect(union).toHaveLength(3);
+    expect(new Set(union)).toEqual(new Set(union));
+    expect(
+      (
+        await prisma.transfer.findMany({
+          where: { budgetId: fCtx.fixturePager!.budgetId, deletedAt: null },
+          select: { id: true },
+        })
+      )
+        .map((t) => t.id)
+        .sort(),
+    ).toEqual([...union].sort());
+  });
+
+  it('#9 GET detail: ACCOUNT_ONLY без parts, LEGACY с parts=2, randomUUID → 404', async () => {
+    const listRes = await server.inject({
+      method: 'GET',
+      url: transferUrl(),
+      headers: authCookieHeaders(fCtx.fixtureOwner),
+    });
+    const listBody = listRes.json<ListResponse>();
+
+    const acItem = listBody.items.find((i) => i.mode === 'ACCOUNT_ONLY');
+    if (acItem) {
+      const detailRes = await server.inject({
+        method: 'GET',
+        url: transferUrl(acItem.id),
+        headers: authCookieHeaders(fCtx.fixtureOwner),
+      });
+      expect(detailRes.statusCode).toBe(200);
+      const detBody = detailRes.json<TransferItem>();
+      expect(detBody.parts).toBeUndefined();
+    }
+
+    const lgItem = listBody.items.find((i) => i.mode === 'LEGACY_PARTS');
+    if (lgItem) {
+      const detailRes = await server.inject({
+        method: 'GET',
+        url: transferUrl(lgItem.id),
+        headers: authCookieHeaders(fCtx.fixtureOwner),
+      });
+      expect(detailRes.statusCode).toBe(200);
+      const detBody = detailRes.json<TransferItem>();
+      expect(detBody.parts).toBeDefined();
+      expect(detBody.parts?.length).toBe(2);
+    }
+
+    const detailRes = await server.inject({
+      method: 'GET',
+      url: transferUrl(randomUUID()),
+      headers: authCookieHeaders(fCtx.fixtureOwner),
+    });
+    expect(detailRes.statusCode).toBe(404);
+  });
+
+  it('#10 OpenAPI: 200, v2-пути, POST-коды, required Idempotency-Key, cookie-авторизация', async () => {
+    const openApi = await server.inject({ method: 'GET', url: '/openapi.json' });
+    expect(openApi.statusCode).toBe(200);
+    const document = openApi.json<{
+      paths: Record<
+        string,
+        Partial<
+          Record<
+            'get' | 'post',
+            {
+              parameters?: Array<{ name: string; required?: boolean }>;
+              responses?: Record<string, unknown>;
+              security?: Array<Record<string, unknown>>;
+            }
+          >
+        >
+      >;
+      components: {
+        securitySchemes: Record<string, { type?: string; in?: string; name?: string }>;
+      };
+    }>();
+
+    const collection = '/api/v2/budgets/{budgetId}/transfers';
+    const item = '/api/v2/budgets/{budgetId}/transfers/{transferId}';
+
+    expect(document.paths[collection]?.get).toBeDefined();
+    expect(document.paths[collection]?.post).toBeDefined();
+    expect(document.paths[item]?.get).toBeDefined();
+    // Не-uuid в query/param — 400: прописанный в OpenAPI у обоих GET
+    expect(document.paths[collection]?.get?.responses?.['400']).toBeDefined();
+    expect(document.paths[item]?.get?.responses?.['400']).toBeDefined();
+
+    const post = document.paths[collection]?.post;
+    for (const status of ['201', '400', '401', '403', '404', '409', '422']) {
+      expect(post?.responses?.[status]).toBeDefined();
+    }
+    expect(post?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'Idempotency-Key', required: true }),
+      ]),
+    );
+    expect(document.components.securitySchemes.session).toEqual({
+      type: 'apiKey',
+      in: 'cookie',
+      name: 'harmofin_session',
+    });
+    expect(post?.security).toEqual([{ session: [] }]);
+  });
+
+  it('#11 GET list ?limit=1&cursor=not-a-uuid → 400 (не PrismaClientValidationError → 500)', async () => {
+    const res = await server.inject({
+      method: 'GET',
+      url: `${pagerTransferUrl()}?limit=1&cursor=not-a-uuid`,
+      headers: authCookieHeaders(fCtx.fixturePager),
+    });
+    expect(res.statusCode).toBe(400);
+    const body = res.json<Record<string, unknown>>();
+    expect(body.code).toBe('VALIDATION_FAILED');
+  });
+
+  it('#12 GET list ?cursor=<валидный uuid, но такого transfer нет> → 200, не падает', async () => {
+    const res = await server.inject({
+      method: 'GET',
+      url: `${pagerTransferUrl()}?cursor=${randomUUID()}`,
+      headers: authCookieHeaders(fCtx.fixturePager),
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<ListResponse>();
+    expect(Array.isArray(body.items)).toBe(true);
+    expect(typeof body.nextCursor === 'string' || body.nextCursor === null).toBe(true);
+  });
+
+  it('#13 GET detail: transferId не-uuid → 400 (не 500)', async () => {
+    const res = await server.inject({
+      method: 'GET',
+      url: pagerTransferUrl('not-a-uuid'),
+      headers: authCookieHeaders(fCtx.fixturePager),
+    });
+    expect(res.statusCode).toBe(400);
+    const body = res.json<Record<string, unknown>>();
+    expect(body.code).toBe('VALIDATION_FAILED');
+  });
+});
+
+afterAll(async () => {
+  await app.close();
+  await prisma.$disconnect();
 });
 
 async function register(email: string): Promise<RegisteredUser> {

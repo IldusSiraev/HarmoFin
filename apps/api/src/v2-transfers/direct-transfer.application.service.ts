@@ -14,6 +14,7 @@ import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { DirectTransferRepository } from './direct-transfer.repository.js';
+import type { DirectTransferListQuery } from './direct-transfer.schemas.js';
 
 const RUB_SCALE = 2;
 const DIRECT_TRANSFER_CREATE_OPERATION = 'directTransfer.create';
@@ -23,6 +24,7 @@ export type DirectTransferInput = {
   destinationAccountId: string;
   amount: string;
   occurredOn: string;
+  comment?: string;
 };
 
 export type DirectTransferView = {
@@ -33,6 +35,7 @@ export type DirectTransferView = {
   totalMinor: string;
   sourceAccountId: string;
   destinationAccountId: string;
+  comment: string | null;
   occurredOn: string;
 };
 
@@ -67,6 +70,34 @@ function parseOccurredOn(value: string): Date {
 function occurredOnKey(occurredOn: Date): string {
   return occurredOn.toISOString().slice(0, 10);
 }
+
+/**
+ * Views returned by list/get endpoints (both ACCOUNT_ONLY and LEGACY_PARTS).
+ */
+export type DirectTransferPartView = {
+  id: string;
+  amountMinor: string;
+  sourceEnvelopeId: string;
+  destinationEnvelopeId: string | null;
+};
+
+export type DirectTransferViewListItem = {
+  id: string;
+  budgetId: string;
+  status: string;
+  mode: 'LEGACY_PARTS' | 'ACCOUNT_ONLY';
+  totalMinor: string;
+  comment: string | null;
+  occurredOn: string;
+  sourceAccountId: string | null;
+  destinationAccountId: string | null;
+  parts: DirectTransferPartView[] | undefined;
+};
+
+export type DirectTransferListView = {
+  items: DirectTransferViewListItem[];
+  nextCursor: string | null;
+};
 
 /**
  * Confirms clean bank transfers between accounts without envelopes
@@ -106,10 +137,10 @@ export class DirectTransferApplicationService {
       )
       .digest('hex');
 
-    const result = await this.prisma.$transaction(async (tx) => {
+    const view = await this.prisma.$transaction(async (tx) => {
       await this.repository.lockBudget(tx, budgetId);
 
-      return this.idempotency.execute(
+      return this.idempotency.execute<DirectTransferView>(
         tx,
         {
           budgetId,
@@ -183,24 +214,149 @@ export class DirectTransferApplicationService {
             destinationAccountId: destination.id,
             amountMinor: amount,
             occurredOn,
+            comment: input.comment ?? null,
             requestId,
           });
 
-          const body: DirectTransferView = {
-            id: transfer.id,
-            budgetId,
-            status: 'CONFIRMED',
-            mode: 'ACCOUNT_ONLY',
-            totalMinor: formatMinorUnits(amount),
-            sourceAccountId: source.id,
-            destinationAccountId: destination.id,
-            occurredOn: occurredOnKey(occurredOn),
+          return {
+            status: 201,
+            body: {
+              id: transfer.id,
+              budgetId,
+              status: 'CONFIRMED',
+              mode: 'ACCOUNT_ONLY',
+              totalMinor: formatMinorUnits(amount),
+              sourceAccountId: source.id,
+              destinationAccountId: destination.id,
+              comment: input.comment ?? null,
+              occurredOn: occurredOnKey(occurredOn),
+            },
           };
-          return { status: 201, body };
         },
       );
     });
 
-    return result.body;
+    return view.body;
+  }
+
+  async list(
+    userId: string,
+    budgetId: string,
+    query: DirectTransferListQuery,
+  ): Promise<DirectTransferListView> {
+    await this.planModelPolicy.requireModel(userId, budgetId, 2);
+
+    const limit = query.limit;
+
+    // Prisma cursor is inclusive: the cursor row is included in the result,
+    // so slice(1) ≡ skip: 1 — the page is exclusive of the cursor row (keyset).
+    const transfers = await this.prisma.transfer.findMany({
+      where: { budgetId, deletedAt: null },
+      orderBy: [{ occurredOn: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+      ...(query.cursor ? { cursor: { id: query.cursor } } : {}),
+      take: limit + 1,
+      select: {
+        id: true,
+        budgetId: true,
+        status: true,
+        mode: true,
+        totalMinor: true,
+        comment: true,
+        occurredOn: true,
+        sourceAccountId: true,
+        destinationAccountId: true,
+        parts: {
+          select: {
+            id: true,
+            amountMinor: true,
+            sourceEnvelopeId: true,
+            destinationEnvelopeId: true,
+          },
+        },
+        createdAt: true,
+      },
+    });
+
+    const hasMore = transfers.length > limit;
+    const offset = query.cursor ? 1 : 0;
+    const items = transfers.slice(offset, offset + limit).map((t) => ({
+      id: t.id,
+      budgetId: t.budgetId,
+      status: t.status,
+      mode: t.mode,
+      totalMinor: formatMinorUnits(t.totalMinor),
+      comment: t.comment,
+      occurredOn: t.occurredOn.toISOString().slice(0, 10),
+      sourceAccountId: t.sourceAccountId,
+      destinationAccountId: t.destinationAccountId,
+      parts:
+        t.mode === 'LEGACY_PARTS'
+          ? t.parts.map((p) => ({
+              id: p.id,
+              amountMinor: formatMinorUnits(p.amountMinor),
+              sourceEnvelopeId: p.sourceEnvelopeId,
+              destinationEnvelopeId: p.destinationEnvelopeId,
+            }))
+          : undefined,
+    }));
+
+    const last = items[items.length - 1];
+    return { items, nextCursor: hasMore ? (last ? last.id : null) : null };
+  }
+
+  async get(
+    userId: string,
+    budgetId: string,
+    transferId: string,
+  ): Promise<DirectTransferViewListItem> {
+    await this.planModelPolicy.requireModel(userId, budgetId, 2);
+
+    const transfer = await this.prisma.transfer.findFirst({
+      where: { id: transferId, budgetId, deletedAt: null },
+      select: {
+        id: true,
+        budgetId: true,
+        status: true,
+        mode: true,
+        totalMinor: true,
+        comment: true,
+        occurredOn: true,
+        sourceAccountId: true,
+        destinationAccountId: true,
+        parts: {
+          select: {
+            id: true,
+            amountMinor: true,
+            sourceEnvelopeId: true,
+            destinationEnvelopeId: true,
+          },
+        },
+      },
+    });
+
+    if (!transfer) {
+      throw resourceNotFound();
+    }
+
+    return {
+      id: transfer.id,
+      budgetId: transfer.budgetId,
+      status: transfer.status,
+      mode: transfer.mode,
+      totalMinor: formatMinorUnits(transfer.totalMinor),
+      comment: transfer.comment,
+      occurredOn: transfer.occurredOn.toISOString().slice(0, 10),
+      sourceAccountId: transfer.sourceAccountId,
+      destinationAccountId: transfer.destinationAccountId,
+      parts:
+        transfer.mode === 'LEGACY_PARTS'
+          ? transfer.parts.map((p) => ({
+              id: p.id,
+              amountMinor: formatMinorUnits(p.amountMinor),
+              sourceEnvelopeId: p.sourceEnvelopeId,
+              destinationEnvelopeId: p.destinationEnvelopeId,
+            }))
+          : undefined,
+    };
   }
 }
