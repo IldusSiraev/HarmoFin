@@ -1,0 +1,377 @@
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  HttpCode,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBody,
+  ApiCookieAuth,
+  ApiCreatedResponse,
+  ApiHeader,
+  ApiOkResponse,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import type { FastifyRequest } from 'fastify';
+
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
+import { ProblemDetailsResponse } from '../common/errors/problem-details.dto.js';
+import type { RequestContext } from '../common/request-context/request-context.js';
+import { CsrfGuard } from '../common/security/csrf.guard.js';
+import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
+import { AssignmentApplicationService } from './assignment.application.service.js';
+import {
+  reviseAssignmentSchema,
+  type CreateEnvelopeAssignmentInput,
+  type CreateIncomeAssignmentInput,
+  type ReviseAssignmentInput,
+} from './assignment.schemas.js';
+import {
+  CreateAssignmentRequest,
+  CreateEnvelopeRequest,
+  EnvelopeHistoryListResponse,
+  EnvelopePlanListResponse,
+  EnvelopePlanResponse,
+  MoveEnvelopeRequest,
+  ReviseAssignmentRequest,
+  UpdateEnvelopeRequest,
+} from './envelope-plan.dto.js';
+import { EnvelopePlanApplicationService } from './envelope-plan.application.service.js';
+import {
+  createAssignmentSchema,
+  createEnvelopeSchema,
+  envelopeHistorySchema,
+  updateEnvelopeSchema,
+  type CreateAssignmentInput,
+  type CreateEnvelopeInput,
+  type EnvelopeHistoryQuery,
+  type UpdateEnvelopeInput,
+} from './envelope-plan.schemas.js';
+import { MovementApplicationService } from './movement.application.service.js';
+import { moveEnvelopeSchema, type MoveEnvelopeInput } from './movement.schemas.js';
+
+type AuthenticatedRequest = FastifyRequest & { authContext?: RequestContext };
+
+const idempotencyHeader = {
+  name: 'Idempotency-Key',
+  required: true,
+  schema: { type: 'string', minLength: 1, maxLength: 128 },
+} as const;
+
+@ApiTags('envelope-plans')
+@Controller({ path: 'budgets/:budgetId', version: '2' })
+@UseGuards(SessionAuthGuard)
+@ApiCookieAuth('session')
+export class EnvelopePlanController {
+  constructor(
+    @Inject(EnvelopePlanApplicationService)
+    private readonly plans: EnvelopePlanApplicationService,
+    @Inject(AssignmentApplicationService)
+    private readonly assignments: AssignmentApplicationService,
+    @Inject(MovementApplicationService)
+    private readonly movements: MovementApplicationService,
+  ) {}
+
+  @Get('envelopes')
+  @ApiOkResponse({ type: EnvelopePlanListResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  async list(@Param('budgetId') budgetId: string, @Req() request: AuthenticatedRequest) {
+    return (await this.plans.list(contextOf(request).userId, budgetId)).body;
+  }
+
+  @Post('envelopes')
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiBody({ type: CreateEnvelopeRequest })
+  @ApiCreatedResponse({ type: EnvelopePlanResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  async create(
+    @Param('budgetId') budgetId: string,
+    @Body(new ZodValidationPipe(createEnvelopeSchema)) input: CreateEnvelopeInput,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (
+      await this.plans.create(contextOf(request).userId, budgetId, input, validKey(key), request.id)
+    ).body;
+  }
+
+  @Get('envelopes/:envelopeId')
+  @ApiOkResponse({ type: EnvelopePlanResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  async get(
+    @Param('budgetId') budgetId: string,
+    @Param('envelopeId') envelopeId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (await this.plans.get(contextOf(request).userId, budgetId, envelopeId)).body;
+  }
+
+  @Patch('envelopes/:envelopeId')
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiBody({ type: UpdateEnvelopeRequest })
+  @ApiOkResponse({ type: EnvelopePlanResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  async update(
+    @Param('budgetId') budgetId: string,
+    @Param('envelopeId') envelopeId: string,
+    @Body(new ZodValidationPipe(updateEnvelopeSchema)) input: UpdateEnvelopeInput,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (
+      await this.plans.update(
+        contextOf(request).userId,
+        budgetId,
+        envelopeId,
+        input,
+        validKey(key),
+        request.id,
+      )
+    ).body;
+  }
+
+  @Post('envelopes/:envelopeId/archive')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiOkResponse({ type: EnvelopePlanResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  async archive(
+    @Param('budgetId') budgetId: string,
+    @Param('envelopeId') envelopeId: string,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (
+      await this.plans.archive(
+        contextOf(request).userId,
+        budgetId,
+        envelopeId,
+        validKey(key),
+        request.id,
+      )
+    ).body;
+  }
+
+  @Get('envelopes/:envelopeId/history')
+  @ApiOkResponse({ type: EnvelopeHistoryListResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  async history(
+    @Param('budgetId') budgetId: string,
+    @Param('envelopeId') envelopeId: string,
+    @Query(new ZodValidationPipe(envelopeHistorySchema)) query: EnvelopeHistoryQuery,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (await this.plans.history(contextOf(request).userId, budgetId, envelopeId, query)).body;
+  }
+
+  @Post('assignments')
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiBody({ type: CreateAssignmentRequest })
+  @ApiCreatedResponse({ type: EnvelopePlanResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  async createAssignment(
+    @Param('budgetId') budgetId: string,
+    @Body(new ZodValidationPipe(createAssignmentSchema)) input: CreateAssignmentInput,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    const userId = contextOf(request).userId;
+    const operation = validKey(key);
+    if (input.sourceKind === 'FREE') {
+      return (
+        await this.assignments.assignFree(
+          userId,
+          budgetId,
+          toFreeInput(input),
+          operation,
+          request.id,
+        )
+      ).body;
+    }
+    if (input.incomeTransactionId !== undefined) {
+      return (
+        await this.assignments.assignIncome(
+          userId,
+          budgetId,
+          toIncomeInput(input),
+          operation,
+          request.id,
+        )
+      ).body;
+    }
+    throw new BadRequestException({
+      code: 'VALIDATION_FAILED',
+      detail: 'Для sourceKind=INCOME обязательно поле incomeTransactionId.',
+    });
+  }
+
+  @Patch('assignments/:assignmentId')
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiBody({ type: ReviseAssignmentRequest })
+  @ApiOkResponse({ type: EnvelopePlanResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  async reviseAssignment(
+    @Param('budgetId') budgetId: string,
+    @Param('assignmentId') assignmentId: string,
+    @Body(new ZodValidationPipe(reviseAssignmentSchema)) input: ReviseAssignmentInput,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (
+      await this.assignments.reviseAssignment(
+        contextOf(request).userId,
+        budgetId,
+        assignmentId,
+        input,
+        validKey(key),
+        request.id,
+      )
+    ).body;
+  }
+
+  @Delete('assignments/:assignmentId')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiOkResponse({ type: EnvelopePlanResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  async cancelAssignment(
+    @Param('budgetId') budgetId: string,
+    @Param('assignmentId') assignmentId: string,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (
+      await this.assignments.cancelAssignment(
+        contextOf(request).userId,
+        budgetId,
+        assignmentId,
+        validKey(key),
+        request.id,
+      )
+    ).body;
+  }
+
+  @Post('movements')
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiBody({ type: MoveEnvelopeRequest })
+  @ApiCreatedResponse({ type: EnvelopePlanResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  async move(
+    @Param('budgetId') budgetId: string,
+    @Body(new ZodValidationPipe(moveEnvelopeSchema)) input: MoveEnvelopeInput,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (
+      await this.movements.move(
+        contextOf(request).userId,
+        budgetId,
+        input,
+        validKey(key),
+        request.id,
+      )
+    ).body;
+  }
+}
+
+type CreateUnifiedAssignmentInput = {
+  envelopeId: string;
+  incomeTransactionId?: string | undefined;
+  periodId?: string | undefined;
+  amount: string;
+  sourceKind: 'FREE' | 'INCOME';
+};
+
+function toFreeInput(input: CreateUnifiedAssignmentInput): CreateEnvelopeAssignmentInput {
+  return {
+    envelopeId: input.envelopeId,
+    ...(input.periodId !== undefined ? { periodId: input.periodId } : {}),
+    amount: input.amount,
+    sourceKind: 'FREE',
+  };
+}
+
+function toIncomeInput(input: CreateUnifiedAssignmentInput): CreateIncomeAssignmentInput {
+  return {
+    incomeTransactionId: input.incomeTransactionId!,
+    envelopeId: input.envelopeId,
+    ...(input.periodId !== undefined ? { periodId: input.periodId } : {}),
+    amount: input.amount,
+  };
+}
+
+function validKey(value: string | undefined): string {
+  const key = value?.trim();
+  if (!key || key.length > 128 || !/^[\x20-\x7e]+$/.test(key)) {
+    throw new BadRequestException({
+      code: 'VALIDATION_FAILED',
+      detail: 'Некорректный ключ идемпотентности.',
+      fieldErrors: [
+        { field: 'Idempotency-Key', message: 'Укажите корректный ключ.', code: 'invalid' },
+      ],
+    });
+  }
+  return key;
+}
+
+function contextOf(request: AuthenticatedRequest): RequestContext {
+  if (!request.authContext) throw new Error('Missing authenticated request context.');
+  return request.authContext;
+}

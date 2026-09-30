@@ -29,7 +29,13 @@ const emails = {
   legacy: `v2-env-legacy-${randomUUID()}@harmofin.test`,
 };
 
-type RegisteredUser = { userId: string; workspaceId: string; budgetId: string };
+type RegisteredUser = {
+  userId: string;
+  workspaceId: string;
+  budgetId: string;
+  csrfToken: string;
+  cookie: string;
+};
 type Context = Record<keyof typeof emails, RegisteredUser>;
 
 let app: NestFastifyApplication;
@@ -44,6 +50,9 @@ let firstMandatory: string;
 let firstPeriod: string;
 let fundedEnvelope: string;
 let emptyEnvelope: string;
+let httpEnvelope: string;
+let fundedByHttp: string;
+let incomeEnvelope: string;
 
 describe('v2 envelopes: create, read, safe archive', () => {
   beforeAll(async () => {
@@ -85,8 +94,8 @@ describe('v2 envelopes: create, read, safe archive', () => {
       },
     });
 
-    await createAccount(ctx.owner?.budgetId, 30_000_000n);
-    outsiderEnvelope = await createEnvelope(ctx.outsider?.budgetId, 'CUSTOM', 'Чужой');
+    await createAccount(ctx.owner!.budgetId, 30_000_000n);
+    outsiderEnvelope = await createEnvelope(ctx.outsider!.budgetId, 'CUSTOM', 'Чужой');
 
     const prismaService = new PrismaService(databaseUrl);
     service = new EnvelopePlanApplicationService(
@@ -380,6 +389,624 @@ describe('v2 envelopes: create, read, safe archive', () => {
   });
 });
 
+describe('v2 envelopes: HTTP-контракт', () => {
+  const budgetUrl = (path: string) => `/api/v2/budgets/${ctx.owner!.budgetId ?? 'missing'}${path}`;
+
+  it('GET список: minor-строки, без физических полей; 401 и чужой бюджет 404', async () => {
+    const unauth = await server.inject({
+      method: 'GET',
+      url: budgetUrl('/envelopes'),
+      headers: { origin },
+    });
+    expect(unauth.statusCode).toBe(401);
+
+    const listed = await server.inject({
+      method: 'GET',
+      url: budgetUrl('/envelopes'),
+      headers: authHeaders(ctx.owner),
+    });
+    expect(listed.statusCode).toBe(200);
+    const body = listed.json<{ items: Array<Record<string, unknown>> }>();
+    expect(body.items.length).toBeGreaterThan(0);
+    for (const item of body.items) {
+      expect(typeof item.balanceMinor).toBe('string');
+      expect(typeof item.fundedMinor).toBe('string');
+      expect(typeof item.spentMinor).toBe('string');
+      expect('startingBalanceMinor' in item).toBe(false);
+      expect('cashMinor' in item).toBe(false);
+      expect('transferParts' in item).toBe(false);
+    }
+
+    const outsider = await server.inject({
+      method: 'GET',
+      url: budgetUrl('/envelopes'),
+      headers: authHeaders(ctx.outsider),
+    });
+    expect(outsider.statusCode).toBe(404);
+  });
+
+  it('POST конверт: 201, idempotent replay, конфликт ключа, unknown field, CSRF, legacy', async () => {
+    const url = budgetUrl('/envelopes');
+    const key = `http-env-create-${randomUUID()}`;
+    const payload = { name: 'HTTP резерв', envelopeType: 'RESERVE' };
+
+    const created = await server.inject({
+      method: 'POST',
+      url,
+      headers: mutationHeaders(ctx.owner, key),
+      payload,
+    });
+    expect(created.statusCode).toBe(201);
+    const createdBody = created.json<Record<string, unknown>>();
+    expect(createdBody.name).toBe('HTTP резерв');
+    expect(createdBody.envelopeType).toBe('RESERVE');
+    expect(createdBody.balanceMinor).toBe('0');
+    expect('startingBalanceMinor' in createdBody).toBe(false);
+    httpEnvelope = String(createdBody.id);
+
+    const replay = await server.inject({
+      method: 'POST',
+      url,
+      headers: mutationHeaders(ctx.owner, key),
+      payload,
+    });
+    expect(replay.statusCode).toBe(201);
+    expect(replay.json<Record<string, unknown>>().id).toBe(httpEnvelope);
+
+    const conflict = await server.inject({
+      method: 'POST',
+      url,
+      headers: mutationHeaders(ctx.owner, key),
+      payload: { name: 'Другой конверт', envelopeType: 'CUSTOM' },
+    });
+    expect(conflict.statusCode).toBe(409);
+    expect(conflict.json<Record<string, unknown>>().code).toBe('IDEMPOTENCY_CONFLICT');
+
+    const unknown = await server.inject({
+      method: 'POST',
+      url,
+      headers: mutationHeaders(ctx.owner, `http-env-unknown-${randomUUID()}`),
+      payload: { ...payload, wrong: 1 },
+    });
+    expect(unknown.statusCode).toBe(400);
+    const unknownBody = unknown.json<{
+      code?: string;
+      fieldErrors?: Array<{ field: string }>;
+    }>();
+    expect(unknownBody.code).toBe('VALIDATION_FAILED');
+    expect(unknownBody.fieldErrors?.some((f) => f.field === 'wrong')).toBe(true);
+
+    const noCsrf = await server.inject({
+      method: 'POST',
+      url,
+      headers: { ...authHeaders(ctx.owner), 'idempotency-key': `http-env-nocsrf-${randomUUID()}` },
+      payload,
+    });
+    expect(noCsrf.statusCode).toBe(403);
+    expect(noCsrf.json<Record<string, unknown>>().code).toBe('CSRF_INVALID');
+
+    const noKey = await server.inject({
+      method: 'POST',
+      url,
+      headers: { ...authHeaders(ctx.owner), 'x-csrf-token': ctx.owner?.csrfToken ?? '' },
+      payload,
+    });
+    expect(noKey.statusCode).toBe(400);
+    expect(noKey.json<Record<string, unknown>>().code).toBe('VALIDATION_FAILED');
+
+    const legacy = await server.inject({
+      method: 'POST',
+      url: `/api/v2/budgets/${ctx.legacy?.budgetId ?? 'missing'}/envelopes`,
+      headers: mutationHeaders(ctx.legacy, `http-env-legacy-${randomUUID()}`),
+      payload: { name: 'Наследие через HTTP', envelopeType: 'CUSTOM' },
+    });
+    expect(legacy.statusCode).toBe(409);
+    expect(legacy.json<Record<string, unknown>>().code).toBe('MODEL_VERSION_MISMATCH');
+  });
+
+  it('PATCH: переименование 200, чужой конверт 404, VIEWER 403, без сессии 401', async () => {
+    expect(httpEnvelope).toBeTruthy();
+    const url = budgetUrl(`/envelopes/${httpEnvelope}`);
+
+    const renamed = await server.inject({
+      method: 'PATCH',
+      url,
+      headers: mutationHeaders(ctx.owner, `http-env-rename-${randomUUID()}`),
+      payload: { name: 'HTTP резерв 2' },
+    });
+    expect(renamed.statusCode).toBe(200);
+    expect(renamed.json<Record<string, unknown>>().name).toBe('HTTP резерв 2');
+
+    const foreign = await server.inject({
+      method: 'PATCH',
+      url: budgetUrl(`/envelopes/${outsiderEnvelope}`),
+      headers: mutationHeaders(ctx.owner, `http-env-rename-foreign-${randomUUID()}`),
+      payload: { name: 'Взлом через HTTP' },
+    });
+    expect(foreign.statusCode).toBe(404);
+
+    const viewer = await server.inject({
+      method: 'POST',
+      url: budgetUrl('/envelopes'),
+      headers: mutationHeaders(ctx.viewer, `http-env-viewer-${randomUUID()}`),
+      payload: { name: 'Зрительский конверт', envelopeType: 'CUSTOM' },
+    });
+    expect(viewer.statusCode).toBe(403);
+
+    const unauth = await server.inject({
+      method: 'PATCH',
+      url,
+      headers: {
+        origin,
+        'idempotency-key': `http-env-unauth-${randomUUID()}`,
+        'x-csrf-token': 'x',
+      },
+      payload: { name: 'Без сессии' },
+    });
+    expect(unauth.statusCode).toBe(401);
+  });
+
+  it('назначение и архив через HTTP: 100 ₽, архив с остатком 409, перенос в свободные', async () => {
+    const created = await server.inject({
+      method: 'POST',
+      url: budgetUrl('/envelopes'),
+      headers: mutationHeaders(ctx.owner, `http-env-fund-${randomUUID()}`),
+      payload: { name: 'HTTP фонд', envelopeType: 'CUSTOM' },
+    });
+    expect(created.statusCode).toBe(201);
+    fundedByHttp = String(created.json<Record<string, unknown>>().id);
+
+    const assigned = await server.inject({
+      method: 'POST',
+      url: budgetUrl('/assignments'),
+      headers: mutationHeaders(ctx.owner, `http-assign-1-${randomUUID()}`),
+      payload: { envelopeId: fundedByHttp, amount: '100.00', sourceKind: 'FREE' },
+    });
+    expect(assigned.statusCode).toBe(201);
+    const assignedBody = assigned.json<Record<string, unknown>>();
+    expect(assignedBody.balanceMinor).toBe('10000');
+    expect(assignedBody.freeToAssignMinor).toBe('29989000');
+
+    const blocked = await server.inject({
+      method: 'POST',
+      url: budgetUrl(`/envelopes/${fundedByHttp}/archive`),
+      headers: mutationHeaders(ctx.owner, `http-archive-blocked-${randomUUID()}`),
+    });
+    expect(blocked.statusCode).toBe(409);
+    expect(blocked.json<Record<string, unknown>>().code).toBe('ENVELOPE_HAS_BALANCE');
+
+    const moved = await server.inject({
+      method: 'POST',
+      url: budgetUrl('/movements'),
+      headers: mutationHeaders(ctx.owner, `http-move-1-${randomUUID()}`),
+      payload: { sourceEnvelopeId: fundedByHttp, destinationEnvelopeId: null, amount: '100.00' },
+    });
+    expect(moved.statusCode).toBe(201);
+    const movedBody = moved.json<Record<string, unknown>>();
+    expect(movedBody.sourceBalanceMinor).toBe('0');
+    expect(movedBody.cashMinor).toBe('30000000');
+
+    const archived = await server.inject({
+      method: 'POST',
+      url: budgetUrl(`/envelopes/${fundedByHttp}/archive`),
+      headers: mutationHeaders(ctx.owner, `http-archive-ok-${randomUUID()}`),
+    });
+    expect(archived.statusCode).toBe(200);
+    expect(archived.json<Record<string, unknown>>().archivedAt).toBeTruthy();
+
+    const again = await server.inject({
+      method: 'POST',
+      url: budgetUrl(`/envelopes/${fundedByHttp}/archive`),
+      headers: mutationHeaders(ctx.owner, `http-archive-again-${randomUUID()}`),
+    });
+    expect(again.statusCode).toBe(400);
+  });
+
+  it('назначение дохода: лимит источника, чужой доход 404, incomeTransactionId только для INCOME', async () => {
+    const account = await prisma.account.findFirst({
+      where: { budgetId: ctx.owner!.budgetId },
+      select: { id: true },
+    });
+    expect(account?.id).toBeTruthy();
+
+    const categoryId = await prisma.category.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ctx.owner!.budgetId,
+        name: 'Зарплата',
+        categoryType: 'INCOME',
+        displayOrder: 0,
+      },
+    });
+    const income = await prisma.transaction.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ctx.owner!.budgetId,
+        transactionType: 'INCOME',
+        status: 'CONFIRMED',
+        accountingModelVersion: 2,
+        amountMinor: 20000n,
+        occurredOn: new Date(),
+        confirmedAt: new Date(),
+        categoryId: categoryId.id,
+        accountId: account!.id,
+        createdByUserId: ctx.owner!.userId,
+        updatedByUserId: ctx.owner!.userId,
+      },
+    });
+
+    const created = await server.inject({
+      method: 'POST',
+      url: budgetUrl('/envelopes'),
+      headers: mutationHeaders(ctx.owner, `http-env-income-${randomUUID()}`),
+      payload: { name: 'HTTP доход', envelopeType: 'SAVINGS_GOAL' },
+    });
+    expect(created.statusCode).toBe(201);
+    incomeEnvelope = String(created.json<Record<string, unknown>>().id);
+
+    const assigned = await server.inject({
+      method: 'POST',
+      url: budgetUrl('/assignments'),
+      headers: mutationHeaders(ctx.owner, `http-assign-income-${randomUUID()}`),
+      payload: {
+        envelopeId: incomeEnvelope,
+        incomeTransactionId: income.id,
+        sourceKind: 'INCOME',
+        amount: '100.00',
+      },
+    });
+    expect(assigned.statusCode).toBe(201);
+    const assignedBody = assigned.json<Record<string, unknown>>();
+    expect(assignedBody.balanceMinor).toBe('10000');
+    expect(assignedBody.freeToAssignMinor).toBe('30009000');
+
+    const exhausted = await server.inject({
+      method: 'POST',
+      url: budgetUrl('/assignments'),
+      headers: mutationHeaders(ctx.owner, `http-assign-income-2-${randomUUID()}`),
+      payload: {
+        envelopeId: incomeEnvelope,
+        incomeTransactionId: income.id,
+        sourceKind: 'INCOME',
+        amount: '100.01',
+      },
+    });
+    expect(exhausted.statusCode).toBe(409);
+    expect(exhausted.json<Record<string, unknown>>().code).toBe('SOURCE_EXHAUSTED');
+
+    const foreignIncomeAccount = await prisma.account.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ctx.outsider!.budgetId,
+        name: 'Счёт чужака',
+        accountType: 'BANK_ACCOUNT',
+        startingBalanceMinor: 10n,
+        accountingStartDate: new Date(Date.now() - 90 * 86_400_000),
+      },
+    });
+    const foreignCategory = await prisma.category.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ctx.outsider!.budgetId,
+        name: 'Доход чужака',
+        categoryType: 'INCOME',
+        displayOrder: 0,
+      },
+    });
+    const foreignIncome = await prisma.transaction.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ctx.outsider!.budgetId,
+        transactionType: 'INCOME',
+        status: 'CONFIRMED',
+        accountingModelVersion: 2,
+        amountMinor: 500n,
+        occurredOn: new Date(),
+        confirmedAt: new Date(),
+        categoryId: foreignCategory.id,
+        accountId: foreignIncomeAccount.id,
+        createdByUserId: ctx.outsider!.userId,
+        updatedByUserId: ctx.outsider!.userId,
+      },
+    });
+    const foreignRejected = await server.inject({
+      method: 'POST',
+      url: budgetUrl('/assignments'),
+      headers: mutationHeaders(ctx.owner, `http-assign-foreign-${randomUUID()}`),
+      payload: {
+        envelopeId: incomeEnvelope,
+        incomeTransactionId: foreignIncome.id,
+        sourceKind: 'INCOME',
+        amount: '5.00',
+      },
+    });
+    expect(foreignRejected.statusCode).toBe(404);
+
+    const freeWithIncome = await server.inject({
+      method: 'POST',
+      url: budgetUrl('/assignments'),
+      headers: mutationHeaders(ctx.owner, `http-assign-free-income-${randomUUID()}`),
+      payload: {
+        envelopeId: incomeEnvelope,
+        sourceKind: 'FREE',
+        incomeTransactionId: income.id,
+        amount: '1.00',
+      },
+    });
+    expect(freeWithIncome.statusCode).toBe(400);
+    expect(freeWithIncome.json<Record<string, unknown>>().code).toBe('VALIDATION_FAILED');
+
+    const incomeWithoutKind = await server.inject({
+      method: 'POST',
+      url: budgetUrl('/assignments'),
+      headers: mutationHeaders(ctx.owner, `http-assign-nokind-${randomUUID()}`),
+      payload: { envelopeId: incomeEnvelope, incomeTransactionId: income.id, amount: '1.00' },
+    });
+    expect(incomeWithoutKind.statusCode).toBe(400);
+  });
+
+  it('L03c: корректировка и отмена назначения через HTTP', async () => {
+    const created = await server.inject({
+      method: 'POST',
+      url: budgetUrl('/envelopes'),
+      headers: mutationHeaders(ctx.owner, `http-env-l03c-${randomUUID()}`),
+      payload: { name: 'HTTP корректировка', envelopeType: 'CUSTOM' },
+    });
+    expect(created.statusCode).toBe(201);
+    const envelopeId = String(created.json<Record<string, unknown>>().id);
+
+    const assigned = await server.inject({
+      method: 'POST',
+      url: budgetUrl('/assignments'),
+      headers: mutationHeaders(ctx.owner, `http-assign-l03c-${randomUUID()}`),
+      payload: { envelopeId, amount: '50.00', sourceKind: 'FREE' },
+    });
+    expect(assigned.statusCode).toBe(201);
+    const assignmentId = String(assigned.json<Record<string, unknown>>().assignmentId);
+
+    const url = budgetUrl(`/assignments/${assignmentId}`);
+    const revised = await server.inject({
+      method: 'PATCH',
+      url,
+      headers: mutationHeaders(ctx.owner, `http-revise-${randomUUID()}`),
+      payload: { amount: '20.00' },
+    });
+    expect(revised.statusCode).toBe(200);
+    const revisedBody = revised.json<Record<string, unknown>>();
+    expect(revisedBody.amountMinor).toBe('2000');
+    expect(revisedBody.balanceMinor).toBe('2000');
+
+    const overIncrease = await server.inject({
+      method: 'PATCH',
+      url,
+      headers: mutationHeaders(ctx.owner, `http-revise-over-${randomUUID()}`),
+      payload: { amount: '60.00' },
+    });
+    expect(overIncrease.statusCode).toBe(400);
+    expect(overIncrease.json<Record<string, unknown>>().code).toBe('VALIDATION_FAILED');
+
+    const unknown = await server.inject({
+      method: 'PATCH',
+      url: budgetUrl(`/assignments/${randomUUID()}`),
+      headers: mutationHeaders(ctx.owner, `http-revise-unknown-${randomUUID()}`),
+      payload: { amount: '1.00' },
+    });
+    expect(unknown.statusCode).toBe(404);
+
+    const cancelled = await server.inject({
+      method: 'DELETE',
+      url,
+      headers: mutationHeaders(ctx.owner, `http-cancel-${randomUUID()}`),
+    });
+    expect(cancelled.statusCode).toBe(200);
+    const cancelledBody = cancelled.json<Record<string, unknown>>();
+    expect(cancelledBody.balanceMinor).toBe('0');
+
+    const again = await server.inject({
+      method: 'DELETE',
+      url,
+      headers: mutationHeaders(ctx.owner, `http-cancel-again-${randomUUID()}`),
+      payload: {},
+    });
+    expect(again.statusCode).toBe(400);
+  });
+
+  it('история: назначения и переносы с cursor; расход; фильтр DELETED; 404 и невалидный cursor', async () => {
+    const created = await server.inject({
+      method: 'POST',
+      url: budgetUrl('/envelopes'),
+      headers: mutationHeaders(ctx.owner, `http-env-history-${randomUUID()}`),
+      payload: { name: 'HTTP история', envelopeType: 'CUSTOM' },
+    });
+    expect(created.statusCode).toBe(201);
+    const envelopeId = String(created.json<Record<string, unknown>>().id);
+    const historyUrl = budgetUrl(`/envelopes/${envelopeId}/history`);
+
+    const assigned = await server.inject({
+      method: 'POST',
+      url: budgetUrl('/assignments'),
+      headers: mutationHeaders(ctx.owner, `http-hist-assign-${randomUUID()}`),
+      payload: { envelopeId, amount: '10.00', sourceKind: 'FREE' },
+    });
+    expect(assigned.statusCode).toBe(201);
+    const moved = await server.inject({
+      method: 'POST',
+      url: budgetUrl('/movements'),
+      headers: mutationHeaders(ctx.owner, `http-hist-move-${randomUUID()}`),
+      payload: { sourceEnvelopeId: envelopeId, destinationEnvelopeId: null, amount: '10.00' },
+    });
+    expect(moved.statusCode).toBe(201);
+
+    const typeOfItem = (i: Record<string, unknown>) =>
+      typeof i.amountMinor === 'string' && typeof i.effectiveOn === 'string';
+
+    const page1 = await server.inject({
+      method: 'GET',
+      url: `${historyUrl}?limit=1`,
+      headers: authHeaders(ctx.owner),
+    });
+    expect(page1.statusCode).toBe(200);
+    const firstPage = page1.json<{
+      items: Array<Record<string, unknown>>;
+      nextCursor: string | null;
+    }>();
+    expect(firstPage.items).toHaveLength(1);
+    expect(typeOfItem(firstPage.items[0]!)).toBe(true);
+    expect(firstPage.nextCursor).toBeTruthy();
+
+    const page2 = await server.inject({
+      method: 'GET',
+      url: `${historyUrl}?limit=1&cursor=${encodeURIComponent(firstPage.nextCursor!)}`,
+      headers: authHeaders(ctx.owner),
+    });
+    expect(page2.statusCode).toBe(200);
+    const secondPage = page2.json<{
+      items: Array<Record<string, unknown>>;
+      nextCursor: string | null;
+    }>();
+    expect(secondPage.items).toHaveLength(1);
+    expect(secondPage.nextCursor === null).toBe(true);
+
+    const kinds = new Set([firstPage.items[0]!.kind, secondPage.items[0]!.kind]);
+    expect(kinds).toEqual(new Set(['MOVEMENT', 'ASSIGNMENT']));
+    expect(firstPage.items[0]!.amountMinor).toBe('1000');
+    expect(secondPage.items[0]!.amountMinor).toBe('1000');
+    expect(/^\d{4}-\d{2}-\d{2}$/.test(String(firstPage.items[0]!.effectiveOn))).toBe(true);
+
+    const account = await prisma.account.findFirst({
+      where: { budgetId: ctx.owner!.budgetId },
+      select: { id: true },
+    });
+    const categoryId = await prisma.category.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ctx.owner!.budgetId,
+        name: 'Транспорт',
+        categoryType: 'EXPENSE',
+        displayOrder: 0,
+      },
+    });
+    const spentTwoDaysAgo = new Date(Date.now() - 2 * 86_400_000);
+    await prisma.transaction.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ctx.owner!.budgetId,
+        transactionType: 'EXPENSE',
+        status: 'CONFIRMED',
+        accountingModelVersion: 2,
+        amountMinor: 2500n,
+        occurredOn: spentTwoDaysAgo,
+        confirmedAt: new Date(spentTwoDaysAgo.getTime() + 86_400_000),
+        categoryId: categoryId.id,
+        accountId: account!.id,
+        envelopeId,
+        createdByUserId: ctx.owner!.userId,
+        updatedByUserId: ctx.owner!.userId,
+      },
+    });
+    const full = await server.inject({
+      method: 'GET',
+      url: historyUrl,
+      headers: authHeaders(ctx.owner),
+    });
+    expect(full.statusCode).toBe(200);
+    const fullBody = full.json<{
+      items: Array<Record<string, unknown>>;
+      nextCursor: string | null;
+    }>();
+    expect(fullBody.items).toHaveLength(3);
+    expect(fullBody.items[fullBody.items.length - 1]!.kind).toBe('SPENDING');
+    expect(fullBody.items[fullBody.items.length - 1]!.amountMinor).toBe('2500');
+    expect(fullBody.nextCursor === null).toBe(true);
+
+    const created2 = await server.inject({
+      method: 'POST',
+      url: budgetUrl('/envelopes'),
+      headers: mutationHeaders(ctx.owner, `http-env-cancel-hist-${randomUUID()}`),
+      payload: { name: 'HTTP отмена', envelopeType: 'CUSTOM' },
+    });
+    expect(created2.statusCode).toBe(201);
+    const envelope2Id = String(created2.json<Record<string, unknown>>().id);
+    const assigned2 = await server.inject({
+      method: 'POST',
+      url: budgetUrl('/assignments'),
+      headers: mutationHeaders(ctx.owner, `http-hist-assign2-${randomUUID()}`),
+      payload: { envelopeId: envelope2Id, amount: '5.00', sourceKind: 'FREE' },
+    });
+    expect(assigned2.statusCode).toBe(201);
+    const assignment2Id = String(assigned2.json<Record<string, unknown>>().assignmentId);
+    const cancelled = await server.inject({
+      method: 'DELETE',
+      url: budgetUrl(`/assignments/${assignment2Id}`),
+      headers: mutationHeaders(ctx.owner, `http-hist-cancel-${randomUUID()}`),
+    });
+    expect(cancelled.statusCode).toBe(200);
+
+    const deleted = await server.inject({
+      method: 'GET',
+      url: `${budgetUrl(`/envelopes/${envelope2Id}/history`)}?status=DELETED`,
+      headers: authHeaders(ctx.owner),
+    });
+    expect(deleted.statusCode).toBe(200);
+    const deletedBody = deleted.json<{ items: Array<Record<string, unknown>> }>();
+    expect(deletedBody.items).toHaveLength(1);
+    expect(deletedBody.items[0]!.kind).toBe('ASSIGNMENT');
+
+    const defaultAfterCancel = await server.inject({
+      method: 'GET',
+      url: budgetUrl(`/envelopes/${envelope2Id}/history`),
+      headers: authHeaders(ctx.owner),
+    });
+    expect(defaultAfterCancel.statusCode).toBe(200);
+    expect(defaultAfterCancel.json<{ items: Array<unknown> }>().items).toHaveLength(0);
+
+    const badCursor = await server.inject({
+      method: 'GET',
+      url: `${historyUrl}?cursor=не-баз-шесть`,
+      headers: authHeaders(ctx.owner),
+    });
+    expect(badCursor.statusCode).toBe(400);
+
+    const missing = await server.inject({
+      method: 'GET',
+      url: budgetUrl(`/envelopes/${randomUUID()}/history`),
+      headers: authHeaders(ctx.owner),
+    });
+    expect(missing.statusCode).toBe(404);
+  });
+
+  it('v1 GET не изменился; OpenAPI содержит v2-пути', async () => {
+    await createEnvelope(ctx.viewer!.budgetId, 'CUSTOM', 'V1 legacy');
+    const v1 = await server.inject({
+      method: 'GET',
+      url: `/api/v1/budgets/${ctx.viewer!.budgetId}/envelopes`,
+      headers: authHeaders(ctx.viewer),
+    });
+    expect(v1.statusCode).toBe(200);
+    const v1Body = v1.json<Array<Record<string, unknown>>>();
+    expect(v1Body.length).toBeGreaterThan(0);
+    expect('startingBalanceMinor' in v1Body[0]!).toBe(true);
+
+    const openApi = await server.inject({ method: 'GET', url: '/openapi.json' });
+    expect(openApi.statusCode).toBe(200);
+    const document = openApi.json<{ paths: Record<string, unknown> }>();
+    expect(document.paths['/api/v2/budgets/{budgetId}/envelopes']).toBeDefined();
+    expect(document.paths['/api/v2/budgets/{budgetId}/assignments']).toBeDefined();
+  });
+});
+
+function authHeaders(user: RegisteredUser | undefined): Record<string, string> {
+  return { origin, cookie: `harmofin_session=${user?.cookie ?? ''}` };
+}
+
+function mutationHeaders(user: RegisteredUser | undefined, key: string): Record<string, string> {
+  return {
+    ...authHeaders(user),
+    'x-csrf-token': user?.csrfToken ?? '',
+    'idempotency-key': key,
+  };
+}
+
 afterAll(async () => {
   for (const key of Object.keys(ctx) as Array<keyof Context>) {
     await cleanupUser(ctx[key]?.userId ?? '');
@@ -421,10 +1048,17 @@ async function register(email: string): Promise<RegisteredUser> {
     budget: { id: string };
     csrfToken: string;
   }>();
+  const setCookieRaw = response.headers['set-cookie'];
+  const setCookie = Array.isArray(setCookieRaw) ? setCookieRaw.join('; ') : (setCookieRaw ?? '');
+  const match = /harmofin_session=([^;]+)/.exec(setCookie);
+  const cookie = match ? decodeURIComponent(match[1]!) : '';
+  expect(cookie).not.toHaveLength(0);
   return {
     userId: body.user.id,
     workspaceId: body.workspace.id,
     budgetId: body.budget.id,
+    csrfToken: body.csrfToken,
+    cookie,
   };
 }
 

@@ -13,8 +13,16 @@ import {
 } from '../common/reference-data/reference-data.errors.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { AssignmentBalanceRepository } from './assignment-balance.repository.js';
-import { EnvelopePlanRepository } from './envelope-plan.repository.js';
-import type { CreateEnvelopeInput, UpdateEnvelopeInput } from './envelope-plan.schemas.js';
+import {
+  EnvelopePlanRepository,
+  type EnvelopeHistoryCursor,
+  type EnvelopeHistoryItemRecord,
+} from './envelope-plan.repository.js';
+import type {
+  CreateEnvelopeInput,
+  EnvelopeHistoryQuery,
+  UpdateEnvelopeInput,
+} from './envelope-plan.schemas.js';
 
 const RUB_SCALE = 2;
 const CREATE_ENVELOPE_OPERATION = 'CREATE_ENVELOPE';
@@ -59,6 +67,40 @@ function envelopeHasBalance(): ConflictException {
     code: 'ENVELOPE_HAS_BALANCE',
     detail: 'Конверт не пуст: сначала доведите начисления и переносы до нуля.',
   });
+}
+
+const HISTORY_PAGE_LIMIT = 20;
+const HISTORY_PAGE_LIMIT_MAX = 100;
+const CURSOR_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const CURSOR_ID_PATTERN =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+function invalidCursor(): BadRequestException {
+  return new BadRequestException({
+    code: 'VALIDATION_FAILED',
+    detail: 'Некорректный курсор постраничного чтения.',
+  });
+}
+
+function encodeHistoryCursor(cursor: EnvelopeHistoryCursor): string {
+  return Buffer.from(`${cursor.date}|${cursor.id}`, 'utf8').toString('base64url');
+}
+
+function decodeHistoryCursor(cursor: string): EnvelopeHistoryCursor {
+  const text = Buffer.from(cursor, 'base64url').toString('utf8');
+  const separator = text.indexOf('|');
+  const date = text.slice(0, separator);
+  const id = text.slice(separator + 1);
+  if (
+    separator <= 0 ||
+    separator + 1 >= text.length ||
+    !CURSOR_DATE_PATTERN.test(date) ||
+    !CURSOR_ID_PATTERN.test(id) ||
+    encodeHistoryCursor({ date, id }) !== cursor
+  ) {
+    throw invalidCursor();
+  }
+  return { date, id };
 }
 
 @Injectable()
@@ -314,6 +356,41 @@ export class EnvelopePlanApplicationService {
           };
         },
       );
+    });
+  }
+
+  async history(
+    userId: string,
+    budgetId: string,
+    envelopeId: string,
+    query: EnvelopeHistoryQuery,
+  ): Promise<{
+    status: number;
+    body: { items: EnvelopeHistoryItemRecord[]; nextCursor: string | null };
+  }> {
+    await this.planModelPolicy.requireModel(userId, budgetId, 2);
+    const limit = Math.min(Math.max(query.limit ?? HISTORY_PAGE_LIMIT, 1), HISTORY_PAGE_LIMIT_MAX);
+    const status = query.status ?? 'CONFIRMED';
+    const cursor = query.cursor ? decodeHistoryCursor(query.cursor) : null;
+
+    return this.prisma.$transaction(async (tx) => {
+      await this.repository.findEnvelope(tx, budgetId, envelopeId);
+      const rows = await this.repository.listHistory(
+        tx,
+        budgetId,
+        envelopeId,
+        limit + 1,
+        cursor,
+        status,
+      );
+      const hasMore = rows.length > limit;
+      const page = rows.slice(0, limit);
+      const last = page[limit - 1];
+      const nextCursor =
+        hasMore && last !== undefined
+          ? encodeHistoryCursor({ date: last.effectiveOn, id: last.id })
+          : null;
+      return { status: 200, body: { items: page, nextCursor } };
     });
   }
 

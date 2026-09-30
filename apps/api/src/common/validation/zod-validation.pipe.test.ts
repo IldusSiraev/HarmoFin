@@ -21,7 +21,7 @@ describe('ZodValidationPipe', () => {
           fieldErrors: expect.arrayContaining([
             expect.objectContaining({ field: 'email' }),
             expect.objectContaining({ field: 'password' }),
-            expect.objectContaining({ field: '' }),
+            expect.objectContaining({ field: 'extra' }),
           ]),
         }),
       }),

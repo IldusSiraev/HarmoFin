@@ -50,6 +50,18 @@ export type ArchiveEnvelopeParams = {
   requestId?: string | undefined;
 };
 
+export type EnvelopeHistoryItemRecord = {
+  kind: 'ASSIGNMENT' | 'MOVEMENT' | 'SPENDING';
+  id: string;
+  amountMinor: string;
+  effectiveOn: string;
+};
+
+export type EnvelopeHistoryCursor = {
+  date: string;
+  id: string;
+};
+
 const ENVELOPE_SELECT = {
   id: true,
   budgetId: true,
@@ -228,6 +240,75 @@ export class EnvelopePlanRepository {
       },
     });
     return updated;
+  }
+
+  async listHistory(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    envelopeId: string,
+    limit: number,
+    cursor: EnvelopeHistoryCursor | null,
+    status: 'CONFIRMED' | 'DELETED',
+  ): Promise<EnvelopeHistoryItemRecord[]> {
+    const rows = await tx.$queryRaw`
+      WITH combined AS (
+        SELECT
+          'ASSIGNMENT'::text AS kind,
+          a."id" AS id,
+          a."amount_minor"::text AS "amountMinor",
+          TO_CHAR(a."effective_on", 'YYYY-MM-DD') AS "effectiveOn"
+        FROM "envelope_assignments" AS a
+        WHERE a."budget_id" = ${budgetId}::uuid
+          AND a."envelope_id" = ${envelopeId}::uuid
+          AND (CASE WHEN ${status} = 'DELETED' THEN a."status" = 'DELETED' ELSE a."status" = 'CONFIRMED' END)
+        UNION ALL
+        SELECT
+          'MOVEMENT'::text,
+          m."id",
+          m."amount_minor"::text,
+          TO_CHAR(m."effective_on", 'YYYY-MM-DD')
+        FROM "envelope_movements" AS m
+        WHERE m."budget_id" = ${budgetId}::uuid
+          AND (
+            m."source_envelope_id" = ${envelopeId}::uuid
+            OR m."destination_envelope_id" = ${envelopeId}::uuid
+          )
+          AND (CASE WHEN ${status} = 'DELETED' THEN m."status" = 'DELETED' ELSE m."status" = 'CONFIRMED' END)
+        UNION ALL
+        SELECT
+          'SPENDING'::text,
+          t."id",
+          t."amount_minor"::text,
+          TO_CHAR(t."occurred_on", 'YYYY-MM-DD')
+        FROM "transactions" AS t
+        WHERE t."budget_id" = ${budgetId}::uuid
+          AND t."envelope_id" = ${envelopeId}::uuid
+          AND t."transaction_type" = 'EXPENSE'
+          AND t."accounting_model_version" = 2
+          AND (
+            CASE
+              WHEN ${status} = 'DELETED'
+                THEN t."status" = 'DELETED' OR t."deleted_at" IS NOT NULL
+              ELSE t."status" = 'CONFIRMED' AND t."deleted_at" IS NULL
+            END
+          )
+      )
+      SELECT combined.kind, combined.id, combined."amountMinor", combined."effectiveOn"
+      FROM combined
+      ${
+        cursor
+          ? Prisma.sql`
+            WHERE (
+              combined."effectiveOn",
+              combined.id
+            ) < (${cursor.date}::text, ${cursor.id}::uuid)
+          `
+          : Prisma.empty
+      }
+      ORDER BY combined."effectiveOn" DESC, combined.id DESC
+      LIMIT ${limit}
+    `;
+    return rows as unknown as EnvelopeHistoryItemRecord[];
   }
 
   async setArchived(

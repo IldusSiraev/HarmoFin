@@ -12,6 +12,7 @@ import type { ApiConfig } from './config/env.js';
 import { CycleModule } from './cycles/cycle.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { DatabaseModule } from './database/database.module.js';
+import { EnvelopePlanModule } from './envelope-plans/envelope-plan.module.js';
 import { EnvelopeModule } from './envelopes/envelope.module.js';
 import { ExportsModule } from './exports/exports.module.js';
 import { HealthModule } from './health/health.module.js';
@@ -46,6 +47,7 @@ export class AppModule {
         IncomeAllocationModule.register(),
         TransferModule.register(),
         EnvelopeReallocationModule.register(),
+        EnvelopePlanModule.register(),
         PlansModule.register(),
         NotificationsModule.register(),
         ReportModule.register(),
