@@ -37,6 +37,14 @@ export class FinancialBalanceRepository {
               AND part."source_account_id" = ${accountId}::uuid
               AND transfer."status" = 'CONFIRMED'
           ), 0)
+          - COALESCE((
+            SELECT SUM(transfer."total_minor")
+            FROM "transfers" AS transfer
+            WHERE transfer."budget_id" = ${budgetId}::uuid
+              AND transfer."source_account_id" = ${accountId}::uuid
+              AND transfer."mode" = 'ACCOUNT_ONLY'
+              AND transfer."status" = 'CONFIRMED'
+          ), 0)
           + COALESCE((
             SELECT SUM(part."amount_minor")
             FROM "transfer_parts" AS part
@@ -46,6 +54,14 @@ export class FinancialBalanceRepository {
             WHERE part."budget_id" = ${budgetId}::uuid
               AND transfer."budget_id" = ${budgetId}::uuid
               AND part."destination_account_id" = ${accountId}::uuid
+              AND transfer."status" = 'CONFIRMED'
+          ), 0)
+          + COALESCE((
+            SELECT SUM(transfer."total_minor")
+            FROM "transfers" AS transfer
+            WHERE transfer."budget_id" = ${budgetId}::uuid
+              AND transfer."destination_account_id" = ${accountId}::uuid
+              AND transfer."mode" = 'ACCOUNT_ONLY'
               AND transfer."status" = 'CONFIRMED'
           ), 0)
         )::BIGINT
