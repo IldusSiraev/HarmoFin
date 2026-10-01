@@ -8,7 +8,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
 import { AssignmentBalanceRepository } from '../src/envelope-plans/assignment-balance.repository.js';
+import { IdempotencyService } from '../src/common/idempotency/idempotency.service.js';
+import { PlanModelPolicy } from '../src/common/plan-model/plan-model.policy.js';
+import { PrismaService } from '../src/database/prisma.service.js';
 import { FundingRuleRepository } from '../src/envelope-plans/funding-rule.repository.js';
+import { IncomeCategorySuggestionApplicationService } from '../src/funding/income-category-suggestion.application.service.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -51,6 +55,11 @@ const NEXT_FIRST_START = '2026-10-01';
 const NEXT_FIRST_END = '2026-10-14';
 
 const repository = new FundingRuleRepository();
+const suggestionService = new IncomeCategorySuggestionApplicationService(
+  new PrismaService(databaseUrl),
+  new IdempotencyService(),
+  new PlanModelPolicy(new PrismaService(databaseUrl)),
+);
 
 describe('v2 funding rules and period target snapshots', () => {
   beforeAll(async () => {
@@ -744,6 +753,178 @@ describe('v2 funding rules and period target snapshots', () => {
       expect(noKey.statusCode).toBe(400);
     }
     expect(await ruleCount(firstEnvelope)).toBe(1);
+  });
+
+  describe('income-category suggestion setting (service, no HTTP)', () => {
+    const settingOf = (budgetId: string) =>
+      prisma.budget.findUniqueOrThrow({
+        where: { id: budgetId },
+        select: {
+          incomeAllocationRuleEnabled: true,
+          incomeAllocationSourceCategoryId: true,
+          incomeAllocationTargetEnvelopeId: true,
+        },
+      });
+    const suggestionAudit = (budgetId: string) =>
+      prisma.auditEvent.count({
+        where: { budgetId, entityType: 'income_category_suggestion' },
+      });
+    const put = (
+      user: RegisteredUser | undefined,
+      budgetId: string | undefined,
+      body: { enabled: boolean; sourceCategoryId: string | null; targetEnvelopeId: string | null },
+      key = `sugg-${randomUUID()}`,
+    ) => suggestionService.put(user!.userId, budgetId!, body, key);
+    const makeCategory = (
+      budgetId: string,
+      name: string,
+      categoryType: 'INCOME' | 'EXPENSE',
+      archived = false,
+    ) =>
+      prisma.category.create({
+        data: {
+          id: randomUUID(),
+          budgetId,
+          name,
+          categoryType,
+          displayOrder: 900,
+          ...(archived ? { archivedAt: new Date() } : {}),
+        },
+      });
+
+    it('владелец задаёт Шабашка->Ремонт; доход 12000 не создаёт assignment; replay без второго audit', async () => {
+      const budgetId = ctx.owner!.budgetId;
+      const category = await makeCategory(budgetId, 'Шабашка', 'INCOME');
+      const repair = await createEnvelope(budgetId, 'SAVINGS_GOAL', 'Ремонт');
+      const account = await prisma.account.findFirstOrThrow({ where: { budgetId } });
+      const assignmentsBefore = await prisma.envelopeAssignment.count({ where: { budgetId } });
+      const auditBefore = await suggestionAudit(budgetId);
+
+      const key = `sugg-ok-${randomUUID()}`;
+      const body = { enabled: true, sourceCategoryId: category.id, targetEnvelopeId: repair };
+      const saved = await put(ctx.owner, budgetId, body, key);
+      expect(saved.status).toBe(200);
+      expect(saved.body).toEqual(body);
+      expect(await settingOf(budgetId)).toEqual({
+        incomeAllocationRuleEnabled: true,
+        incomeAllocationSourceCategoryId: category.id,
+        incomeAllocationTargetEnvelopeId: repair,
+      });
+      expect(await suggestionAudit(budgetId)).toBe(auditBefore + 1);
+
+      await prisma.transaction.create({
+        data: {
+          id: randomUUID(),
+          budgetId,
+          transactionType: 'INCOME',
+          status: 'CONFIRMED',
+          accountingModelVersion: 2,
+          amountMinor: 1_200_000n,
+          occurredOn: new Date('2026-09-20'),
+          confirmedAt: new Date('2026-09-20T10:00:00Z'),
+          categoryId: category.id,
+          accountId: account.id,
+          createdByUserId: ctx.owner!.userId,
+          updatedByUserId: ctx.owner!.userId,
+        },
+      });
+      expect(await prisma.envelopeAssignment.count({ where: { budgetId } })).toBe(
+        assignmentsBefore,
+      );
+      expect(await prisma.incomeAllocation.count({ where: { budgetId } })).toBe(0);
+
+      const replay = await put(ctx.owner, budgetId, body, key);
+      expect(replay).toEqual(saved);
+      expect(await suggestionAudit(budgetId)).toBe(auditBefore + 1);
+
+      const conflict = await put(ctx.owner, budgetId, { ...body, enabled: false }, key).catch(
+        (error: { getStatus(): number; getResponse(): { code: string } }) => error,
+      );
+      expect(conflict).toMatchObject({ response: { code: 'IDEMPOTENCY_CONFLICT' } });
+
+      const cleared = await put(ctx.owner, budgetId, {
+        enabled: false,
+        sourceCategoryId: null,
+        targetEnvelopeId: null,
+      });
+      expect(cleared.body).toEqual({
+        enabled: false,
+        sourceCategoryId: null,
+        targetEnvelopeId: null,
+      });
+      expect(await settingOf(budgetId)).toEqual({
+        incomeAllocationRuleEnabled: false,
+        incomeAllocationSourceCategoryId: null,
+        incomeAllocationTargetEnvelopeId: null,
+      });
+      expect(await suggestionAudit(budgetId)).toBe(auditBefore + 2);
+    });
+
+    it('валидация: чужое 404, архив/тип 422, enabled требует обе ссылки, 400', async () => {
+      const budgetId = ctx.owner!.budgetId;
+      const income = await makeCategory(budgetId, 'Подработка', 'INCOME');
+      const archivedIncome = await makeCategory(budgetId, 'Старый доход', 'INCOME', true);
+      const expense = await makeCategory(budgetId, 'Еда', 'EXPENSE');
+      const foreignCategory = await makeCategory(ctx.outsider!.budgetId, 'Чужой доход', 'INCOME');
+      const archivedEnvelope = await createEnvelope(budgetId, 'SAVINGS_GOAL', 'Архивный');
+      await prisma.envelope.update({
+        where: { id: archivedEnvelope },
+        data: { archivedAt: new Date() },
+      });
+      const before = await settingOf(budgetId);
+      const auditBefore = await suggestionAudit(budgetId);
+      const status = async (
+        sourceCategoryId: string | null,
+        targetEnvelopeId: string | null,
+        enabled = true,
+      ): Promise<number> => {
+        try {
+          await put(ctx.owner, budgetId, { enabled, sourceCategoryId, targetEnvelopeId });
+          return 200;
+        } catch (error) {
+          return (error as { getStatus(): number }).getStatus();
+        }
+      };
+      expect(await status(foreignCategory.id, savingsEnvelope)).toBe(404);
+      expect(await status(randomUUID(), savingsEnvelope)).toBe(404);
+      expect(await status(income.id, outsiderEnvelope)).toBe(404);
+      expect(await status(archivedIncome.id, savingsEnvelope)).toBe(422);
+      expect(await status(expense.id, savingsEnvelope)).toBe(422);
+      expect(await status(income.id, archivedEnvelope)).toBe(422);
+      expect(await status(income.id, null)).toBe(400);
+      expect(await status(null, savingsEnvelope)).toBe(400);
+      expect(await status(null, null)).toBe(400);
+      expect(await settingOf(budgetId)).toEqual(before);
+      expect(await suggestionAudit(budgetId)).toBe(auditBefore);
+    });
+
+    it('VIEWER/EDITOR 403, не участник 404, v1 бюджет 409 и не тронут', async () => {
+      const budgetId = ctx.owner!.budgetId;
+      const income = await makeCategory(budgetId, 'Премия', 'INCOME');
+      const before = await settingOf(budgetId);
+      const body = {
+        enabled: true,
+        sourceCategoryId: income.id,
+        targetEnvelopeId: savingsEnvelope,
+      };
+      for (const user of [ctx.viewer, ctx.editor]) {
+        await expect(put(user, budgetId, body)).rejects.toMatchObject({ status: 403 });
+      }
+      await expect(put(ctx.outsider, budgetId, body)).rejects.toMatchObject({ status: 404 });
+      expect(await settingOf(budgetId)).toEqual(before);
+
+      const v1Budget = ctx.viewer!.budgetId;
+      const v1Category = await makeCategory(v1Budget, 'Доход v1', 'INCOME');
+      const v1Before = await settingOf(v1Budget);
+      await expect(
+        put(ctx.viewer, v1Budget, {
+          enabled: true,
+          sourceCategoryId: v1Category.id,
+          targetEnvelopeId: savingsEnvelope,
+        }),
+      ).rejects.toMatchObject({ response: { code: 'MODEL_VERSION_MISMATCH' } });
+      expect(await settingOf(v1Budget)).toEqual(v1Before);
+    });
   });
 
   it('OpenAPI описывает оба маршрута, v1 не затронут', async () => {
