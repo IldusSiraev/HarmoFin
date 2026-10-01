@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
@@ -107,7 +108,7 @@ export class TransactionV2ApplicationService {
     idempotencyKey: string,
     requestId?: string,
   ): Promise<TransactionV2View> {
-    const occurredOn = parseDate(input.occurredOn);
+    parseDate(input.occurredOn);
     const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
 
     const requestHash = createHash('sha256')
@@ -138,159 +139,179 @@ export class TransactionV2ApplicationService {
           operation: TRANSACTION_V2_CREATE_OPERATION,
           requestHash,
         },
-        async () => {
-          const role = await this.repository.findActiveMemberRole(tx, model.workspaceId, userId);
-          if (role !== 'OWNER' && role !== 'EDITOR') {
-            throw forbidden();
-          }
-
-          const amount = parseDecimalToMinorUnits(input.amount, RUB_SCALE, false);
-          if (amount <= 0n) {
-            throw validationFailed('Сумма операции должна быть больше нуля.');
-          }
-          if (input.transactionType === 'INCOME' && input.envelopeId !== null) {
-            throw invalidReference();
-          }
-
-          const budget = await this.repository.findBudgetSettings(tx, budgetId);
-          if (!budget) {
-            throw resourceNotFound();
-          }
-
-          const refs = await this.repository.findActiveV2References(
+        async () => ({
+          status: 201,
+          body: await this.createInTransaction(
             tx,
-            budgetId,
-            input.accountId,
-            input.categoryId,
-            input.envelopeId,
-          );
-          if (!refs.account || !refs.category || (input.envelopeId !== null && !refs.envelope)) {
-            throw resourceNotFound();
-          }
-          if (
-            refs.account.currency !== 'RUB' ||
-            refs.account.scale !== RUB_SCALE ||
-            refs.category.categoryType !== input.transactionType ||
-            (refs.envelope &&
-              (refs.envelope.currency !== 'RUB' || refs.envelope.scale !== RUB_SCALE))
-          ) {
-            throw invalidReference();
-          }
-
-          const confirmed = input.status === 'CONFIRMED';
-          const today = todayInTimezone(new Date(), budget.timezone);
-          if (confirmed && input.occurredOn > today) {
-            throw validationFailed('Нельзя подтвердить факт с будущей датой.');
-          }
-          if (
-            confirmed &&
-            input.transactionType === 'EXPENSE' &&
-            refs.envelope?.envelopeType === 'MANDATORY_EXPENSES'
-          ) {
-            throw mandatoryPaymentRequired();
-          }
-
-          await this.repository.lockAccount(tx, budgetId, refs.account.id);
-
-          if (confirmed && input.transactionType === 'EXPENSE' && !budget.allowNegativeBalance) {
-            const cash = await this.repository.accountCashBalance(tx, budgetId, refs.account.id);
-            if (cash < amount) {
-              throw insufficientBalance();
-            }
-          }
-
-          // Period envelope: spending is scoped to the concrete period covering occurredOn.
-          let periodId: string | null = null;
-          if (confirmed && input.transactionType === 'EXPENSE' && refs.envelope?.periodSlot) {
-            const periods = await this.repository.findPeriodsCovering(
-              tx,
-              budgetId,
-              refs.envelope.id,
-              occurredOn,
-            );
-            if (periods.length > 1) {
-              throw ambiguousPeriod();
-            }
-            if (periods[0]) {
-              periodId = periods[0].id;
-            } else {
-              const range = cycleAndPeriodFor(budget, input.occurredOn).period;
-              const created = await this.repository.createUnsetPeriod(tx, {
-                budgetId,
-                workspaceId: model.workspaceId,
-                envelopeId: refs.envelope.id,
-                startsOn: parseDate(range.start),
-                endsOn: parseDate(range.end),
-                userId,
-                requestId,
-              });
-              periodId = created.id;
-            }
-          }
-
-          const transaction = await this.repository.create(
-            tx,
-            {
-              budgetId,
-              transactionType: input.transactionType,
-              status: input.status,
-              amountMinor: amount,
-              occurredOn,
-              accountId: refs.account.id,
-              categoryId: refs.category.id,
-              envelopeId: refs.envelope?.id ?? null,
-              sourceDescription: null,
-              merchantName: null,
-              isPlanned: false,
-              comment: input.comment,
-              confirmedAt: confirmed ? new Date() : null,
-              createdByUserId: userId,
-              updatedByUserId: userId,
-              accountingModelVersion: 2,
-            },
             userId,
+            budgetId,
+            model.workspaceId,
+            input,
             requestId,
-          );
-
-          const warnings: TransactionV2Warning[] = [];
-          if (confirmed && input.transactionType === 'EXPENSE' && refs.envelope) {
-            const assignment = await this.assignmentBalances.balance(
-              tx,
-              budgetId,
-              refs.envelope.id,
-              periodId,
-              new Date(),
-            );
-            if (assignment.balance < 0n) {
-              warnings.push({
-                code: 'ENVELOPE_BALANCE_INSUFFICIENT',
-                detail: 'Назначение конверта меньше расхода; операция проведена.',
-              });
-            }
-          }
-
-          return {
-            status: 201,
-            body: {
-              id: transaction.id,
-              budgetId,
-              transactionType: transaction.transactionType,
-              status: input.status,
-              amountMinor: formatMinorUnits(transaction.amountMinor),
-              currency: transaction.currency,
-              occurredOn: input.occurredOn,
-              accountId: transaction.accountId,
-              categoryId: transaction.categoryId,
-              envelopeId: transaction.envelopeId,
-              comment: transaction.comment,
-              accountBalanceMinor: formatMinorUnits(transaction.accountCurrentBalanceMinor),
-              warnings,
-            },
-          };
-        },
+          ),
+        }),
       );
     });
 
     return result.body;
+  }
+
+  /**
+   * Creates one v2 fact inside the caller's transaction. The caller must already hold the budget
+   * lock (and, if needed, the idempotency scope); this performs role, reference and balance checks.
+   */
+  async createInTransaction(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    budgetId: string,
+    workspaceId: string,
+    input: TransactionV2Input,
+    requestId?: string,
+  ): Promise<TransactionV2View> {
+    const occurredOn = parseDate(input.occurredOn);
+    const role = await this.repository.findActiveMemberRole(tx, workspaceId, userId);
+    if (role !== 'OWNER' && role !== 'EDITOR') {
+      throw forbidden();
+    }
+
+    const amount = parseDecimalToMinorUnits(input.amount, RUB_SCALE, false);
+    if (amount <= 0n) {
+      throw validationFailed('Сумма операции должна быть больше нуля.');
+    }
+    if (input.transactionType === 'INCOME' && input.envelopeId !== null) {
+      throw invalidReference();
+    }
+
+    const budget = await this.repository.findBudgetSettings(tx, budgetId);
+    if (!budget) {
+      throw resourceNotFound();
+    }
+
+    const refs = await this.repository.findActiveV2References(
+      tx,
+      budgetId,
+      input.accountId,
+      input.categoryId,
+      input.envelopeId,
+    );
+    if (!refs.account || !refs.category || (input.envelopeId !== null && !refs.envelope)) {
+      throw resourceNotFound();
+    }
+    if (
+      refs.account.currency !== 'RUB' ||
+      refs.account.scale !== RUB_SCALE ||
+      refs.category.categoryType !== input.transactionType ||
+      (refs.envelope && (refs.envelope.currency !== 'RUB' || refs.envelope.scale !== RUB_SCALE))
+    ) {
+      throw invalidReference();
+    }
+
+    const confirmed = input.status === 'CONFIRMED';
+    const today = todayInTimezone(new Date(), budget.timezone);
+    if (confirmed && input.occurredOn > today) {
+      throw validationFailed('Нельзя подтвердить факт с будущей датой.');
+    }
+    if (
+      confirmed &&
+      input.transactionType === 'EXPENSE' &&
+      refs.envelope?.envelopeType === 'MANDATORY_EXPENSES'
+    ) {
+      throw mandatoryPaymentRequired();
+    }
+
+    await this.repository.lockAccount(tx, budgetId, refs.account.id);
+
+    if (confirmed && input.transactionType === 'EXPENSE' && !budget.allowNegativeBalance) {
+      const cash = await this.repository.accountCashBalance(tx, budgetId, refs.account.id);
+      if (cash < amount) {
+        throw insufficientBalance();
+      }
+    }
+
+    // Period envelope: spending is scoped to the concrete period covering occurredOn.
+    let periodId: string | null = null;
+    if (confirmed && input.transactionType === 'EXPENSE' && refs.envelope?.periodSlot) {
+      const periods = await this.repository.findPeriodsCovering(
+        tx,
+        budgetId,
+        refs.envelope.id,
+        occurredOn,
+      );
+      if (periods.length > 1) {
+        throw ambiguousPeriod();
+      }
+      if (periods[0]) {
+        periodId = periods[0].id;
+      } else {
+        const range = cycleAndPeriodFor(budget, input.occurredOn).period;
+        const created = await this.repository.createUnsetPeriod(tx, {
+          budgetId,
+          workspaceId,
+          envelopeId: refs.envelope.id,
+          startsOn: parseDate(range.start),
+          endsOn: parseDate(range.end),
+          userId,
+          requestId,
+        });
+        periodId = created.id;
+      }
+    }
+
+    const transaction = await this.repository.create(
+      tx,
+      {
+        budgetId,
+        transactionType: input.transactionType,
+        status: input.status,
+        amountMinor: amount,
+        occurredOn,
+        accountId: refs.account.id,
+        categoryId: refs.category.id,
+        envelopeId: refs.envelope?.id ?? null,
+        sourceDescription: null,
+        merchantName: null,
+        isPlanned: false,
+        comment: input.comment,
+        confirmedAt: confirmed ? new Date() : null,
+        createdByUserId: userId,
+        updatedByUserId: userId,
+        accountingModelVersion: 2,
+      },
+      userId,
+      requestId,
+    );
+
+    const warnings: TransactionV2Warning[] = [];
+    if (confirmed && input.transactionType === 'EXPENSE' && refs.envelope) {
+      const assignment = await this.assignmentBalances.balance(
+        tx,
+        budgetId,
+        refs.envelope.id,
+        periodId,
+        new Date(),
+      );
+      if (assignment.balance < 0n) {
+        warnings.push({
+          code: 'ENVELOPE_BALANCE_INSUFFICIENT',
+          detail: 'Назначение конверта меньше расхода; операция проведена.',
+        });
+      }
+    }
+
+    return {
+      id: transaction.id,
+      budgetId,
+      transactionType: transaction.transactionType,
+      status: input.status,
+      amountMinor: formatMinorUnits(transaction.amountMinor),
+      currency: transaction.currency,
+      occurredOn: input.occurredOn,
+      accountId: transaction.accountId,
+      categoryId: transaction.categoryId,
+      envelopeId: transaction.envelopeId,
+      comment: transaction.comment,
+      accountBalanceMinor: formatMinorUnits(transaction.accountCurrentBalanceMinor),
+      warnings,
+    };
   }
 }

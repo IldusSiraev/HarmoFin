@@ -175,7 +175,8 @@ export class RegularPlanRepository {
   }
 
   /**
-   * Active EXPENSE plans bound to a mandatory envelope that can produce dates up to `to`.
+   * Active EXPENSE plans on a mandatory envelope and INCOME plans on an active income category
+   * that can produce dates up to `to`.
    * Plan rows are locked (ordered by id) so concurrent materializers serialize per budget and
    * the existing-date check that follows cannot race into duplicate occurrences.
    */
@@ -193,9 +194,19 @@ export class RegularPlanRepository {
         budgetId,
         isActive: true,
         deletedAt: null,
-        planType: 'EXPENSE',
         startOn: { lte: to },
-        envelope: { is: { budgetId, envelopeType: 'MANDATORY_EXPENSES', archivedAt: null } },
+        OR: [
+          {
+            planType: 'EXPENSE',
+            envelope: { is: { budgetId, envelopeType: 'MANDATORY_EXPENSES', archivedAt: null } },
+          },
+          // Income forecasts need an active income category, never an envelope. SAVINGS is
+          // described by the envelope funding rule and is not materialized here.
+          {
+            planType: 'INCOME',
+            category: { is: { budgetId, categoryType: 'INCOME', archivedAt: null } },
+          },
+        ],
       },
       select: regularPlanSelect,
       orderBy: { id: 'asc' },

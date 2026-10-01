@@ -4,6 +4,9 @@ import { IdempotencyService } from '../common/idempotency/idempotency.service.js
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { TransactionRepository } from '../transactions/transaction.repository.js';
+import { TransactionV2ApplicationService } from '../v2-transactions/transaction-v2.application.service.js';
+import { IncomePlanApplicationService } from './income-plan-v2.application.service.js';
+import { IncomePlanController } from './income-plan-v2.controller.js';
 import { PlanOccurrenceRepository } from './plan-occurrence.repository.js';
 import { RegularPlanApplicationService } from './regular-plan.application.service.js';
 import { PlansController } from './plans.controller.js';
@@ -15,7 +18,7 @@ export class PlansModule {
   static register(): DynamicModule {
     return {
       module: PlansModule,
-      controllers: [PlansController],
+      controllers: [PlansController, IncomePlanController],
       providers: [
         {
           provide: RegularPlanRepository,
@@ -52,6 +55,20 @@ export class PlansModule {
               new PlanModelPolicy(prisma),
             ),
           inject: [RegularPlanRepository, TransactionRepository, PrismaService],
+        },
+        {
+          provide: IncomePlanApplicationService,
+          useFactory: (prisma: PrismaService) => {
+            const idempotency = new IdempotencyService();
+            const policy = new PlanModelPolicy(prisma);
+            return new IncomePlanApplicationService(
+              prisma,
+              idempotency,
+              policy,
+              new TransactionV2ApplicationService(prisma, idempotency, policy),
+            );
+          },
+          inject: [PrismaService],
         },
       ],
       exports: [PlanOccurrenceRepository, V2OccurrenceMaterializer],

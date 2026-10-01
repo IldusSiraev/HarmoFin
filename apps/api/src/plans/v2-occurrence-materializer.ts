@@ -12,7 +12,7 @@ const isoDate = (value: Date) => value.toISOString().slice(0, 10);
 const dateValue = (value: string) => new Date(`${value}T00:00:00.000Z`);
 
 /**
- * Idempotently materializes occurrences of active mandatory EXPENSE plans for a v2 budget inside
+ * Idempotently materializes occurrences of active mandatory EXPENSE and INCOME plans (not SAVINGS) for a v2 budget inside
  * the caller's transaction. Effective start = max(plan.startOn, planModelActivatedOn, from), so
  * pre-cutover months are never invented. Existing rows (open v1, paid, skipped) are untouched.
  */
