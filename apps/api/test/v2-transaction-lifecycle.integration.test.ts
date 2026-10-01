@@ -487,7 +487,7 @@ describe('v2 расход: изменение, удаление и восста�
     expect(await cash(accountId)).toBe(cashBefore);
   });
 
-  it('доход пока не поддержан: 409 INCOME_LIFECYCLE_NOT_SUPPORTED', async () => {
+  it('доход без назначений изменяется и удаляется (полный сценарий - v2-income-lifecycle)', async () => {
     const income = await call('POST', owner(), '/transactions', 'inc-mk', {
       transactionType: 'INCOME',
       status: 'CONFIRMED',
@@ -498,10 +498,8 @@ describe('v2 расход: изменение, удаление и восста�
     });
     expect(income.statusCode).toBe(201);
     const id = income.json<{ id: string }>().id;
-    for (const res of [await patch(id, 'inc-1', { amount: '5.00' }), await del(id, 'inc-2')]) {
-      expect(res.statusCode).toBe(409);
-      expect(res.json().code).toBe('INCOME_LIFECYCLE_NOT_SUPPORTED');
-    }
+    expect((await patch(id, 'inc-1', { amount: '5.00' })).statusCode).toBe(200);
+    expect((await del(id, 'inc-2')).statusCode).toBe(200);
   });
 
   it('идемпотентность DELETE/restore: повтор без повторного эффекта, другая цель с тем же ключом - конфликт', async () => {

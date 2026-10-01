@@ -175,7 +175,12 @@ export class TransactionV2Controller {
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 409,
+    type: ProblemDetailsResponse,
+    description:
+      'Конфликт состояния. Для дохода v2: SOURCE_EXHAUSTED (с assignmentIds) при действующих назначениях, INSUFFICIENT_BALANCE, ASSIGNMENT_UNBACKED; LEGACY_CORRECTION_REQUIRED для факта модели 1.',
+  })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
   update(
     @Param('budgetId', new ZodValidationPipe(budgetIdParamSchema)) budgetId: string,
@@ -204,7 +209,12 @@ export class TransactionV2Controller {
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 409,
+    type: ProblemDetailsResponse,
+    description:
+      'Конфликт состояния. Для дохода v2: SOURCE_EXHAUSTED (с assignmentIds) при действующих назначениях, INSUFFICIENT_BALANCE, ASSIGNMENT_UNBACKED; LEGACY_CORRECTION_REQUIRED для факта модели 1.',
+  })
   remove(
     @Param('budgetId', new ZodValidationPipe(budgetIdParamSchema)) budgetId: string,
     @Param('transactionId', new ZodValidationPipe(transactionIdParamSchema))

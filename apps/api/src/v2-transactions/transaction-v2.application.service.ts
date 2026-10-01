@@ -13,7 +13,9 @@ import {
 } from '../common/reference-data/reference-data.errors.js';
 import { cycleAndPeriodFor, todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { PrismaService } from '../database/prisma.service.js';
+import { FinancialBalanceRepository } from '../common/finance/financial-balance.repository.js';
 import { AssignmentBalanceRepository } from '../envelope-plans/assignment-balance.repository.js';
+import { AssignmentRepository } from '../envelope-plans/assignment.repository.js';
 import {
   ObligationApplicationService,
   type ObligationOccurrenceView,
@@ -135,10 +137,19 @@ function legacyCorrectionRequired(): ConflictException {
   });
 }
 
-function incomeLifecycleNotSupported(): ConflictException {
+function sourceExhausted(assignmentIds: string[]): ConflictException {
   return new ConflictException({
-    code: 'INCOME_LIFECYCLE_NOT_SUPPORTED',
-    detail: 'Изменение и удаление дохода v2 пока не поддерживается.',
+    code: 'SOURCE_EXHAUSTED',
+    detail:
+      'На этот доход назначены средства: сначала уменьшите или отмените перечисленные назначения.',
+    assignmentIds,
+  });
+}
+
+function assignmentUnbacked(): ConflictException {
+  return new ConflictException({
+    code: 'ASSIGNMENT_UNBACKED',
+    detail: 'Изменение нарушает покрытие назначений: непокрытая часть вырастет.',
   });
 }
 
@@ -171,6 +182,8 @@ function notDeleted(): ConflictException {
 export class TransactionV2ApplicationService {
   private readonly repository: TransactionRepository;
   private readonly assignmentBalances = new AssignmentBalanceRepository();
+  private readonly assignmentRows = new AssignmentRepository();
+  private readonly financialBalances = new FinancialBalanceRepository();
   private readonly obligations: ObligationApplicationService;
 
   constructor(
@@ -485,6 +498,9 @@ export class TransactionV2ApplicationService {
       idempotencyKey,
       async (tx, current, ctx) => {
         if (current.status === 'DELETED') throw alreadyDeleted();
+        if (current.transactionType === 'INCOME') {
+          return this.removeIncomeInTransaction(tx, userId, budgetId, current, ctx, requestId);
+        }
         const occurrences = await this.obligations.lockLinkedOccurrences(tx, budgetId, current.id);
         await this.repository.lockAccount(tx, budgetId, current.accountId);
         const deleted = await this.repository.updateLifecycle(
@@ -525,6 +541,9 @@ export class TransactionV2ApplicationService {
       idempotencyKey,
       async (tx, current, ctx) => {
         if (current.status !== 'DELETED') throw notDeleted();
+        if (current.transactionType === 'INCOME') {
+          return this.restoreIncomeInTransaction(tx, userId, budgetId, current, ctx, requestId);
+        }
         const target =
           current.preDeleteStatus === 'CONFIRMED'
             ? 'CONFIRMED'
@@ -595,6 +614,9 @@ export class TransactionV2ApplicationService {
     requestId?: string,
   ): Promise<TransactionV2LifecycleView> {
     if (current.status !== 'CONFIRMED' && current.status !== 'DRAFT') throw notEditable();
+    if (current.transactionType === 'INCOME') {
+      return this.updateIncomeInTransaction(tx, userId, budgetId, current, input, ctx, requestId);
+    }
     const amountMinor =
       input.amount === undefined
         ? current.amountMinor
@@ -684,6 +706,167 @@ export class TransactionV2ApplicationService {
     return toLifecycleView(updated, views, confirmed ? await this.warningsFor(tx, updated) : []);
   }
 
+  /**
+   * Income PATCH. Lock order is already budget -> idempotency -> income row; accounts follow.
+   * Existing assignments are never touched: the source sum may not exceed the new amount.
+   */
+  private async updateIncomeInTransaction(
+    tx: Tx,
+    userId: string,
+    budgetId: string,
+    current: TransactionRecord,
+    input: UpdateTransactionV2Input,
+    ctx: LifecycleContext,
+    requestId?: string,
+  ): Promise<TransactionV2LifecycleView> {
+    if (input.envelopeId !== undefined && input.envelopeId !== null) throw invalidReference();
+    const amountMinor =
+      input.amount === undefined
+        ? current.amountMinor
+        : parseDecimalToMinorUnits(input.amount, RUB_SCALE, false);
+    const accountId = input.accountId ?? current.accountId;
+    const categoryId = input.categoryId ?? current.categoryId;
+    const occurredOn = input.occurredOn ?? isoDate(current.occurredOn);
+    const confirmed = current.status === 'CONFIRMED';
+
+    const refs = await this.repository.findActiveV2References(
+      tx,
+      budgetId,
+      accountId,
+      categoryId,
+      null,
+    );
+    this.assertReferences(refs, 'INCOME', null);
+    if (confirmed && occurredOn > ctx.today) {
+      throw validationFailed('Нельзя подтвердить факт с будущей датой.');
+    }
+
+    for (const id of [...new Set([current.accountId, accountId])].sort()) {
+      await this.repository.lockAccount(tx, budgetId, id);
+    }
+    const persist = () =>
+      this.repository.update(
+        tx,
+        current,
+        {
+          ...(input.amount !== undefined ? { amountMinor } : {}),
+          ...(input.occurredOn !== undefined ? { occurredOn: parseDate(occurredOn) } : {}),
+          ...(input.accountId !== undefined ? { accountId } : {}),
+          ...(input.categoryId !== undefined ? { categoryId } : {}),
+          ...(input.comment !== undefined ? { comment: input.comment } : {}),
+          updatedByUserId: userId,
+        },
+        userId,
+        requestId,
+      );
+    if (!confirmed) return toLifecycleView(await persist(), [], []);
+
+    await this.assertIncomeSourcesCover(tx, budgetId, current.id, amountMinor);
+    if (!ctx.allowNegativeBalance) {
+      if (accountId === current.accountId) {
+        if (amountMinor < current.amountMinor) {
+          const cash = await this.repository.accountCashBalance(tx, budgetId, accountId);
+          if (cash - (current.amountMinor - amountMinor) < 0n) throw insufficientBalance();
+        }
+      } else {
+        const cash = await this.repository.accountCashBalance(tx, budgetId, current.accountId);
+        if (cash - current.amountMinor < 0n) throw insufficientBalance();
+      }
+    }
+    const updated = await this.withUnbackedGuard(tx, budgetId, persist);
+    return toLifecycleView(updated, [], []);
+  }
+
+  private async removeIncomeInTransaction(
+    tx: Tx,
+    userId: string,
+    budgetId: string,
+    current: TransactionRecord,
+    ctx: LifecycleContext,
+    requestId?: string,
+  ): Promise<TransactionV2LifecycleView> {
+    await this.repository.lockAccount(tx, budgetId, current.accountId);
+    const persist = () =>
+      this.repository.updateLifecycle(tx, current, 'DELETED', userId, requestId);
+    if (current.status !== 'CONFIRMED') return toLifecycleView(await persist(), [], []);
+
+    await this.assertIncomeSourcesCover(tx, budgetId, current.id, 0n);
+    if (!ctx.allowNegativeBalance) {
+      const cash = await this.repository.accountCashBalance(tx, budgetId, current.accountId);
+      if (cash - current.amountMinor < 0n) throw insufficientBalance();
+    }
+    return toLifecycleView(await this.withUnbackedGuard(tx, budgetId, persist), [], []);
+  }
+
+  /** Restore re-checks references and date; assignments are never restored. */
+  private async restoreIncomeInTransaction(
+    tx: Tx,
+    userId: string,
+    budgetId: string,
+    current: TransactionRecord,
+    ctx: LifecycleContext,
+    requestId?: string,
+  ): Promise<TransactionV2LifecycleView> {
+    const target =
+      current.preDeleteStatus === 'CONFIRMED'
+        ? 'CONFIRMED'
+        : current.preDeleteStatus === 'CANCELLED'
+          ? 'CANCELLED'
+          : 'DRAFT';
+    if (target === 'CONFIRMED') {
+      const refs = await this.repository.findActiveV2References(
+        tx,
+        budgetId,
+        current.accountId,
+        current.categoryId,
+        null,
+      );
+      this.assertReferences(refs, 'INCOME', null);
+      if (isoDate(current.occurredOn) > ctx.today) {
+        throw validationFailed('Нельзя подтвердить факт с будущей датой.');
+      }
+    }
+    await this.repository.lockAccount(tx, budgetId, current.accountId);
+    const restored = await this.repository.restoreLifecycle(tx, current, target, userId, requestId);
+    return toLifecycleView(restored, [], []);
+  }
+
+  /** Rejects with SOURCE_EXHAUSTED while confirmed INCOME assignments exceed the income amount. */
+  private async assertIncomeSourcesCover(
+    tx: Tx,
+    budgetId: string,
+    incomeId: string,
+    newAmountMinor: bigint,
+  ): Promise<void> {
+    const dependents = await this.assignmentRows.listConfirmedIncomeAssignments(
+      tx,
+      budgetId,
+      incomeId,
+    );
+    const total = dependents.reduce((sum, row) => sum + row.amountMinor, 0n);
+    if (total > newAmountMinor) throw sourceExhausted(dependents.map((row) => row.id));
+  }
+
+  /** Cash may fall only while the unbacked part of positive assignment balances does not grow. */
+  private async withUnbackedGuard<T>(
+    tx: Tx,
+    budgetId: string,
+    mutate: () => Promise<T>,
+  ): Promise<T> {
+    const now = new Date();
+    let supported = 0n;
+    for (const row of await this.assignmentBalances.allBalances(tx, budgetId, now)) {
+      supported += row.balance > 0n ? row.balance : 0n;
+    }
+    const cashBefore = await this.financialBalances.totalCashAsOf(tx, budgetId, now);
+    const result = await mutate();
+    const cashAfter = await this.financialBalances.totalCashAsOf(tx, budgetId, now);
+    const before = supported - cashBefore > 0n ? supported - cashBefore : 0n;
+    const after = supported - cashAfter > 0n ? supported - cashAfter : 0n;
+    if (after > before) throw assignmentUnbacked();
+    return result;
+  }
+
   /** Budget lock -> idempotency -> role -> transaction row -> (occurrences, accounts in the body). */
   private async runLifecycle(
     kind: 'update' | 'delete' | 'restore',
@@ -726,7 +909,6 @@ export class TransactionV2ApplicationService {
           );
           if (!current) throw resourceNotFound();
           if (current.accountingModelVersion !== 2) throw legacyCorrectionRequired();
-          if (current.transactionType !== 'EXPENSE') throw incomeLifecycleNotSupported();
           return {
             status: 200,
             body: await body(tx, current, {

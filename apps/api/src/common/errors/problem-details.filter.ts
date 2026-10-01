@@ -14,6 +14,7 @@ interface ApplicationErrorBody {
   fieldErrors?: unknown;
   allocationIds?: unknown;
   allocationCount?: unknown;
+  assignmentIds?: unknown;
 }
 
 interface FieldError {
@@ -55,6 +56,9 @@ export class ProblemDetailsFilter implements ExceptionFilter {
         : {}),
       ...(isStringArray(applicationError.allocationIds)
         ? { allocationIds: applicationError.allocationIds }
+        : {}),
+      ...(isStringArray(applicationError.assignmentIds)
+        ? { assignmentIds: applicationError.assignmentIds }
         : {}),
       ...(isNonNegativeInteger(applicationError.allocationCount)
         ? { allocationCount: applicationError.allocationCount }

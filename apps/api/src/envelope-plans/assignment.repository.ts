@@ -139,6 +139,23 @@ export class AssignmentRepository {
     return BigInt(String((row ?? { assigned: 0n }).assigned));
   }
 
+  async listConfirmedIncomeAssignments(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    incomeId: string,
+  ): Promise<Array<{ id: string; amountMinor: bigint }>> {
+    return tx.envelopeAssignment.findMany({
+      where: {
+        budgetId,
+        sourceIncomeTransactionId: incomeId,
+        type: 'INCOME',
+        status: 'CONFIRMED',
+      },
+      select: { id: true, amountMinor: true },
+      orderBy: { id: 'asc' },
+    });
+  }
+
   async requireEnvelope(
     tx: Prisma.TransactionClient,
     budgetId: string,
