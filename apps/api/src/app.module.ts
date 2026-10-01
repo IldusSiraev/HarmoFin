@@ -16,6 +16,7 @@ import { DirectTransferModule } from './v2-transfers/direct-transfer.module.js';
 import { TransactionV2Module } from './v2-transactions/transaction-v2.module.js';
 import { ObligationModule } from './obligations/obligation.module.js';
 import { FundingModule } from './funding/funding.module.js';
+import { TemplateModule } from './v2-template/template.module.js';
 import { EnvelopePlanModule } from './envelope-plans/envelope-plan.module.js';
 import { EnvelopeModule } from './envelopes/envelope.module.js';
 import { ExportsModule } from './exports/exports.module.js';
@@ -56,6 +57,7 @@ export class AppModule {
         TransactionV2Module.register(),
         ObligationModule.register(),
         FundingModule.register(),
+        TemplateModule.register(),
         PlansModule.register(),
         NotificationsModule.register(),
         ReportModule.register(),

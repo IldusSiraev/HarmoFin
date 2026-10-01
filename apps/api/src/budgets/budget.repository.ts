@@ -393,7 +393,7 @@ function auditValues(budget: BudgetView) {
   };
 }
 
-interface DefaultCategory {
+export interface DefaultCategory {
   templateKey: string;
   name: string;
   categoryType: CategoryType;
@@ -819,7 +819,7 @@ function buildDefaultCategories(): DefaultCategory[] {
   return rows;
 }
 
-const DEFAULT_CATEGORIES: readonly DefaultCategory[] = buildDefaultCategories();
+export const DEFAULT_CATEGORIES: readonly DefaultCategory[] = buildDefaultCategories();
 
 const DEFAULT_ENVELOPES: readonly DefaultEnvelope[] = [
   ['envelope-current-10-24', 'Первый период', EnvelopeType.CURRENT_EXPENSES, 0, 'FIRST', null],
