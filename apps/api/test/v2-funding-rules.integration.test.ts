@@ -927,6 +927,114 @@ describe('v2 funding rules and period target snapshots', () => {
     });
   });
 
+  it('HTTP PUT income-category-suggestion: replay безопасен, роли, 404/422, 400, CSRF, ключ', async () => {
+    const budgetId = ctx.owner!.budgetId;
+    const url = `/api/v2/budgets/${budgetId}/income-category-suggestion`;
+    const category = await prisma.category.create({
+      data: {
+        id: randomUUID(),
+        budgetId,
+        name: 'HTTP доход',
+        categoryType: 'INCOME',
+        displayOrder: 901,
+      },
+    });
+    const expense = await prisma.category.create({
+      data: {
+        id: randomUUID(),
+        budgetId,
+        name: 'HTTP расход',
+        categoryType: 'EXPENSE',
+        displayOrder: 902,
+      },
+    });
+    const foreign = await prisma.category.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ctx.outsider!.budgetId,
+        name: 'HTTP чужой',
+        categoryType: 'INCOME',
+        displayOrder: 903,
+      },
+    });
+    const archivedEnvelope = await createEnvelope(budgetId, 'SAVINGS_GOAL', 'HTTP архив');
+    await prisma.envelope.update({
+      where: { id: archivedEnvelope },
+      data: { archivedAt: new Date() },
+    });
+    const send = (
+      user: RegisteredUser | undefined,
+      payload: Record<string, unknown>,
+      key = `http-sugg-${randomUUID()}`,
+    ) => server.inject({ method: 'PUT', url, headers: mutationHeaders(user, key), payload });
+    const auditCountNow = () =>
+      prisma.auditEvent.count({ where: { budgetId, entityType: 'income_category_suggestion' } });
+    const body = {
+      enabled: true,
+      sourceCategoryId: category.id,
+      targetEnvelopeId: savingsEnvelope,
+    };
+    const auditBefore = await auditCountNow();
+
+    const key = `http-sugg-ok-${randomUUID()}`;
+    const saved = await send(ctx.owner, body, key);
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toEqual(body);
+    const replay = await send(ctx.owner, body, key);
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json()).toEqual(body);
+    expect(await auditCountNow()).toBe(auditBefore + 1);
+    const conflict = await send(ctx.owner, { ...body, enabled: false }, key);
+    expect(conflict.statusCode).toBe(409);
+
+    for (const user of [ctx.viewer, ctx.editor]) {
+      expect((await send(user, body)).statusCode).toBe(403);
+    }
+    expect((await send(ctx.outsider, body)).statusCode).toBe(404);
+    expect((await send(ctx.owner, { ...body, sourceCategoryId: foreign.id })).statusCode).toBe(404);
+    expect((await send(ctx.owner, { ...body, sourceCategoryId: expense.id })).statusCode).toBe(422);
+    expect(
+      (await send(ctx.owner, { ...body, targetEnvelopeId: archivedEnvelope })).statusCode,
+    ).toBe(422);
+    expect((await send(ctx.owner, { ...body, targetEnvelopeId: null })).statusCode).toBe(400);
+    expect((await send(ctx.owner, { ...body, sourceCategoryId: 'not-a-uuid' })).statusCode).toBe(
+      400,
+    );
+    expect((await send(ctx.owner, { enabled: true })).statusCode).toBe(400);
+    expect((await send(ctx.owner, { ...body, extra: 1 })).statusCode).toBe(400);
+
+    const unauth = await server.inject({
+      method: 'PUT',
+      url,
+      headers: { origin, 'x-csrf-token': 'x', 'idempotency-key': `u-${randomUUID()}` },
+      payload: body,
+    });
+    expect(unauth.statusCode).toBe(401);
+    const noCsrf = await server.inject({
+      method: 'PUT',
+      url,
+      headers: { ...authHeaders(ctx.owner), 'idempotency-key': `c-${randomUUID()}` },
+      payload: body,
+    });
+    expect(noCsrf.statusCode).toBe(403);
+    const noKey = await server.inject({
+      method: 'PUT',
+      url,
+      headers: { ...authHeaders(ctx.owner), 'x-csrf-token': ctx.owner!.csrfToken },
+      payload: body,
+    });
+    expect(noKey.statusCode).toBe(400);
+    const badBudget = await server.inject({
+      method: 'PUT',
+      url: '/api/v2/budgets/not-a-uuid/income-category-suggestion',
+      headers: mutationHeaders(ctx.owner, `bb-${randomUUID()}`),
+      payload: body,
+    });
+    expect(badBudget.statusCode).toBe(400);
+    expect(await auditCountNow()).toBe(auditBefore + 1);
+    await send(ctx.owner, { enabled: false, sourceCategoryId: null, targetEnvelopeId: null });
+  });
+
   it('OpenAPI описывает оба маршрута, v1 не затронут', async () => {
     const openApi = await server.inject({ method: 'GET', url: '/openapi.json' });
     expect(openApi.statusCode).toBe(200);
