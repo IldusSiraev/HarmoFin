@@ -79,3 +79,74 @@ export class TransactionV2Response {
   @ApiProperty({ type: [TransactionV2Warning] })
   warnings!: TransactionV2Warning[];
 }
+
+export class TransactionJournalV2Item {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  budgetId!: string;
+
+  @ApiProperty({ enum: [1, 2], description: 'Учётная модель факта: 1 — старая, 2 — v2.' })
+  accountingModelVersion!: 1 | 2;
+
+  @ApiProperty({ enum: ['INCOME', 'EXPENSE'] })
+  transactionType!: 'INCOME' | 'EXPENSE';
+
+  @ApiProperty({ enum: ['DRAFT', 'CONFIRMED', 'CANCELLED', 'DELETED'] })
+  status!: 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED';
+
+  @ApiProperty({ example: '482000', description: 'Сумма в минорных единицах (строка).' })
+  amountMinor!: string;
+
+  @ApiProperty({ example: 'RUB' })
+  currency!: string;
+
+  @ApiProperty({ example: '2026-09-30' })
+  occurredOn!: string;
+
+  @ApiProperty()
+  accountId!: string;
+
+  @ApiProperty()
+  categoryId!: string;
+
+  @ApiProperty({ nullable: true, type: String })
+  envelopeId!: string | null;
+
+  @ApiProperty({ nullable: true, type: String })
+  sourceDescription!: string | null;
+
+  @ApiProperty({ nullable: true, type: String })
+  merchantName!: string | null;
+
+  @ApiProperty({ nullable: true, type: String })
+  comment!: string | null;
+
+  @ApiProperty({
+    type: [String],
+    description:
+      'Occurrence плана: оплаты PlanPayment (v2) и старая связь occurrence.transactionId.',
+  })
+  planOccurrenceIds!: string[];
+
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' })
+  confirmedAt!: string | null;
+
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' })
+  cancelledAt!: string | null;
+
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' })
+  deletedAt!: string | null;
+
+  @ApiProperty({ format: 'date-time' })
+  createdAt!: string;
+}
+
+export class TransactionJournalV2Response {
+  @ApiProperty({ type: [TransactionJournalV2Item] })
+  items!: TransactionJournalV2Item[];
+
+  @ApiProperty({ type: String, nullable: true })
+  nextCursor!: string | null;
+}

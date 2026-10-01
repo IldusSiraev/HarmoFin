@@ -32,6 +32,7 @@ export interface TransactionRecord {
   deletedAt: Date | null;
   preDeleteStatus: TransactionStatus | null;
   createdAt: Date;
+  accountingModelVersion?: number;
   accountCurrentBalanceMinor: bigint;
   envelopeCurrentBalanceMinor: bigint | null;
 }
@@ -220,6 +221,34 @@ export class TransactionRepository {
       });
       return row ? this.withBalance(tx, row) : null;
     });
+  }
+
+  /** Read-only link lookup: PlanPayment (v2) and legacy PlanOccurrence.transactionId, both budget-scoped. */
+  async findPlanOccurrenceLinks(
+    budgetId: string,
+    transactionIds: string[],
+  ): Promise<Map<string, string[]>> {
+    const links = new Map<string, Set<string>>();
+    if (transactionIds.length === 0) return new Map();
+    const [payments, legacy] = await Promise.all([
+      this.prisma.planPayment.findMany({
+        where: { budgetId, transactionId: { in: transactionIds } },
+        select: { transactionId: true, occurrenceId: true },
+      }),
+      this.prisma.planOccurrence.findMany({
+        where: { budgetId, transactionId: { in: transactionIds } },
+        select: { transactionId: true, id: true },
+      }),
+    ]);
+    const add = (transactionId: string | null, occurrenceId: string) => {
+      if (!transactionId) return;
+      const set = links.get(transactionId) ?? new Set<string>();
+      set.add(occurrenceId);
+      links.set(transactionId, set);
+    };
+    for (const row of payments) add(row.transactionId, row.occurrenceId);
+    for (const row of legacy) add(row.transactionId, row.id);
+    return new Map([...links].map(([id, set]) => [id, [...set].sort()]));
   }
 
   async findForMutation(
@@ -857,4 +886,5 @@ const transactionSelect = {
   deletedAt: true,
   preDeleteStatus: true,
   createdAt: true,
+  accountingModelVersion: true,
 } as const;

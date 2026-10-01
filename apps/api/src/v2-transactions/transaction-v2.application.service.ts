@@ -14,7 +14,11 @@ import {
 import { cycleAndPeriodFor, todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { AssignmentBalanceRepository } from '../envelope-plans/assignment-balance.repository.js';
-import { TransactionRepository } from '../transactions/transaction.repository.js';
+import {
+  TransactionRepository,
+  type TransactionRecord,
+} from '../transactions/transaction.repository.js';
+import type { ListTransactionsV2Input } from './transaction-v2.schemas.js';
 
 const RUB_SCALE = 2;
 const TRANSACTION_V2_CREATE_OPERATION = 'transactionV2.create';
@@ -28,6 +32,33 @@ export type TransactionV2Input = {
   categoryId: string;
   envelopeId: string | null;
   comment: string | null;
+};
+
+export type TransactionJournalV2Item = {
+  id: string;
+  budgetId: string;
+  accountingModelVersion: 1 | 2;
+  transactionType: 'INCOME' | 'EXPENSE';
+  status: 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED';
+  amountMinor: string;
+  currency: string;
+  occurredOn: string;
+  accountId: string;
+  categoryId: string;
+  envelopeId: string | null;
+  sourceDescription: string | null;
+  merchantName: string | null;
+  comment: string | null;
+  planOccurrenceIds: string[];
+  confirmedAt: string | null;
+  cancelledAt: string | null;
+  deletedAt: string | null;
+  createdAt: string;
+};
+
+export type TransactionJournalV2Page = {
+  items: TransactionJournalV2Item[];
+  nextCursor: string | null;
 };
 
 export type TransactionV2Warning = { code: string; detail: string };
@@ -99,6 +130,64 @@ export class TransactionV2ApplicationService {
     private readonly planModelPolicy: PlanModelPolicy,
   ) {
     this.repository = new TransactionRepository(prisma);
+  }
+
+  /**
+   * Read-only journal of both accounting models. Any active member may read; DELETED rows are
+   * OWNER-only (403 when explicitly requested, never listed by default).
+   */
+  async list(
+    userId: string,
+    budgetId: string,
+    input: ListTransactionsV2Input,
+  ): Promise<TransactionJournalV2Page> {
+    await this.planModelPolicy.requireModel(userId, budgetId, 2);
+    const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
+    if (!budget) throw resourceNotFound();
+    if (input.status === 'DELETED' && budget.workspace.memberships[0]?.role !== 'OWNER') {
+      throw forbidden();
+    }
+    const referencesExist = await this.repository.validateJournalReferences(budgetId, input);
+    if (!referencesExist) throw resourceNotFound();
+
+    const result = await this.repository.list(userId, budgetId, {
+      limit: input.limit,
+      ...(input.cursor ? { cursor: input.cursor } : {}),
+      ...(input.type ? { transactionType: input.type } : {}),
+      ...(input.status ? { status: input.status } : {}),
+      ...(input.from ? { from: parseDate(input.from) } : {}),
+      ...(input.to ? { to: parseDate(input.to) } : {}),
+      ...(input.accountId ? { accountId: input.accountId } : {}),
+      ...(input.categoryId ? { categoryId: input.categoryId } : {}),
+      ...(input.envelopeId ? { envelopeId: input.envelopeId } : {}),
+      sortBy: 'occurredOn',
+      sortDirection: 'desc',
+    });
+    const links = await this.repository.findPlanOccurrenceLinks(
+      budgetId,
+      result.items.map((row) => row.id),
+    );
+    return {
+      items: result.items.map((row) => toJournalItem(row, links.get(row.id) ?? [])),
+      nextCursor: result.nextCursor,
+    };
+  }
+
+  async get(
+    userId: string,
+    budgetId: string,
+    transactionId: string,
+  ): Promise<TransactionJournalV2Item> {
+    await this.planModelPolicy.requireModel(userId, budgetId, 2);
+    const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
+    if (!budget) throw resourceNotFound();
+    const row = await this.repository.find(userId, budgetId, transactionId);
+    if (!row) throw resourceNotFound();
+    if (row.status === 'DELETED' && budget.workspace.memberships[0]?.role !== 'OWNER') {
+      throw forbidden();
+    }
+    const links = await this.repository.findPlanOccurrenceLinks(budgetId, [row.id]);
+    return toJournalItem(row, links.get(row.id) ?? []);
   }
 
   async create(
@@ -314,4 +403,31 @@ export class TransactionV2ApplicationService {
       warnings,
     };
   }
+}
+
+function toJournalItem(
+  row: TransactionRecord,
+  planOccurrenceIds: string[],
+): TransactionJournalV2Item {
+  return {
+    id: row.id,
+    budgetId: row.budgetId,
+    accountingModelVersion: row.accountingModelVersion === 2 ? 2 : 1,
+    transactionType: row.transactionType,
+    status: row.status,
+    amountMinor: formatMinorUnits(row.amountMinor),
+    currency: row.currency,
+    occurredOn: row.occurredOn.toISOString().slice(0, 10),
+    accountId: row.accountId,
+    categoryId: row.categoryId,
+    envelopeId: row.envelopeId,
+    sourceDescription: row.sourceDescription,
+    merchantName: row.merchantName,
+    comment: row.comment,
+    planOccurrenceIds,
+    confirmedAt: row.confirmedAt?.toISOString() ?? null,
+    cancelledAt: row.cancelledAt?.toISOString() ?? null,
+    deletedAt: row.deletedAt?.toISOString() ?? null,
+    createdAt: row.createdAt.toISOString(),
+  };
 }

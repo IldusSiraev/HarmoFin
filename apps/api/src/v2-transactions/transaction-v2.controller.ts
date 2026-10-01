@@ -2,9 +2,11 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   Headers,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -14,6 +16,8 @@ import {
   ApiCookieAuth,
   ApiCreatedResponse,
   ApiHeader,
+  ApiOkResponse,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -24,10 +28,19 @@ import type { RequestContext } from '../common/request-context/request-context.j
 import { CsrfGuard } from '../common/security/csrf.guard.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import {
+  budgetIdParamSchema,
   createTransactionV2Schema,
+  listTransactionsV2Schema,
+  transactionIdParamSchema,
   type CreateTransactionV2Input,
+  type ListTransactionsV2Input,
 } from './transaction-v2.schemas.js';
-import { CreateTransactionV2Body, TransactionV2Response } from './transaction-v2.dto.js';
+import {
+  CreateTransactionV2Body,
+  TransactionJournalV2Item,
+  TransactionJournalV2Response,
+  TransactionV2Response,
+} from './transaction-v2.dto.js';
 import { TransactionV2ApplicationService } from './transaction-v2.application.service.js';
 
 type AuthenticatedRequest = FastifyRequest & { authContext?: RequestContext };
@@ -63,6 +76,53 @@ function contextOf(request: AuthenticatedRequest): RequestContext {
 @ApiCookieAuth('session')
 export class TransactionV2Controller {
   constructor(private readonly service: TransactionV2ApplicationService) {}
+
+  @Get()
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    schema: { type: 'integer', minimum: 1, maximum: 100 },
+  })
+  @ApiQuery({ name: 'cursor', required: false, schema: { type: 'string', maxLength: 512 } })
+  @ApiQuery({ name: 'type', required: false, enum: ['INCOME', 'EXPENSE'] })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['DRAFT', 'CONFIRMED', 'CANCELLED', 'DELETED'],
+    description: 'DELETED доступен только владельцу (иначе 403); по умолчанию удалённые скрыты.',
+  })
+  @ApiQuery({ name: 'from', required: false, schema: { type: 'string', format: 'date' } })
+  @ApiQuery({ name: 'to', required: false, schema: { type: 'string', format: 'date' } })
+  @ApiQuery({ name: 'accountId', required: false, schema: { type: 'string', format: 'uuid' } })
+  @ApiQuery({ name: 'categoryId', required: false, schema: { type: 'string', format: 'uuid' } })
+  @ApiQuery({ name: 'envelopeId', required: false, schema: { type: 'string', format: 'uuid' } })
+  @ApiOkResponse({ type: TransactionJournalV2Response })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  list(
+    @Param('budgetId', new ZodValidationPipe(budgetIdParamSchema)) budgetId: string,
+    @Query(new ZodValidationPipe(listTransactionsV2Schema)) query: ListTransactionsV2Input,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.list(contextOf(request).userId, budgetId, query);
+  }
+
+  @Get(':transactionId')
+  @ApiOkResponse({ type: TransactionJournalV2Item })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  get(
+    @Param('budgetId', new ZodValidationPipe(budgetIdParamSchema)) budgetId: string,
+    @Param('transactionId', new ZodValidationPipe(transactionIdParamSchema))
+    transactionId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.get(contextOf(request).userId, budgetId, transactionId);
+  }
 
   @Post()
   @UseGuards(CsrfGuard)
