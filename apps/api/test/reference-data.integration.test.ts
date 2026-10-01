@@ -103,7 +103,7 @@ describe('reference template API', () => {
         response: 'AccountResponse',
         create: 'CreateAccountRequest',
         update: 'UpdateAccountRequest',
-        archiveErrors: ['401', '403', '404'],
+        archiveErrors: ['401', '403', '404', '409'],
       },
       {
         collectionPath: '/api/v1/budgets/{budgetId}/categories',
@@ -149,6 +149,15 @@ describe('reference template API', () => {
       expectResponseSchema(archive, '200', reference(resource.response));
       expectProblemDetails(archive, resource.archiveErrors);
     }
+
+    const restore = operation(
+      document,
+      '/api/v1/budgets/{budgetId}/accounts/{accountId}/restore',
+      'post',
+    );
+    expectAuthenticated(restore);
+    expectResponseSchema(restore, '200', reference('AccountResponse'));
+    expectProblemDetails(restore, ['401', '403', '404', '409']);
   });
 
   it('creates exact defaults and a safe template audit event', async () => {
