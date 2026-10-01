@@ -17,13 +17,14 @@ export class ObligationModule {
       providers: [
         {
           provide: ObligationPlanApplicationService,
-          useFactory: (prisma: PrismaService) =>
+          useFactory: (prisma: PrismaService, payments: ObligationApplicationService) =>
             new ObligationPlanApplicationService(
               prisma,
               new IdempotencyService(),
               new PlanModelPolicy(prisma),
+              payments,
             ),
-          inject: [PrismaService],
+          inject: [PrismaService, ObligationApplicationService],
         },
         {
           provide: ObligationApplicationService,

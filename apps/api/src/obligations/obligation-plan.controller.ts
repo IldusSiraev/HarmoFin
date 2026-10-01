@@ -33,6 +33,8 @@ import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import { ObligationPlanApplicationService } from './obligation-plan.application.service.js';
 import {
   ObligationOccurrenceListResponse,
+  ObligationOneTimePayBody,
+  ObligationOneTimePayResponse,
   ObligationPlanCreateBody,
   ObligationPlanCreateResponse,
   ObligationPlanListResponse,
@@ -43,11 +45,13 @@ import {
   createObligationPlanSchema,
   listObligationOccurrencesSchema,
   listObligationPlansSchema,
+  oneTimePaySchema,
   updateObligationPlanSchema,
   uuidParamSchema,
   type CreateObligationPlanInput,
   type ListObligationOccurrencesInput,
   type ListObligationPlansInput,
+  type OneTimePayInput,
   type UpdateObligationPlanInput,
 } from './obligation-plan.schemas.js';
 
@@ -134,6 +138,37 @@ export class ObligationPlanController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.service.createPlan(
+      contextOf(request).userId,
+      budgetId,
+      input,
+      validKey(key),
+      request.id,
+    );
+  }
+
+  @Post('one-time-pay')
+  @HttpCode(201)
+  @UseGuards(CsrfGuard)
+  @ApiOperation({
+    summary: 'Разовый обязательный платёж и расход одним действием',
+    description: `Атомарно создаёт ONE_TIME план на конверте обязательных расходов, occurrence (ожидаемая сумма = plannedAmount), подтверждённый расход v2 на actualAmount и оплату; occurrence становится COMPLETED. Плановая и фактическая суммы могут различаться. Будущая дата оплаты отклоняется. При ошибке откатывается всё. OWNER или EDITOR. Коды 409: MANDATORY_ENVELOPE_REQUIRED, INSUFFICIENT_BALANCE, IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.`,
+  })
+  @ApiHeader(idempotencyHeader)
+  @ApiBody({ type: ObligationOneTimePayBody })
+  @ApiCreatedResponse({ type: ObligationOneTimePayResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  payOneTime(
+    @Param('budgetId', idPipe) budgetId: string,
+    @Body(new ZodValidationPipe(oneTimePaySchema)) input: OneTimePayInput,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.payOneTime(
       contextOf(request).userId,
       budgetId,
       input,

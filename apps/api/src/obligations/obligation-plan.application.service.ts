@@ -17,12 +17,18 @@ import { RegularPlanRepository } from '../plans/regular-plan.repository.js';
 import { V2OccurrenceMaterializer } from '../plans/v2-occurrence-materializer.js';
 import { TransactionRepository } from '../transactions/transaction.repository.js';
 import { ObligationPlanRepository } from './obligation-plan.repository.js';
-import { computeUnpaidMinor } from './obligation.application.service.js';
+import {
+  computeUnpaidMinor,
+  type ObligationApplicationService,
+  type ObligationTransactionView,
+  type ObligationWarning,
+} from './obligation.application.service.js';
 import { ObligationRepository } from './obligation.repository.js';
 import type {
   CreateObligationPlanInput,
   ListObligationOccurrencesInput,
   ListObligationPlansInput,
+  OneTimePayInput,
   UpdateObligationPlanInput,
 } from './obligation-plan.schemas.js';
 
@@ -49,6 +55,15 @@ export type ObligationPlanView = {
 export type ObligationPlanCreateResult = ObligationPlanView & {
   occurrenceId: string | null;
   occurrencesCreated: number;
+};
+
+export type ObligationOneTimePayResult = {
+  plannedMinor: string;
+  actualMinor: string;
+  occurrenceId: string;
+  planId: string;
+  transaction: ObligationTransactionView | null;
+  warnings: ObligationWarning[];
 };
 
 export type ObligationPlanUpdateResult = ObligationPlanView & {
@@ -105,6 +120,7 @@ export class ObligationPlanApplicationService {
     private readonly prisma: PrismaService,
     private readonly idempotency: IdempotencyService,
     private readonly planModelPolicy: PlanModelPolicy,
+    private readonly payments: ObligationApplicationService,
   ) {
     this.transactions = new TransactionRepository(prisma);
     this.plans = new RegularPlanRepository(prisma);
@@ -170,66 +186,144 @@ export class ObligationPlanApplicationService {
       hash,
       model.workspaceId,
       201,
-      async (tx) => {
-        const amount = parseDecimalToMinorUnits(input.amount, RUB_SCALE, false);
-        if (amount <= 0n) throw validationFailed('Сумма должна быть больше нуля.');
-        const budget = await this.transactions.findBudgetSettings(tx, budgetId);
-        if (!budget) throw resourceNotFound();
-        const category = await this.obligations.findExpenseCategory(tx, budgetId, input.categoryId);
-        if (!category) throw resourceNotFound();
-        if (category.categoryType !== 'EXPENSE') throw invalidReference();
-        const envelope = await this.planData.findMandatoryEnvelope(tx, budgetId);
-        if (!envelope) throw mandatoryEnvelopeRequired();
-        if (envelope.currency !== 'RUB' || envelope.scale !== RUB_SCALE) throw invalidReference();
-        const activatedOn = model.planModelActivatedOn ? isoDate(model.planModelActivatedOn) : null;
-        if (input.recurrence === 'ONE_TIME' && activatedOn && input.scheduledOn < activatedOn) {
-          throw validationFailed('Дата разового платежа раньше даты запуска новой модели.');
-        }
+      (tx) => this.createPlanInTransaction(tx, userId, budgetId, model, input, requestId),
+    );
+  }
 
-        const start = dateValue(input.scheduledOn);
-        const plan = await this.plans.createPlan(
+  /**
+   * Atomic "one-time mandatory payment": ONE_TIME plan + occurrence + confirmed v2 expense +
+   * PlanPayment in one transaction under one budget lock and one idempotency scope.
+   * Allowed for OWNER and EDITOR (it records a real payment, like obligation pay).
+   */
+  async payOneTime(
+    userId: string,
+    budgetId: string,
+    input: OneTimePayInput,
+    idempotencyKey: string,
+    requestId?: string,
+  ): Promise<ObligationOneTimePayResult> {
+    const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
+    const hash = this.hash({
+      budgetId,
+      ...input,
+      plannedAmount: input.plannedAmount.trim(),
+      actualAmount: input.actualAmount.trim(),
+    });
+    return this.run<ObligationOneTimePayResult>(
+      budgetId,
+      userId,
+      idempotencyKey,
+      'obligation.one-time-pay',
+      hash,
+      model.workspaceId,
+      201,
+      async (tx) => {
+        const created = await this.createPlanInTransaction(
           tx,
-          {
-            workspaceId: model.workspaceId,
-            budgetId,
-            name: input.name,
-            planType: 'EXPENSE',
-            amountMinor: amount,
-            anchorOn: start,
-            startOn: start,
-            endOn: input.endOn ? dateValue(input.endOn) : null,
-            recurrence: input.recurrence,
-            intervalMonths: input.intervalMonths ?? null,
-            accountId: null,
-            categoryId: category.id,
-            envelopeId: envelope.id,
-            comment: input.comment ?? null,
-            isActive: true,
-            disabledAt: null,
-            createdByUserId: userId,
-            updatedByUserId: userId,
-          },
           userId,
+          budgetId,
+          model,
+          {
+            name: input.name,
+            amount: input.plannedAmount,
+            scheduledOn: input.occurredOn,
+            categoryId: input.categoryId,
+            recurrence: 'ONE_TIME',
+            comment: input.comment ?? null,
+          },
           requestId,
         );
-
-        const today = todayInTimezone(new Date(), budget.timezone);
-        let to = this.nextPeriodEnd(budget, today);
-        if (input.recurrence === 'ONE_TIME' && input.scheduledOn > to) to = input.scheduledOn;
-        const created = await this.materializer.ensureOccurrences(
+        if (!created.occurrenceId) throw resourceNotFound();
+        const paid = await this.payments.payInTransaction(
           tx,
+          userId,
           budgetId,
-          input.scheduledOn,
-          to,
-          { actorUserId: userId },
+          model.workspaceId,
+          created.occurrenceId,
+          {
+            accountId: input.accountId,
+            categoryId: input.categoryId,
+            amount: input.actualAmount,
+            occurredOn: input.occurredOn,
+            willPayMore: false,
+          },
+          dateValue(input.occurredOn),
+          requestId,
         );
-        const occurrenceId = await this.planData.findOccurrenceIdAt(tx, budgetId, plan.id, start);
-        if (input.recurrence === 'ONE_TIME' && !occurrenceId) {
-          throw validationFailed('Для разового платежа не удалось создать обязательство.');
-        }
-        return { ...this.planView(plan), occurrenceId, occurrencesCreated: created };
+        return {
+          plannedMinor: created.amountMinor,
+          actualMinor: paid.transaction?.amountMinor ?? '0',
+          occurrenceId: created.occurrenceId,
+          planId: created.id,
+          transaction: paid.transaction,
+          warnings: paid.warnings,
+        };
       },
+      true,
     );
+  }
+
+  private async createPlanInTransaction(
+    tx: Tx,
+    userId: string,
+    budgetId: string,
+    model: { workspaceId: string; planModelActivatedOn: Date | null },
+    input: CreateObligationPlanInput,
+    requestId?: string,
+  ): Promise<ObligationPlanCreateResult> {
+    const amount = parseDecimalToMinorUnits(input.amount, RUB_SCALE, false);
+    if (amount <= 0n) throw validationFailed('Сумма должна быть больше нуля.');
+    const budget = await this.transactions.findBudgetSettings(tx, budgetId);
+    if (!budget) throw resourceNotFound();
+    const category = await this.obligations.findExpenseCategory(tx, budgetId, input.categoryId);
+    if (!category) throw resourceNotFound();
+    if (category.categoryType !== 'EXPENSE') throw invalidReference();
+    const envelope = await this.planData.findMandatoryEnvelope(tx, budgetId);
+    if (!envelope) throw mandatoryEnvelopeRequired();
+    if (envelope.currency !== 'RUB' || envelope.scale !== RUB_SCALE) throw invalidReference();
+    const activatedOn = model.planModelActivatedOn ? isoDate(model.planModelActivatedOn) : null;
+    if (input.recurrence === 'ONE_TIME' && activatedOn && input.scheduledOn < activatedOn) {
+      throw validationFailed('Дата разового платежа раньше даты запуска новой модели.');
+    }
+
+    const start = dateValue(input.scheduledOn);
+    const plan = await this.plans.createPlan(
+      tx,
+      {
+        workspaceId: model.workspaceId,
+        budgetId,
+        name: input.name,
+        planType: 'EXPENSE',
+        amountMinor: amount,
+        anchorOn: start,
+        startOn: start,
+        endOn: input.endOn ? dateValue(input.endOn) : null,
+        recurrence: input.recurrence,
+        intervalMonths: input.intervalMonths ?? null,
+        accountId: null,
+        categoryId: category.id,
+        envelopeId: envelope.id,
+        comment: input.comment ?? null,
+        isActive: true,
+        disabledAt: null,
+        createdByUserId: userId,
+        updatedByUserId: userId,
+      },
+      userId,
+      requestId,
+    );
+
+    const today = todayInTimezone(new Date(), budget.timezone);
+    let to = this.nextPeriodEnd(budget, today);
+    if (input.recurrence === 'ONE_TIME' && input.scheduledOn > to) to = input.scheduledOn;
+    const created = await this.materializer.ensureOccurrences(tx, budgetId, input.scheduledOn, to, {
+      actorUserId: userId,
+    });
+    const occurrenceId = await this.planData.findOccurrenceIdAt(tx, budgetId, plan.id, start);
+    if (input.recurrence === 'ONE_TIME' && !occurrenceId) {
+      throw validationFailed('Для разового платежа не удалось создать обязательство.');
+    }
+    return { ...this.planView(plan), occurrenceId, occurrencesCreated: created };
   }
 
   async updatePlan(
@@ -428,6 +522,7 @@ export class ObligationPlanApplicationService {
     workspaceId: string,
     status: number,
     body: (tx: Tx) => Promise<T>,
+    allowEditor = false,
   ): Promise<T> {
     const result = await this.prisma.$transaction(async (tx) => {
       await this.transactions.lockBudget(tx, budgetId);
@@ -436,7 +531,7 @@ export class ObligationPlanApplicationService {
         { budgetId, actorUserId: userId, key, operation, requestHash },
         async () => {
           const role = await this.transactions.findActiveMemberRole(tx, workspaceId, userId);
-          if (role !== 'OWNER') throw forbidden();
+          if (role !== 'OWNER' && !(allowEditor && role === 'EDITOR')) throw forbidden();
           return { status, body: await body(tx) };
         },
       );

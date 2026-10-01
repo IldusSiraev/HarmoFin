@@ -36,6 +36,91 @@ export class ObligationPlanCreateBody {
   comment?: string | null;
 }
 
+export class ObligationOneTimePayBody {
+  @ApiProperty({ minLength: 1, maxLength: 120, example: 'Взнос в садик' })
+  name!: string;
+
+  @ApiProperty({
+    example: '40000.00',
+    description: 'Плановая сумма: десятичная строка, до 2 знаков.',
+  })
+  plannedAmount!: string;
+
+  @ApiProperty({
+    example: '38500.50',
+    description: 'Фактическая сумма расхода; может отличаться от плановой.',
+  })
+  actualAmount!: string;
+
+  @ApiProperty({
+    format: 'date',
+    maxLength: 10,
+    example: '2026-10-01',
+    description: 'Дата оплаты; будущая дата отклоняется.',
+  })
+  occurredOn!: string;
+
+  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  accountId!: string;
+
+  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  categoryId!: string;
+
+  @ApiPropertyOptional({ maxLength: 500, nullable: true, type: String })
+  comment?: string | null;
+}
+
+export class ObligationOneTimePayTransaction {
+  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  id!: string;
+
+  @ApiProperty({ example: '3850050', description: 'Фактическая сумма (minor, строка).' })
+  amountMinor!: string;
+
+  @ApiProperty({ format: 'date', maxLength: 10 })
+  occurredOn!: string;
+
+  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  accountId!: string;
+
+  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  categoryId!: string;
+
+  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  envelopeId!: string;
+
+  @ApiProperty({ example: '9614950', description: 'Баланс счёта после расхода (minor, строка).' })
+  accountBalanceMinor!: string;
+}
+
+export class ObligationOneTimePayWarning {
+  @ApiProperty({ example: 'ENVELOPE_BALANCE_INSUFFICIENT' })
+  code!: string;
+
+  @ApiProperty({ example: 'Назначение конверта меньше расхода; оплата проведена.' })
+  detail!: string;
+}
+
+export class ObligationOneTimePayResponse {
+  @ApiProperty({ example: '4000000', description: 'Плановая сумма (minor, строка).' })
+  plannedMinor!: string;
+
+  @ApiProperty({ example: '3850050', description: 'Фактическая сумма (minor, строка).' })
+  actualMinor!: string;
+
+  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  occurrenceId!: string;
+
+  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  planId!: string;
+
+  @ApiProperty({ type: ObligationOneTimePayTransaction })
+  transaction!: ObligationOneTimePayTransaction;
+
+  @ApiProperty({ type: [ObligationOneTimePayWarning] })
+  warnings!: ObligationOneTimePayWarning[];
+}
+
 export class ObligationPlanUpdateBody {
   @ApiPropertyOptional({ minLength: 1, maxLength: 120 })
   name?: string;

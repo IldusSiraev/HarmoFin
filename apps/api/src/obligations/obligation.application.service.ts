@@ -160,138 +160,163 @@ export class ObligationApplicationService {
       'obligation.pay',
       requestHash,
       model.workspaceId,
-      async (tx) => {
-        const amount = parseDecimalToMinorUnits(input.amount, RUB_SCALE, false);
-        if (amount <= 0n) {
-          throw validationFailed('Сумма оплаты должна быть больше нуля.');
-        }
-        const budget = await this.transactions.findBudgetSettings(tx, budgetId);
-        if (!budget) {
-          throw resourceNotFound();
-        }
-        const occurrence = await this.requireOccurrence(tx, budgetId, occurrenceId);
-        this.assertOpen(occurrence);
-        if (
-          occurrence.planType !== 'EXPENSE' ||
-          !occurrence.plan.isActive ||
-          occurrence.plan.deletedAt !== null ||
-          occurrence.envelopeId === null
-        ) {
-          throw notPayable();
-        }
-
-        const [envelope, account, category] = await Promise.all([
-          this.obligations.findEnvelope(tx, budgetId, occurrence.envelopeId),
-          this.obligations.findAccount(tx, budgetId, input.accountId),
-          this.obligations.findExpenseCategory(tx, budgetId, input.categoryId),
-        ]);
-        if (!account || !category) {
-          throw resourceNotFound();
-        }
-        if (!envelope || envelope.envelopeType !== 'MANDATORY_EXPENSES') {
-          throw notPayable();
-        }
-        if (
-          account.currency !== 'RUB' ||
-          account.scale !== RUB_SCALE ||
-          envelope.currency !== 'RUB' ||
-          envelope.scale !== RUB_SCALE ||
-          category.categoryType !== 'EXPENSE'
-        ) {
-          throw invalidReference();
-        }
-
-        const today = todayInTimezone(new Date(), budget.timezone);
-        if (input.occurredOn > today) {
-          throw validationFailed('Нельзя подтвердить оплату с будущей датой.');
-        }
-
-        await this.transactions.lockAccount(tx, budgetId, account.id);
-        if (!budget.allowNegativeBalance) {
-          const cash = await this.transactions.accountCashBalance(tx, budgetId, account.id);
-          if (cash < amount) {
-            throw insufficientBalance();
-          }
-        }
-
-        // Mandatory-envelope expense is legitimately created here (bypasses generic v2 POST guard).
-        const transaction = await this.transactions.create(
+      (tx) =>
+        this.payInTransaction(
           tx,
-          {
-            budgetId,
-            transactionType: 'EXPENSE',
-            status: 'CONFIRMED',
-            amountMinor: amount,
-            occurredOn,
-            accountId: account.id,
-            categoryId: category.id,
-            envelopeId: envelope.id,
-            sourceDescription: null,
-            merchantName: null,
-            isPlanned: true,
-            comment: null,
-            confirmedAt: new Date(),
-            createdByUserId: userId,
-            updatedByUserId: userId,
-            accountingModelVersion: 2,
-          },
           userId,
-          requestId,
-        );
-        await this.obligations.createPayment(tx, {
           budgetId,
-          workspaceId: model.workspaceId,
-          occurrenceId: occurrence.id,
-          transactionId: transaction.id,
-          actorUserId: userId,
+          model.workspaceId,
+          occurrenceId,
+          input,
+          occurredOn,
           requestId,
-        });
-
-        const paid = await this.obligations.confirmedPaidMinor(tx, budgetId, occurrence.id);
-        const completes = !input.willPayMore || paid.total >= occurrence.amountMinor;
-        let status: string = occurrence.status;
-        if (completes) {
-          await this.obligations.transitionOccurrence(tx, {
-            budgetId,
-            workspaceId: model.workspaceId,
-            occurrence,
-            to: 'COMPLETED',
-            actorUserId: userId,
-            requestId,
-          });
-          status = 'COMPLETED';
-        }
-
-        const warnings: ObligationWarning[] = [];
-        const assignment = await this.assignmentBalances.balance(
-          tx,
-          budgetId,
-          envelope.id,
-          null,
-          new Date(),
-        );
-        if (assignment.balance < 0n) {
-          warnings.push({
-            code: 'ENVELOPE_BALANCE_INSUFFICIENT',
-            detail: 'Назначение конверта меньше расхода; оплата проведена.',
-          });
-        }
-
-        return {
-          occurrence: this.view(occurrence, status, paid.total),
-          transaction: {
-            id: transaction.id,
-            amountMinor: formatMinorUnits(transaction.amountMinor),
-            occurredOn: input.occurredOn,
-            accountId: transaction.accountId,
-            categoryId: transaction.categoryId,
-            envelopeId: envelope.id,
-            accountBalanceMinor: formatMinorUnits(transaction.accountCurrentBalanceMinor),
-          },
-          warnings,
-        };
-      },
+        ),
     );
+  }
+
+  /**
+   * Pay body without lock/idempotency/role handling: the caller owns the transaction, the budget
+   * lock and the idempotency scope (used by pay and by the atomic one-time obligation action).
+   */
+  async payInTransaction(
+    tx: Parameters<Parameters<PrismaService['$transaction']>[0]>[0],
+    userId: string,
+    budgetId: string,
+    workspaceId: string,
+    occurrenceId: string,
+    input: ObligationPayInput,
+    occurredOn: Date,
+    requestId?: string,
+  ): Promise<ObligationResult> {
+    const amount = parseDecimalToMinorUnits(input.amount, RUB_SCALE, false);
+    if (amount <= 0n) {
+      throw validationFailed('Сумма оплаты должна быть больше нуля.');
+    }
+    const budget = await this.transactions.findBudgetSettings(tx, budgetId);
+    if (!budget) {
+      throw resourceNotFound();
+    }
+    const occurrence = await this.requireOccurrence(tx, budgetId, occurrenceId);
+    this.assertOpen(occurrence);
+    if (
+      occurrence.planType !== 'EXPENSE' ||
+      !occurrence.plan.isActive ||
+      occurrence.plan.deletedAt !== null ||
+      occurrence.envelopeId === null
+    ) {
+      throw notPayable();
+    }
+
+    const [envelope, account, category] = await Promise.all([
+      this.obligations.findEnvelope(tx, budgetId, occurrence.envelopeId),
+      this.obligations.findAccount(tx, budgetId, input.accountId),
+      this.obligations.findExpenseCategory(tx, budgetId, input.categoryId),
+    ]);
+    if (!account || !category) {
+      throw resourceNotFound();
+    }
+    if (!envelope || envelope.envelopeType !== 'MANDATORY_EXPENSES') {
+      throw notPayable();
+    }
+    if (
+      account.currency !== 'RUB' ||
+      account.scale !== RUB_SCALE ||
+      envelope.currency !== 'RUB' ||
+      envelope.scale !== RUB_SCALE ||
+      category.categoryType !== 'EXPENSE'
+    ) {
+      throw invalidReference();
+    }
+
+    const today = todayInTimezone(new Date(), budget.timezone);
+    if (input.occurredOn > today) {
+      throw validationFailed('Нельзя подтвердить оплату с будущей датой.');
+    }
+
+    await this.transactions.lockAccount(tx, budgetId, account.id);
+    if (!budget.allowNegativeBalance) {
+      const cash = await this.transactions.accountCashBalance(tx, budgetId, account.id);
+      if (cash < amount) {
+        throw insufficientBalance();
+      }
+    }
+
+    // Mandatory-envelope expense is legitimately created here (bypasses generic v2 POST guard).
+    const transaction = await this.transactions.create(
+      tx,
+      {
+        budgetId,
+        transactionType: 'EXPENSE',
+        status: 'CONFIRMED',
+        amountMinor: amount,
+        occurredOn,
+        accountId: account.id,
+        categoryId: category.id,
+        envelopeId: envelope.id,
+        sourceDescription: null,
+        merchantName: null,
+        isPlanned: true,
+        comment: null,
+        confirmedAt: new Date(),
+        createdByUserId: userId,
+        updatedByUserId: userId,
+        accountingModelVersion: 2,
+      },
+      userId,
+      requestId,
+    );
+    await this.obligations.createPayment(tx, {
+      budgetId,
+      workspaceId,
+      occurrenceId: occurrence.id,
+      transactionId: transaction.id,
+      actorUserId: userId,
+      requestId,
+    });
+
+    const paid = await this.obligations.confirmedPaidMinor(tx, budgetId, occurrence.id);
+    const completes = !input.willPayMore || paid.total >= occurrence.amountMinor;
+    let status: string = occurrence.status;
+    if (completes) {
+      await this.obligations.transitionOccurrence(tx, {
+        budgetId,
+        workspaceId,
+        occurrence,
+        to: 'COMPLETED',
+        actorUserId: userId,
+        requestId,
+      });
+      status = 'COMPLETED';
+    }
+
+    const warnings: ObligationWarning[] = [];
+    const assignment = await this.assignmentBalances.balance(
+      tx,
+      budgetId,
+      envelope.id,
+      null,
+      new Date(),
+    );
+    if (assignment.balance < 0n) {
+      warnings.push({
+        code: 'ENVELOPE_BALANCE_INSUFFICIENT',
+        detail: 'Назначение конверта меньше расхода; оплата проведена.',
+      });
+    }
+
+    return {
+      occurrence: this.view(occurrence, status, paid.total),
+      transaction: {
+        id: transaction.id,
+        amountMinor: formatMinorUnits(transaction.amountMinor),
+        occurredOn: input.occurredOn,
+        accountId: transaction.accountId,
+        categoryId: transaction.categoryId,
+        envelopeId: envelope.id,
+        accountBalanceMinor: formatMinorUnits(transaction.accountCurrentBalanceMinor),
+      },
+      warnings,
+    };
   }
 
   async skip(

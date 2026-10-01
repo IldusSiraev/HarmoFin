@@ -519,6 +519,272 @@ describe('v2 обязательства: управление планами', (
       }
     }
   });
+
+  describe('разовый обязательный платёж одним действием', () => {
+    const payUrl = (budgetId = owner().budgetId) => `${base(budgetId)}/one-time-pay`;
+    const payOne = (
+      user: User | undefined,
+      payload: Record<string, unknown>,
+      key: string = randomUUID(),
+      budgetId = user?.budgetId,
+    ) =>
+      server.inject({
+        method: 'POST',
+        url: payUrl(budgetId),
+        headers: headers(user, key),
+        payload,
+      });
+    const oneBody = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+      name: `Взнос ${randomUUID().slice(0, 8)}`,
+      plannedAmount: '40000.00',
+      actualAmount: '38500.50',
+      occurredOn: iso(-1),
+      accountId,
+      categoryId: expenseCategoryId,
+      ...over,
+    });
+    const totals = async () => ({
+      plans: await prisma.regularPlan.count({ where: { budgetId: owner().budgetId } }),
+      occurrences: await prisma.planOccurrence.count({ where: { budgetId: owner().budgetId } }),
+      payments: await prisma.planPayment.count({ where: { budgetId: owner().budgetId } }),
+      transactions: await prisma.transaction.count({ where: { budgetId: owner().budgetId } }),
+    });
+
+    it('создаёт ровно один план, occurrence, расход по факту и оплату', async () => {
+      const body = oneBody({ name: 'Взнос единый' });
+      const res = await payOne(owner(), body);
+      expect(res.statusCode).toBe(201);
+      const out = res.json<{
+        plannedMinor: string;
+        actualMinor: string;
+        occurrenceId: string;
+        planId: string;
+        transaction: { id: string; amountMinor: string; envelopeId: string; accountId: string };
+        warnings: unknown[];
+      }>();
+      expect(out.plannedMinor).toBe('4000000');
+      expect(out.actualMinor).toBe('3850050');
+      expect(out.transaction.amountMinor).toBe('3850050');
+      expect(out.transaction.envelopeId).toBe(mandatoryEnvelopeId);
+      expect(Array.isArray(out.warnings)).toBe(true);
+      const budgetId = owner().budgetId;
+      expect(await prisma.regularPlan.count({ where: { budgetId, name: 'Взнос единый' } })).toBe(1);
+      const plan = await prisma.regularPlan.findUniqueOrThrow({ where: { id: out.planId } });
+      expect(plan.recurrence).toBe('ONE_TIME');
+      expect(plan.planType).toBe('EXPENSE');
+      expect(plan.envelopeId).toBe(mandatoryEnvelopeId);
+      expect(await prisma.planOccurrence.count({ where: { budgetId, planId: out.planId } })).toBe(
+        1,
+      );
+      const occurrence = await occ(out.occurrenceId);
+      expect(occurrence.status).toBe('COMPLETED');
+      expect(occurrence.amountMinor).toBe(4_000_000n);
+      expect(
+        await prisma.planPayment.count({ where: { budgetId, occurrenceId: out.occurrenceId } }),
+      ).toBe(1);
+      const tx = await prisma.transaction.findUniqueOrThrow({ where: { id: out.transaction.id } });
+      expect(tx).toMatchObject({
+        status: 'CONFIRMED',
+        transactionType: 'EXPENSE',
+        accountingModelVersion: 2,
+        amountMinor: 3_850_050n,
+        accountId,
+        envelopeId: mandatoryEnvelopeId,
+      });
+      expect(
+        await prisma.transaction.count({
+          where: { budgetId, accountingModelVersion: 2, id: out.transaction.id },
+        }),
+      ).toBe(1);
+      for (const [entityType, entityId] of [
+        ['regular_plan', out.planId],
+        ['plan_occurrence', out.occurrenceId],
+        ['transaction', out.transaction.id],
+      ] as const) {
+        expect(
+          await prisma.auditEvent.count({ where: { budgetId, entityType, entityId } }),
+          entityType,
+        ).toBeGreaterThanOrEqual(1);
+      }
+      const payment = await prisma.planPayment.findFirstOrThrow({
+        where: { budgetId, occurrenceId: out.occurrenceId },
+      });
+      expect(
+        await prisma.auditEvent.count({
+          where: { budgetId, entityType: 'plan_payment', entityId: payment.id },
+        }),
+      ).toBe(1);
+    });
+
+    it('факт больше плана допустим; будущая дата отклонена без записей', async () => {
+      const more = await payOne(
+        owner(),
+        oneBody({ plannedAmount: '100.00', actualAmount: '250.00' }),
+      );
+      expect(more.statusCode).toBe(201);
+      expect(more.json<{ actualMinor: string }>().actualMinor).toBe('25000');
+      const before = await totals();
+      const future = await payOne(owner(), oneBody({ occurredOn: iso(3) }));
+      expect(future.statusCode).toBe(400);
+      expect(await totals()).toEqual(before);
+    });
+
+    it('откат при несуществующем счёте, чужом счёте и чужой категории', async () => {
+      const foreignAccount = (
+        await prisma.account.create({
+          data: {
+            id: randomUUID(),
+            budgetId: ctx.outsider!.budgetId,
+            name: 'Чужой',
+            accountType: 'BANK_ACCOUNT',
+            currency: 'RUB',
+            scale: 2,
+            startingBalanceMinor: 100_000_000n,
+            accountingStartDate: d(-90),
+          },
+        })
+      ).id;
+      const before = await totals();
+      for (const over of [
+        { accountId: randomUUID() },
+        { accountId: foreignAccount },
+        { categoryId: outsiderCategoryId },
+      ]) {
+        const res = await payOne(owner(), oneBody(over));
+        expect(res.statusCode).toBe(404);
+      }
+      expect(await totals()).toEqual(before);
+    });
+
+    it('откат при нехватке физических денег (INSUFFICIENT_BALANCE)', async () => {
+      const poor = (
+        await prisma.account.create({
+          data: {
+            id: randomUUID(),
+            budgetId: owner().budgetId,
+            name: 'Бедный',
+            accountType: 'CASH',
+            currency: 'RUB',
+            scale: 2,
+            startingBalanceMinor: 100_000n,
+            accountingStartDate: d(-90),
+          },
+        })
+      ).id;
+      const before = await totals();
+      const res = await payOne(owner(), oneBody({ accountId: poor, actualAmount: '5000.00' }));
+      expect(res.statusCode).toBe(409);
+      expect(res.json<{ code: string }>().code).toBe('INSUFFICIENT_BALANCE');
+      expect(await totals()).toEqual(before);
+    });
+
+    it('чужой бюджет: outsider без mandatory конверта получает 409 и ничего не создаёт', async () => {
+      const outsiderAccount = (
+        await prisma.account.create({
+          data: {
+            id: randomUUID(),
+            budgetId: ctx.outsider!.budgetId,
+            name: 'Свой',
+            accountType: 'BANK_ACCOUNT',
+            currency: 'RUB',
+            scale: 2,
+            startingBalanceMinor: 100_000_000n,
+            accountingStartDate: d(-90),
+          },
+        })
+      ).id;
+      const res = await payOne(
+        ctx.outsider,
+        oneBody({ accountId: outsiderAccount, categoryId: outsiderCategoryId }),
+      );
+      expect(res.statusCode).toBe(409);
+      expect(res.json<{ code: string }>().code).toBe('MANDATORY_ENVELOPE_REQUIRED');
+      expect(
+        await prisma.regularPlan.count({ where: { budgetId: ctx.outsider!.budgetId } }),
+      ).toBeGreaterThanOrEqual(0);
+      expect(await prisma.planPayment.count({ where: { budgetId: ctx.outsider!.budgetId } })).toBe(
+        0,
+      );
+    });
+
+    it('повтор с тем же ключом не дублирует записи, другое тело даёт конфликт', async () => {
+      const key = `one-time-${randomUUID()}`;
+      const body = oneBody({ name: 'Взнос идемпотентный' });
+      const first = await payOne(owner(), body, key);
+      const before = await totals();
+      const replay = await payOne(owner(), body, key);
+      expect(first.statusCode).toBe(201);
+      expect(replay.statusCode).toBe(201);
+      expect(replay.json<{ occurrenceId: string }>().occurrenceId).toBe(
+        first.json<{ occurrenceId: string }>().occurrenceId,
+      );
+      expect(await totals()).toEqual(before);
+      expect(
+        await prisma.regularPlan.count({
+          where: { budgetId: owner().budgetId, name: 'Взнос идемпотентный' },
+        }),
+      ).toBe(1);
+      const conflict = await payOne(owner(), { ...body, actualAmount: '1.00' }, key);
+      expect(conflict.statusCode).toBe(409);
+      expect(conflict.json<{ code: string }>().code).toBe('IDEMPOTENCY_CONFLICT');
+    });
+
+    it('роли: VIEWER 403, EDITOR допускается; CSRF и ключ обязательны; валидация', async () => {
+      const before = await totals();
+      expect((await payOne(on(ctx.viewer!), oneBody())).statusCode).toBe(403);
+      expect(await totals()).toEqual(before);
+      expect((await payOne(on(ctx.editor!), oneBody())).statusCode).toBe(201);
+      const badCsrf = await server.inject({
+        method: 'POST',
+        url: payUrl(),
+        headers: { ...headers(owner(), randomUUID()), 'x-csrf-token': 'bad' },
+        payload: oneBody(),
+      });
+      expect(badCsrf.statusCode).toBe(403);
+      const noKey = await server.inject({
+        method: 'POST',
+        url: payUrl(),
+        headers: headers(owner()),
+        payload: oneBody(),
+      });
+      expect(noKey.statusCode).toBe(400);
+      for (const over of [
+        { actualAmount: '0' },
+        { plannedAmount: '1.234' },
+        { occurredOn: 'вчера' },
+        { extra: 1 },
+      ]) {
+        expect((await payOne(owner(), oneBody(over))).statusCode).toBe(400);
+      }
+    });
+
+    it('OpenAPI описывает one-time-pay', async () => {
+      const res = await server.inject({ method: 'GET', url: '/openapi.json' });
+      const op = res.json<{
+        paths: Record<
+          string,
+          Record<
+            string,
+            {
+              parameters?: Array<{ name: string; required?: boolean }>;
+              responses?: Record<string, unknown>;
+              security?: Array<Record<string, unknown>>;
+            }
+          >
+        >;
+      }>().paths['/api/v2/budgets/{budgetId}/obligations/one-time-pay']?.post;
+      expect(op).toBeDefined();
+      for (const code of ['201', '400', '401', '403', '404', '409', '422']) {
+        expect(op?.responses?.[code], code).toBeDefined();
+      }
+      expect(op?.security).toEqual([{ session: [] }]);
+      expect(op?.parameters).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'Idempotency-Key', required: true }),
+        ]),
+      );
+    });
+  });
 });
 
 async function register(email: string): Promise<User> {

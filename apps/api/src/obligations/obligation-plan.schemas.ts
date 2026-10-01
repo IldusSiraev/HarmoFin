@@ -56,6 +56,18 @@ export const createObligationPlanSchema = z
     }
   });
 
+export const oneTimePaySchema = z
+  .object({
+    name,
+    plannedAmount: amount,
+    actualAmount: amount,
+    occurredOn: date,
+    accountId: uuid,
+    categoryId: uuid,
+    comment,
+  })
+  .strict();
+
 export const updateObligationPlanSchema = z
   .object({
     name: name.optional(),
@@ -108,6 +120,7 @@ export const listObligationOccurrencesSchema = z
   });
 
 export type CreateObligationPlanInput = z.infer<typeof createObligationPlanSchema>;
+export type OneTimePayInput = z.infer<typeof oneTimePaySchema>;
 export type UpdateObligationPlanInput = z.infer<typeof updateObligationPlanSchema>;
 export type ListObligationPlansInput = z.infer<typeof listObligationPlansSchema>;
 export type ListObligationOccurrencesInput = z.infer<typeof listObligationOccurrencesSchema>;
