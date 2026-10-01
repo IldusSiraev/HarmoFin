@@ -3,6 +3,7 @@ import { type DynamicModule, Module } from '@nestjs/common';
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { PrismaService } from '../database/prisma.service.js';
+import { FundingConfirmApplicationService } from './funding-confirm.application.service.js';
 import { FundingPreviewApplicationService } from './funding-preview.application.service.js';
 import { FundingController } from './funding.controller.js';
 import { IncomeCategorySuggestionApplicationService } from './income-category-suggestion.application.service.js';
@@ -19,6 +20,17 @@ export class FundingModule {
           useFactory: (prisma: PrismaService) =>
             new FundingPreviewApplicationService(prisma, new PlanModelPolicy(prisma)),
           inject: [PrismaService],
+        },
+        {
+          provide: FundingConfirmApplicationService,
+          useFactory: (prisma: PrismaService, preview: FundingPreviewApplicationService) =>
+            new FundingConfirmApplicationService(
+              prisma,
+              new IdempotencyService(),
+              new PlanModelPolicy(prisma),
+              preview,
+            ),
+          inject: [PrismaService, FundingPreviewApplicationService],
         },
         {
           provide: IncomeCategorySuggestionApplicationService,

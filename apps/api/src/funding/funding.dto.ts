@@ -34,15 +34,18 @@ export class FundingPreviewRequest {
 
   @ApiPropertyOptional({
     type: () => [FundingPreviewOverrideDto],
+    maxItems: 100,
     description:
-      'Строки пользователя заменяют или дополняют предложение; сервер пересчитывает остаток и ошибки без записи.',
+      'Строки пользователя заменяют или дополняют предложение; сервер пересчитывает остаток и ошибки без записи. previewHash годится для confirm, только если lines подтверждения равны этим overrides. Сумма 0 убирает строку, а confirm отклоняет 0 кодом 400.',
   })
   overrides?: FundingPreviewOverrideDto[];
 
   @ApiPropertyOptional({
-    type: [String],
+    type: 'array',
+    items: { type: 'string', format: 'uuid' },
+    maxItems: 100,
     description:
-      'Периоды с предложенной целью DRAFT, выбранные для подтверждения. Не указано — выбраны все; пустой список — не выбран ни один (условные строки периодов не предлагаются).',
+      'Периоды с предложенной целью DRAFT, выбранные для подтверждения. Не указано — выбраны все; пустой список — не выбран ни один (условные строки периодов не предлагаются). previewHash годится для confirm, только если confirmPeriodTargets подтверждения равны этому выбору.',
   })
   confirmPeriodTargets?: string[];
 }
@@ -114,6 +117,93 @@ export class FundingPreviewResponse {
 
   @ApiProperty({ type: () => [FundingPreviewErrorDto] })
   errors!: FundingPreviewErrorDto[];
+}
+
+export class FundingConfirmLineDto {
+  @ApiProperty({ type: String, format: 'uuid', maxLength: 36 })
+  envelopeId!: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    maxLength: 36,
+    description: 'Обязателен для периодных конвертов.',
+  })
+  periodId?: string;
+
+  @ApiProperty({
+    type: String,
+    example: '7000.00',
+    description: 'Положительная сумма в рублях: десятичная строка, до 2 знаков.',
+  })
+  amount!: string;
+}
+
+export class FundingConfirmRequest {
+  @ApiProperty({ type: String, enum: ['INCOME', 'OPENING', 'FREE'], example: 'INCOME' })
+  sourceKind!: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    maxLength: 36,
+    description: 'Обязателен для INCOME, недопустим для остальных источников.',
+  })
+  incomeTransactionId?: string;
+
+  @ApiProperty({
+    type: String,
+    minLength: 64,
+    maxLength: 64,
+    description:
+      'previewHash предпросмотра, выполненного с overrides = lines и confirmPeriodTargets этого запроса. Расхождение состояния — 409 PREVIEW_STALE без записи.',
+  })
+  previewHash!: string;
+
+  @ApiProperty({
+    type: 'array',
+    items: { type: 'string', format: 'uuid' },
+    maxItems: 100,
+    description:
+      'Периоды с целью DRAFT, подтверждаемые в той же транзакции. Пустой список — цели не подтверждаются.',
+  })
+  confirmPeriodTargets!: string[];
+
+  @ApiProperty({
+    type: () => [FundingConfirmLineDto],
+    maxItems: 100,
+    description:
+      'Назначения. Пустой список допустим: деньги остаются свободными, подтверждаются только цели.',
+  })
+  lines!: FundingConfirmLineDto[];
+}
+
+export class FundingConfirmAssignmentDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ type: String, format: 'uuid' })
+  envelopeId!: string;
+
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  periodId!: string | null;
+
+  @ApiProperty({ type: String, example: '700000' })
+  amountMinor!: string;
+}
+
+export class FundingConfirmResponse {
+  @ApiProperty({ type: String, example: '7000000', description: 'Назначено всего, minor.' })
+  assignedMinor!: string;
+
+  @ApiProperty({ type: String, example: '1000000', description: 'Остаток источника, minor.' })
+  sourceRemainingMinor!: string;
+
+  @ApiProperty({ type: [String], description: 'Подтверждённые периоды целей.' })
+  confirmedPeriodIds!: string[];
+
+  @ApiProperty({ type: () => [FundingConfirmAssignmentDto] })
+  assignments!: FundingConfirmAssignmentDto[];
 }
 
 export class IncomeCategorySuggestionRequest {

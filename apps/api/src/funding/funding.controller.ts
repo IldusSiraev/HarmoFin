@@ -27,17 +27,22 @@ import { ProblemDetailsResponse } from '../common/errors/problem-details.dto.js'
 import type { RequestContext } from '../common/request-context/request-context.js';
 import { CsrfGuard } from '../common/security/csrf.guard.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
+import { FundingConfirmApplicationService } from './funding-confirm.application.service.js';
 import { FundingPreviewApplicationService } from './funding-preview.application.service.js';
 import {
+  FundingConfirmRequest,
+  FundingConfirmResponse,
   FundingPreviewRequest,
   FundingPreviewResponse,
   IncomeCategorySuggestionRequest,
   IncomeCategorySuggestionResponse,
 } from './funding.dto.js';
 import {
+  fundingConfirmSchema,
   fundingPreviewSchema,
   putIncomeCategorySuggestionSchema,
   uuidParamSchema,
+  type FundingConfirmRequestInput,
   type FundingPreviewRequestInput,
   type PutIncomeCategorySuggestionRequestInput,
 } from './funding.schemas.js';
@@ -80,6 +85,8 @@ export class FundingController {
   constructor(
     @Inject(FundingPreviewApplicationService)
     private readonly preview: FundingPreviewApplicationService,
+    @Inject(FundingConfirmApplicationService)
+    private readonly confirmation: FundingConfirmApplicationService,
     @Inject(IncomeCategorySuggestionApplicationService)
     private readonly suggestion: IncomeCategorySuggestionApplicationService,
   ) {}
@@ -106,6 +113,49 @@ export class FundingController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.preview.preview(contextOf(request).userId, budgetId, input, request.id);
+  }
+
+  @Post('funding/confirm')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiOperation({
+    summary: 'Атомарно подтвердить назначения и цели периода',
+    description:
+      'Одна транзакция: блокировка бюджета, идемпотентность, блокировка дохода, пересчёт previewHash из реальных данных (расхождение даёт 409 PREVIEW_STALE без записи), подтверждение целей периода, затем назначения. Любая ошибка откатывает всё, включая подтверждение целей. Ручная сумма строки может отличаться от предложенной в пределах фактического источника. Пустые lines с непустым confirmPeriodTargets подтверждают только цели; оба пустых — без записи. Без записи: lines=[] и confirmPeriodTargets=[] возвращают 200 с нулями без проверки ключа, хеша и дохода. previewHash годится, только если lines/confirmPeriodTargets подтверждения равны overrides/выбору предпросмотра; сумма 0 в preview убирает строку, а confirm отвечает на 0 кодом 400. Только OWNER. Коды: 400 VALIDATION_FAILED, 403 FORBIDDEN, 404 (бюджет/доход/конверт/период), 409 PREVIEW_STALE|SOURCE_EXHAUSTED|ASSIGNMENT_UNBACKED|IDEMPOTENCY_CONFLICT|MODEL_VERSION_MISMATCH, 422 OPENING_NOT_AVAILABLE|ENVELOPE_ARCHIVED|PERIOD_REQUIRED|PERIOD_NOT_ALLOWED.',
+  })
+  @ApiHeader(idempotencyHeader)
+  @ApiBody({ type: FundingConfirmRequest })
+  @ApiOkResponse({ type: FundingConfirmResponse })
+  @ApiResponse({
+    status: 400,
+    type: ProblemDetailsResponse,
+    description: 'VALIDATION_FAILED: некорректное тело, ключ, нулевая или повторная строка.',
+  })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse, description: 'FORBIDDEN: не OWNER.' })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 409,
+    type: ProblemDetailsResponse,
+    description:
+      'PREVIEW_STALE (данные изменились после предпросмотра), SOURCE_EXHAUSTED, ASSIGNMENT_UNBACKED, IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.',
+  })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  async confirmFunding(
+    @Param('budgetId', idPipe) budgetId: string,
+    @Body(new ZodValidationPipe(fundingConfirmSchema)) input: FundingConfirmRequestInput,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (
+      await this.confirmation.confirm(
+        contextOf(request).userId,
+        budgetId,
+        input,
+        validKey(key),
+        request.id,
+      )
+    ).body;
   }
 
   @Put('income-category-suggestion')
