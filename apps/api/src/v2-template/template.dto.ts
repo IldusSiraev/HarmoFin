@@ -128,3 +128,210 @@ export class TemplatePreviewResponse {
   })
   previewHash!: string;
 }
+
+export class TemplateApplyPeriodDto {
+  @ApiProperty({ type: String, enum: ['FIRST', 'SECOND'] })
+  role!: string;
+
+  @ApiProperty({
+    type: String,
+    enum: ACTIONS,
+    description:
+      'ADOPT только для совместимого действующего элемента; архивный ключ заменяется только явным CREATE; при коллизии имени CREATE требует другое name, иначе SKIP.',
+  })
+  action!: string;
+
+  @ApiProperty({ type: String, required: false, example: 'Утренний' })
+  name?: string;
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    nullable: true,
+    example: '12000.50',
+    description:
+      'Необязательная цель периода (рубли, десятичная строка). Для нового или принятого конверта без правила создаёт правило FIXED_PER_PERIOD; без цели — MANUAL. Существующие цель и правило не меняются.',
+  })
+  target?: string | null;
+
+  @ApiProperty({
+    type: String,
+    enum: ['SUGGESTED', 'MANUAL'],
+    required: false,
+    description: 'MANUAL: владелец отказался от предложенного правила.',
+  })
+  ruleChoice?: string;
+}
+
+export class TemplateApplyMandatoryDto {
+  @ApiProperty({ type: String, enum: ACTIONS })
+  action!: string;
+
+  @ApiProperty({ type: String, required: false })
+  name?: string;
+
+  @ApiProperty({ type: String, enum: ['SUGGESTED', 'MANUAL'], required: false })
+  ruleChoice?: string;
+}
+
+export class TemplateApplySavingsDto {
+  @ApiProperty({ type: String, example: 'Автомобиль', description: 'Имя накопления из шаблона.' })
+  name!: string;
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    nullable: true,
+    example: '5000',
+    description: 'Желательный взнос: правило SUGGESTED_FIXED. Назначение не создаётся.',
+  })
+  requestedContribution?: string | null;
+}
+
+export class TemplateApplyCycleDto {
+  @ApiProperty({ type: Number, minimum: 1, maximum: 28, example: 1 })
+  startDay!: number;
+
+  @ApiProperty({ type: Number, minimum: 1, maximum: 27, example: 14 })
+  boundaryOffset!: number;
+}
+
+export class TemplateApplyRequest {
+  @ApiProperty({
+    type: String,
+    example: 'a'.repeat(64),
+    description: 'previewHash из GET preview.',
+  })
+  previewHash!: string;
+
+  @ApiProperty({
+    type: () => TemplateApplyCycleDto,
+    required: false,
+    description:
+      'Смена границ цикла возможна только без подтверждённых фактов, назначений и целей; иначе 409 CYCLE_CHANGE_REQUIRES_FLOW.',
+  })
+  cycle?: TemplateApplyCycleDto;
+
+  @ApiProperty({
+    type: () => [TemplateApplyPeriodDto],
+    description: 'Ровно одна запись FIRST и одна SECOND.',
+  })
+  periods!: TemplateApplyPeriodDto[];
+
+  @ApiProperty({ type: () => TemplateApplyMandatoryDto })
+  mandatory!: TemplateApplyMandatoryDto;
+
+  @ApiProperty({
+    type: () => [TemplateApplySavingsDto],
+    description: 'Только выбранные накопления.',
+  })
+  savings!: TemplateApplySavingsDto[];
+}
+
+export class TemplateAppliedCategoryDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ type: String })
+  templateKey!: string;
+
+  @ApiProperty({ type: String })
+  name!: string;
+}
+
+export class TemplateAppliedEnvelopeDto extends TemplateAppliedCategoryDto {
+  @ApiProperty({ type: String, enum: ['FIRST', 'SECOND', 'MANDATORY', 'SAVINGS'] })
+  role!: string;
+}
+
+export class TemplateAdoptedEnvelopeDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ type: String, enum: ['FIRST', 'SECOND', 'MANDATORY', 'SAVINGS'] })
+  role!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  templateKey!: string | null;
+
+  @ApiProperty({ type: String })
+  name!: string;
+}
+
+export class TemplateSkippedDto {
+  @ApiProperty({ type: String, enum: ['CATEGORY', 'ENVELOPE'] })
+  kind!: string;
+
+  @ApiProperty({
+    type: String,
+    enum: ['FIRST', 'SECOND', 'MANDATORY', 'SAVINGS'],
+    nullable: true,
+  })
+  role!: string | null;
+
+  @ApiProperty({ type: String })
+  templateKey!: string;
+
+  @ApiProperty({
+    type: String,
+    enum: ['USER_SKIPPED', 'COLLISION', 'ARCHIVED', 'NOT_AVAILABLE'],
+    description: 'COLLISION/ARCHIVED оставляют шаг шаблона незавершённым.',
+  })
+  reason!: string;
+}
+
+export class TemplateAppliedRuleDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  envelopeId!: string;
+
+  @ApiProperty({ type: String, example: 'MANUAL' })
+  type!: string;
+
+  @ApiProperty({ type: Number })
+  priority!: number;
+}
+
+export class TemplateAppliedCycleDto extends TemplateCycleDto {
+  @ApiProperty({ type: Boolean })
+  changed!: boolean;
+
+  @ApiProperty({
+    type: Number,
+    description: 'Сколько структурных UNSET/DRAFT периодов было очищено перед перестроением.',
+  })
+  resetPeriods!: number;
+}
+
+export class TemplateAppliedCreatedDto {
+  @ApiProperty({ type: () => [TemplateAppliedCategoryDto] })
+  categories!: TemplateAppliedCategoryDto[];
+
+  @ApiProperty({ type: () => [TemplateAppliedEnvelopeDto] })
+  envelopes!: TemplateAppliedEnvelopeDto[];
+}
+
+export class TemplateApplyResponse {
+  @ApiProperty({ type: () => TemplateAppliedCreatedDto })
+  created!: TemplateAppliedCreatedDto;
+
+  @ApiProperty({ type: () => [TemplateAdoptedEnvelopeDto] })
+  adopted!: TemplateAdoptedEnvelopeDto[];
+
+  @ApiProperty({
+    type: () => [TemplateSkippedDto],
+    description: 'Пропущенные и конфликтующие строки.',
+  })
+  skipped!: TemplateSkippedDto[];
+
+  @ApiProperty({ type: () => [TemplateAppliedRuleDto], description: 'Только добавленные правила.' })
+  rules!: TemplateAppliedRuleDto[];
+
+  @ApiProperty({ type: () => TemplateAppliedCycleDto })
+  cycle!: TemplateAppliedCycleDto;
+
+  @ApiProperty({ type: Boolean, description: 'false, если конфликт оставил шаг незавершённым.' })
+  isComplete!: boolean;
+
+  @ApiProperty({ type: String, description: 'Новый previewHash после применения.' })
+  previewHash!: string;
+}

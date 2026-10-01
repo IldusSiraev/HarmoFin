@@ -24,6 +24,14 @@ const names = [
   'viewer',
   'editor',
   'legacy',
+  'applyClean',
+  'applySkip',
+  'applyOther',
+  'applyParallel',
+  'applyWrongType',
+  'applyArchived',
+  'applyCycle',
+  'applyHistory',
 ] as const;
 type Name = (typeof names)[number];
 const emails = Object.fromEntries(
@@ -76,7 +84,7 @@ let server: FastifyInstance;
 const ctx: Partial<Record<Name, RegisteredUser>> = {};
 const user = (name: Name) => ctx[name]!;
 
-describe('v2 reference-template preview (R05)', () => {
+describe('v2 reference-template preview and apply (R05, R06)', () => {
   beforeAll(async () => {
     app = await createApiApp(
       loadApiConfig({
@@ -96,7 +104,21 @@ describe('v2 reference-template preview (R05)', () => {
     server = app.getHttpAdapter().getInstance() as FastifyInstance;
     await server.ready();
     for (const name of names) ctx[name] = await register(emails[name]);
-    for (const name of ['empty', 'renamed', 'archived', 'collision', 'outsider'] as const) {
+    for (const name of [
+      'empty',
+      'renamed',
+      'archived',
+      'collision',
+      'outsider',
+      'applyClean',
+      'applySkip',
+      'applyOther',
+      'applyParallel',
+      'applyWrongType',
+      'applyArchived',
+      'applyCycle',
+      'applyHistory',
+    ] as const) {
       await prisma.budget.update({
         where: { id: user(name).budgetId },
         data: {
@@ -358,6 +380,433 @@ describe('v2 reference-template preview (R05)', () => {
     expect(legacy.json<{ code: string }>().code).toBe('MODEL_VERSION_MISMATCH');
   });
 
+  it('apply без конфликтов: категории, 2 периода, обязательные, правила; без денег и FREE_MONEY', async () => {
+    const who = 'applyClean';
+    const budgetId = user(who).budgetId;
+    const auditBefore = await prisma.auditEvent.count({ where: { budgetId } });
+    const body = await previewOf(who);
+    const response = await apply(who, {
+      ...defaultApply(body),
+      periods: [
+        { role: 'FIRST', action: 'CREATE', target: null },
+        { role: 'SECOND', action: 'CREATE', target: '12000.50' },
+      ],
+      savings: [{ name: 'Автомобиль', requestedContribution: '5000' }],
+    });
+    expect(response.statusCode).toBe(200);
+    const result = response.json<ApplyBody>();
+    expect(result.isComplete).toBe(true);
+    expect(result.created.envelopes.map((row) => row.role).sort()).toEqual([
+      'FIRST',
+      'MANDATORY',
+      'SAVINGS',
+      'SECOND',
+    ]);
+    expect(await prisma.category.count({ where: { budgetId } })).toBe(body.categories.length);
+    const envelopes = await prisma.envelope.findMany({ where: { budgetId } });
+    expect(envelopes).toHaveLength(4);
+    expect(envelopes.every((row) => row.startingBalanceMinor === 0n)).toBe(true);
+    expect(envelopes.some((row) => row.name === 'Отпуск')).toBe(false);
+    expect(await prisma.envelope.count({ where: { budgetId, envelopeType: 'FREE_MONEY' } })).toBe(
+      0,
+    );
+    const ruleOf = async (key: string) => {
+      const envelope = envelopes.find((row) => row.templateKey === key)!;
+      return prisma.envelopeFundingRule.findFirstOrThrow({
+        where: { budgetId, envelopeId: envelope.id },
+      });
+    };
+    expect(await ruleOf('v2-period-first')).toMatchObject({ type: 'MANUAL', priority: 20 });
+    expect(await ruleOf('v2-period-second')).toMatchObject({
+      type: 'FIXED_PER_PERIOD',
+      fixedMinor: 1_200_050n,
+      priority: 30,
+    });
+    expect(await ruleOf('v2-mandatory')).toMatchObject({ type: 'SUM_OF_PLANS', priority: 10 });
+    expect(await ruleOf('v2-savings-car')).toMatchObject({
+      type: 'SUGGESTED_FIXED',
+      fixedMinor: 500_000n,
+    });
+    expect(await prisma.envelopeFundingRule.count({ where: { budgetId } })).toBe(4);
+    expect(await prisma.envelopePeriod.count({ where: { budgetId } })).toBe(0);
+    expect(await prisma.account.count({ where: { budgetId } })).toBe(0);
+    expect(await prisma.transaction.count({ where: { budgetId } })).toBe(0);
+    expect(await prisma.envelopeAssignment.count({ where: { budgetId } })).toBe(0);
+    expect(await prisma.envelopeMovement.count({ where: { budgetId } })).toBe(0);
+    expect(await prisma.auditEvent.count({ where: { budgetId } })).toBe(auditBefore + 1);
+    const audit = await prisma.auditEvent.findFirstOrThrow({
+      where: { budgetId, entityType: 'reference_template' },
+    });
+    expect(JSON.stringify(audit.newValues)).not.toContain('12000');
+  });
+
+  it('тот же ключ возвращает тот же результат; другой ключ добавляет только недостающее', async () => {
+    const who = 'applyClean';
+    const budgetId = user(who).budgetId;
+    const body = await previewOf(who);
+    const first = await apply(who, { ...defaultApply(body), savings: [] }, 'same-key-1');
+    expect(first.statusCode).toBe(200);
+    const replay = await apply(who, { ...defaultApply(body), savings: [] }, 'same-key-1');
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json()).toEqual(first.json());
+    expect(await prisma.envelope.count({ where: { budgetId } })).toBe(4);
+    const auditCount = await prisma.auditEvent.count({
+      where: { budgetId, entityType: 'reference_template' },
+    });
+
+    const fresh = await previewOf(who);
+    const other = await apply(
+      who,
+      { ...defaultApply(fresh), savings: [{ name: 'Отпуск' }] },
+      'other-key-1',
+    );
+    expect(other.statusCode).toBe(200);
+    const created = other.json<ApplyBody>().created;
+    expect(created.categories).toHaveLength(0);
+    expect(created.envelopes.map((row) => row.name)).toEqual(['Отпуск']);
+    expect(await prisma.envelope.count({ where: { budgetId } })).toBe(5);
+    expect(await prisma.envelopeFundingRule.count({ where: { budgetId } })).toBe(5);
+    expect(
+      await prisma.auditEvent.count({ where: { budgetId, entityType: 'reference_template' } }),
+    ).toBe(auditCount + 1);
+  });
+
+  it('принятый конверт без правила получает правило; существующие правило, приоритет, цель и имя не меняются', async () => {
+    const who = 'applyOther';
+    const budgetId = user(who).budgetId;
+    const first = await prisma.envelope.create({
+      data: envelopeData(budgetId, 'Утренний', 'CURRENT_EXPENSES', 'FIRST', 'v2-period-first'),
+    });
+    await prisma.envelopeFundingRule.create({
+      data: {
+        id: randomUUID(),
+        budgetId,
+        envelopeId: first.id,
+        type: 'MANUAL',
+        priority: 77,
+        createdByUserId: user(who).userId,
+        updatedByUserId: user(who).userId,
+      },
+    });
+    const period = await prisma.envelopePeriod.create({
+      data: {
+        id: randomUUID(),
+        budgetId,
+        envelopeId: first.id,
+        startsOn: new Date('2026-01-01T00:00:00.000Z'),
+        endsOn: new Date('2026-01-14T00:00:00.000Z'),
+        targetMinor: 100_000n,
+        targetStatus: 'DRAFT',
+      },
+    });
+    const mandatory = await prisma.envelope.create({
+      data: envelopeData(budgetId, 'Обязательные', 'MANDATORY_EXPENSES', null, null),
+    });
+    const body = await previewOf(who);
+    const response = await apply(who, {
+      ...defaultApply(body),
+      periods: [
+        { role: 'FIRST', action: 'ADOPT', target: '999' },
+        { role: 'SECOND', action: 'CREATE', target: null },
+      ],
+    });
+    expect(response.statusCode).toBe(200);
+    expect(
+      response
+        .json<ApplyBody>()
+        .adopted.map((row) => row.id)
+        .sort(),
+    ).toEqual([first.id, mandatory.id].sort());
+    const rules = await prisma.envelopeFundingRule.findMany({
+      where: { budgetId, envelopeId: first.id },
+    });
+    expect(rules).toHaveLength(1);
+    expect(rules[0]).toMatchObject({ type: 'MANUAL', priority: 77, fixedMinor: null });
+    const added = await prisma.envelopeFundingRule.findMany({
+      where: { budgetId, envelopeId: mandatory.id },
+    });
+    expect(added).toHaveLength(1);
+    expect(added[0]).toMatchObject({ type: 'SUM_OF_PLANS', priority: 10 });
+    const storedPeriod = await prisma.envelopePeriod.findUniqueOrThrow({
+      where: { id: period.id },
+    });
+    expect(storedPeriod).toMatchObject({ targetMinor: 100_000n, targetStatus: 'DRAFT' });
+    expect((await prisma.envelope.findUniqueOrThrow({ where: { id: first.id } })).name).toBe(
+      'Утренний',
+    );
+    expect(await prisma.envelope.count({ where: { budgetId } })).toBe(3);
+
+    // A different key with a fresh preview adds nothing and still keeps the set target.
+    const again = await apply(who, defaultApply(await previewOf(who)), 'other-key-2');
+    expect(again.statusCode).toBe(200);
+    expect(again.json<ApplyBody>().created.envelopes).toHaveLength(0);
+    expect(await prisma.envelopeFundingRule.count({ where: { budgetId } })).toBe(3);
+    expect(
+      (await prisma.envelopePeriod.findUniqueOrThrow({ where: { id: period.id } })).targetMinor,
+    ).toBe(100_000n);
+  });
+
+  it('конфликт с SKIP не создаёт дубль и оставляет шаг незавершённым; коллизия требует новое имя или SKIP', async () => {
+    const who = 'applySkip';
+    const budgetId = user(who).budgetId;
+    const clash = await prisma.envelope.create({
+      data: envelopeData(budgetId, 'Первый период', 'SAVINGS_GOAL', null, null),
+    });
+    const body = await previewOf(who);
+    const base = defaultApply(body);
+    const withFirst = (period: Record<string, unknown>) => ({
+      ...base,
+      periods: [period, { role: 'SECOND', action: 'CREATE', target: null }],
+    });
+    const noName = await apply(who, withFirst({ role: 'FIRST', action: 'CREATE' }));
+    expect(noName.statusCode).toBe(422);
+    const sameName = await apply(
+      who,
+      withFirst({ role: 'FIRST', action: 'CREATE', name: ' первый период ' }),
+    );
+    expect(sameName.statusCode).toBe(422);
+    const adopt = await apply(who, withFirst({ role: 'FIRST', action: 'ADOPT' }));
+    expect(adopt.statusCode).toBe(422);
+    expect(await prisma.envelope.count({ where: { budgetId } })).toBe(1);
+
+    const skipped = await apply(who, withFirst({ role: 'FIRST', action: 'SKIP' }));
+    expect(skipped.statusCode).toBe(200);
+    const result = skipped.json<ApplyBody>();
+    expect(result.isComplete).toBe(false);
+    expect(result.skipped).toContainEqual(
+      expect.objectContaining({ kind: 'ENVELOPE', role: 'FIRST', reason: 'COLLISION' }),
+    );
+    expect(await prisma.envelope.count({ where: { budgetId, name: 'Первый период' } })).toBe(1);
+    expect(
+      (await prisma.envelope.findUniqueOrThrow({ where: { id: clash.id } })).envelopeType,
+    ).toBe('SAVINGS_GOAL');
+    expect(await prisma.envelope.count({ where: { budgetId, periodSlot: 'FIRST' } })).toBe(0);
+  });
+
+  it('коллизия типа: CREATE с новым именем создаёт период с базовым ключом', async () => {
+    const who = 'applyWrongType';
+    const budgetId = user(who).budgetId;
+    await prisma.envelope.create({
+      data: envelopeData(budgetId, 'Первый период', 'SAVINGS_GOAL', null, null),
+    });
+    const body = await previewOf(who);
+    const response = await apply(who, {
+      ...defaultApply(body),
+      periods: [
+        { role: 'FIRST', action: 'CREATE', name: 'Утренний' },
+        { role: 'SECOND', action: 'CREATE' },
+      ],
+    });
+    expect(response.statusCode).toBe(200);
+    const created = await prisma.envelope.findFirstOrThrow({
+      where: { budgetId, periodSlot: 'FIRST' },
+    });
+    expect(created).toMatchObject({ name: 'Утренний', templateKey: 'v2-period-first' });
+  });
+
+  it('архивный ключевой конверт заменяется только явным CREATE с детерминированным ключом', async () => {
+    const who = 'applyArchived';
+    const budgetId = user(who).budgetId;
+    const archived = await prisma.envelope.create({
+      data: {
+        ...envelopeData(budgetId, 'Обязательные', 'MANDATORY_EXPENSES', null, 'v2-mandatory'),
+        archivedAt: new Date(),
+      },
+    });
+    const body = await previewOf(who);
+    const adopt = await apply(who, { ...defaultApply(body), mandatory: { action: 'ADOPT' } });
+    expect(adopt.statusCode).toBe(422);
+    expect(await prisma.envelope.count({ where: { budgetId } })).toBe(1);
+    const response = await apply(who, { ...defaultApply(body), mandatory: { action: 'CREATE' } });
+    expect(response.statusCode).toBe(200);
+    const replacement = await prisma.envelope.findFirstOrThrow({
+      where: { budgetId, archivedAt: null, envelopeType: 'MANDATORY_EXPENSES' },
+    });
+    expect(replacement.templateKey).toBe(`v2-replacement-mandatory-${archived.id}`);
+    expect(
+      (await prisma.envelope.findUniqueOrThrow({ where: { id: archived.id } })).archivedAt,
+    ).not.toBeNull();
+  });
+
+  it('параллельные apply не создают дублей: один применяется, второй 409 PREVIEW_STALE', async () => {
+    const who = 'applyParallel';
+    const budgetId = user(who).budgetId;
+    const body = await previewOf(who);
+    const payload = defaultApply(body);
+    const results = await Promise.all([apply(who, payload, 'par-1'), apply(who, payload, 'par-2')]);
+    expect(results.map((item) => item.statusCode).sort()).toEqual([200, 409]);
+    expect(results.find((item) => item.statusCode === 409)!.json<{ code: string }>().code).toBe(
+      'PREVIEW_STALE',
+    );
+    expect(await prisma.envelope.count({ where: { budgetId } })).toBe(3);
+    expect(await prisma.envelopeFundingRule.count({ where: { budgetId } })).toBe(3);
+    const keys = (await prisma.envelope.findMany({ where: { budgetId } })).map(
+      (row) => row.templateKey,
+    );
+    expect(new Set(keys).size).toBe(3);
+  });
+
+  it('смена цикла: на чистом бюджете перестраивает черновики, при истории 409 без записи', async () => {
+    const who = 'applyCycle';
+    const budgetId = user(who).budgetId;
+    const actor = user(who).userId;
+    const first = await prisma.envelope.create({
+      data: envelopeData(budgetId, 'Первый период', 'CURRENT_EXPENSES', 'FIRST', 'v2-period-first'),
+    });
+    const second = await prisma.envelope.create({
+      data: envelopeData(
+        budgetId,
+        'Второй период',
+        'CURRENT_EXPENSES',
+        'SECOND',
+        'v2-period-second',
+      ),
+    });
+    for (const envelope of [first, second]) {
+      await prisma.envelopeFundingRule.create({
+        data: {
+          id: randomUUID(),
+          budgetId,
+          envelopeId: envelope.id,
+          type: 'FIXED_PER_PERIOD',
+          priority: 20,
+          fixedMinor: 10_000n,
+          createdByUserId: actor,
+          updatedByUserId: actor,
+        },
+      });
+    }
+    const stale = await prisma.envelopePeriod.create({
+      data: {
+        id: randomUUID(),
+        budgetId,
+        envelopeId: first.id,
+        startsOn: new Date('2026-01-01T00:00:00.000Z'),
+        endsOn: new Date('2026-01-14T00:00:00.000Z'),
+        targetMinor: 10_000n,
+        targetStatus: 'DRAFT',
+      },
+    });
+    const body = await previewOf(who);
+    const response = await apply(who, {
+      ...defaultApply(body),
+      cycle: { startDay: 5, boundaryOffset: 10 },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json<ApplyBody>().cycle).toMatchObject({
+      cycleStartDay: 5,
+      periodBoundaryOffset: 10,
+      changed: true,
+      resetPeriods: 1,
+    });
+    const stored = await prisma.budget.findUniqueOrThrow({ where: { id: budgetId } });
+    expect([stored.cycleStartDay, stored.periodBoundaryOffset]).toEqual([5, 10]);
+    expect(await prisma.envelopePeriod.findUnique({ where: { id: stale.id } })).toBeNull();
+    const rebuilt = await prisma.envelopePeriod.findMany({ where: { budgetId } });
+    expect(rebuilt).toHaveLength(1);
+    expect(rebuilt[0]).toMatchObject({ targetStatus: 'DRAFT', targetMinor: 10_000n });
+
+    const history = 'applyHistory';
+    const historyBudget = user(history).budgetId;
+    const envelope = await prisma.envelope.create({
+      data: envelopeData(historyBudget, 'Мой', 'CUSTOM', null, null),
+    });
+    await prisma.envelopePeriod.create({
+      data: {
+        id: randomUUID(),
+        budgetId: historyBudget,
+        envelopeId: envelope.id,
+        startsOn: new Date('2026-01-01T00:00:00.000Z'),
+        endsOn: new Date('2026-01-14T00:00:00.000Z'),
+        targetMinor: 5_000n,
+        targetStatus: 'CONFIRMED',
+        confirmedByUserId: user(history).userId,
+        confirmedAt: new Date(),
+      },
+    });
+    const blocked = await apply(history, {
+      ...defaultApply(await previewOf(history)),
+      cycle: { startDay: 7, boundaryOffset: 12 },
+    });
+    expect(blocked.statusCode).toBe(409);
+    expect(blocked.json<{ code: string }>().code).toBe('CYCLE_CHANGE_REQUIRES_FLOW');
+    const unchanged = await prisma.budget.findUniqueOrThrow({ where: { id: historyBudget } });
+    expect([unchanged.cycleStartDay, unchanged.periodBoundaryOffset]).toEqual([1, 14]);
+    expect(await prisma.envelope.count({ where: { budgetId: historyBudget } })).toBe(1);
+    // The same cycle on a budget with history is not a change.
+    const same = await apply(history, {
+      ...defaultApply(await previewOf(history)),
+      cycle: { startDay: 1, boundaryOffset: 14 },
+    });
+    expect(same.statusCode).toBe(200);
+  });
+
+  it('apply: устаревший hash 409, EDITOR/VIEWER 403, CSRF, ключ, валидация, v1 бюджет 409', async () => {
+    const body = await previewOf('empty');
+    const payload = defaultApply(body);
+    const stale = await apply('empty', { ...payload, previewHash: 'a'.repeat(64) });
+    expect(stale.statusCode).toBe(409);
+    expect(stale.json<{ code: string }>().code).toBe('PREVIEW_STALE');
+    expect((await apply('empty', payload, undefined, user('viewer'))).statusCode).toBe(403);
+    expect((await apply('empty', payload, undefined, user('editor'))).statusCode).toBe(403);
+    const url = `/api/v2/budgets/${user('empty').budgetId}/reference-template/apply`;
+    const noCsrf = await server.inject({
+      method: 'POST',
+      url,
+      headers: { ...authHeaders(user('empty')), 'idempotency-key': randomUUID() },
+      payload,
+    });
+    expect(noCsrf.statusCode).toBe(403);
+    const noKey = await server.inject({
+      method: 'POST',
+      url,
+      headers: { ...authHeaders(user('empty')), 'x-csrf-token': user('empty').csrfToken },
+      payload,
+    });
+    expect(noKey.statusCode).toBe(400);
+    const onlyOne = await apply('empty', {
+      ...payload,
+      periods: [{ role: 'FIRST', action: 'CREATE' }],
+    });
+    expect(onlyOne.statusCode).toBe(400);
+    const twoFirst = await apply('empty', {
+      ...payload,
+      periods: [
+        { role: 'FIRST', action: 'CREATE' },
+        { role: 'FIRST', action: 'CREATE' },
+      ],
+    });
+    expect(twoFirst.statusCode).toBe(400);
+    const unauth = await server.inject({ method: 'POST', url, headers: { origin }, payload });
+    expect(unauth.statusCode).toBe(401);
+    const legacy = await apply('legacy', payload);
+    expect(legacy.statusCode).toBe(409);
+    expect(legacy.json<{ code: string }>().code).toBe('MODEL_VERSION_MISMATCH');
+    expect(await prisma.envelope.count({ where: { budgetId: user('empty').budgetId } })).toBe(1);
+  });
+
+  it('OpenAPI описывает POST apply: коды, cookie, CSRF и Idempotency-Key', async () => {
+    const openApi = await server.inject({ method: 'GET', url: '/openapi.json' });
+    const document = openApi.json<{
+      paths: Record<string, Record<string, { responses: Record<string, unknown> }>>;
+      components: { schemas: Record<string, { properties?: Record<string, { type?: string }> }> };
+    }>();
+    const operation = document.paths['/api/v2/budgets/{budgetId}/reference-template/apply']?.post;
+    expect(operation).toBeDefined();
+    for (const code of ['200', '400', '401', '403', '404', '409', '422']) {
+      expect(operation!.responses[code], code).toBeDefined();
+    }
+    const text = JSON.stringify(operation);
+    expect(text).toContain('session');
+    expect(text).toContain('Idempotency-Key');
+    expect(document.components.schemas.TemplateApplyRequest?.properties?.previewHash?.type).toBe(
+      'string',
+    );
+    expect(document.components.schemas.TemplateApplyResponse?.properties?.isComplete?.type).toBe(
+      'boolean',
+    );
+  });
+
   it('OpenAPI описывает GET preview, коды ошибок и cookie-сессию', async () => {
     const openApi = await server.inject({ method: 'GET', url: '/openapi.json' });
     const document = openApi.json<{
@@ -383,6 +832,61 @@ afterAll(async () => {
 
 function authHeaders(who: RegisteredUser | undefined): Record<string, string> {
   return { origin, cookie: `harmofin_session=${who?.cookie ?? ''}` };
+}
+
+type ApplyBody = {
+  created: {
+    categories: Array<{ id: string; templateKey: string; name: string }>;
+    envelopes: Array<{ id: string; role: string; templateKey: string; name: string }>;
+  };
+  adopted: Array<{ id: string; role: string; name: string }>;
+  skipped: Array<{ kind: string; role: string | null; templateKey: string; reason: string }>;
+  cycle: {
+    cycleStartDay: number;
+    periodBoundaryOffset: number;
+    changed: boolean;
+    resetPeriods: number;
+  };
+  isComplete: boolean;
+  previewHash: string;
+};
+
+async function previewOf(name: Name): Promise<PreviewBody> {
+  return (await preview(name)).json<PreviewBody>();
+}
+
+function defaultApply(body: PreviewBody) {
+  const action = (role: string) => {
+    const row = body.envelopes.find((item) => item.role === role)!;
+    return row.status === 'COLLISION' ? 'SKIP' : row.suggestedAction;
+  };
+  return {
+    previewHash: body.previewHash,
+    periods: [
+      { role: 'FIRST', action: action('FIRST') },
+      { role: 'SECOND', action: action('SECOND') },
+    ] as Array<Record<string, unknown>>,
+    mandatory: { action: action('MANDATORY') } as Record<string, unknown>,
+    savings: [] as Array<Record<string, unknown>>,
+  };
+}
+
+function apply(
+  name: Name,
+  payload: Record<string, unknown>,
+  key: string | undefined = undefined,
+  as: RegisteredUser | undefined = ctx[name],
+) {
+  return server.inject({
+    method: 'POST',
+    url: `/api/v2/budgets/${user(name).budgetId}/reference-template/apply`,
+    headers: {
+      ...authHeaders(as),
+      'x-csrf-token': as?.csrfToken ?? '',
+      'idempotency-key': key ?? randomUUID(),
+    },
+    payload,
+  });
 }
 
 function preview(name: Name, as: RegisteredUser | undefined = ctx[name]) {

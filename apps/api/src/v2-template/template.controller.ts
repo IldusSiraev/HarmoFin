@@ -1,16 +1,66 @@
-import { Controller, Get, Inject, Param, Req, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  Inject,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
-import { ApiCookieAuth, ApiOkResponse, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiCookieAuth,
+  ApiHeader,
+  ApiOkResponse,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { ProblemDetailsResponse } from '../common/errors/problem-details.dto.js';
 import type { RequestContext } from '../common/request-context/request-context.js';
+import { CsrfGuard } from '../common/security/csrf.guard.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
+import { TemplateApplyApplicationService } from './template-apply.application.service.js';
 import { TemplatePreviewApplicationService } from './template-preview.application.service.js';
-import { TemplatePreviewResponse } from './template.dto.js';
-import { uuidParamSchema } from './template.schemas.js';
+import {
+  TemplateApplyRequest,
+  TemplateApplyResponse,
+  TemplatePreviewResponse,
+} from './template.dto.js';
+import {
+  templateApplySchema,
+  uuidParamSchema,
+  type TemplateApplyInput,
+} from './template.schemas.js';
 
 type AuthenticatedRequest = FastifyRequest & { authContext?: RequestContext };
+
+const idempotencyHeader = {
+  name: 'Idempotency-Key',
+  required: true,
+  schema: { type: 'string', minLength: 1, maxLength: 128 },
+} as const;
+
+function validKey(value: string | undefined): string {
+  const key = value?.trim();
+  if (!key || key.length > 128 || !/^[\x20-\x7e]+$/.test(key)) {
+    throw new BadRequestException({
+      code: 'VALIDATION_FAILED',
+      detail: 'Некорректный ключ идемпотентности.',
+      fieldErrors: [
+        { field: 'Idempotency-Key', message: 'Укажите корректный ключ.', code: 'invalid' },
+      ],
+    });
+  }
+  return key;
+}
 
 function contextOf(request: AuthenticatedRequest): RequestContext {
   if (!request.authContext) throw new Error('Missing authenticated request context.');
@@ -25,6 +75,8 @@ export class TemplateController {
   constructor(
     @Inject(TemplatePreviewApplicationService)
     private readonly preview: TemplatePreviewApplicationService,
+    @Inject(TemplateApplyApplicationService)
+    private readonly applyTemplate: TemplateApplyApplicationService,
   ) {}
 
   @Get('preview')
@@ -48,5 +100,44 @@ export class TemplateController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.preview.preview(contextOf(request).userId, budgetId);
+  }
+
+  @Post('apply')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiOperation({
+    summary: 'Применить настроенный шаблон v2 без дублей',
+    description:
+      'Одна транзакция: блокировка бюджета, идемпотентность, пересчёт previewHash (расхождение даёт 409 PREVIEW_STALE без записи). Использует совместимые существующие строки, создаёт только недостающие с неконфликтующими ключами и нулевым legacy-стартом; правило и приоритет задаются только новым конвертам и принятым без правила, существующие правило, приоритет, цель и имя не меняются. Не создаёт счета, доходы, расходы, назначения и FREE_MONEY. Конфликт с SKIP не создаёт дубль и оставляет шаг незавершённым (isComplete=false). Повтор с тем же ключом возвращает тот же ответ; другой ключ после нового preview добавляет только недостающее. Смена цикла только без подтверждённых фактов, назначений и целей: UNSET/DRAFT периоды перестраиваются, иначе 409. Один audit без финансовых сумм. Только OWNER. Коды: 400 VALIDATION_FAILED, 403 FORBIDDEN|CSRF_INVALID, 404 бюджет, 409 PREVIEW_STALE|CYCLE_CHANGE_REQUIRES_FLOW|IDEMPOTENCY_CONFLICT|MODEL_VERSION_MISMATCH, 422 TEMPLATE_ADOPT_UNAVAILABLE|TEMPLATE_ELEMENT_EXISTS|TEMPLATE_NAME_REQUIRED|TEMPLATE_NAME_CONFLICT|TEMPLATE_SAVINGS_UNKNOWN.',
+  })
+  @ApiHeader(idempotencyHeader)
+  @ApiBody({ type: TemplateApplyRequest })
+  @ApiOkResponse({ type: TemplateApplyResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse, description: 'FORBIDDEN: не OWNER.' })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 409,
+    type: ProblemDetailsResponse,
+    description:
+      'PREVIEW_STALE, CYCLE_CHANGE_REQUIRES_FLOW, IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.',
+  })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  async apply(
+    @Param('budgetId', new ZodValidationPipe(uuidParamSchema)) budgetId: string,
+    @Body(new ZodValidationPipe(templateApplySchema)) input: TemplateApplyInput,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (
+      await this.applyTemplate.apply(
+        contextOf(request).userId,
+        budgetId,
+        input,
+        validKey(key),
+        request.id,
+      )
+    ).body;
   }
 }
