@@ -83,6 +83,37 @@ const input = (over: Partial<ObligationPayInput> = {}): ObligationPayInput => ({
 const pay = (occurrenceId: string, key: string, over: Partial<ObligationPayInput> = {}) =>
   service.pay(owner().userId, owner().budgetId, occurrenceId, input(over), key);
 
+function httpHeaders(user: User | undefined, key?: string): Record<string, string> {
+  return {
+    origin,
+    cookie: `harmofin_session=${user?.cookie ?? ''}`,
+    'x-csrf-token': user?.csrfToken ?? '',
+    ...(key ? { 'idempotency-key': key } : {}),
+  };
+}
+const payBody = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  accountId,
+  categoryId: expenseCategoryId,
+  amount: '20.00',
+  occurredOn: today,
+  willPayMore: false,
+  ...over,
+});
+function act(
+  user: User | undefined,
+  occurrenceId: string,
+  action: 'pay' | 'skip' | 'close',
+  key: string,
+  payload: Record<string, unknown> = {},
+) {
+  return server.inject({
+    method: 'POST',
+    url: `/api/v2/budgets/${owner().budgetId}/obligations/${occurrenceId}/${action}`,
+    headers: httpHeaders(user, key),
+    payload,
+  });
+}
+
 async function occurrence(
   amountMinor: bigint,
   over: { envelopeId?: string; planActive?: boolean } = {},
@@ -431,6 +462,179 @@ describe('v2 обязательства: оплата occurrence несколь�
     expect(await payments(id)).toBe(1);
     expect(await cash(accountId)).toBe(before - 700n);
     expect(await status(id)).toBe('COMPLETED');
+  });
+
+  it('HTTP pay: 2000 при плане 3000 - actual 200000, expected 300000 не переписан', async () => {
+    const id = await occurrence(300_000n);
+    const res = await act(owner(), id, 'pay', 'h-pay-1', payBody({ amount: '2000.00' }));
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{
+      transaction: { amountMinor: string; envelopeId: string };
+      occurrence: { status: string; expectedMinor: string; paidMinor: string; unpaidMinor: string };
+      warnings: unknown[];
+    }>();
+    expect(body.transaction.amountMinor).toBe('200000');
+    expect(body.occurrence).toMatchObject({
+      status: 'COMPLETED',
+      expectedMinor: '300000',
+      paidMinor: '200000',
+      unpaidMinor: '0',
+    });
+    expect(Array.isArray(body.warnings)).toBe(true);
+    expect(await payments(id)).toBe(1);
+  });
+
+  it('HTTP skip/close: skip после оплаты 409, close без оплаты 409, skip без оплат transaction null', async () => {
+    const paid = await occurrence(100_000n);
+    await act(owner(), paid, 'pay', 'h-sk-pay', payBody({ amount: '10.00', willPayMore: true }));
+    const skip = await act(owner(), paid, 'skip', 'h-sk-1');
+    expect(skip.statusCode).toBe(409);
+    expect(skip.json<{ code: string }>().code).toBe('OCCURRENCE_HAS_PAYMENTS');
+
+    const closed = await act(owner(), paid, 'close', 'h-cl-1');
+    expect(closed.statusCode).toBe(200);
+    expect(closed.json()).toMatchObject({
+      transaction: null,
+      occurrence: { status: 'COMPLETED', paidMinor: '1000', unpaidMinor: '0' },
+    });
+
+    const free = await occurrence(100_000n);
+    const noPay = await act(owner(), free, 'close', 'h-cl-2');
+    expect(noPay.statusCode).toBe(409);
+    expect(noPay.json<{ code: string }>().code).toBe('OCCURRENCE_HAS_NO_PAYMENTS');
+    const skipped = await act(owner(), free, 'skip', 'h-sk-2');
+    expect(skipped.statusCode).toBe(200);
+    expect(skipped.json()).toMatchObject({
+      transaction: null,
+      occurrence: { status: 'SKIPPED', unpaidMinor: '0' },
+    });
+  });
+
+  it('HTTP: чужой occurrence 404, VIEWER 403, без сессии 401, без CSRF 403', async () => {
+    const id = await occurrence(100_000n);
+    const foreign = await act(ctx.outsider, id, 'pay', 'h-f-1', payBody());
+    expect(foreign.statusCode).toBe(404);
+    const unknown = await act(owner(), randomUUID(), 'skip', 'h-f-2');
+    expect(unknown.statusCode).toBe(404);
+    const viewer = await server.inject({
+      method: 'POST',
+      url: `/api/v2/budgets/${owner().budgetId}/obligations/${id}/pay`,
+      headers: httpHeaders(ctx.viewer, 'h-v-1'),
+      payload: payBody(),
+    });
+    expect(viewer.statusCode).toBe(403);
+    const anon = await server.inject({
+      method: 'POST',
+      url: `/api/v2/budgets/${owner().budgetId}/obligations/${id}/pay`,
+      headers: { origin, 'idempotency-key': 'h-a-1' },
+      payload: payBody(),
+    });
+    expect(anon.statusCode).toBe(401);
+    const noCsrf = await server.inject({
+      method: 'POST',
+      url: `/api/v2/budgets/${owner().budgetId}/obligations/${id}/pay`,
+      headers: {
+        origin,
+        cookie: `harmofin_session=${owner().cookie}`,
+        'idempotency-key': 'h-c-1',
+      },
+      payload: payBody(),
+    });
+    expect(noCsrf.statusCode).toBe(403);
+    expect(await payments(id)).toBe(0);
+  });
+
+  it('HTTP: валидация тела и обязательный Idempotency-Key', async () => {
+    const id = await occurrence(100_000n);
+    for (const over of [
+      { amount: '0' },
+      { amount: '1.234' },
+      { amount: 'abc' },
+      { accountId: 'not-uuid' },
+      { occurredOn: '30.09.2026' },
+      { willPayMore: 'yes' },
+      { extra: 1 },
+    ]) {
+      const res = await act(owner(), id, 'pay', `h-val-${JSON.stringify(over)}`, payBody(over));
+      expect(res.statusCode).toBe(400);
+    }
+    const noKey = await server.inject({
+      method: 'POST',
+      url: `/api/v2/budgets/${owner().budgetId}/obligations/${id}/pay`,
+      headers: httpHeaders(owner()),
+      payload: payBody(),
+    });
+    expect(noKey.statusCode).toBe(400);
+    expect(await payments(id)).toBe(0);
+  });
+
+  it('HTTP идемпотентность: повтор возвращает тот же результат, другое тело - конфликт', async () => {
+    const id = await occurrence(100_000n);
+    const before = await cash(accountId);
+    const body = payBody({ amount: '5.00', willPayMore: true });
+    const a = await act(owner(), id, 'pay', 'h-idem', body);
+    const b = await act(owner(), id, 'pay', 'h-idem', body);
+    expect(a.statusCode).toBe(200);
+    expect(b.statusCode).toBe(200);
+    expect(b.json<{ transaction: { id: string } }>().transaction.id).toBe(
+      a.json<{ transaction: { id: string } }>().transaction.id,
+    );
+    expect(await payments(id)).toBe(1);
+    expect(await cash(accountId)).toBe(before - 500n);
+    const conflict = await act(
+      owner(),
+      id,
+      'pay',
+      'h-idem',
+      payBody({ amount: '6.00', willPayMore: true }),
+    );
+    expect(conflict.statusCode).toBe(409);
+    expect(conflict.json<{ code: string }>().code).toBe('IDEMPOTENCY_CONFLICT');
+  });
+
+  it('OpenAPI описывает pay/skip/close: коды, Idempotency-Key, cookie, 409-коды', async () => {
+    const res = await server.inject({ method: 'GET', url: '/openapi.json' });
+    expect(res.statusCode).toBe(200);
+    const document = res.json<{
+      paths: Record<
+        string,
+        {
+          post?: {
+            description?: string;
+            parameters?: Array<{ name: string; required?: boolean }>;
+            responses?: Record<string, unknown>;
+            security?: Array<Record<string, unknown>>;
+            requestBody?: unknown;
+          };
+        }
+      >;
+    }>();
+    for (const action of ['pay', 'skip', 'close']) {
+      const op =
+        document.paths[`/api/v2/budgets/{budgetId}/obligations/{occurrenceId}/${action}`]?.post;
+      expect(op, action).toBeDefined();
+      for (const code of ['200', '400', '401', '403', '404', '409', '422']) {
+        expect(op?.responses?.[code], `${action} ${code}`).toBeDefined();
+      }
+      expect(op?.parameters).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'Idempotency-Key', required: true }),
+        ]),
+      );
+      expect(op?.security).toEqual([{ session: [] }]);
+      for (const code of [
+        'OCCURRENCE_NOT_OPEN',
+        'OCCURRENCE_NOT_PAYABLE',
+        'OCCURRENCE_HAS_PAYMENTS',
+        'OCCURRENCE_HAS_NO_PAYMENTS',
+        'INSUFFICIENT_BALANCE',
+      ]) {
+        expect(op?.description ?? '', `${action} ${code}`).toContain(code);
+      }
+    }
+    const payOp = document.paths['/api/v2/budgets/{budgetId}/obligations/{occurrenceId}/pay']?.post;
+    expect(payOp?.requestBody).toBeDefined();
+    expect(JSON.stringify(res.json())).toContain('ObligationPayBody');
   });
 
   it('computeUnpaidMinor: max(0, expected - paid) только для открытых', () => {
