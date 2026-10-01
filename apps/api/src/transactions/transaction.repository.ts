@@ -1,5 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
-import { Prisma, type TransactionStatus, type TransactionType } from '@prisma/client';
+import {
+  Prisma,
+  type EnvelopeType,
+  type PeriodSlot,
+  type TransactionStatus,
+  type TransactionType,
+} from '@prisma/client';
 
 import { FinancialBalanceRepository } from '../common/finance/financial-balance.repository.js';
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
@@ -46,6 +52,20 @@ export interface TransactionCreateData {
   confirmedAt: Date | null;
   createdByUserId: string;
   updatedByUserId: string;
+  /** Defaults to 1 (v1 behavior); v2 callers pass 2. */
+  accountingModelVersion?: 1 | 2;
+}
+
+export interface V2ReferenceRecords {
+  account: { id: string; currency: string; scale: number } | null;
+  category: { id: string; categoryType: TransactionType } | null;
+  envelope: {
+    id: string;
+    currency: string;
+    scale: number;
+    envelopeType: EnvelopeType;
+    periodSlot: PeriodSlot | null;
+  } | null;
 }
 
 export interface TransactionUpdateData {
@@ -244,6 +264,160 @@ export class TransactionRepository {
         : Promise.resolve(null),
     ]);
     return { account, category, envelope };
+  }
+
+  // --- v2 helpers (locks follow roadmap order: budget -> idempotency -> accounts) ---
+
+  async lockBudget(tx: Prisma.TransactionClient, budgetId: string): Promise<void> {
+    await tx.$queryRaw`
+      SELECT "id" FROM "budgets"
+      WHERE "id" = ${budgetId}::uuid
+      FOR UPDATE
+    `;
+  }
+
+  async lockAccount(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    accountId: string,
+  ): Promise<void> {
+    await tx.$queryRaw`
+      SELECT "id" FROM "accounts"
+      WHERE "id" = ${accountId}::uuid AND "budget_id" = ${budgetId}::uuid
+      FOR UPDATE
+    `;
+  }
+
+  async findActiveMemberRole(
+    tx: Prisma.TransactionClient,
+    workspaceId: string,
+    userId: string,
+  ): Promise<string | null> {
+    const membership = await tx.workspaceMembership.findFirst({
+      where: { workspaceId, userId, isActive: true },
+      select: { role: true },
+    });
+    return membership?.role ?? null;
+  }
+
+  async findBudgetSettings(tx: Prisma.TransactionClient, budgetId: string) {
+    return tx.budget.findUnique({
+      where: { id: budgetId },
+      select: {
+        id: true,
+        workspaceId: true,
+        allowNegativeBalance: true,
+        cycleStartDay: true,
+        periodBoundaryOffset: true,
+        timezone: true,
+      },
+    });
+  }
+
+  async findActiveV2References(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    accountId: string,
+    categoryId: string,
+    envelopeId: string | null,
+  ): Promise<V2ReferenceRecords> {
+    const [account, category, envelope] = await Promise.all([
+      tx.account.findFirst({
+        where: { id: accountId, budgetId, archivedAt: null },
+        select: { id: true, currency: true, scale: true },
+      }),
+      tx.category.findFirst({
+        where: { id: categoryId, budgetId, archivedAt: null },
+        select: { id: true, categoryType: true },
+      }),
+      envelopeId
+        ? tx.envelope.findFirst({
+            where: { id: envelopeId, budgetId, archivedAt: null },
+            select: {
+              id: true,
+              currency: true,
+              scale: true,
+              envelopeType: true,
+              periodSlot: true,
+            },
+          })
+        : Promise.resolve(null),
+    ]);
+    return { account, category, envelope };
+  }
+
+  async findPeriodsCovering(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    envelopeId: string,
+    occurredOn: Date,
+  ): Promise<Array<{ id: string }>> {
+    return tx.envelopePeriod.findMany({
+      where: {
+        budgetId,
+        envelopeId,
+        startsOn: { lte: occurredOn },
+        endsOn: { gte: occurredOn },
+      },
+      select: { id: true },
+      take: 2,
+    });
+  }
+
+  async createUnsetPeriod(
+    tx: Prisma.TransactionClient,
+    params: {
+      budgetId: string;
+      workspaceId: string;
+      envelopeId: string;
+      startsOn: Date;
+      endsOn: Date;
+      userId: string;
+      requestId?: string | undefined;
+    },
+  ): Promise<{ id: string }> {
+    const period = await tx.envelopePeriod.create({
+      data: {
+        id: createUuidV7(),
+        budgetId: params.budgetId,
+        envelopeId: params.envelopeId,
+        startsOn: params.startsOn,
+        endsOn: params.endsOn,
+        targetMinor: null,
+        targetStatus: 'UNSET',
+        createdByUserId: params.userId,
+        updatedByUserId: params.userId,
+      },
+      select: { id: true },
+    });
+    await tx.auditEvent.create({
+      data: {
+        id: createUuidV7(),
+        actorUserId: params.userId,
+        workspaceId: params.workspaceId,
+        budgetId: params.budgetId,
+        entityType: 'envelope_period',
+        entityId: period.id,
+        action: 'CREATED',
+        source: 'API',
+        requestId: params.requestId ?? null,
+        newValues: {
+          envelopeId: params.envelopeId,
+          startsOn: params.startsOn.toISOString().slice(0, 10),
+          endsOn: params.endsOn.toISOString().slice(0, 10),
+          targetStatus: 'UNSET',
+        },
+      },
+    });
+    return period;
+  }
+
+  async accountCashBalance(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    accountId: string,
+  ): Promise<bigint> {
+    return this.balances.accountBalance(tx, budgetId, accountId);
   }
 
   async assertConfirmedExpenseCapacity(
