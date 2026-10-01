@@ -13,6 +13,9 @@ import { PlanModelPolicy } from '../src/common/plan-model/plan-model.policy.js';
 import { todayInTimezone } from '../src/cycles/cycle-period.domain.js';
 import { PrismaService } from '../src/database/prisma.service.js';
 import { AssignmentBalanceRepository } from '../src/envelope-plans/assignment-balance.repository.js';
+import { PlanOccurrenceRepository } from '../src/plans/plan-occurrence.repository.js';
+import { RegularPlanRepository } from '../src/plans/regular-plan.repository.js';
+import { V2OccurrenceMaterializer } from '../src/plans/v2-occurrence-materializer.js';
 import {
   computeUnpaidMinor,
   ObligationApplicationService,
@@ -48,6 +51,8 @@ let app: NestFastifyApplication;
 let server: FastifyInstance;
 let service: ObligationApplicationService;
 let servicePrisma: PrismaService;
+let materializer: V2OccurrenceMaterializer;
+let occurrenceRepository: PlanOccurrenceRepository;
 const balances = new FinancialBalanceRepository();
 const assignmentBalances = new AssignmentBalanceRepository();
 
@@ -194,6 +199,12 @@ describe('v2 обязательства: оплата occurrence несколь�
       servicePrisma,
       new IdempotencyService(),
       new PlanModelPolicy(servicePrisma),
+    );
+
+    occurrenceRepository = new PlanOccurrenceRepository();
+    materializer = new V2OccurrenceMaterializer(
+      new RegularPlanRepository(servicePrisma),
+      occurrenceRepository,
     );
 
     for (const key of Object.keys(emails) as Array<keyof typeof emails>) {
@@ -643,6 +654,203 @@ describe('v2 обязательства: оплата occurrence несколь�
     expect(computeUnpaidMinor('COMPLETED', 500n, 0n)).toBe(0n);
     expect(computeUnpaidMinor('SKIPPED', 500n, 0n)).toBe(0n);
   });
+
+  describe('ensureOccurrences (O05)', () => {
+    const ds = (delta: number) => todayInTimezone(d(delta), 'UTC');
+    const activation = () => ds(-60);
+    const ensure = (budgetId: string, from: string, to: string) =>
+      prisma.$transaction((tx) => materializer.ensureOccurrences(tx, budgetId, from, to));
+    const rows = (planId: string) =>
+      prisma.planOccurrence.findMany({ where: { planId }, orderBy: { scheduledOn: 'asc' } });
+    const iso = (value: Date) => value.toISOString().slice(0, 10);
+
+    async function plan(over: {
+      budgetId?: string;
+      workspaceId?: string;
+      userId?: string;
+      envelopeId?: string | null;
+      planType?: 'EXPENSE' | 'INCOME';
+      recurrence?: 'ONE_TIME' | 'MONTHLY';
+      startOn: string;
+      anchorOn?: string;
+      amountMinor?: bigint;
+      isActive?: boolean;
+    }): Promise<string> {
+      const id = randomUUID();
+      await prisma.regularPlan.create({
+        data: {
+          id,
+          workspaceId: over.workspaceId ?? owner().workspaceId,
+          budgetId: over.budgetId ?? owner().budgetId,
+          name: `Plan ${id.slice(0, 6)}`,
+          planType: over.planType ?? 'EXPENSE',
+          amountMinor: over.amountMinor ?? 300_000n,
+          anchorOn: new Date(`${over.anchorOn ?? over.startOn}T00:00:00Z`),
+          startOn: new Date(`${over.startOn}T00:00:00Z`),
+          recurrence: over.recurrence ?? 'ONE_TIME',
+          envelopeId: over.envelopeId === undefined ? mandatoryEnvelopeId : over.envelopeId,
+          isActive: over.isActive ?? true,
+          createdByUserId: over.userId ?? owner().userId,
+          updatedByUserId: over.userId ?? owner().userId,
+        },
+      });
+      return id;
+    }
+
+    it('план на завтра: два вызова дают ровно одну occurrence с ожидаемой суммой', async () => {
+      const planId = await plan({ startOn: tomorrow, amountMinor: 123_400n });
+      await ensure(owner().budgetId, today, ds(30));
+      await ensure(owner().budgetId, today, ds(30));
+      const found = await rows(planId);
+      expect(found).toHaveLength(1);
+      expect(found[0]).toMatchObject({ amountMinor: 123_400n, status: 'PENDING' });
+      expect(iso(found[0]!.scheduledOn)).toBe(tomorrow);
+    });
+
+    it('конкурентные вызовы не создают дубли', async () => {
+      const planId = await plan({ startOn: tomorrow });
+      await Promise.all([
+        ensure(owner().budgetId, today, ds(30)),
+        ensure(owner().budgetId, today, ds(30)),
+        ensure(owner().budgetId, today, ds(30)),
+      ]);
+      expect(await rows(planId)).toHaveLength(1);
+    });
+
+    it('просроченный срок создаётся как DUE и остаётся открытым: unpaid = expected - paid', async () => {
+      const planId = await plan({ startOn: ds(-20), amountMinor: 300_000n });
+      await ensure(owner().budgetId, activation(), today);
+      const [row] = await rows(planId);
+      expect(row).toMatchObject({ status: 'DUE', amountMinor: 300_000n });
+      const res = await pay(row!.id, 'ens-partial', { amount: '1000.00', willPayMore: true });
+      expect(res.occurrence).toMatchObject({ status: 'DUE', paidMinor: '100000' });
+      expect(res.occurrence.unpaidMinor).toBe('200000');
+      await ensure(owner().budgetId, activation(), today);
+      expect(await rows(planId)).toHaveLength(1);
+      expect(await status(row!.id)).toBe('DUE');
+    });
+
+    it('одобренное повышение expected открытой occurrence не меняет проведённую оплату', async () => {
+      const planId = await plan({ startOn: ds(-3), amountMinor: 300_000n });
+      await ensure(owner().budgetId, activation(), today);
+      const [row] = await rows(planId);
+      const paid = await pay(row!.id, 'ens-raise', { amount: '1000.00', willPayMore: true });
+      const updated = await prisma.$transaction((tx) =>
+        occurrenceRepository.updateOpenExpected(
+          tx,
+          owner().budgetId,
+          row!.id,
+          500_000n,
+          owner().userId,
+        ),
+      );
+      expect(updated).toBe(true);
+      const after = await prisma.planOccurrence.findUniqueOrThrow({ where: { id: row!.id } });
+      expect(after.amountMinor).toBe(500_000n);
+      const posted = await prisma.transaction.findUniqueOrThrow({
+        where: { id: paid.transaction!.id },
+      });
+      expect(posted.amountMinor).toBe(100_000n);
+      expect(posted.status).toBe('CONFIRMED');
+      expect(
+        await prisma.planPayment.count({
+          where: { budgetId: owner().budgetId, occurrenceId: row!.id },
+        }),
+      ).toBe(1);
+    });
+
+    it('закрытые и пропущенные occurrences не перезаписываются и не меняют сумму', async () => {
+      const planId = await plan({ startOn: ds(-3), amountMinor: 300_000n });
+      await ensure(owner().budgetId, activation(), today);
+      const [row] = await rows(planId);
+      await prisma.planOccurrence.update({
+        where: { id: row!.id },
+        data: { status: 'SKIPPED', skippedAt: new Date(), actedByUserId: owner().userId },
+      });
+      expect(
+        await prisma.$transaction((tx) =>
+          occurrenceRepository.updateOpenExpected(
+            tx,
+            owner().budgetId,
+            row!.id,
+            900_000n,
+            owner().userId,
+          ),
+        ),
+      ).toBe(false);
+      await ensure(owner().budgetId, activation(), today);
+      const found = await rows(planId);
+      expect(found).toHaveLength(1);
+      expect(found[0]).toMatchObject({ status: 'SKIPPED', amountMinor: 300_000n });
+    });
+
+    it('не создаёт сроки до planModelActivatedOn, но сохраняет открытую v1 occurrence', async () => {
+      const planId = await plan({
+        startOn: ds(-130),
+        anchorOn: ds(-130),
+        recurrence: 'MONTHLY',
+      });
+      const legacyRow = randomUUID();
+      await prisma.planOccurrence.create({
+        data: {
+          id: legacyRow,
+          workspaceId: owner().workspaceId,
+          budgetId: owner().budgetId,
+          planId,
+          scheduledOn: new Date(`${ds(-100)}T00:00:00Z`),
+          planName: 'v1',
+          planType: 'EXPENSE',
+          amountMinor: 300_000n,
+          envelopeId: mandatoryEnvelopeId,
+          status: 'DUE',
+        },
+      });
+      await ensure(owner().budgetId, ds(-130), ds(10));
+      const found = await rows(planId);
+      const cutover = activation();
+      expect(found.some((r) => r.id === legacyRow && r.status === 'DUE')).toBe(true);
+      const others = found.filter((r) => r.id !== legacyRow);
+      expect(others.length).toBeGreaterThan(0);
+      for (const r of others) expect(iso(r.scheduledOn) >= cutover).toBe(true);
+    });
+
+    it('пропускает бюджет v1, неактивные, не-расходные и не-обязательные планы', async () => {
+      const legacy = ctx.legacy!;
+      const legacyEnvelope = await createEnvelope(legacy.budgetId, 'MANDATORY_EXPENSES', null);
+      const legacyPlan = await plan({
+        budgetId: legacy.budgetId,
+        workspaceId: legacy.workspaceId,
+        userId: legacy.userId,
+        envelopeId: legacyEnvelope,
+        startOn: tomorrow,
+      });
+      const inactive = await plan({ startOn: tomorrow, isActive: false });
+      const income = await plan({ startOn: tomorrow, planType: 'INCOME', envelopeId: null });
+      const custom = await plan({ startOn: tomorrow, envelopeId: customEnvelopeId });
+      await ensure(legacy.budgetId, activation(), ds(30));
+      await ensure(owner().budgetId, today, ds(30));
+      expect(await rows(legacyPlan)).toHaveLength(0);
+      expect(await rows(inactive)).toHaveLength(0);
+      expect(await rows(income)).toHaveLength(0);
+      expect(await rows(custom)).toHaveLength(0);
+    });
+
+    it('изоляция бюджетов: вызов для одного бюджета не материализует планы другого', async () => {
+      const other = ctx.outsider!;
+      const otherEnvelope = await createEnvelope(other.budgetId, 'MANDATORY_EXPENSES', null);
+      const otherPlan = await plan({
+        budgetId: other.budgetId,
+        workspaceId: other.workspaceId,
+        userId: other.userId,
+        envelopeId: otherEnvelope,
+        startOn: tomorrow,
+      });
+      await ensure(owner().budgetId, today, ds(30));
+      expect(await rows(otherPlan)).toHaveLength(0);
+      await ensure(other.budgetId, today, ds(30));
+      expect(await rows(otherPlan)).toHaveLength(1);
+    });
+  });
 });
 
 async function register(email: string): Promise<User> {
@@ -730,6 +938,7 @@ async function cleanupUser(userId: string): Promise<void> {
   });
   await prisma.workspaceMembership.deleteMany({ where: { userId } });
   for (const { workspaceId } of memberships) {
+    await prisma.auditEvent.deleteMany({ where: { workspaceId } });
     await prisma.idempotencyRecord.deleteMany({ where: { budget: { workspaceId } } });
     await prisma.envelopeMovement.deleteMany({ where: { budget: { workspaceId } } });
     await prisma.envelopeAssignment.deleteMany({ where: { budget: { workspaceId } } });

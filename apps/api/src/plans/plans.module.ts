@@ -8,6 +8,7 @@ import { PlanOccurrenceRepository } from './plan-occurrence.repository.js';
 import { RegularPlanApplicationService } from './regular-plan.application.service.js';
 import { PlansController } from './plans.controller.js';
 import { RegularPlanRepository } from './regular-plan.repository.js';
+import { V2OccurrenceMaterializer } from './v2-occurrence-materializer.js';
 
 @Module({})
 export class PlansModule {
@@ -31,6 +32,12 @@ export class PlansModule {
           useFactory: () => new PlanOccurrenceRepository(),
         },
         {
+          provide: V2OccurrenceMaterializer,
+          useFactory: (plans: RegularPlanRepository, occurrences: PlanOccurrenceRepository) =>
+            new V2OccurrenceMaterializer(plans, occurrences),
+          inject: [RegularPlanRepository, PlanOccurrenceRepository],
+        },
+        {
           provide: RegularPlanApplicationService,
           useFactory: (
             repository: RegularPlanRepository,
@@ -47,7 +54,7 @@ export class PlansModule {
           inject: [RegularPlanRepository, TransactionRepository, PrismaService],
         },
       ],
-      exports: [PlanOccurrenceRepository],
+      exports: [PlanOccurrenceRepository, V2OccurrenceMaterializer],
     };
   }
 }

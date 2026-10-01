@@ -160,6 +160,48 @@ export class RegularPlanRepository {
     });
   }
 
+  /** Budget model facts needed to materialize v2 occurrences; filtered by budget id. */
+  findBudgetPlanModel(tx: Prisma.TransactionClient, budgetId: string) {
+    return tx.budget.findFirst({
+      where: { id: budgetId, status: 'ACTIVE', workspace: { status: 'ACTIVE' } },
+      select: {
+        id: true,
+        workspaceId: true,
+        timezone: true,
+        planModelVersion: true,
+        planModelActivatedOn: true,
+      },
+    });
+  }
+
+  /**
+   * Active EXPENSE plans bound to a mandatory envelope that can produce dates up to `to`.
+   * Plan rows are locked (ordered by id) so concurrent materializers serialize per budget and
+   * the existing-date check that follows cannot race into duplicate occurrences.
+   */
+  async lockMaterializablePlans(tx: Prisma.TransactionClient, budgetId: string, to: Date) {
+    await tx.$queryRaw`
+      SELECT "id" FROM "regular_plans"
+      WHERE "budget_id" = ${budgetId}::uuid
+        AND "is_active" = true
+        AND "deleted_at" IS NULL
+      ORDER BY "id"
+      FOR UPDATE
+    `;
+    return tx.regularPlan.findMany({
+      where: {
+        budgetId,
+        isActive: true,
+        deletedAt: null,
+        planType: 'EXPENSE',
+        startOn: { lte: to },
+        envelope: { is: { budgetId, envelopeType: 'MANDATORY_EXPENSES', archivedAt: null } },
+      },
+      select: regularPlanSelect,
+      orderBy: { id: 'asc' },
+    });
+  }
+
   async createPlan(
     tx: Prisma.TransactionClient,
     data: RegularPlanCreateData,
