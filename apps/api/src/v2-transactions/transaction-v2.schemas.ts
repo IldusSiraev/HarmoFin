@@ -20,6 +20,28 @@ export const createTransactionV2Schema = z
 
 export type CreateTransactionV2Input = z.infer<typeof createTransactionV2Schema>;
 
+/** Partial edit of a v2 expense; status is changed only by delete/restore. */
+export const updateTransactionV2Schema = z
+  .object({
+    amount: z
+      .string()
+      .regex(/^\d+(\.\d{1,2})?$/)
+      .refine((v) => Number(v) > 0, { message: 'Сумма должна быть больше нуля.' })
+      .optional(),
+    occurredOn: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    accountId: uuid.optional(),
+    categoryId: uuid.optional(),
+    envelopeId: uuid.nullable().optional(),
+    comment: z.string().max(500).nullable().optional(),
+  })
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, { message: 'Укажите хотя бы одно поле.' });
+
+export type UpdateTransactionV2Input = z.infer<typeof updateTransactionV2Schema>;
+
 export const budgetIdParamSchema = uuid;
 export const transactionIdParamSchema = uuid;
 

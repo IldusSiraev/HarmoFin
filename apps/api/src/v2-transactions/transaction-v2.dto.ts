@@ -31,6 +31,32 @@ export class CreateTransactionV2Body {
   comment?: string;
 }
 
+export class UpdateTransactionV2Body {
+  @ApiProperty({ required: false, example: '4820.00' })
+  amount?: string;
+
+  @ApiProperty({ required: false, example: '2026-09-30' })
+  occurredOn?: string;
+
+  @ApiProperty({ required: false })
+  accountId?: string;
+
+  @ApiProperty({ required: false })
+  categoryId?: string;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    type: String,
+    description:
+      'Обязательный конверт нельзя ни выбрать, ни покинуть этим запросом (409 MANDATORY_PAYMENT_REQUIRED).',
+  })
+  envelopeId?: string | null;
+
+  @ApiProperty({ required: false, nullable: true, type: String })
+  comment?: string | null;
+}
+
 export class TransactionV2Warning {
   @ApiProperty({ example: 'ENVELOPE_BALANCE_INSUFFICIENT' })
   code!: string;
@@ -78,6 +104,70 @@ export class TransactionV2Response {
 
   @ApiProperty({ type: [TransactionV2Warning] })
   warnings!: TransactionV2Warning[];
+}
+
+export class TransactionV2OccurrenceView {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty({ enum: ['PENDING', 'DUE', 'SKIPPED', 'COMPLETED', 'CANCELLED'] })
+  status!: string;
+
+  @ApiProperty({ example: '4000000' })
+  expectedMinor!: string;
+
+  @ApiProperty({ example: '3500000', description: 'Сумма действующих CONFIRMED оплат.' })
+  paidMinor!: string;
+
+  @ApiProperty({ example: '500000' })
+  unpaidMinor!: string;
+}
+
+export class TransactionV2LifecycleResponse {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  budgetId!: string;
+
+  @ApiProperty({ enum: ['INCOME', 'EXPENSE'] })
+  transactionType!: 'INCOME' | 'EXPENSE';
+
+  @ApiProperty({ enum: ['DRAFT', 'CONFIRMED', 'CANCELLED', 'DELETED'] })
+  status!: 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED';
+
+  @ApiProperty({ example: '482000', description: 'Сумма в минорных единицах (строка).' })
+  amountMinor!: string;
+
+  @ApiProperty({ example: 'RUB' })
+  currency!: string;
+
+  @ApiProperty({ example: '2026-09-30' })
+  occurredOn!: string;
+
+  @ApiProperty()
+  accountId!: string;
+
+  @ApiProperty()
+  categoryId!: string;
+
+  @ApiProperty({ nullable: true, type: String })
+  envelopeId!: string | null;
+
+  @ApiProperty({ nullable: true, type: String })
+  comment!: string | null;
+
+  @ApiProperty({ example: '1518000', description: 'Остаток счёта после операции (minor, строка).' })
+  accountBalanceMinor!: string;
+
+  @ApiProperty({ type: [TransactionV2Warning] })
+  warnings!: TransactionV2Warning[];
+
+  @ApiProperty({
+    type: [TransactionV2OccurrenceView],
+    description: 'Связанные обязательства с пересчитанным статусом (пусто для обычного расхода).',
+  })
+  occurrences!: TransactionV2OccurrenceView[];
 }
 
 export class TransactionJournalV2Item {

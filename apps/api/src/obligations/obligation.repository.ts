@@ -166,6 +166,47 @@ export class ObligationRepository {
     );
   }
 
+  /** Occurrences that already hold a payment link for the transaction (budget-scoped, sorted). */
+  async findLinkedOccurrenceIds(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    transactionId: string,
+  ): Promise<string[]> {
+    const links = await tx.planPayment.findMany({
+      where: { budgetId, transactionId },
+      select: { occurrenceId: true },
+      orderBy: { occurrenceId: 'asc' },
+    });
+    return links.map((link) => link.occurrenceId);
+  }
+
+  /** COMPLETED -> PENDING/DUE when no confirmed payment remains. No new payment or operation. */
+  async reopenOccurrence(
+    tx: Prisma.TransactionClient,
+    params: {
+      budgetId: string;
+      workspaceId: string;
+      occurrence: OccurrenceRecord;
+      to: 'PENDING' | 'DUE';
+      actorUserId: string;
+      requestId?: string | undefined;
+    },
+  ): Promise<void> {
+    await tx.planOccurrence.updateMany({
+      where: { id: params.occurrence.id, budgetId: params.budgetId },
+      data: { status: params.to, completedAt: null, actedByUserId: params.actorUserId },
+    });
+    await this.audit(
+      tx,
+      params,
+      'plan_occurrence',
+      params.occurrence.id,
+      'REOPENED',
+      { status: params.occurrence.status },
+      { status: params.to },
+    );
+  }
+
   private async audit(
     tx: Prisma.TransactionClient,
     params: {

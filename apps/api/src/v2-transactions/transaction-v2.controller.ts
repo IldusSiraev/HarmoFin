@@ -2,9 +2,12 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Headers,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -34,12 +37,16 @@ import {
   transactionIdParamSchema,
   type CreateTransactionV2Input,
   type ListTransactionsV2Input,
+  type UpdateTransactionV2Input,
+  updateTransactionV2Schema,
 } from './transaction-v2.schemas.js';
 import {
   CreateTransactionV2Body,
   TransactionJournalV2Item,
   TransactionJournalV2Response,
+  TransactionV2LifecycleResponse,
   TransactionV2Response,
+  UpdateTransactionV2Body,
 } from './transaction-v2.dto.js';
 import { TransactionV2ApplicationService } from './transaction-v2.application.service.js';
 
@@ -154,6 +161,87 @@ export class TransactionV2Controller {
         envelopeId: input.envelopeId ?? null,
         comment: input.comment ?? null,
       },
+      validKey(key),
+      request.id,
+    );
+  }
+
+  @Patch(':transactionId')
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiBody({ type: UpdateTransactionV2Body })
+  @ApiOkResponse({ type: TransactionV2LifecycleResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  update(
+    @Param('budgetId', new ZodValidationPipe(budgetIdParamSchema)) budgetId: string,
+    @Param('transactionId', new ZodValidationPipe(transactionIdParamSchema))
+    transactionId: string,
+    @Body(new ZodValidationPipe(updateTransactionV2Schema)) input: UpdateTransactionV2Input,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.update(
+      contextOf(request).userId,
+      budgetId,
+      transactionId,
+      input,
+      validKey(key),
+      request.id,
+    );
+  }
+
+  @Delete(':transactionId')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiOkResponse({ type: TransactionV2LifecycleResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  remove(
+    @Param('budgetId', new ZodValidationPipe(budgetIdParamSchema)) budgetId: string,
+    @Param('transactionId', new ZodValidationPipe(transactionIdParamSchema))
+    transactionId: string,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.remove(
+      contextOf(request).userId,
+      budgetId,
+      transactionId,
+      validKey(key),
+      request.id,
+    );
+  }
+
+  @Post(':transactionId/restore')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiOkResponse({ type: TransactionV2LifecycleResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  restore(
+    @Param('budgetId', new ZodValidationPipe(budgetIdParamSchema)) budgetId: string,
+    @Param('transactionId', new ZodValidationPipe(transactionIdParamSchema))
+    transactionId: string,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.restore(
+      contextOf(request).userId,
+      budgetId,
+      transactionId,
       validKey(key),
       request.id,
     );

@@ -319,6 +319,80 @@ export class ObligationApplicationService {
     };
   }
 
+  /**
+   * Locks (after the budget lock, before accounts) the occurrences already linked to a transaction
+   * by PlanPayment. Used by the v2 expense lifecycle; never creates a payment.
+   */
+  async lockLinkedOccurrences(
+    tx: Parameters<Parameters<PrismaService['$transaction']>[0]>[0],
+    budgetId: string,
+    transactionId: string,
+  ): Promise<OccurrenceRecord[]> {
+    const ids = await this.obligations.findLinkedOccurrenceIds(tx, budgetId, transactionId);
+    const occurrences: OccurrenceRecord[] = [];
+    for (const id of ids) {
+      occurrences.push(await this.requireOccurrence(tx, budgetId, id));
+    }
+    return occurrences;
+  }
+
+  /** A deleted payment can come back only while its occurrence is still open or completed. */
+  assertPaymentRestorable(occurrences: OccurrenceRecord[]): void {
+    if (occurrences.some((o) => o.status === 'SKIPPED' || o.status === 'CANCELLED')) {
+      throw notOpen();
+    }
+  }
+
+  /**
+   * Re-derives occurrence status from the currently valid CONFIRMED payments, after the linked
+   * expense was deleted, restored or edited. Rules:
+   * - delete: COMPLETED with zero confirmed payments left is reopened (DUE if the date has come,
+   *   otherwise PENDING). With payments remaining the status is kept (the owner closed it).
+   * - restore: an open occurrence whose confirmed total reaches the expected amount is completed
+   *   again; otherwise it stays open (the owner can close it explicitly).
+   * - edit: status is kept; the facts remain.
+   */
+  async reconcileAfterPaymentChange(
+    tx: Parameters<Parameters<PrismaService['$transaction']>[0]>[0],
+    params: {
+      userId: string;
+      budgetId: string;
+      workspaceId: string;
+      occurrences: OccurrenceRecord[];
+      action: 'delete' | 'restore' | 'edit';
+      today: string;
+      requestId?: string | undefined;
+    },
+  ): Promise<ObligationOccurrenceView[]> {
+    const views: ObligationOccurrenceView[] = [];
+    for (const occurrence of params.occurrences) {
+      const paid = await this.obligations.confirmedPaidMinor(tx, params.budgetId, occurrence.id);
+      let status: string = occurrence.status;
+      const common = {
+        budgetId: params.budgetId,
+        workspaceId: params.workspaceId,
+        occurrence,
+        actorUserId: params.userId,
+        requestId: params.requestId,
+      };
+      if (params.action === 'delete' && occurrence.status === 'COMPLETED' && paid.count === 0) {
+        const to =
+          occurrence.scheduledOn.toISOString().slice(0, 10) <= params.today ? 'DUE' : 'PENDING';
+        await this.obligations.reopenOccurrence(tx, { ...common, to });
+        status = to;
+      } else if (
+        params.action === 'restore' &&
+        (occurrence.status === 'PENDING' || occurrence.status === 'DUE') &&
+        paid.total >= occurrence.amountMinor
+      ) {
+        await this.obligations.transitionOccurrence(tx, { ...common, to: 'COMPLETED' });
+        status = 'COMPLETED';
+      }
+      views.push(this.view(occurrence, status, paid.total));
+    }
+    return views;
+  }
+
   async skip(
     userId: string,
     budgetId: string,
