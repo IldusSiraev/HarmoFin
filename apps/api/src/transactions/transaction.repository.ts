@@ -10,6 +10,7 @@ import {
 import { FinancialBalanceRepository } from '../common/finance/financial-balance.repository.js';
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
 import { PrismaService } from '../database/prisma.service.js';
+import { FundingRuleRepository } from '../envelope-plans/funding-rule.repository.js';
 
 export interface TransactionRecord {
   id: string;
@@ -405,40 +406,17 @@ export class TransactionRepository {
       requestId?: string | undefined;
     },
   ): Promise<{ id: string }> {
-    const period = await tx.envelopePeriod.create({
-      data: {
-        id: createUuidV7(),
-        budgetId: params.budgetId,
-        envelopeId: params.envelopeId,
-        startsOn: params.startsOn,
-        endsOn: params.endsOn,
-        targetMinor: null,
-        targetStatus: 'UNSET',
-        createdByUserId: params.userId,
-        updatedByUserId: params.userId,
-      },
-      select: { id: true },
-    });
-    await tx.auditEvent.create({
-      data: {
-        id: createUuidV7(),
-        actorUserId: params.userId,
-        workspaceId: params.workspaceId,
-        budgetId: params.budgetId,
-        entityType: 'envelope_period',
-        entityId: period.id,
-        action: 'CREATED',
-        source: 'API',
-        requestId: params.requestId ?? null,
-        newValues: {
-          envelopeId: params.envelopeId,
-          startsOn: params.startsOn.toISOString().slice(0, 10),
-          endsOn: params.endsOn.toISOString().slice(0, 10),
-          targetStatus: 'UNSET',
-        },
-      },
-    });
-    return period;
+    // Single shared creation point: a saved FIXED_PER_PERIOD rule yields a DRAFT suggestion
+    // (never a confirmed limit); otherwise the period stays UNSET with a null target.
+    const period = await new FundingRuleRepository().getOrCreatePeriod(
+      tx,
+      params.budgetId,
+      params.envelopeId,
+      params.startsOn.toISOString().slice(0, 10),
+      params.endsOn.toISOString().slice(0, 10),
+      { workspaceId: params.workspaceId, userId: params.userId, requestId: params.requestId },
+    );
+    return { id: period.id };
   }
 
   async accountCashBalance(

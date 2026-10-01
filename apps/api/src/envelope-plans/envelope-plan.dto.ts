@@ -62,6 +62,98 @@ export class CreateEnvelopeRequest {
   comment?: string;
 }
 
+export class PutFundingRuleRequest {
+  @ApiProperty({
+    type: String,
+    enum: ['MANUAL', 'SUM_OF_PLANS', 'FIXED_PER_PERIOD', 'SUGGESTED_FIXED', 'PERCENT_OF_INCOME'],
+    example: 'FIXED_PER_PERIOD',
+  })
+  type!: string;
+
+  @ApiProperty({ type: Number, example: 10, minimum: 0, maximum: 1000000 })
+  priority!: number;
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    example: '65000.00',
+    description: 'Только FIXED_PER_PERIOD и SUGGESTED_FIXED; обязателен для них.',
+  })
+  fixedAmount?: string;
+
+  @ApiProperty({
+    type: Number,
+    required: false,
+    example: 3000,
+    minimum: 0,
+    maximum: 10000,
+    description: 'Только PERCENT_OF_INCOME; обязателен для него.',
+  })
+  percentBasisPoints?: number;
+}
+
+export class FundingRuleResponse {
+  @ApiProperty({ type: String, example: '0195f3c3-aaaa-bbbb-cccc-000000000010' })
+  id!: string;
+
+  @ApiProperty({ type: String, example: '0195f3c3-aaaa-bbbb-cccc-000000000001' })
+  envelopeId!: string;
+
+  @ApiProperty({
+    type: String,
+    enum: ['MANUAL', 'SUM_OF_PLANS', 'FIXED_PER_PERIOD', 'SUGGESTED_FIXED', 'PERCENT_OF_INCOME'],
+    example: 'FIXED_PER_PERIOD',
+  })
+  type!: string;
+
+  @ApiProperty({ type: Number, example: 10 })
+  priority!: number;
+
+  @ApiProperty({ type: String, nullable: true, example: '6500000' })
+  fixedAmountMinor!: string | null;
+
+  @ApiProperty({ type: Number, nullable: true, example: null })
+  percentBasisPoints!: number | null;
+}
+
+export class PutPeriodTargetRequest {
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: '65000.00',
+    description: 'Подтверждаемая сумма периода; null сбрасывает цель в UNSET. Поле обязательно.',
+  })
+  target!: string | null;
+}
+
+export class PeriodTargetResponse {
+  @ApiProperty({ type: String, example: '0195f3c3-aaaa-bbbb-cccc-000000000020' })
+  periodId!: string;
+
+  @ApiProperty({ type: String, example: '0195f3c3-aaaa-bbbb-cccc-000000000001' })
+  envelopeId!: string;
+
+  @ApiProperty({ type: String, example: '2026-09-01' })
+  periodStart!: string;
+
+  @ApiProperty({ type: String, example: '2026-09-14' })
+  periodEnd!: string;
+
+  @ApiProperty({ type: String, nullable: true, example: '6500000' })
+  targetMinor!: string | null;
+
+  @ApiProperty({
+    type: String,
+    enum: ['UNSET', 'DRAFT', 'CONFIRMED'],
+    example: 'CONFIRMED',
+    description: 'Только CONFIRMED считается действующей целью периода.',
+  })
+  targetStatus!: string;
+
+  @ApiProperty({ type: String, nullable: true, example: '2026-09-01T09:00:00.000Z' })
+  confirmedAt!: string | null;
+}
+
 export class UpdateEnvelopeRequest {
   @ApiProperty({ type: String, required: false, example: 'Резерв 2' })
   name?: string;

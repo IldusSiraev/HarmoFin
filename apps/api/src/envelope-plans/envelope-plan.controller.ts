@@ -10,6 +10,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
@@ -43,7 +44,11 @@ import {
   EnvelopeHistoryListResponse,
   EnvelopePlanListResponse,
   EnvelopePlanResponse,
+  FundingRuleResponse,
   MoveEnvelopeRequest,
+  PeriodTargetResponse,
+  PutFundingRuleRequest,
+  PutPeriodTargetRequest,
   ReviseAssignmentRequest,
   UpdateEnvelopeRequest,
 } from './envelope-plan.dto.js';
@@ -52,13 +57,18 @@ import {
   createAssignmentSchema,
   createEnvelopeSchema,
   envelopeHistorySchema,
+  putFundingRuleSchema,
+  putPeriodTargetSchema,
   updateEnvelopeSchema,
   type CreateAssignmentInput,
   type CreateEnvelopeInput,
   type EnvelopeHistoryQuery,
+  type PutFundingRuleInput,
+  type PutPeriodTargetInput,
   type UpdateEnvelopeInput,
 } from './envelope-plan.schemas.js';
 import { MovementApplicationService } from './movement.application.service.js';
+import { PeriodTargetApplicationService } from './period-target.application.service.js';
 import { moveEnvelopeSchema, type MoveEnvelopeInput } from './movement.schemas.js';
 
 type AuthenticatedRequest = FastifyRequest & { authContext?: RequestContext };
@@ -81,6 +91,8 @@ export class EnvelopePlanController {
     private readonly assignments: AssignmentApplicationService,
     @Inject(MovementApplicationService)
     private readonly movements: MovementApplicationService,
+    @Inject(PeriodTargetApplicationService)
+    private readonly periodTargets: PeriodTargetApplicationService,
   ) {}
 
   @Get('envelopes')
@@ -195,6 +207,68 @@ export class EnvelopePlanController {
     @Req() request: AuthenticatedRequest,
   ) {
     return (await this.plans.history(contextOf(request).userId, budgetId, envelopeId, query)).body;
+  }
+
+  @Put('envelopes/:envelopeId/funding-rule')
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiBody({ type: PutFundingRuleRequest })
+  @ApiOkResponse({ type: FundingRuleResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  async putFundingRule(
+    @Param('budgetId') budgetId: string,
+    @Param('envelopeId') envelopeId: string,
+    @Body(new ZodValidationPipe(putFundingRuleSchema)) input: PutFundingRuleInput,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (
+      await this.periodTargets.putFundingRule(
+        contextOf(request).userId,
+        budgetId,
+        envelopeId,
+        input,
+        validKey(key),
+        request.id,
+      )
+    ).body;
+  }
+
+  @Put('envelopes/:envelopeId/periods/:periodStart/target')
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiBody({ type: PutPeriodTargetRequest })
+  @ApiOkResponse({ type: PeriodTargetResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  async putPeriodTarget(
+    @Param('budgetId') budgetId: string,
+    @Param('envelopeId') envelopeId: string,
+    @Param('periodStart') periodStart: string,
+    @Body(new ZodValidationPipe(putPeriodTargetSchema)) input: PutPeriodTargetInput,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (
+      await this.periodTargets.putPeriodTarget(
+        contextOf(request).userId,
+        budgetId,
+        envelopeId,
+        periodStart,
+        input,
+        validKey(key),
+        request.id,
+      )
+    ).body;
   }
 
   @Post('assignments')

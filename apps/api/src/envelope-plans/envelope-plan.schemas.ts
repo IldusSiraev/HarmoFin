@@ -52,6 +52,57 @@ export const createAssignmentSchema = z
 
 export type CreateAssignmentInput = z.output<typeof createAssignmentSchema>;
 
+const fundingRuleTypes = [
+  'MANUAL',
+  'SUM_OF_PLANS',
+  'FIXED_PER_PERIOD',
+  'SUGGESTED_FIXED',
+  'PERCENT_OF_INCOME',
+] as const;
+
+export const putFundingRuleSchema = z
+  .object({
+    type: z.enum(fundingRuleTypes),
+    priority: z.number().int().min(0).max(1_000_000),
+    fixedAmount: decimalAmount.optional(),
+    percentBasisPoints: z.number().int().min(0).max(10_000).optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    const fixedAllowed = value.type === 'FIXED_PER_PERIOD' || value.type === 'SUGGESTED_FIXED';
+    if (fixedAllowed && value.fixedAmount === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['fixedAmount'], message: 'Укажите fixedAmount.' });
+    }
+    if (!fixedAllowed && value.fixedAmount !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['fixedAmount'],
+        message: 'fixedAmount допустим только для FIXED_PER_PERIOD и SUGGESTED_FIXED.',
+      });
+    }
+    const percent = value.type === 'PERCENT_OF_INCOME';
+    if (percent && value.percentBasisPoints === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['percentBasisPoints'],
+        message: 'Укажите percentBasisPoints.',
+      });
+    }
+    if (!percent && value.percentBasisPoints !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['percentBasisPoints'],
+        message: 'percentBasisPoints допустим только для PERCENT_OF_INCOME.',
+      });
+    }
+  });
+
+export type PutFundingRuleInput = z.output<typeof putFundingRuleSchema>;
+
+export const putPeriodTargetSchema = z.object({ target: decimalAmount.nullable() }).strict();
+
+export type PutPeriodTargetInput = z.output<typeof putPeriodTargetSchema>;
+
 export const envelopeHistorySchema = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).optional(),
