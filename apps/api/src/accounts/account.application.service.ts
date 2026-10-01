@@ -1,12 +1,15 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 
+import { FinancialBalanceRepository } from '../common/finance/financial-balance.repository.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
 import { RolePolicy } from '../common/policies/role-policy.js';
 import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import type { ReferenceDataStatus } from '../common/reference-data/reference-data.types.js';
+import { AssignmentBalanceRepository } from '../envelope-plans/assignment-balance.repository.js';
 import {
   AccountRepository,
   type AccountCreateData,
+  type AccountMutationGuard,
   type AccountRecord,
   type AccountUpdateData,
 } from './account.repository.js';
@@ -40,6 +43,8 @@ export class AccountApplicationService {
   constructor(
     private readonly repository: AccountRepository,
     private readonly rolePolicy: RolePolicy,
+    private readonly assignments = new AssignmentBalanceRepository(),
+    private readonly balances = new FinancialBalanceRepository(),
   ) {}
 
   async list(
@@ -91,6 +96,7 @@ export class AccountApplicationService {
       userId,
       this.createData(budgetId, input, budget.allowNegativeBalance),
       requestId,
+      this.unbackedGuard(budget),
     );
     if (!account) throw resourceNotFound();
     return this.toView(account);
@@ -104,12 +110,17 @@ export class AccountApplicationService {
     requestId?: string,
   ): Promise<AccountView> {
     const budget = await this.requireOwnerBudget(userId, budgetId);
+    const guard =
+      input.startingBalance !== undefined || input.accountingStartDate !== undefined
+        ? this.unbackedGuard(budget)
+        : undefined;
     const account = await this.repository.update(
       userId,
       budgetId,
       accountId,
       this.updateData(input, budget.allowNegativeBalance),
       requestId,
+      guard,
     );
     if (!account) throw resourceNotFound();
     return this.toView(account);
@@ -121,10 +132,55 @@ export class AccountApplicationService {
     accountId: string,
     requestId?: string,
   ): Promise<AccountView> {
-    await this.requireOwnerBudget(userId, budgetId);
-    const account = await this.repository.archive(userId, budgetId, accountId, requestId);
+    const budget = await this.requireOwnerBudget(userId, budgetId);
+    const guard: AccountMutationGuard | undefined =
+      budget.planModelVersion === 2
+        ? {
+            before: async (tx) => {
+              const balance = await this.balances.accountBalanceAsOf(
+                tx,
+                budget.id,
+                accountId,
+                new Date(),
+              );
+              if (balance !== 0n) {
+                throw new ConflictException({
+                  code: 'ACCOUNT_HAS_BALANCE',
+                  detail: 'Счёт нельзя архивировать: на нём есть остаток.',
+                });
+              }
+            },
+          }
+        : undefined;
+    const account = await this.repository.archive(userId, budgetId, accountId, requestId, guard);
     if (!account) throw resourceNotFound();
     return this.toView(account);
+  }
+
+  async restore(
+    userId: string,
+    budgetId: string,
+    accountId: string,
+    requestId?: string,
+  ): Promise<AccountView> {
+    const budget = await this.requireOwnerBudget(userId, budgetId);
+    if (budget.planModelVersion !== 2) {
+      throw new ConflictException({
+        code: 'MODEL_VERSION_MISMATCH',
+        detail: 'Восстановление счёта доступно только в модели плана v2.',
+      });
+    }
+    const account = await this.repository.find(userId, budgetId, accountId);
+    if (!account) throw resourceNotFound();
+    if (!account.archivedAt) {
+      throw new ConflictException({
+        code: 'ACCOUNT_NOT_ARCHIVED',
+        detail: 'Счёт не был архивирован, восстановление не требуется.',
+      });
+    }
+    const restored = await this.repository.restore(userId, budgetId, accountId, requestId);
+    if (!restored) throw resourceNotFound();
+    return this.toView(restored);
   }
 
   toView(account: AccountRecord): AccountView {
@@ -143,6 +199,38 @@ export class AccountApplicationService {
       accountingStartDate: formatDate(account.accountingStartDate),
       comment: account.comment,
       archivedAt: account.archivedAt?.toISOString() ?? null,
+    };
+  }
+
+  // v2 invariant: a mutation must not increase the unbacked part of the
+  // assignments (positive balances the budget's accounts cannot cover).
+  // The before/after values are read inside the repository transaction under
+  // the budget lock, after the candidate change is applied.
+  private unbackedGuard(budget: {
+    id: string;
+    planModelVersion: number;
+  }): AccountMutationGuard | undefined {
+    if (budget.planModelVersion !== 2) return undefined;
+    let supported = 0n;
+    let unbackedBefore = 0n;
+    return {
+      before: async (tx) => {
+        for (const row of await this.assignments.allBalances(tx, budget.id, new Date())) {
+          supported += row.balance > 0n ? row.balance : 0n;
+        }
+        const cashBefore = await this.balances.totalCashAsOf(tx, budget.id, new Date());
+        unbackedBefore = supported - cashBefore > 0n ? supported - cashBefore : 0n;
+      },
+      after: async (tx) => {
+        const cashAfter = await this.balances.totalCashAsOf(tx, budget.id, new Date());
+        const unbackedAfter = supported - cashAfter > 0n ? supported - cashAfter : 0n;
+        if (unbackedAfter > unbackedBefore) {
+          throw new ConflictException({
+            code: 'ASSIGNMENT_UNBACKED',
+            detail: 'Изменение нарушает покрытие назначений: непокрытая часть вырастет.',
+          });
+        }
+      },
     };
   }
 
