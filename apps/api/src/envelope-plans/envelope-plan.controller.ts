@@ -60,6 +60,7 @@ import {
   putFundingRuleSchema,
   putPeriodTargetSchema,
   updateEnvelopeSchema,
+  uuidParamSchema,
   type CreateAssignmentInput,
   type CreateEnvelopeInput,
   type EnvelopeHistoryQuery,
@@ -222,7 +223,7 @@ export class EnvelopePlanController {
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
   async putFundingRule(
     @Param('budgetId') budgetId: string,
-    @Param('envelopeId') envelopeId: string,
+    @Param('envelopeId', new ZodValidationPipe(uuidParamSchema)) envelopeId: string,
     @Body(new ZodValidationPipe(putFundingRuleSchema)) input: PutFundingRuleInput,
     @Headers('idempotency-key') key: string | undefined,
     @Req() request: AuthenticatedRequest,
@@ -252,7 +253,7 @@ export class EnvelopePlanController {
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
   async putPeriodTarget(
     @Param('budgetId') budgetId: string,
-    @Param('envelopeId') envelopeId: string,
+    @Param('envelopeId', new ZodValidationPipe(uuidParamSchema)) envelopeId: string,
     @Param('periodStart') periodStart: string,
     @Body(new ZodValidationPipe(putPeriodTargetSchema)) input: PutPeriodTargetInput,
     @Headers('idempotency-key') key: string | undefined,
@@ -265,6 +266,60 @@ export class EnvelopePlanController {
         envelopeId,
         periodStart,
         input,
+        validKey(key),
+        request.id,
+      )
+    ).body;
+  }
+
+  @Post('periods/:periodId/confirm-target')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiOkResponse({ type: PeriodTargetResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  async confirmTarget(
+    @Param('budgetId') budgetId: string,
+    @Param('periodId', new ZodValidationPipe(uuidParamSchema)) periodId: string,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (
+      await this.periodTargets.confirmTarget(
+        contextOf(request).userId,
+        budgetId,
+        periodId,
+        validKey(key),
+        request.id,
+      )
+    ).body;
+  }
+
+  @Post('periods/:periodId/reject-target')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiOkResponse({ type: PeriodTargetResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  async rejectTarget(
+    @Param('budgetId') budgetId: string,
+    @Param('periodId', new ZodValidationPipe(uuidParamSchema)) periodId: string,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (
+      await this.periodTargets.rejectTarget(
+        contextOf(request).userId,
+        budgetId,
+        periodId,
         validKey(key),
         request.id,
       )

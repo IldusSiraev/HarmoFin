@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   UnprocessableEntityException,
@@ -12,16 +13,18 @@ import { IdempotencyService } from '../common/idempotency/idempotency.service.js
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { RolePolicy } from '../common/policies/role-policy.js';
-import { forbidden } from '../common/reference-data/reference-data.errors.js';
+import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import { cycleAndPeriodFor } from '../cycles/cycle-period.domain.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { EnvelopePlanRepository } from './envelope-plan.repository.js';
 import type { PutFundingRuleInput, PutPeriodTargetInput } from './envelope-plan.schemas.js';
-import { FundingRuleRepository } from './funding-rule.repository.js';
+import { type EnvelopePeriodRecord, FundingRuleRepository } from './funding-rule.repository.js';
 
 const RUB_SCALE = 2;
 const PUT_FUNDING_RULE_OPERATION = 'PUT_FUNDING_RULE';
 const PUT_PERIOD_TARGET_OPERATION = 'PUT_PERIOD_TARGET';
+const CONFIRM_TARGET_OPERATION = 'CONFIRM_PERIOD_TARGET';
+const REJECT_TARGET_OPERATION = 'REJECT_PERIOD_TARGET';
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export type FundingRuleBody = {
@@ -40,6 +43,10 @@ export type PeriodTargetBody = {
   periodEnd: string;
   targetMinor: string | null;
   targetStatus: string;
+  /** Equals targetMinor while the target is a DRAFT suggestion, otherwise null. */
+  suggestedTargetMinor: string | null;
+  /** Equals targetMinor while the target is CONFIRMED, otherwise null. */
+  confirmedTargetMinor: string | null;
   confirmedAt: string | null;
 };
 
@@ -217,19 +224,94 @@ export class PeriodTargetApplicationService {
             targetMinor,
             requestId,
           });
-          return {
-            status: 200,
-            body: {
-              periodId: period.id,
-              envelopeId,
-              periodStart: range.start,
-              periodEnd: range.end,
-              targetMinor:
-                period.targetMinor === null ? null : formatMinorUnits(period.targetMinor),
-              targetStatus: period.targetStatus,
-              confirmedAt: period.confirmedAt ? period.confirmedAt.toISOString() : null,
-            },
-          };
+          return { status: 200, body: periodTargetBody(period) };
+        },
+      );
+    });
+  }
+
+  /** DRAFT -> CONFIRMED, keeping targetMinor. Already CONFIRMED is a no-op (no second audit). */
+  confirmTarget(
+    userId: string,
+    budgetId: string,
+    periodId: string,
+    idempotencyKey: string,
+    requestId?: string,
+  ): Promise<{ status: number; body: PeriodTargetBody }> {
+    return this.decideTarget('CONFIRM', userId, budgetId, periodId, idempotencyKey, requestId);
+  }
+
+  /** DRAFT -> UNSET/null. The saved rule for next periods is not touched. CONFIRMED is 409. */
+  rejectTarget(
+    userId: string,
+    budgetId: string,
+    periodId: string,
+    idempotencyKey: string,
+    requestId?: string,
+  ): Promise<{ status: number; body: PeriodTargetBody }> {
+    return this.decideTarget('REJECT', userId, budgetId, periodId, idempotencyKey, requestId);
+  }
+
+  private async decideTarget(
+    decision: 'CONFIRM' | 'REJECT',
+    userId: string,
+    budgetId: string,
+    periodId: string,
+    idempotencyKey: string,
+    requestId?: string,
+  ): Promise<{ status: number; body: PeriodTargetBody }> {
+    const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
+    const requestHash = createHash('sha256')
+      .update(JSON.stringify({ decision, periodId }))
+      .digest('hex');
+
+    return this.prisma.$transaction(async (tx) => {
+      await this.envelopes.lockBudget(tx, budgetId);
+      return this.idempotency.execute(
+        tx,
+        {
+          budgetId,
+          actorUserId: userId,
+          key: idempotencyKey,
+          operation: decision === 'CONFIRM' ? CONFIRM_TARGET_OPERATION : REJECT_TARGET_OPERATION,
+          requestHash,
+        },
+        async () => {
+          await this.requireManageRole(tx, model.workspaceId, userId);
+          const period = await this.rules.lockPeriod(tx, budgetId, periodId);
+          if (!period) throw resourceNotFound();
+          let result = period;
+          if (decision === 'CONFIRM') {
+            if (period.targetStatus === 'UNSET') {
+              throw new ConflictException({
+                code: 'PERIOD_TARGET_NOT_DRAFT',
+                detail: 'У периода нет предложенной цели для подтверждения.',
+              });
+            }
+            if (period.targetStatus === 'DRAFT') {
+              await this.rules.confirmDrafts(tx, budgetId, [periodId], userId, requestId);
+              const confirmed = await this.rules.findPeriodById(tx, budgetId, periodId);
+              if (!confirmed) throw resourceNotFound();
+              result = confirmed;
+            }
+          } else {
+            if (period.targetStatus === 'CONFIRMED') {
+              throw new ConflictException({
+                code: 'PERIOD_TARGET_ALREADY_CONFIRMED',
+                detail: 'Подтверждённую цель нельзя отклонить; измените её явно.',
+              });
+            }
+            if (period.targetStatus === 'DRAFT') {
+              result = await this.rules.rejectDraft(tx, {
+                budgetId,
+                workspaceId: model.workspaceId,
+                actorUserId: userId,
+                period,
+                requestId,
+              });
+            }
+          }
+          return { status: 200, body: periodTargetBody(result) };
         },
       );
     });
@@ -269,6 +351,21 @@ export class PeriodTargetApplicationService {
     });
     if (!membership || !this.rolePolicy.canManage(membership.role)) throw forbidden();
   }
+}
+
+function periodTargetBody(period: EnvelopePeriodRecord): PeriodTargetBody {
+  const targetMinor = period.targetMinor === null ? null : formatMinorUnits(period.targetMinor);
+  return {
+    periodId: period.id,
+    envelopeId: period.envelopeId,
+    periodStart: period.startsOn.toISOString().slice(0, 10),
+    periodEnd: period.endsOn.toISOString().slice(0, 10),
+    targetMinor,
+    targetStatus: period.targetStatus,
+    suggestedTargetMinor: period.targetStatus === 'DRAFT' ? targetMinor : null,
+    confirmedTargetMinor: period.targetStatus === 'CONFIRMED' ? targetMinor : null,
+    confirmedAt: period.confirmedAt ? period.confirmedAt.toISOString() : null,
+  };
 }
 
 function parseTarget(value: string): bigint {

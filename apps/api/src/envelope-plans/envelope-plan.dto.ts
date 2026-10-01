@@ -150,6 +150,22 @@ export class PeriodTargetResponse {
   })
   targetStatus!: string;
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: '6500000',
+    description: 'Предложенная (DRAFT) цель; null, если цель не в статусе DRAFT.',
+  })
+  suggestedTargetMinor!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: '6500000',
+    description: 'Подтверждённая цель; null, если цель не CONFIRMED.',
+  })
+  confirmedTargetMinor!: string | null;
+
   @ApiProperty({ type: String, nullable: true, example: '2026-09-01T09:00:00.000Z' })
   confirmedAt!: string | null;
 }

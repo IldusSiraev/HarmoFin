@@ -112,3 +112,5 @@ export const envelopeHistorySchema = z
   .strict();
 
 export type EnvelopeHistoryQuery = z.output<typeof envelopeHistorySchema>;
+
+export const uuidParamSchema = uuid;

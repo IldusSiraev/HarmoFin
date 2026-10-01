@@ -402,6 +402,259 @@ describe('v2 funding rules and period target snapshots', () => {
     expect(revised.endsOn.toISOString().slice(0, 10)).toBe('2027-01-14');
   });
 
+  it('confirm-target: DRAFT -> CONFIRMED без движения денег, replay и второй ключ без второго audit', async () => {
+    const budgetId = ctx.owner!.budgetId;
+    const period = await prisma.envelopePeriod.findFirstOrThrow({
+      where: { budgetId, envelopeId: firstEnvelope, startsOn: new Date(NEXT_FIRST_START) },
+    });
+    expect(period).toMatchObject({ targetMinor: 7_000_000n, targetStatus: 'DRAFT' });
+    const asOf = new Date();
+    const cashBefore = await cashOf(budgetId);
+    const balanceBefore = await balanceOf(budgetId, firstEnvelope, period.id, asOf);
+    const assignmentsBefore = await prisma.envelopeAssignment.count({ where: { budgetId } });
+    const auditBefore = await auditCount(budgetId, period.id, 'UPDATED');
+
+    const key = `confirm-${randomUUID()}`;
+    const response = await postTarget(ctx.owner, 'confirm-target', period.id, key);
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      periodId: period.id,
+      envelopeId: firstEnvelope,
+      periodStart: NEXT_FIRST_START,
+      periodEnd: NEXT_FIRST_END,
+      targetMinor: '7000000',
+      targetStatus: 'CONFIRMED',
+      suggestedTargetMinor: null,
+      confirmedTargetMinor: '7000000',
+    });
+    const stored = await prisma.envelopePeriod.findUniqueOrThrow({ where: { id: period.id } });
+    expect(stored).toMatchObject({
+      targetMinor: 7_000_000n,
+      targetStatus: 'CONFIRMED',
+      confirmedByUserId: ctx.owner!.userId,
+    });
+    expect(stored.confirmedAt).not.toBeNull();
+    expect(await cashOf(budgetId)).toBe(cashBefore);
+    expect(await balanceOf(budgetId, firstEnvelope, period.id, asOf)).toEqual(balanceBefore);
+    expect(await prisma.envelopeAssignment.count({ where: { budgetId } })).toBe(assignmentsBefore);
+    expect(await auditCount(budgetId, period.id, 'UPDATED')).toBe(auditBefore + 1);
+
+    const replay = await postTarget(ctx.owner, 'confirm-target', period.id, key);
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json<{ targetStatus: string }>().targetStatus).toBe('CONFIRMED');
+    const second = await postTarget(
+      ctx.owner,
+      'confirm-target',
+      period.id,
+      `confirm-${randomUUID()}`,
+    );
+    expect(second.statusCode).toBe(200);
+    expect(second.json<{ targetStatus: string }>().targetStatus).toBe('CONFIRMED');
+    expect(await auditCount(budgetId, period.id, 'UPDATED')).toBe(auditBefore + 1);
+
+    const rejectConfirmed = await postTarget(
+      ctx.owner,
+      'reject-target',
+      period.id,
+      `reject-${randomUUID()}`,
+    );
+    expect(rejectConfirmed.statusCode).toBe(409);
+    expect(
+      (await prisma.envelopePeriod.findUniqueOrThrow({ where: { id: period.id } })).targetStatus,
+    ).toBe('CONFIRMED');
+  });
+
+  it('reject-target: DRAFT -> UNSET/null, правило для следующих периодов не меняется', async () => {
+    const budgetId = ctx.owner!.budgetId;
+    const period = await prisma.envelopePeriod.findFirstOrThrow({
+      where: { budgetId, envelopeId: secondEnvelope, startsOn: new Date(SECOND_START) },
+    });
+    expect(period.targetStatus).toBe('DRAFT');
+    const ruleBefore = await prisma.envelopeFundingRule.findFirstOrThrow({
+      where: { budgetId, envelopeId: secondEnvelope },
+    });
+    const auditBefore = await auditCount(budgetId, period.id, 'UPDATED');
+
+    const key = `reject-${randomUUID()}`;
+    const response = await postTarget(ctx.owner, 'reject-target', period.id, key);
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      periodId: period.id,
+      targetMinor: null,
+      targetStatus: 'UNSET',
+      suggestedTargetMinor: null,
+      confirmedTargetMinor: null,
+      confirmedAt: null,
+    });
+    expect(
+      await prisma.envelopePeriod.findUniqueOrThrow({ where: { id: period.id } }),
+    ).toMatchObject({ targetMinor: null, targetStatus: 'UNSET', confirmedAt: null });
+    const ruleAfter = await prisma.envelopeFundingRule.findFirstOrThrow({
+      where: { budgetId, envelopeId: secondEnvelope },
+    });
+    expect(ruleAfter).toMatchObject({
+      id: ruleBefore.id,
+      type: ruleBefore.type,
+      fixedMinor: ruleBefore.fixedMinor,
+    });
+    const nextOpened = await openPeriod(budgetId, secondEnvelope, '2026-12-15', '2026-12-31');
+    expect(nextOpened).toMatchObject({ targetMinor: 5_500_050n, targetStatus: 'DRAFT' });
+    expect(await auditCount(budgetId, period.id, 'UPDATED')).toBe(auditBefore + 1);
+
+    const replay = await postTarget(ctx.owner, 'reject-target', period.id, key);
+    expect(replay.statusCode).toBe(200);
+    expect(await auditCount(budgetId, period.id, 'UPDATED')).toBe(auditBefore + 1);
+
+    const confirmUnset = await postTarget(
+      ctx.owner,
+      'confirm-target',
+      period.id,
+      `confirm-unset-${randomUUID()}`,
+    );
+    expect(confirmUnset.statusCode).toBe(409);
+  });
+
+  it('confirm/reject-target: DRAFT виден как suggested, чужой/неизвестный период 404, роли и CSRF', async () => {
+    const budgetId = ctx.owner!.budgetId;
+    const draft = await openPeriod(budgetId, secondEnvelope, '2026-10-15', '2026-10-31');
+    expect(draft.targetStatus).toBe('DRAFT');
+    const foreign = await prisma.envelopePeriod.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ctx.outsider!.budgetId,
+        envelopeId: outsiderEnvelope,
+        startsOn: new Date(FIRST_START),
+        endsOn: new Date(FIRST_END),
+        targetMinor: 100n,
+        targetStatus: 'DRAFT',
+      },
+    });
+    for (const action of ['confirm-target', 'reject-target'] as const) {
+      expect(
+        (await postTarget(ctx.owner, action, foreign.id, `f-${randomUUID()}`)).statusCode,
+      ).toBe(404);
+      expect(
+        (await postTarget(ctx.owner, action, randomUUID(), `n-${randomUUID()}`)).statusCode,
+      ).toBe(404);
+      expect(
+        (await postTarget(ctx.outsider, action, draft.id, `o-${randomUUID()}`)).statusCode,
+      ).toBe(404);
+      for (const user of [ctx.viewer, ctx.editor]) {
+        expect((await postTarget(user, action, draft.id, `r-${randomUUID()}`)).statusCode).toBe(
+          403,
+        );
+      }
+      const url = `/api/v2/budgets/${budgetId}/periods/${draft.id}/${action}`;
+      const unauth = await server.inject({
+        method: 'POST',
+        url,
+        headers: { origin, 'x-csrf-token': 'x', 'idempotency-key': `u-${randomUUID()}` },
+      });
+      expect(unauth.statusCode).toBe(401);
+      const noCsrf = await server.inject({
+        method: 'POST',
+        url,
+        headers: { ...authHeaders(ctx.owner), 'idempotency-key': `c-${randomUUID()}` },
+      });
+      expect(noCsrf.statusCode).toBe(403);
+      const noKey = await server.inject({
+        method: 'POST',
+        url,
+        headers: { ...authHeaders(ctx.owner), 'x-csrf-token': ctx.owner!.csrfToken },
+      });
+      expect(noKey.statusCode).toBe(400);
+    }
+    expect(
+      (await prisma.envelopePeriod.findUniqueOrThrow({ where: { id: draft.id } })).targetStatus,
+    ).toBe('DRAFT');
+    expect(
+      (await prisma.envelopePeriod.findUniqueOrThrow({ where: { id: foreign.id } })).targetStatus,
+    ).toBe('DRAFT');
+  });
+
+  it('невалидный uuid в пути -> 400 VALIDATION_FAILED, не 500', async () => {
+    for (const action of ['confirm-target', 'reject-target'] as const) {
+      const response = await postTarget(ctx.owner, action, 'not-a-uuid', `bad-${randomUUID()}`);
+      expect(response.statusCode, action).toBe(400);
+      expect(response.json<{ code: string }>().code).toBe('VALIDATION_FAILED');
+    }
+    const budgetId = ctx.owner!.budgetId;
+    const rule = await putRule(
+      ctx.owner,
+      'not-a-uuid',
+      { type: 'MANUAL', priority: 1 },
+      `bad-${randomUUID()}`,
+    );
+    expect(rule.statusCode).toBe(400);
+    const target = await putTarget(
+      ctx.owner,
+      'not-a-uuid',
+      FIRST_START,
+      { target: '1' },
+      `bad-${randomUUID()}`,
+    );
+    expect(target.statusCode).toBe(400);
+    const badStart = await putTarget(
+      ctx.owner,
+      firstEnvelope,
+      "x'; --",
+      { target: '1' },
+      `bad-${randomUUID()}`,
+    );
+    expect(badStart.statusCode).toBe(400);
+    expect(budgetId).toBeTruthy();
+  });
+
+  it('confirmDrafts(tx): некорректный id игнорируется и не обрывает транзакцию', async () => {
+    const result = await prisma.$transaction((tx) =>
+      repository.confirmDrafts(tx, ctx.owner!.budgetId, ['not-a-uuid', ''], ctx.owner!.userId),
+    );
+    expect(result).toEqual([]);
+  });
+
+  it('confirmDrafts(tx): подтверждает только DRAFT своего бюджета, audit на каждый', async () => {
+    const budgetId = ctx.owner!.budgetId;
+    const draft = await prisma.envelopePeriod.findFirstOrThrow({
+      where: { budgetId, envelopeId: secondEnvelope, startsOn: new Date('2026-10-15') },
+    });
+    const dec = await prisma.envelopePeriod.findFirstOrThrow({
+      where: { budgetId, envelopeId: secondEnvelope, startsOn: new Date('2026-12-15') },
+    });
+    const foreign = await prisma.envelopePeriod.findFirstOrThrow({
+      where: { budgetId: ctx.outsider!.budgetId, envelopeId: outsiderEnvelope },
+    });
+    const confirmed = await prisma.envelopePeriod.findFirstOrThrow({
+      where: { budgetId, envelopeId: firstEnvelope, startsOn: new Date(NEXT_FIRST_START) },
+    });
+    const auditBefore = await auditCount(budgetId, draft.id, 'UPDATED');
+    const result = await prisma.$transaction((tx) =>
+      repository.confirmDrafts(
+        tx,
+        budgetId,
+        [draft.id, dec.id, foreign.id, confirmed.id, randomUUID(), draft.id],
+        ctx.owner!.userId,
+      ),
+    );
+    expect([...result].sort()).toEqual([dec.id, draft.id].sort());
+    expect(
+      (await prisma.envelopePeriod.findUniqueOrThrow({ where: { id: draft.id } })).targetStatus,
+    ).toBe('CONFIRMED');
+    expect(
+      (await prisma.envelopePeriod.findUniqueOrThrow({ where: { id: foreign.id } })).targetStatus,
+    ).toBe('DRAFT');
+    expect(await auditCount(budgetId, draft.id, 'UPDATED')).toBe(auditBefore + 1);
+    expect(
+      await prisma.$transaction((tx) =>
+        repository.confirmDrafts(tx, budgetId, [draft.id], ctx.owner!.userId),
+      ),
+    ).toEqual([]);
+    expect(
+      await prisma.$transaction((tx) =>
+        repository.confirmDrafts(tx, budgetId, [], ctx.owner!.userId),
+      ),
+    ).toEqual([]);
+  });
+
   it('чужой envelope 404, VIEWER/EDITOR 403, 401, CSRF и Idempotency-Key', async () => {
     const budgetPrefix = `/api/v2/budgets/${ctx.owner!.budgetId}`;
     expect(
@@ -514,7 +767,22 @@ describe('v2 funding rules and period target snapshots', () => {
       }
       expect(JSON.stringify(operation!.parameters)).toContain('Idempotency-Key');
     }
+    for (const action of ['confirm-target', 'reject-target']) {
+      const path = `/api/v2/budgets/{budgetId}/periods/{periodId}/${action}`;
+      const operation = (
+        document.paths[path] as unknown as {
+          post?: { responses: Record<string, unknown>; parameters?: unknown[] };
+        }
+      )?.post;
+      expect(operation, path).toBeDefined();
+      for (const code of ['200', '400', '401', '403', '404', '409']) {
+        expect(operation!.responses[code], `${path} ${code}`).toBeDefined();
+      }
+      expect(JSON.stringify(operation!.parameters)).toContain('Idempotency-Key');
+    }
     const schemas = document.components.schemas;
+    expect(schemas.PeriodTargetResponse?.properties?.suggestedTargetMinor?.type).toBe('string');
+    expect(schemas.PeriodTargetResponse?.properties?.confirmedTargetMinor?.type).toBe('string');
     expect(schemas.FundingRuleResponse?.properties?.type?.type).toBe('string');
     expect(schemas.PeriodTargetResponse?.properties?.targetStatus?.type).toBe('string');
     expect(Object.keys(document.paths).some((path) => path.startsWith('/api/v1/'))).toBe(true);
@@ -567,6 +835,19 @@ function putTarget(
     url: `/api/v2/budgets/${ctx.owner!.budgetId}/envelopes/${envelopeId}/periods/${periodStart}/target`,
     headers: mutationHeaders(user, key),
     payload,
+  });
+}
+
+function postTarget(
+  user: RegisteredUser | undefined,
+  action: 'confirm-target' | 'reject-target',
+  periodId: string,
+  key: string,
+) {
+  return server.inject({
+    method: 'POST',
+    url: `/api/v2/budgets/${ctx.owner!.budgetId}/periods/${periodId}/${action}`,
+    headers: mutationHeaders(user, key),
   });
 }
 
