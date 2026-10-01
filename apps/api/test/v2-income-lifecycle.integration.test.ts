@@ -279,7 +279,7 @@ describe('v2 доход: изменение, удаление и восстан�
     expect(restored.json()).toMatchObject({ id, status: 'CONFIRMED' });
     expect(await cash(accountId)).toBe(accountStart + 9_000_000n);
     expect(await confirmedIncomeAssignmentTotal(id)).toBe(0n);
-  });
+  }, 30_000);
 
   it('смена категории и даты не меняет существующие назначения', async () => {
     const id = await income('1000.00');

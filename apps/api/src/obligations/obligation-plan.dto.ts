@@ -3,16 +3,18 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 const recurrenceValues = ['ONE_TIME', 'MONTHLY', 'EVERY_N_MONTHS', 'YEARLY'];
 
 export class ObligationPlanCreateBody {
-  @ApiProperty({ minLength: 1, maxLength: 120, example: 'Аренда' })
+  @ApiProperty({ type: String, minLength: 1, maxLength: 120, example: 'Аренда' })
   name!: string;
 
   @ApiProperty({
+    type: String,
     example: '40000.00',
     description: 'Ожидаемая сумма: десятичная строка, до 2 знаков.',
   })
   amount!: string;
 
   @ApiProperty({
+    type: String,
     format: 'date',
     maxLength: 10,
     example: '2026-10-05',
@@ -20,10 +22,10 @@ export class ObligationPlanCreateBody {
   })
   scheduledOn!: string;
 
-  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  @ApiProperty({ type: String, format: 'uuid', maxLength: 36 })
   categoryId!: string;
 
-  @ApiProperty({ enum: recurrenceValues, example: 'ONE_TIME' })
+  @ApiProperty({ type: String, enum: recurrenceValues, example: 'ONE_TIME' })
   recurrence!: string;
 
   @ApiPropertyOptional({ type: Number, nullable: true, minimum: 2, maximum: 120, example: 3 })
@@ -37,22 +39,25 @@ export class ObligationPlanCreateBody {
 }
 
 export class ObligationOneTimePayBody {
-  @ApiProperty({ minLength: 1, maxLength: 120, example: 'Взнос в садик' })
+  @ApiProperty({ type: String, minLength: 1, maxLength: 120, example: 'Взнос в садик' })
   name!: string;
 
   @ApiProperty({
+    type: String,
     example: '40000.00',
     description: 'Плановая сумма: десятичная строка, до 2 знаков.',
   })
   plannedAmount!: string;
 
   @ApiProperty({
+    type: String,
     example: '38500.50',
     description: 'Фактическая сумма расхода; может отличаться от плановой.',
   })
   actualAmount!: string;
 
   @ApiProperty({
+    type: String,
     format: 'date',
     maxLength: 10,
     example: '2026-10-01',
@@ -60,10 +65,10 @@ export class ObligationOneTimePayBody {
   })
   occurredOn!: string;
 
-  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  @ApiProperty({ type: String, format: 'uuid', maxLength: 36 })
   accountId!: string;
 
-  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  @ApiProperty({ type: String, format: 'uuid', maxLength: 36 })
   categoryId!: string;
 
   @ApiPropertyOptional({ maxLength: 500, nullable: true, type: String })
@@ -71,47 +76,59 @@ export class ObligationOneTimePayBody {
 }
 
 export class ObligationOneTimePayTransaction {
-  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  @ApiProperty({ type: String, format: 'uuid', maxLength: 36 })
   id!: string;
 
-  @ApiProperty({ example: '3850050', description: 'Фактическая сумма (minor, строка).' })
+  @ApiProperty({
+    type: String,
+    example: '3850050',
+    description: 'Фактическая сумма (minor, строка).',
+  })
   amountMinor!: string;
 
-  @ApiProperty({ format: 'date', maxLength: 10 })
+  @ApiProperty({ type: String, format: 'date', maxLength: 10 })
   occurredOn!: string;
 
-  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  @ApiProperty({ type: String, format: 'uuid', maxLength: 36 })
   accountId!: string;
 
-  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  @ApiProperty({ type: String, format: 'uuid', maxLength: 36 })
   categoryId!: string;
 
-  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  @ApiProperty({ type: String, format: 'uuid', maxLength: 36 })
   envelopeId!: string;
 
-  @ApiProperty({ example: '9614950', description: 'Баланс счёта после расхода (minor, строка).' })
+  @ApiProperty({
+    type: String,
+    example: '9614950',
+    description: 'Баланс счёта после расхода (minor, строка).',
+  })
   accountBalanceMinor!: string;
 }
 
 export class ObligationOneTimePayWarning {
-  @ApiProperty({ example: 'ENVELOPE_BALANCE_INSUFFICIENT' })
+  @ApiProperty({ type: String, example: 'ENVELOPE_BALANCE_INSUFFICIENT' })
   code!: string;
 
-  @ApiProperty({ example: 'Назначение конверта меньше расхода; оплата проведена.' })
+  @ApiProperty({ type: String, example: 'Назначение конверта меньше расхода; оплата проведена.' })
   detail!: string;
 }
 
 export class ObligationOneTimePayResponse {
-  @ApiProperty({ example: '4000000', description: 'Плановая сумма (minor, строка).' })
+  @ApiProperty({ type: String, example: '4000000', description: 'Плановая сумма (minor, строка).' })
   plannedMinor!: string;
 
-  @ApiProperty({ example: '3850050', description: 'Фактическая сумма (minor, строка).' })
+  @ApiProperty({
+    type: String,
+    example: '3850050',
+    description: 'Фактическая сумма (minor, строка).',
+  })
   actualMinor!: string;
 
-  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  @ApiProperty({ type: String, format: 'uuid', maxLength: 36 })
   occurrenceId!: string;
 
-  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  @ApiProperty({ type: String, format: 'uuid', maxLength: 36 })
   planId!: string;
 
   @ApiProperty({ type: ObligationOneTimePayTransaction })
@@ -122,10 +139,11 @@ export class ObligationOneTimePayResponse {
 }
 
 export class ObligationPlanUpdateBody {
-  @ApiPropertyOptional({ minLength: 1, maxLength: 120 })
+  @ApiPropertyOptional({ type: String, minLength: 1, maxLength: 120 })
   name?: string;
 
   @ApiPropertyOptional({
+    type: String,
     example: '3500.00',
     description:
       'Новая ожидаемая сумма. Применяется к будущим неоплаченным occurrences; оплаченные не меняются.',
@@ -133,6 +151,7 @@ export class ObligationPlanUpdateBody {
   amount?: string;
 
   @ApiPropertyOptional({
+    type: String,
     enum: ['ACTIVE', 'ARCHIVED'],
     description:
       'ARCHIVED отключает только будущие неоплаченные occurrences; история и просроченные остаются.',
@@ -148,25 +167,29 @@ export class ObligationPlanUpdateBody {
 }
 
 export class ObligationPlanResponse {
-  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  @ApiProperty({ type: String, format: 'uuid', maxLength: 36 })
   id!: string;
 
-  @ApiProperty({ enum: ['EXPENSE'] })
+  @ApiProperty({ type: String, enum: ['EXPENSE'] })
   planType!: string;
 
-  @ApiProperty({ example: 'Аренда' })
+  @ApiProperty({ type: String, example: 'Аренда' })
   name!: string;
 
-  @ApiProperty({ example: '4000000', description: 'Ожидаемая сумма (minor, строка).' })
+  @ApiProperty({
+    type: String,
+    example: '4000000',
+    description: 'Ожидаемая сумма (minor, строка).',
+  })
   amountMinor!: string;
 
-  @ApiProperty({ enum: recurrenceValues })
+  @ApiProperty({ type: String, enum: recurrenceValues })
   recurrence!: string;
 
   @ApiProperty({ type: Number, nullable: true })
   intervalMonths!: number | null;
 
-  @ApiProperty({ format: 'date', maxLength: 10 })
+  @ApiProperty({ type: String, format: 'date', maxLength: 10 })
   scheduledOn!: string;
 
   @ApiProperty({ format: 'date', maxLength: 10, nullable: true, type: String })
@@ -181,7 +204,7 @@ export class ObligationPlanResponse {
   @ApiProperty({ maxLength: 500, nullable: true, type: String })
   comment!: string | null;
 
-  @ApiProperty({ enum: ['ACTIVE', 'ARCHIVED'] })
+  @ApiProperty({ type: String, enum: ['ACTIVE', 'ARCHIVED'] })
   status!: string;
 }
 
@@ -195,15 +218,27 @@ export class ObligationPlanCreateResponse extends ObligationPlanResponse {
   })
   occurrenceId!: string | null;
 
-  @ApiProperty({ example: 2, description: 'Сколько occurrences материализовано сейчас.' })
+  @ApiProperty({
+    type: Number,
+    example: 2,
+    description: 'Сколько occurrences материализовано сейчас.',
+  })
   occurrencesCreated!: number;
 }
 
 export class ObligationPlanUpdateResponse extends ObligationPlanResponse {
-  @ApiProperty({ example: 1, description: 'Occurrences с изменённой ожидаемой суммой.' })
+  @ApiProperty({
+    type: Number,
+    example: 1,
+    description: 'Occurrences с изменённой ожидаемой суммой.',
+  })
   updatedOccurrences!: number;
 
-  @ApiProperty({ example: 0, description: 'Отключённые (CANCELLED) будущие неоплаченные.' })
+  @ApiProperty({
+    type: Number,
+    example: 0,
+    description: 'Отключённые (CANCELLED) будущие неоплаченные.',
+  })
   cancelledOccurrences!: number;
 }
 
@@ -213,28 +248,36 @@ export class ObligationPlanListResponse {
 }
 
 export class ObligationOccurrenceItemResponse {
-  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  @ApiProperty({ type: String, format: 'uuid', maxLength: 36 })
   id!: string;
 
-  @ApiProperty({ format: 'uuid', maxLength: 36 })
+  @ApiProperty({ type: String, format: 'uuid', maxLength: 36 })
   planId!: string;
 
-  @ApiProperty({ example: 'Аренда' })
+  @ApiProperty({ type: String, example: 'Аренда' })
   name!: string;
 
-  @ApiProperty({ format: 'date', maxLength: 10 })
+  @ApiProperty({ type: String, format: 'date', maxLength: 10 })
   scheduledOn!: string;
 
-  @ApiProperty({ enum: ['PENDING', 'DUE', 'COMPLETED', 'SKIPPED', 'CANCELLED'] })
+  @ApiProperty({ type: String, enum: ['PENDING', 'DUE', 'COMPLETED', 'SKIPPED', 'CANCELLED'] })
   status!: string;
 
-  @ApiProperty({ example: '300000', description: 'Ожидаемая сумма (minor, строка).' })
+  @ApiProperty({ type: String, example: '300000', description: 'Ожидаемая сумма (minor, строка).' })
   expectedMinor!: string;
 
-  @ApiProperty({ example: '0', description: 'Подтверждённые оплаты (minor, строка).' })
+  @ApiProperty({
+    type: String,
+    example: '0',
+    description: 'Подтверждённые оплаты (minor, строка).',
+  })
   paidMinor!: string;
 
-  @ApiProperty({ example: '300000', description: 'Остаток к оплате (minor, строка).' })
+  @ApiProperty({
+    type: String,
+    example: '300000',
+    description: 'Остаток к оплате (minor, строка).',
+  })
   unpaidMinor!: string;
 
   @ApiProperty({ format: 'uuid', maxLength: 36, nullable: true, type: String })

@@ -1,22 +1,26 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateTransactionV2Body {
-  @ApiProperty({ enum: ['INCOME', 'EXPENSE'], example: 'EXPENSE' })
+  @ApiProperty({ type: String, enum: ['INCOME', 'EXPENSE'], example: 'EXPENSE' })
   transactionType!: 'INCOME' | 'EXPENSE';
 
-  @ApiProperty({ enum: ['DRAFT', 'CONFIRMED'], example: 'CONFIRMED' })
+  @ApiProperty({ type: String, enum: ['DRAFT', 'CONFIRMED'], example: 'CONFIRMED' })
   status!: 'DRAFT' | 'CONFIRMED';
 
-  @ApiProperty({ example: '4820.00', description: 'Десятичная строка, рубли, до 2 знаков.' })
+  @ApiProperty({
+    type: String,
+    example: '4820.00',
+    description: 'Десятичная строка, рубли, до 2 знаков.',
+  })
   amount!: string;
 
-  @ApiProperty({ example: '2026-09-30' })
+  @ApiProperty({ type: String, example: '2026-09-30' })
   occurredOn!: string;
 
-  @ApiProperty({ example: '0195f3c3-aaaa-bbbb-cccc-000000000003' })
+  @ApiProperty({ type: String, example: '0195f3c3-aaaa-bbbb-cccc-000000000003' })
   accountId!: string;
 
-  @ApiProperty({ example: '0195f3c3-aaaa-bbbb-cccc-000000000004' })
+  @ApiProperty({ type: String, example: '0195f3c3-aaaa-bbbb-cccc-000000000004' })
   categoryId!: string;
 
   @ApiProperty({
@@ -27,21 +31,21 @@ export class CreateTransactionV2Body {
   })
   envelopeId?: string | null;
 
-  @ApiProperty({ required: false, example: 'Продукты' })
+  @ApiProperty({ type: String, required: false, example: 'Продукты' })
   comment?: string;
 }
 
 export class UpdateTransactionV2Body {
-  @ApiProperty({ required: false, example: '4820.00' })
+  @ApiProperty({ type: String, required: false, example: '4820.00' })
   amount?: string;
 
-  @ApiProperty({ required: false, example: '2026-09-30' })
+  @ApiProperty({ type: String, required: false, example: '2026-09-30' })
   occurredOn?: string;
 
-  @ApiProperty({ required: false })
+  @ApiProperty({ type: String, required: false })
   accountId?: string;
 
-  @ApiProperty({ required: false })
+  @ApiProperty({ type: String, required: false })
   categoryId?: string;
 
   @ApiProperty({
@@ -58,39 +62,43 @@ export class UpdateTransactionV2Body {
 }
 
 export class TransactionV2Warning {
-  @ApiProperty({ example: 'ENVELOPE_BALANCE_INSUFFICIENT' })
+  @ApiProperty({ type: String, example: 'ENVELOPE_BALANCE_INSUFFICIENT' })
   code!: string;
 
-  @ApiProperty({ example: 'Назначение конверта ушло в минус.' })
+  @ApiProperty({ type: String, example: 'Назначение конверта ушло в минус.' })
   detail!: string;
 }
 
 export class TransactionV2Response {
-  @ApiProperty({ example: '0195f3c3-aaaa-bbbb-cccc-000000000001' })
+  @ApiProperty({ type: String, example: '0195f3c3-aaaa-bbbb-cccc-000000000001' })
   id!: string;
 
-  @ApiProperty({ example: '0195f3c3-aaaa-bbbb-cccc-000000000002' })
+  @ApiProperty({ type: String, example: '0195f3c3-aaaa-bbbb-cccc-000000000002' })
   budgetId!: string;
 
-  @ApiProperty({ enum: ['INCOME', 'EXPENSE'] })
+  @ApiProperty({ type: String, enum: ['INCOME', 'EXPENSE'] })
   transactionType!: 'INCOME' | 'EXPENSE';
 
-  @ApiProperty({ enum: ['DRAFT', 'CONFIRMED'] })
+  @ApiProperty({ type: String, enum: ['DRAFT', 'CONFIRMED'] })
   status!: 'DRAFT' | 'CONFIRMED';
 
-  @ApiProperty({ example: '482000', description: 'Сумма в минорных единицах (строка).' })
+  @ApiProperty({
+    type: String,
+    example: '482000',
+    description: 'Сумма в минорных единицах (строка).',
+  })
   amountMinor!: string;
 
-  @ApiProperty({ example: 'RUB' })
+  @ApiProperty({ type: String, example: 'RUB' })
   currency!: string;
 
-  @ApiProperty({ example: '2026-09-30' })
+  @ApiProperty({ type: String, example: '2026-09-30' })
   occurredOn!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   accountId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   categoryId!: string;
 
   @ApiProperty({ nullable: true, type: String })
@@ -99,7 +107,11 @@ export class TransactionV2Response {
   @ApiProperty({ nullable: true, type: String })
   comment!: string | null;
 
-  @ApiProperty({ example: '1518000', description: 'Остаток счёта после операции (minor, строка).' })
+  @ApiProperty({
+    type: String,
+    example: '1518000',
+    description: 'Остаток счёта после операции (minor, строка).',
+  })
   accountBalanceMinor!: string;
 
   @ApiProperty({ type: [TransactionV2Warning] })
@@ -107,48 +119,56 @@ export class TransactionV2Response {
 }
 
 export class TransactionV2OccurrenceView {
-  @ApiProperty()
+  @ApiProperty({ type: String })
   id!: string;
 
-  @ApiProperty({ enum: ['PENDING', 'DUE', 'SKIPPED', 'COMPLETED', 'CANCELLED'] })
+  @ApiProperty({ type: String, enum: ['PENDING', 'DUE', 'SKIPPED', 'COMPLETED', 'CANCELLED'] })
   status!: string;
 
-  @ApiProperty({ example: '4000000' })
+  @ApiProperty({ type: String, example: '4000000' })
   expectedMinor!: string;
 
-  @ApiProperty({ example: '3500000', description: 'Сумма действующих CONFIRMED оплат.' })
+  @ApiProperty({
+    type: String,
+    example: '3500000',
+    description: 'Сумма действующих CONFIRMED оплат.',
+  })
   paidMinor!: string;
 
-  @ApiProperty({ example: '500000' })
+  @ApiProperty({ type: String, example: '500000' })
   unpaidMinor!: string;
 }
 
 export class TransactionV2LifecycleResponse {
-  @ApiProperty()
+  @ApiProperty({ type: String })
   id!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   budgetId!: string;
 
-  @ApiProperty({ enum: ['INCOME', 'EXPENSE'] })
+  @ApiProperty({ type: String, enum: ['INCOME', 'EXPENSE'] })
   transactionType!: 'INCOME' | 'EXPENSE';
 
-  @ApiProperty({ enum: ['DRAFT', 'CONFIRMED', 'CANCELLED', 'DELETED'] })
+  @ApiProperty({ type: String, enum: ['DRAFT', 'CONFIRMED', 'CANCELLED', 'DELETED'] })
   status!: 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED';
 
-  @ApiProperty({ example: '482000', description: 'Сумма в минорных единицах (строка).' })
+  @ApiProperty({
+    type: String,
+    example: '482000',
+    description: 'Сумма в минорных единицах (строка).',
+  })
   amountMinor!: string;
 
-  @ApiProperty({ example: 'RUB' })
+  @ApiProperty({ type: String, example: 'RUB' })
   currency!: string;
 
-  @ApiProperty({ example: '2026-09-30' })
+  @ApiProperty({ type: String, example: '2026-09-30' })
   occurredOn!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   accountId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   categoryId!: string;
 
   @ApiProperty({ nullable: true, type: String })
@@ -157,7 +177,11 @@ export class TransactionV2LifecycleResponse {
   @ApiProperty({ nullable: true, type: String })
   comment!: string | null;
 
-  @ApiProperty({ example: '1518000', description: 'Остаток счёта после операции (minor, строка).' })
+  @ApiProperty({
+    type: String,
+    example: '1518000',
+    description: 'Остаток счёта после операции (minor, строка).',
+  })
   accountBalanceMinor!: string;
 
   @ApiProperty({ type: [TransactionV2Warning] })
@@ -171,34 +195,42 @@ export class TransactionV2LifecycleResponse {
 }
 
 export class TransactionJournalV2Item {
-  @ApiProperty()
+  @ApiProperty({ type: String })
   id!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   budgetId!: string;
 
-  @ApiProperty({ enum: [1, 2], description: 'Учётная модель факта: 1 — старая, 2 — v2.' })
+  @ApiProperty({
+    type: Number,
+    enum: [1, 2],
+    description: 'Учётная модель факта: 1 — старая, 2 — v2.',
+  })
   accountingModelVersion!: 1 | 2;
 
-  @ApiProperty({ enum: ['INCOME', 'EXPENSE'] })
+  @ApiProperty({ type: String, enum: ['INCOME', 'EXPENSE'] })
   transactionType!: 'INCOME' | 'EXPENSE';
 
-  @ApiProperty({ enum: ['DRAFT', 'CONFIRMED', 'CANCELLED', 'DELETED'] })
+  @ApiProperty({ type: String, enum: ['DRAFT', 'CONFIRMED', 'CANCELLED', 'DELETED'] })
   status!: 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED';
 
-  @ApiProperty({ example: '482000', description: 'Сумма в минорных единицах (строка).' })
+  @ApiProperty({
+    type: String,
+    example: '482000',
+    description: 'Сумма в минорных единицах (строка).',
+  })
   amountMinor!: string;
 
-  @ApiProperty({ example: 'RUB' })
+  @ApiProperty({ type: String, example: 'RUB' })
   currency!: string;
 
-  @ApiProperty({ example: '2026-09-30' })
+  @ApiProperty({ type: String, example: '2026-09-30' })
   occurredOn!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   accountId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   categoryId!: string;
 
   @ApiProperty({ nullable: true, type: String })
@@ -229,7 +261,7 @@ export class TransactionJournalV2Item {
   @ApiProperty({ nullable: true, type: String, format: 'date-time' })
   deletedAt!: string | null;
 
-  @ApiProperty({ format: 'date-time' })
+  @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
 }
 
