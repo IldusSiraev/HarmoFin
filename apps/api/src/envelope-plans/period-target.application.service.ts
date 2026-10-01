@@ -14,7 +14,8 @@ import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/mino
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { RolePolicy } from '../common/policies/role-policy.js';
 import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
-import { cycleAndPeriodFor } from '../cycles/cycle-period.domain.js';
+import { addIsoDays, cycleAndPeriodFor } from '../cycles/cycle-period.domain.js';
+import { CycleRevisionRepository } from '../cycles/cycle-revision.repository.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { EnvelopePlanRepository } from './envelope-plan.repository.js';
 import type { PutFundingRuleInput, PutPeriodTargetInput } from './envelope-plan.schemas.js';
@@ -72,6 +73,7 @@ function positiveMinor(value: string, field: string): bigint {
 export class PeriodTargetApplicationService {
   private readonly envelopes = new EnvelopePlanRepository();
   private readonly rules = new FundingRuleRepository();
+  private readonly revisions = new CycleRevisionRepository();
   private readonly rolePolicy = new RolePolicy();
 
   constructor(
@@ -336,6 +338,11 @@ export class PeriodTargetApplicationService {
     }
     if (period.start !== periodStart) {
       throw validationFailed('Дата не является началом периода бюджета.', 'periodStart');
+    }
+    // A confirmed cycle change shortens the last old period at the next revision's start.
+    const nextRevision = await this.revisions.nextEffectiveAfter(tx, budgetId, periodStart);
+    if (nextRevision !== null && nextRevision <= period.end) {
+      return { ...period, end: addIsoDays(nextRevision, -1) };
     }
     return period;
   }
