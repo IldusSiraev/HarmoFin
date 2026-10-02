@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
+import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -119,22 +120,14 @@ describe('v2 foundation: URI versioning and budget model version', () => {
     expect(row['planModelActivatedOn']).toBeNull();
   });
 
-  it('rejects a v2 budget without planModelActivatedOn with MODEL_VERSION_MISMATCH', async () => {
+  it('cannot persist a v2 budget without planModelActivatedOn (database CHECK, M04)', async () => {
     const budgetId = await getOwnV1BudgetId(ownerId);
-    await prisma.budget.update({
-      where: { id: budgetId },
-      data: { planModelVersion: 2, planModelActivatedOn: null },
-    });
-
-    const response = await server.inject({
-      method: 'GET',
-      url: `/api/v2/budgets/${budgetId}/model`,
-      cookies: { harmofin_session: ownerCookie },
-    });
-    expect(response.statusCode).toBe(409);
-    expect(response.json()).toMatchObject({ code: 'MODEL_VERSION_MISMATCH' });
-    expect(typeof response.json()?.detail).toBe('string');
-    expect((response.json()?.detail as string).length).toBeGreaterThan(0);
+    await expect(
+      prisma.budget.update({
+        where: { id: budgetId },
+        data: { planModelVersion: 2, planModelActivatedOn: null },
+      }),
+    ).rejects.toThrow();
   });
 
   it('returns the current model for an activated v2 budget', async () => {
@@ -290,6 +283,7 @@ async function register(email: string) {
   }>();
   const cookie = response.cookies.find((item) => item.name === 'harmofin_session')?.value;
   if (!cookie) throw new Error('Missing session cookie');
+  await forceBudgetV1(prisma, body.budget.id);
   return { ...body, cookie };
 }
 
@@ -353,6 +347,7 @@ async function registerF06(server: FastifyInstance, email: string): Promise<F06S
   }>();
   const cookie = response.cookies.find((item) => item.name === 'harmofin_session')?.value;
   if (!cookie) throw new Error('Missing session cookie');
+  await forceBudgetV1(prisma, body.budget.id);
   return {
     userId: body.user.id,
     workspaceId: body.workspace.id,

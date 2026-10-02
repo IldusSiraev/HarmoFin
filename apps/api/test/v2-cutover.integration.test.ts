@@ -284,7 +284,10 @@ describe('read-only preflight перед переходом на модель v2
 
   it('бюджет не модели v1 отвергается', async () => {
     const w = await world();
-    await prisma.budget.update({ where: { id: w.budgetId }, data: { planModelVersion: 2 } });
+    await prisma.budget.update({
+      where: { id: w.budgetId },
+      data: { planModelVersion: 2, planModelActivatedOn: new Date('2026-01-01') },
+    });
     await expect(runPreflight(prisma, w.budgetId)).rejects.toThrow(/PLAN_MODEL_NOT_V1/);
   });
 

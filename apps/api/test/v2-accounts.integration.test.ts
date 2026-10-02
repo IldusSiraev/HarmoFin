@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
 import { FinancialBalanceRepository } from '../src/common/finance/financial-balance.repository.js';
+import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -439,6 +440,7 @@ async function registerFixture(email: string): Promise<FixtureUser> {
   const match = /harmofin_session=([^;]+)/.exec(setCookie);
   const cookie = match ? decodeURIComponent(match[1]!) : '';
   expect(cookie).not.toHaveLength(0);
+  await forceBudgetV1(prisma, body.budget.id);
   return {
     userId: body.user.id,
     workspaceId: body.workspace.id,

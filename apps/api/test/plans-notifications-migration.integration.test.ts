@@ -53,7 +53,9 @@ describe('Stage 5 plans and notifications migration', () => {
       },
     });
     await prisma.workspace.create({ data: { id: workspaceId, ownerId: userId, name: 'Планы' } });
-    await prisma.budget.create({ data: { id: budgetId, workspaceId, name: 'Бюджет планов' } });
+    await prisma.budget.create({
+      data: { id: budgetId, workspaceId, name: 'Бюджет планов', planModelVersion: 1 },
+    });
     await prisma.category.create({
       data: {
         id: categoryId,

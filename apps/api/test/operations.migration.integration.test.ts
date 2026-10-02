@@ -97,8 +97,12 @@ describe('Stage 3a operations migration', () => {
     await prisma.workspace.create({
       data: { id: workspaceId, ownerId: userId, name: 'Операции' },
     });
-    await prisma.budget.create({ data: { id: budgetId, workspaceId, name: 'Первый бюджет' } });
-    await prisma.budget.create({ data: { id: otherBudgetId, workspaceId, name: 'Второй бюджет' } });
+    await prisma.budget.create({
+      data: { id: budgetId, workspaceId, name: 'Первый бюджет', planModelVersion: 1 },
+    });
+    await prisma.budget.create({
+      data: { id: otherBudgetId, workspaceId, name: 'Второй бюджет', planModelVersion: 1 },
+    });
     await createReferences(budgetId, { accountId, categoryId, envelopeId });
     await createReferences(otherBudgetId, {
       accountId: otherAccountId,

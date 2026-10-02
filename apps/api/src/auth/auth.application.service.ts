@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 
+import { newBudgetModelData } from '../common/plan-model/new-budget-model.js';
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
 import type { ApiConfig } from '../config/env.js';
 import { MetricsRegistry } from '../observability/observability.js';
@@ -88,6 +89,7 @@ export class AuthApplicationService {
           id: budgetId,
           workspaceId: workspace.id,
           name: input.budgetName ?? 'Семейный бюджет',
+          ...newBudgetModelData(now),
         },
         select: { id: true, name: true, primaryCurrency: true },
       });

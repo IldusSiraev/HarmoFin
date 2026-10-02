@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
+import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ?? 'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin';
@@ -888,7 +889,12 @@ describe('reference template API', () => {
     // name the user (or an older template revision) already used must reuse that row rather
     // than fail the whole transaction.
     const conflictBudget = await prisma.budget.create({
-      data: { id: randomUUID(), workspaceId: ownerWorkspaceId, name: `Конфликт ${randomUUID()}` },
+      data: {
+        id: randomUUID(),
+        workspaceId: ownerWorkspaceId,
+        name: `Конфликт ${randomUUID()}`,
+        planModelVersion: 1,
+      },
     });
     const preexistingCategory = await prisma.category.create({
       data: {
@@ -1215,6 +1221,7 @@ async function register(email: string) {
   }>();
   const cookie = response.cookies.find((item) => item.name === 'harmofin_session')?.value;
   if (!cookie) throw new Error('Missing session cookie');
+  await forceBudgetV1(prisma, body.budget.id);
   return { ...body, cookie };
 }
 

@@ -13,6 +13,7 @@ import { cycleAndPeriodFor, todayInTimezone } from '../src/cycles/cycle-period.d
 import { PrismaService } from '../src/database/prisma.service.js';
 import { AssignmentRepository } from '../src/envelope-plans/assignment.repository.js';
 import { AssignmentApplicationService } from '../src/envelope-plans/assignment.application.service.js';
+import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -852,6 +853,7 @@ async function register(email: string): Promise<RegisteredUser> {
   const match = /harmofin_session=([^;]+)/.exec(setCookie);
   const cookie = match ? decodeURIComponent(match[1]!) : '';
   expect(cookie).not.toHaveLength(0);
+  await forceBudgetV1(prisma, body.budget.id);
   return {
     userId: body.user.id,
     workspaceId: body.workspace.id,

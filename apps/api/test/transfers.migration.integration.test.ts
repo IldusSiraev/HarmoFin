@@ -251,7 +251,9 @@ describe('Stage 4 transfer migration', () => {
       },
     });
     await prisma.workspace.create({ data: { id: workspaceId, ownerId: userId, name: 'Переводы' } });
-    await prisma.budget.create({ data: { id: budgetId, workspaceId, name: 'Первый бюджет' } });
+    await prisma.budget.create({
+      data: { id: budgetId, workspaceId, name: 'Первый бюджет', planModelVersion: 1 },
+    });
     await createCurrentReferences(budgetId, {
       sourceAccountId,
       destinationAccountId,
@@ -309,7 +311,9 @@ describe('Stage 4 transfer migration', () => {
   });
 
   it('rejects zero parts and cross-budget references at database boundary', async () => {
-    await prisma.budget.create({ data: { id: otherBudgetId, workspaceId, name: 'Другой бюджет' } });
+    await prisma.budget.create({
+      data: { id: otherBudgetId, workspaceId, name: 'Другой бюджет', planModelVersion: 1 },
+    });
     await createCurrentReferences(otherBudgetId, {
       sourceAccountId: otherAccountId,
       destinationAccountId: randomUUID(),

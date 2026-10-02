@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
+import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ?? 'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin';
@@ -202,6 +203,7 @@ describe('reference summary API', () => {
         `Missing session cookie: ${response.statusCode} ${JSON.stringify(response.json())}`,
       );
     }
+    await forceBudgetV1(prisma, body.budget.id);
     return {
       userId: body.user.id,
       workspaceId: body.workspace.id,

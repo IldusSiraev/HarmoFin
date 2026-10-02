@@ -1,5 +1,6 @@
 import { argon2id, hash } from 'argon2';
 import { PrismaClient, WorkspaceMembershipRole } from '@prisma/client';
+import { newBudgetModelData } from '../common/plan-model/new-budget-model.js';
 
 const demo = {
   userId: '01800000-0000-7000-8000-000000000001',
@@ -90,6 +91,7 @@ export async function runSeed(
           workspaceId: workspace.id,
           name: demo.budgetName,
           primaryCurrency: 'RUB',
+          ...newBudgetModelData(),
         },
       });
 

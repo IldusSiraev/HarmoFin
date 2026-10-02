@@ -1,6 +1,7 @@
 import { CategoryType, EnvelopeType, type PeriodSlot } from '@prisma/client';
 
 import { invalidReference } from '../common/reference-data/reference-data.errors.js';
+import { newBudgetModelData } from '../common/plan-model/new-budget-model.js';
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
 import { PrismaService } from '../database/prisma.service.js';
 
@@ -88,7 +89,7 @@ export class BudgetRepository {
   ): Promise<BudgetView> {
     return this.prisma.$transaction(async (tx) => {
       const budget = await tx.budget.create({
-        data: { id: createUuidV7(), workspaceId, name: input.name },
+        data: { id: createUuidV7(), workspaceId, name: input.name, ...newBudgetModelData() },
         select: budgetViewSelect,
       });
       await tx.auditEvent.create({

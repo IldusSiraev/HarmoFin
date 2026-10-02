@@ -287,7 +287,12 @@ describe('reference data migration', () => {
       data: { id: currentWorkspaceId, ownerId: currentUserId, name: 'Текущее пространство' },
     });
     const budget = await prisma.budget.create({
-      data: { id: currentBudgetId, workspaceId: currentWorkspaceId, name: 'Текущий бюджет' },
+      data: {
+        id: currentBudgetId,
+        workspaceId: currentWorkspaceId,
+        name: 'Текущий бюджет',
+        planModelVersion: 1,
+      },
     });
 
     expect(budget).toMatchObject({

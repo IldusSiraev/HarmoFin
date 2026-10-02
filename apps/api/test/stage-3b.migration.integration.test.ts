@@ -44,7 +44,9 @@ describe('Stage 3b lifecycle and period-slot migration', () => {
       data: { id: userId, email: `stage-3b-${userId}@harmofin.test`, passwordHash: 'test-hash' },
     });
     await prisma.workspace.create({ data: { id: workspaceId, ownerId: userId, name: 'Stage 3b' } });
-    await prisma.budget.create({ data: { id: budgetId, workspaceId, name: 'Бюджет Stage 3b' } });
+    await prisma.budget.create({
+      data: { id: budgetId, workspaceId, name: 'Бюджет Stage 3b', planModelVersion: 1 },
+    });
     await prisma.account.create({
       data: {
         id: accountId,

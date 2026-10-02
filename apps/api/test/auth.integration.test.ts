@@ -183,15 +183,15 @@ describe('auth API', () => {
 
     const before = await readBudgets();
     expect(before.length).toBeGreaterThan(0);
-    expect(before.every((budget) => budget.planModelVersion === 1)).toBe(true);
+    expect(before.every((budget) => budget.planModelVersion === 2)).toBe(true);
 
     const budgetId = before[0]?.id ?? '';
-    await prisma.budget.update({ where: { id: budgetId }, data: { planModelVersion: 2 } });
+    await prisma.budget.update({ where: { id: budgetId }, data: { planModelVersion: 1 } });
     try {
       const after = await readBudgets();
-      expect(after.find((budget) => budget.id === budgetId)?.planModelVersion).toBe(2);
+      expect(after.find((budget) => budget.id === budgetId)?.planModelVersion).toBe(1);
     } finally {
-      await prisma.budget.update({ where: { id: budgetId }, data: { planModelVersion: 1 } });
+      await prisma.budget.update({ where: { id: budgetId }, data: { planModelVersion: 2 } });
     }
   });
 

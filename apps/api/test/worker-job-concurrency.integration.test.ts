@@ -40,7 +40,13 @@ describe('worker job concurrency', () => {
       data: { id: workspaceId, ownerId: userId, name: 'Worker concurrency' },
     });
     await prisma.budget.create({
-      data: { id: budgetId, workspaceId, name: 'Бюджет concurrency', timezone: 'Europe/Moscow' },
+      data: {
+        id: budgetId,
+        workspaceId,
+        name: 'Бюджет concurrency',
+        timezone: 'Europe/Moscow',
+        planModelVersion: 1,
+      },
     });
     await prisma.category.create({
       data: {

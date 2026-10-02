@@ -10,6 +10,7 @@ import { loadApiConfig } from '../src/config/env.js';
 import { FinancialBalanceRepository } from '../src/common/finance/financial-balance.repository.js';
 import { todayInTimezone } from '../src/cycles/cycle-period.domain.js';
 import { AssignmentBalanceRepository } from '../src/envelope-plans/assignment-balance.repository.js';
+import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -471,6 +472,7 @@ async function register(email: string): Promise<User> {
   const setCookieRaw = response.headers['set-cookie'];
   const setCookie = Array.isArray(setCookieRaw) ? setCookieRaw.join('; ') : (setCookieRaw ?? '');
   const match = /harmofin_session=([^;]+)/.exec(setCookie);
+  await forceBudgetV1(prisma, body.budget.id);
   return {
     userId: body.user.id,
     workspaceId: body.workspace.id,

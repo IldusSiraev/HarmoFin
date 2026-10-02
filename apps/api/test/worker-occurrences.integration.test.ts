@@ -35,7 +35,13 @@ describe('plan occurrence worker handler', () => {
     });
     await prisma.workspace.create({ data: { id: workspaceId, ownerId: userId, name: 'Worker' } });
     await prisma.budget.create({
-      data: { id: budgetId, workspaceId, name: 'Бюджет worker', timezone: 'Europe/Moscow' },
+      data: {
+        id: budgetId,
+        workspaceId,
+        name: 'Бюджет worker',
+        timezone: 'Europe/Moscow',
+        planModelVersion: 1,
+      },
     });
     await prisma.account.create({
       data: {

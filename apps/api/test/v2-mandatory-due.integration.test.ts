@@ -17,6 +17,7 @@ import { RegularPlanRepository } from '../src/plans/regular-plan.repository.js';
 import { V2OccurrenceMaterializer } from '../src/plans/v2-occurrence-materializer.js';
 import { ObligationApplicationService } from '../src/obligations/obligation.application.service.js';
 import { MandatoryDueRepository } from '../src/obligations/mandatory-due.repository.js';
+import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -166,6 +167,7 @@ describe('v2 потребность обязательных (R02)', () => {
         workspace: { id: string };
         budget: { id: string };
       }>();
+      await forceBudgetV1(prisma, body.budget.id);
       ctx[key] = {
         userId: body.user.id,
         workspaceId: body.workspace.id,

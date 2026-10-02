@@ -13,6 +13,7 @@ import { PlanModelPolicy } from '../src/common/plan-model/plan-model.policy.js';
 import { PrismaService } from '../src/database/prisma.service.js';
 import { todayInTimezone } from '../src/cycles/cycle-period.domain.js';
 import { DirectTransferApplicationService } from '../src/v2-transfers/direct-transfer.application.service.js';
+import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -569,6 +570,7 @@ describe('v2 прямого перевод — HTTP-контракт', () => {
     const match = /harmofin_session=([^;]+)/.exec(setCookie);
     const cookie = match ? decodeURIComponent(match[1]!) : '';
     expect(cookie).not.toHaveLength(0);
+    await forceBudgetV1(prisma, body.budget.id);
     return {
       userId: body.user.id,
       workspaceId: body.workspace.id,
@@ -1100,6 +1102,7 @@ async function register(email: string): Promise<RegisteredUser> {
     budget: { id: string };
     csrfToken: string;
   }>();
+  await forceBudgetV1(prisma, body.budget.id);
   return {
     userId: body.user.id,
     workspaceId: body.workspace.id,

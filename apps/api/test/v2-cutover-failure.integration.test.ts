@@ -173,7 +173,10 @@ describe('откат переключения при ошибке (M03)', () => 
   it('бюджет уже в модели 2 без сохранённого результата отвергается', async () => {
     const f = await fixture();
     const base = await params(f);
-    await prisma.budget.update({ where: { id: f.budgetId }, data: { planModelVersion: 2 } });
+    await prisma.budget.update({
+      where: { id: f.budgetId },
+      data: { planModelVersion: 2, planModelActivatedOn: new Date('2026-01-01') },
+    });
     const before = await state(f);
     await expect(cutover(prisma, base, noFreeze)).rejects.toMatchObject({
       code: 'PLAN_MODEL_NOT_V1',
