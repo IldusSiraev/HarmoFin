@@ -27,6 +27,7 @@ import {
   type UpdateAccountInput,
   useBudgetReferenceData,
 } from '../../composables/useBudgetReferenceData.js';
+import { useFundingEntry } from '../../composables/useFundingEntry.js';
 import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js';
 import { useToast } from '../../composables/useToast.js';
 
@@ -47,6 +48,7 @@ const route = useRoute();
 const api = useBudgetReferenceData();
 const formHelper = useReferenceDataForm(accountFields);
 const { push } = useToast();
+const funding = useFundingEntry();
 const accounts = ref<AccountDto[]>([]);
 const summary = ref<ReferenceSummaryDto | null>(null);
 const detailed = ref<AccountDto | null>(null);
@@ -172,6 +174,11 @@ function optionalText(value: string) {
   return value.trim() || null;
 }
 
+// Text check only (no arithmetic): is there a non-zero, non-negative amount.
+function hasPositiveAmount(value: string): boolean {
+  return /^\+?\d*\.?\d*$/.test(value) && /[1-9]/.test(value);
+}
+
 async function saveAccount() {
   const id = budgetId.value;
   if (!id) return;
@@ -223,6 +230,9 @@ async function saveAccount() {
       await loadAccounts();
       statusMessage.value = 'Счёт создан.';
       push({ tone: 'success', title: 'Счёт создан' });
+      // Envelope Plan v2.2: initial money may be assigned, but only if the user
+      // wants to; the account and its balance are already saved either way.
+      if (hasPositiveAmount(input.startingBalance)) funding.offer({ sourceKind: 'OPENING' });
     }
     cancelForm();
   } catch (error) {

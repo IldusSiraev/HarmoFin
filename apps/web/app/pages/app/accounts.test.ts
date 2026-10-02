@@ -28,6 +28,7 @@ vi.mock('../../composables/useBudgetReferenceData.js', () => ({
 }));
 
 import AccountsPage from './accounts.vue';
+import { useFundingEntry } from '../../composables/useFundingEntry.js';
 import { useToast } from '../../composables/useToast.js';
 
 const account = {
@@ -103,6 +104,54 @@ describe('accounts page', () => {
     await flushPromises();
 
     expect(wrapper.get('[data-hydrated]').attributes('data-hydrated')).toBe('true');
+  });
+
+  async function createWithBalance(balance: string): Promise<void> {
+    mocks.api.createAccount.mockResolvedValue(account);
+    mocks.api.listAccounts.mockResolvedValue([account]);
+    wrapper = mountPage();
+    await flushPromises();
+    await wrapper.get('[data-action="create-account"]').trigger('click');
+    await flushPromises();
+    const fill = (name: string, value: string) => {
+      const input = document.querySelector(`input[name="${name}"]`) as HTMLInputElement;
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    fill('name', 'Основной счёт');
+    fill('startingBalance', balance);
+    fill('accountingStartDate', '2026-09-03');
+    await flushPromises();
+    document
+      .querySelector('form[data-account-form]')
+      ?.dispatchEvent(new Event('submit', { bubbles: true }));
+    await flushPromises();
+  }
+
+  it('offers the optional opening assignment for a v2 budget with a non-zero starting balance', async () => {
+    useFundingEntry().dismiss();
+    const budget = (mocks.auth.currentData.value as { workspaces: Array<{ budgets: object[] }> })
+      .workspaces[0]!.budgets[0] as Record<string, unknown>;
+    budget.planModelVersion = 2;
+
+    await createWithBalance('1000');
+
+    expect(useFundingEntry().request.value?.source).toEqual({ sourceKind: 'OPENING' });
+  });
+
+  it('offers nothing for a zero balance or a v1 budget', async () => {
+    useFundingEntry().dismiss();
+    const budget = (mocks.auth.currentData.value as { workspaces: Array<{ budgets: object[] }> })
+      .workspaces[0]!.budgets[0] as Record<string, unknown>;
+    budget.planModelVersion = 2;
+    await createWithBalance('0');
+    expect(useFundingEntry().request.value).toBeNull();
+    wrapper?.unmount();
+    document.body.innerHTML = '';
+
+    budget.planModelVersion = 1;
+    await createWithBalance('1000');
+    expect(useFundingEntry().request.value).toBeNull();
   });
 
   it('creates account from decimal text and refreshes server-confirmed card', async () => {

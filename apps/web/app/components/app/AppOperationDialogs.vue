@@ -10,6 +10,8 @@ import {
   type CreateTransactionInput,
   type CreateTransferInput,
 } from '../../composables/useBudgetReferenceData.js';
+import { useEnvelopePlanV2 } from '../../composables/useEnvelopePlanV2.js';
+import { useFundingEntry } from '../../composables/useFundingEntry.js';
 import { useOperationDialogs, type EntryType } from '../../composables/useOperationDialogs.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import { createTransferForm, type TransferFormModel } from '../../composables/useTransferForm.js';
@@ -31,6 +33,7 @@ const {
 } = useOperationDialogs();
 const { accounts, categories, envelopes, budgetId, load } = useOperationReferenceData();
 const { push } = useToast();
+const funding = useFundingEntry();
 
 const chooseOpen = computed(() => openDialog.value === 'choose');
 const entryOpen = computed(() => openDialog.value === 'entry');
@@ -66,10 +69,32 @@ async function saveOperation(input: CreateTransactionInput): Promise<void> {
   if (!id) return;
   pending.value = true;
   try {
-    await api.createTransaction(id, input, crypto.randomUUID());
+    // Envelope Plan v2.2 budgets save income through the v2 endpoint (the v1
+    // create is closed to them). The money fact is saved first and on its own;
+    // assigning it is an optional second step offered afterwards.
+    let incomeId: string | null = null;
+    if (input.transactionType === 'INCOME' && funding.isModelV2()) {
+      const saved = await useEnvelopePlanV2().createTransaction(
+        id,
+        {
+          transactionType: 'INCOME',
+          status: 'CONFIRMED',
+          amount: input.amount,
+          occurredOn: input.occurredOn,
+          accountId: input.accountId,
+          categoryId: input.categoryId,
+          ...(input.sourceDescription ? { comment: input.sourceDescription } : {}),
+        },
+        crypto.randomUUID(),
+      );
+      incomeId = saved.id;
+    } else {
+      await api.createTransaction(id, input, crypto.randomUUID());
+    }
     close();
     push({ tone: 'success', title: 'Операция сохранена' });
     emit('saved');
+    if (incomeId !== null) funding.offer({ sourceKind: 'INCOME', incomeTransactionId: incomeId });
   } catch (error) {
     formError.value = error instanceof Error ? error.message : 'Не удалось сохранить операцию.';
     push({ tone: 'error', title: 'Не удалось сохранить операцию' });

@@ -8,6 +8,7 @@ const api = {
   createTransaction: vi.fn(),
   createTransfer: vi.fn(),
 };
+const v2 = { createTransaction: vi.fn(), listEnvelopes: vi.fn() };
 const auth = {
   currentData: {
     value: {
@@ -22,11 +23,13 @@ vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) =>
   ...(await importOriginal<object>()),
   useBudgetReferenceData: () => api,
 }));
+vi.mock('../../composables/useEnvelopePlanV2.js', () => ({ useEnvelopePlanV2: () => v2 }));
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => auth }));
 
 import AppOperationDialogs from './AppOperationDialogs.vue';
 import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
+import { useFundingEntry } from '../../composables/useFundingEntry.js';
 import { useToast } from '../../composables/useToast.js';
 
 function click(testId: string): void {
@@ -63,6 +66,9 @@ beforeEach(() => {
     },
   ]);
   api.listEnvelopes.mockResolvedValue([{ id: 'envelope-id', name: 'Текущие' }]);
+  v2.listEnvelopes.mockResolvedValue({
+    items: [{ id: 'envelope-id', name: 'Текущие', archivedAt: null }],
+  });
 });
 
 describe('AppOperationDialogs', () => {
@@ -149,6 +155,54 @@ describe('AppOperationDialogs', () => {
       expect.objectContaining({ transactionType: 'INCOME', status: 'CONFIRMED' }),
       expect.any(String),
     );
+    wrapper.unmount();
+  });
+
+  it('saves income of a v2 budget through the v2 endpoint and then offers the optional assignment', async () => {
+    const budget = auth.currentData.value.workspaces[0]!.budgets[0] as Record<string, unknown>;
+    budget.planModelVersion = 2;
+    v2.createTransaction.mockResolvedValue({ id: 'income-id' });
+    const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
+    useOperationDialogs().openOperation('INCOME');
+    await flushPromises();
+
+    typeAmount('1000');
+    click('pill-account-account-id');
+    click('pill-category-income-category-id');
+    await flushPromises();
+    click('entry-submit');
+    await flushPromises();
+
+    delete budget.planModelVersion;
+    expect(api.createTransaction).not.toHaveBeenCalled();
+    expect(v2.createTransaction).toHaveBeenCalledWith(
+      'budget-id',
+      expect.objectContaining({ transactionType: 'INCOME', status: 'CONFIRMED' }),
+      expect.any(String),
+    );
+    expect(useFundingEntry().request.value).toMatchObject({
+      budgetId: 'budget-id',
+      source: { sourceKind: 'INCOME', incomeTransactionId: 'income-id' },
+    });
+    expect(useOperationDialogs().openDialog.value).toBe('none');
+    wrapper.unmount();
+  });
+
+  it('does not offer an assignment after income of a v1 budget', async () => {
+    useFundingEntry().dismiss();
+    api.createTransaction.mockResolvedValue({ id: 'income-id' });
+    const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
+    useOperationDialogs().openOperation('INCOME');
+    await flushPromises();
+
+    typeAmount('1000');
+    click('pill-account-account-id');
+    click('pill-category-income-category-id');
+    await flushPromises();
+    click('entry-submit');
+    await flushPromises();
+
+    expect(useFundingEntry().request.value).toBeNull();
     wrapper.unmount();
   });
 

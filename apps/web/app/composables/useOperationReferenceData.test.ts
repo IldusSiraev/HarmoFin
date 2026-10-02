@@ -5,6 +5,7 @@ const api = {
   listCategories: vi.fn(),
   listEnvelopes: vi.fn(),
 };
+const v2 = { listEnvelopes: vi.fn() };
 type AuthData = {
   user: { email: string };
   workspaces: Array<{ name: string; budgets: Array<{ id: string; name: string }> }>;
@@ -21,6 +22,7 @@ vi.mock('./useBudgetReferenceData.js', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useBudgetReferenceData: () => api,
 }));
+vi.mock('./useEnvelopePlanV2.js', () => ({ useEnvelopePlanV2: () => v2 }));
 vi.mock('./useAuth.js', () => ({ useAuth: () => auth }));
 
 import { useOperationReferenceData } from './useOperationReferenceData.js';
@@ -112,5 +114,34 @@ describe('useOperationReferenceData', () => {
     await load();
 
     expect(accounts.value).toEqual([]);
+  });
+});
+
+describe('useOperationReferenceData for an Envelope Plan v2 budget', () => {
+  it('loads envelopes through the v2 list and never calls the v1 envelope endpoint', async () => {
+    auth.currentData.value = {
+      user: { email: 'owner@example.test' },
+      workspaces: [
+        {
+          name: 'Семья',
+          budgets: [{ id: 'budget-v2', name: 'Бюджет', planModelVersion: 2 }],
+        },
+      ],
+    } as never;
+    v2.listEnvelopes.mockResolvedValue({
+      items: [{ id: 'env-v2', name: 'Обязательные', envelopeType: 'MANDATORY', archivedAt: null }],
+    });
+    const { load, envelopes, envelopePlans, envelopeDetails, accounts } =
+      useOperationReferenceData();
+
+    await load();
+
+    expect(v2.listEnvelopes).toHaveBeenCalledWith('budget-v2');
+    expect(api.listEnvelopes).not.toHaveBeenCalled();
+    expect(api.listAccounts).toHaveBeenCalledWith('budget-v2', 'active');
+    expect(envelopes.value).toEqual([{ value: 'env-v2', label: 'Обязательные' }]);
+    expect(envelopePlans.value).toHaveLength(1);
+    expect(envelopeDetails.value).toEqual([]);
+    expect(accounts.value).toHaveLength(1);
   });
 });
