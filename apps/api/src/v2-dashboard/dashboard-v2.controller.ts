@@ -54,6 +54,7 @@ export class DashboardV2Controller {
     type: ProblemDetailsResponse,
     description: 'MODEL_VERSION_MISMATCH: бюджет работает на модели v1.',
   })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   async get(
     @Param('budgetId', new ZodValidationPipe(uuidParamSchema)) budgetId: string,
     @Query('asOf') asOf: string | undefined,

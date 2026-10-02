@@ -80,7 +80,7 @@ const idempotencyHeader = {
   schema: { type: 'string', minLength: 1, maxLength: 128 },
 } as const;
 
-@ApiTags('envelope-plans')
+@ApiTags('envelope-plans (v2)')
 @Controller({ path: 'budgets/:budgetId', version: '2' })
 @UseGuards(SessionAuthGuard)
 @ApiCookieAuth('session')
@@ -98,8 +98,11 @@ export class EnvelopePlanController {
 
   @Get('envelopes')
   @ApiOkResponse({ type: EnvelopePlanListResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   async list(@Param('budgetId') budgetId: string, @Req() request: AuthenticatedRequest) {
     return (await this.plans.list(contextOf(request).userId, budgetId)).body;
   }
@@ -128,8 +131,11 @@ export class EnvelopePlanController {
 
   @Get('envelopes/:envelopeId')
   @ApiOkResponse({ type: EnvelopePlanResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   async get(
     @Param('budgetId') budgetId: string,
     @Param('envelopeId') envelopeId: string,
@@ -200,7 +206,9 @@ export class EnvelopePlanController {
   @ApiOkResponse({ type: EnvelopeHistoryListResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   async history(
     @Param('budgetId') budgetId: string,
     @Param('envelopeId') envelopeId: string,

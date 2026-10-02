@@ -108,6 +108,7 @@ export class TransactionV2Controller {
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   list(
     @Param('budgetId', new ZodValidationPipe(budgetIdParamSchema)) budgetId: string,
     @Query(new ZodValidationPipe(listTransactionsV2Schema)) query: ListTransactionsV2Input,
@@ -122,6 +123,7 @@ export class TransactionV2Controller {
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   get(
     @Param('budgetId', new ZodValidationPipe(budgetIdParamSchema)) budgetId: string,
     @Param('transactionId', new ZodValidationPipe(transactionIdParamSchema))

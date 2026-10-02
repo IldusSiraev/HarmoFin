@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiSchema } from '@nestjs/swagger';
 
 export class EnvelopePlanResponse {
   @ApiProperty({ type: String, example: '0195f3c3-aaaa-bbbb-cccc-000000000001' })
@@ -41,6 +41,7 @@ export class EnvelopePlanListResponse {
   items!: EnvelopePlanResponse[];
 }
 
+@ApiSchema({ name: 'CreateEnvelopePlanRequest' })
 export class CreateEnvelopeRequest {
   @ApiProperty({ type: String, example: 'Резерв' })
   name!: string;
@@ -170,6 +171,7 @@ export class PeriodTargetResponse {
   confirmedAt!: string | null;
 }
 
+@ApiSchema({ name: 'UpdateEnvelopePlanRequest' })
 export class UpdateEnvelopeRequest {
   @ApiProperty({ type: String, required: false, example: 'Резерв 2' })
   name?: string;

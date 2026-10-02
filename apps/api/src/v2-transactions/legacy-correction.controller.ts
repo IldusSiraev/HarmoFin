@@ -115,6 +115,7 @@ export class LegacyCorrectionController {
       'Конфликт состояния: MODEL_VERSION_MISMATCH, NOT_LEGACY_FACT (факт модели 2), TRANSACTION_NOT_EDITABLE (не подтверждённая или удалённая операция), INSUFFICIENT_BALANCE (cash счёта станет отрицательным).',
     type: ProblemDetailsResponse,
   })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
   preview(
     @Param('budgetId', new ZodValidationPipe(budgetIdParamSchema)) budgetId: string,
     @Param('transactionId', new ZodValidationPipe(transactionIdParamSchema))
@@ -170,6 +171,7 @@ export class LegacyCorrectionController {
       'Конфликт состояния: MODEL_VERSION_MISMATCH, NOT_LEGACY_FACT, TRANSACTION_NOT_EDITABLE, INSUFFICIENT_BALANCE, PREVIEW_STALE (данные изменились после предпросмотра), ALLOCATION_RESOLUTION_REQUIRED, ALLOCATION_RESOLUTION_NOT_REQUIRED, INVALID_TRANSACTION_STATE (распределение уже не CONFIRMED), IDEMPOTENCY_CONFLICT (ключ уже использован для другого запроса).',
     type: ProblemDetailsResponse,
   })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
   correct(
     @Param('budgetId', new ZodValidationPipe(budgetIdParamSchema)) budgetId: string,
     @Param('transactionId', new ZodValidationPipe(transactionIdParamSchema))

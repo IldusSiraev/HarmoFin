@@ -1,12 +1,14 @@
 import { Controller, Get, Inject, Param, Req, Res, UseGuards } from '@nestjs/common';
 import {
   ApiCookieAuth,
+  ApiExtraModels,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiProduces,
   ApiResponse,
   ApiTags,
+  getSchemaPath,
 } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
@@ -48,7 +50,14 @@ const errors = [
 function ExportErrors(): MethodDecorator {
   return (target, key, descriptor) => {
     for (const { status, description } of errors) {
-      ApiResponse({ status, description, type: ProblemDetailsResponse })(target, key, descriptor);
+      ApiResponse({
+        status,
+        description,
+        // Ошибки всегда JSON ProblemDetails, даже при ApiProduces text/csv.
+        content: {
+          'application/json': { schema: { $ref: getSchemaPath(ProblemDetailsResponse) } },
+        },
+      })(target, key, descriptor);
     }
   };
 }
@@ -57,6 +66,7 @@ function ExportErrors(): MethodDecorator {
 @Controller({ path: 'budgets/:budgetId/exports', version: '2' })
 @UseGuards(SessionAuthGuard)
 @ApiCookieAuth('session')
+@ApiExtraModels(ProblemDetailsResponse)
 @ApiProduces('text/csv')
 export class ExportsV2Controller {
   constructor(

@@ -89,6 +89,7 @@ export class ReportV2Controller {
     type: ProblemDetailsResponse,
     description: 'MODEL_VERSION_MISMATCH: бюджет работает на модели v1.',
   })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   get(
     @Param('budgetId', new ZodValidationPipe(uuidParamSchema)) budgetId: string,
     @Param('key', new ZodValidationPipe(reportV2KeySchema)) key: ReportV2Key,

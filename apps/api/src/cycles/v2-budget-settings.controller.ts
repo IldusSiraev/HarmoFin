@@ -92,6 +92,7 @@ export class V2BudgetSettingsController {
     description:
       'TIMEZONE_CHANGE_REQUIRES_RECONCILIATION, IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.',
   })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
   async update(
     @Param('budgetId', new ZodValidationPipe(uuidParamSchema)) budgetId: string,
     @Body(new ZodValidationPipe(v2BudgetSettingsSchema)) input: V2BudgetSettingsInput,
