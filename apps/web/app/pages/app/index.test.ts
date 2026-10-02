@@ -31,6 +31,8 @@ const auth = {
 
 vi.mock('#imports', () => ({ definePageMeta: vi.fn(), navigateTo: vi.fn() }));
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => auth }));
+const v2Api = vi.hoisted(() => ({ getDashboard: vi.fn() }));
+vi.mock('../../composables/useEnvelopePlanV2.js', () => ({ useEnvelopePlanV2: () => v2Api }));
 vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useBudgetReferenceData: () => api,
@@ -320,5 +322,95 @@ describe('dashboard page', () => {
     await flushPromises();
 
     expect(wrapper.find('[data-testid="period-leftover-prompt"]').exists()).toBe(true);
+  });
+});
+
+describe('dashboard page, plan model 2', () => {
+  const budget = auth.currentData.value.workspaces[0]!.budgets[0] as Record<string, unknown>;
+  const dashboardV2 = {
+    planModelVersion: 2,
+    period: { start: '2026-09-25', end: '2026-10-09', periodId: 'period-id' },
+    horizonEnd: '2026-10-20',
+    spendable: { state: 'READY', amountMinor: '5500000' },
+    suggestedTarget: null,
+    cashMinor: '10000000',
+    currentBalanceMinor: '6500000',
+    mandatoryBalanceMinor: '0',
+    mandatoryDueMinor: '1000000',
+    otherProtectedMinor: '0',
+    freeToAssignMinor: '0',
+    unbackedMinor: '0',
+    mandatoryGapMinor: '1000000',
+    dueMayBeIncomplete: false,
+    upcoming: [],
+    accounts: [{ id: 'account-id', name: 'Наличные', balanceMinor: '10000000' }],
+    protectedAssignments: [],
+    warnings: [
+      {
+        kind: 'COVERAGE',
+        code: 'MANDATORY_GAP',
+        message: 'Не хватает на обязательства 10 000,00 ₽.',
+        amountMinor: '1000000',
+        envelopeId: null,
+        periodId: null,
+        balanceMinor: null,
+        actionPath: '/app/envelopes?cover=mandatory',
+      },
+    ],
+    onboarding: {
+      categoriesSeeded: true,
+      hasAccounts: true,
+      needsOpeningAssignment: false,
+      needsPeriodSetup: false,
+      hasMandatoryPlans: true,
+    },
+  };
+  const stubs = { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useOperationReferenceData().invalidate();
+    useOperationDialogs().close();
+    api.listTransactions.mockResolvedValue({ items: [], nextCursor: null });
+    api.listAccounts.mockResolvedValue([]);
+    api.listCategories.mockResolvedValue([]);
+    api.listEnvelopes.mockResolvedValue([]);
+    budget.planModelVersion = 2;
+    v2Api.getDashboard.mockReset().mockResolvedValue(dashboardV2);
+  });
+  afterEach(() => {
+    delete budget.planModelVersion;
+  });
+
+  it('shows the honest spendable number from the v2 dashboard without v1 summaries', async () => {
+    const wrapper = mount(DashboardPage, { global: { stubs } });
+    await flushPromises();
+
+    const text = normalize(wrapper.text());
+    expect(text).toContain('Можно потратить');
+    expect(text).toContain('55 000,00 ₽');
+    expect(text).toContain('В конверте периода 65 000,00 ₽');
+    expect(text).toContain('Не хватает на обязательные');
+    expect(text).toContain('Покрыть обязательные');
+    expect(wrapper.get('a[href="/app/envelopes?cover=mandatory"]')).toBeTruthy();
+    expect(wrapper.get('a[href="/app/plans"]')).toBeTruthy();
+    expect(v2Api.getDashboard).toHaveBeenCalledWith('budget-id');
+    expect(api.getDashboardSummary).not.toHaveBeenCalled();
+    expect(api.getEnvelopesSummary).not.toHaveBeenCalled();
+    expect(api.getAccountsSummary).not.toHaveBeenCalled();
+  });
+
+  it('invites to set up the period limit instead of showing zero', async () => {
+    v2Api.getDashboard.mockResolvedValue({
+      ...dashboardV2,
+      spendable: { state: 'NEEDS_PERIOD_SETUP', amountMinor: null },
+      mandatoryGapMinor: '0',
+      warnings: [],
+    });
+    const wrapper = mount(DashboardPage, { global: { stubs } });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Настройте лимит периода');
+    expect(normalize(wrapper.text())).not.toMatch(/(^|[^\d,])0,00 ₽/);
   });
 });

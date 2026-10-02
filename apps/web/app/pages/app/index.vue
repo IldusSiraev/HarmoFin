@@ -22,6 +22,10 @@ import UiProgress from '../../components/ui/Progress.vue';
 import UiSkeleton from '../../components/ui/Skeleton.vue';
 import UiStatus from '../../components/ui/Status.vue';
 import { useAuth } from '../../composables/useAuth.js';
+import {
+  type DashboardV2Response,
+  useEnvelopePlanV2,
+} from '../../composables/useEnvelopePlanV2.js';
 import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import {
@@ -37,6 +41,7 @@ const api = useBudgetReferenceData();
 const loading = ref(true);
 const error = ref('');
 const summary = ref<DashboardSummaryDto | null>(null);
+const dashboardV2 = ref<DashboardV2Response | null>(null);
 const recent = ref<TransactionDto[]>([]);
 const accountsTotal = ref<string | null>(null);
 const envelopesTotal = ref<string | null>(null);
@@ -93,6 +98,10 @@ function envelopeGoalLabel(id: string, balanceMinor: string): string {
 }
 
 const activeBudget = computed(() => currentData.value?.workspaces[0]?.budgets[0] ?? null);
+const isModelV2 = computed(() => activeBudget.value?.planModelVersion === 2);
+// The v2 client needs the Nuxt app context, so it is only created for v2 budgets.
+const planV2 =
+  currentData.value?.workspaces[0]?.budgets[0]?.planModelVersion === 2 ? useEnvelopePlanV2() : null;
 function workspaceName() {
   return currentData.value?.workspaces[0]?.name ?? 'Бюджет';
 }
@@ -129,6 +138,26 @@ async function loadDashboard() {
     if (!currentData.value) await loadMe();
     const budget = activeBudget.value;
     if (!budget) return;
+    if (budget.planModelVersion === 2) {
+      // Model 2: the v1 dashboard/envelope summaries answer 409, so the page
+      // reads only the v2 dashboard (accounts included).
+      const [dashboardResult, recentResult] = await Promise.all([
+        (planV2 ?? useEnvelopePlanV2()).getDashboard(budget.id),
+        safeTransactions(
+          api.listTransactions(budget.id, {
+            limit: 5,
+            sortBy: 'occurredOn',
+            sortDirection: 'desc',
+          }),
+        ),
+        loadReferenceData().catch(() => undefined),
+      ]);
+      dashboardV2.value = dashboardResult;
+      summary.value = null;
+      recent.value = recentResult.items;
+      return;
+    }
+    dashboardV2.value = null;
     const [summaryResult, recentResult, accountsTotalResult, envelopesTotalResult] =
       await Promise.all([
         api.getDashboardSummary(budget.id),
@@ -177,6 +206,71 @@ async function loadDashboard() {
       title="Бюджет не выбран"
       description="Создайте или выберите активный бюджет для просмотра сводки."
     />
+    <template v-else-if="dashboardV2 && isModelV2">
+      <div class="dashboard-header">
+        <div>
+          <p class="dashboard-kicker">{{ workspaceName() }}</p>
+          <h1 class="dashboard-title">{{ activeBudget.name }}</h1>
+        </div>
+        <div class="dashboard-header__actions">
+          <AppAddMenu tooltip-placement="bottom" />
+          <UiButton
+            variant="tertiary"
+            data-action="refresh-summary"
+            aria-label="Обновить данные"
+            tooltip="Обновить данные"
+            tooltip-placement="bottom"
+            @click="loadDashboard"
+          >
+            <RefreshCw :size="18" aria-hidden="true" />
+          </UiButton>
+        </div>
+      </div>
+
+      <div class="dashboard-sections">
+        <OnboardingChecklist
+          :budget-id="activeBudget.id"
+          :initialize-template="api.initializeTemplate"
+          @template-initialized="loadDashboard"
+        />
+
+        <DashboardWarnings :v2-warnings="dashboardV2.warnings" />
+
+        <AvailableBudgetCard :dashboard="dashboardV2" />
+
+        <BalanceList
+          title="Счета"
+          :items="dashboardV2.accounts"
+          :warnings="[]"
+          subject="ACCOUNT"
+          :total-minor="dashboardV2.cashMinor"
+          more-link="/app/accounts"
+        >
+          <template #row="{ item }">
+            <span class="dashboard-balance-icon">
+              <component :is="accountIcon(item.id) ?? Wallet" :size="16" aria-hidden="true" />
+            </span>
+            <span class="dashboard-balance-body">
+              <span class="dashboard-balance-name">{{ item.name }}</span>
+              <span class="dashboard-balance-subtitle">{{ accountSubtitleFor(item.id) }}</span>
+            </span>
+            <FinanceMoney
+              class="dashboard-balance-trailing"
+              :minor-units="item.balanceMinor"
+              currency="RUB"
+              :scale="2"
+            />
+          </template>
+        </BalanceList>
+
+        <RecentOperations
+          :transactions="recent"
+          :categories="categories"
+          :accounts="accounts"
+          :envelopes="envelopes"
+        />
+      </div>
+    </template>
     <template v-else-if="summary">
       <div class="dashboard-header">
         <div>

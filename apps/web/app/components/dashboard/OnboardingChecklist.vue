@@ -25,7 +25,8 @@ type V2Onboarding = DashboardV2Response['onboarding'];
 
 const props = defineProps<{
   budgetId: string;
-  onboarding: OnboardingStatus;
+  // Plan model 2 reads its own v2 onboarding, so only v1 budgets must pass this.
+  onboarding?: OnboardingStatus;
   initializeTemplate: (budgetId: string) => Promise<ReferenceTemplateResult>;
 }>();
 
@@ -68,6 +69,7 @@ async function loadV2Status(): Promise<void> {
 
 const v1Steps = computed<Step[]>(() => {
   const status = props.onboarding;
+  if (!status) return [];
   return [
     {
       key: 'categoriesSeeded',
