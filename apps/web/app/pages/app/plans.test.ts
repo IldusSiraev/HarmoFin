@@ -21,7 +21,11 @@ const v2 = {
   listObligationOccurrences: vi.fn(),
   payObligation: vi.fn(),
   skipObligationOccurrence: vi.fn(),
+  listIncomeOccurrences: vi.fn(),
+  recordIncomeOccurrence: vi.fn(),
+  createTransaction: vi.fn(),
 };
+const funding = { offer: vi.fn(), dismiss: vi.fn() };
 const budgetRow: { id: string; name: string; primaryCurrency: string; planModelVersion?: 1 | 2 } = {
   id: 'budget-id',
   name: 'Бюджет',
@@ -42,6 +46,7 @@ vi.mock('../../composables/useEnvelopePlanV2.js', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useEnvelopePlanV2: () => v2,
 }));
+vi.mock('../../composables/useFundingEntry.js', () => ({ useFundingEntry: () => funding }));
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => auth }));
 vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -312,6 +317,17 @@ describe('plans page: v2 obligations', () => {
     expectedMinor: '4000000',
     unpaidMinor: '4000000',
   };
+  // Tomorrow relative to the pinned clock (2026-09-24).
+  const salary = {
+    id: 'inc-occ',
+    planId: 'inc-plan',
+    name: 'Зарплата',
+    scheduledOn: '2026-09-25',
+    status: 'PENDING',
+    expectedMinor: '10000000',
+    categoryId: 'income-cat',
+    transactionId: null,
+  };
   const confirmStub = {
     UiConfirmDialog: {
       props: ['open'],
@@ -358,9 +374,15 @@ describe('plans page: v2 obligations', () => {
     v2.listObligationOccurrences.mockResolvedValue({ items: [daycare, rent] });
     v2.payObligation.mockResolvedValue({ transaction: null, occurrence: daycare, warnings: [] });
     v2.skipObligationOccurrence.mockResolvedValue({ transaction: null, occurrence: daycare });
+    v2.listIncomeOccurrences.mockResolvedValue({ items: [salary] });
+    v2.recordIncomeOccurrence.mockResolvedValue({
+      occurrence: { id: 'inc-occ', status: 'COMPLETED', transactionId: 'income-tx' },
+      transaction: { id: 'income-tx', amountMinor: '8700000' },
+    });
     api.listAccounts.mockResolvedValue([{ id: 'account-id', name: 'Карта' }]);
     api.listCategories.mockResolvedValue([
       { id: 'category-id', name: 'Детский сад', categoryType: 'EXPENSE', icon: null },
+      { id: 'income-cat', name: 'Зарплата', categoryType: 'INCOME', icon: null },
     ]);
   });
 
@@ -609,6 +631,183 @@ describe('plans page: v2 obligations', () => {
     );
     expect(v2.skipObligationOccurrence).not.toHaveBeenCalled();
     expect(v2.payObligation).not.toHaveBeenCalled();
+  });
+
+  describe('expected income', () => {
+    async function openRecord() {
+      await wrapper!.get('[data-testid="income-record-inc-occ"]').trigger('click');
+      await flushPromises();
+    }
+
+    it('shows tomorrow income as a forecast and creates nothing on load', async () => {
+      wrapper = mountV2();
+      await flushPromises();
+
+      const row = wrapper.get('[data-testid="income-row-inc-occ"]');
+      expect(row.text().replace(/\s/g, ' ')).toContain('100 000,00');
+      expect(row.text()).toContain('Прогноз — не входит в «На счетах»');
+      expect(wrapper.get('[data-testid="income-list"]').text()).toContain(
+        'Ожидаемое поступление не защищает текущие обязательства',
+      );
+      expect(v2.listIncomeOccurrences).toHaveBeenCalledTimes(1);
+      expect(v2.recordIncomeOccurrence).not.toHaveBeenCalled();
+      expect(v2.createTransaction).not.toHaveBeenCalled();
+      expect(funding.offer).not.toHaveBeenCalled();
+    });
+
+    it('records the actual amount once, then offers funding for that income', async () => {
+      wrapper = mountV2();
+      await flushPromises();
+      v2.listIncomeOccurrences.mockResolvedValue({
+        items: [{ ...salary, status: 'COMPLETED', transactionId: 'income-tx' }],
+      });
+
+      await openRecord();
+      await wrapper.get('[data-testid="income-amount"]').setValue('87000.00');
+      await wrapper.get('[data-testid="pill-accountId-account-id"]').trigger('click');
+      await wrapper.get('[data-testid="income-submit"]').trigger('click');
+      await flushPromises();
+
+      expect(v2.recordIncomeOccurrence).toHaveBeenCalledTimes(1);
+      expect(v2.recordIncomeOccurrence).toHaveBeenCalledWith(
+        'budget-id',
+        'inc-occ',
+        expect.objectContaining({
+          amount: '87000.00',
+          accountId: 'account-id',
+          categoryId: 'income-cat',
+        }),
+        expect.any(String),
+      );
+      expect(funding.offer).toHaveBeenCalledTimes(1);
+      expect(funding.offer).toHaveBeenCalledWith({
+        sourceKind: 'INCOME',
+        incomeTransactionId: 'income-tx',
+      });
+      // No automatic assignment and no deletion: dismissing the offer leaves the income.
+      expect(v2.createTransaction).not.toHaveBeenCalled();
+      expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(false);
+    });
+
+    it('keeps obligations and shows an alert when the income forecast fails to load', async () => {
+      v2.listIncomeOccurrences.mockRejectedValue(new Error('boom'));
+      wrapper = mountV2();
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="obligation-row-occ-daycare"]').exists()).toBe(true);
+      const alert = wrapper.get('[data-testid="income-list"] [role="alert"]');
+      expect(alert.text()).toContain('Не удалось загрузить ожидаемые доходы');
+      expect(v2.recordIncomeOccurrence).not.toHaveBeenCalled();
+      expect(funding.offer).not.toHaveBeenCalled();
+    });
+
+    it('leaves the recorded income untouched when the funding offer is dismissed', async () => {
+      wrapper = mountV2();
+      await flushPromises();
+      await openRecord();
+      await wrapper.get('[data-testid="pill-accountId-account-id"]').trigger('click');
+      await wrapper.get('[data-testid="income-submit"]').trigger('click');
+      await flushPromises();
+
+      funding.dismiss(); // «Позже»
+      await flushPromises();
+
+      const destructive = Object.keys(v2).filter((name) => /delete|cancel|revert/i.test(name));
+      expect(destructive).toEqual([]);
+      expect(v2.createTransaction).not.toHaveBeenCalled();
+      expect(v2.payObligation).not.toHaveBeenCalled();
+      expect(v2.skipObligationOccurrence).not.toHaveBeenCalled();
+      expect(v2.recordIncomeOccurrence).toHaveBeenCalledTimes(1);
+    });
+
+    it('disables recording for a completed occurrence', async () => {
+      v2.listIncomeOccurrences.mockResolvedValue({
+        items: [{ ...salary, status: 'COMPLETED', transactionId: 'income-tx' }],
+      });
+      wrapper = mountV2();
+      await flushPromises();
+
+      const row = wrapper.get('[data-testid="income-row-inc-occ"]');
+      expect(row.text()).toContain('Записан');
+      expect(row.text()).not.toContain('Прогноз');
+      const button = row.find('[data-testid="income-record-inc-occ"]');
+      expect(!button.exists() || button.attributes('disabled') !== undefined).toBe(true);
+    });
+
+    it('sends one record call on a double submit', async () => {
+      v2.recordIncomeOccurrence.mockReturnValue(new Promise(() => undefined));
+      wrapper = mountV2();
+      await flushPromises();
+
+      await openRecord();
+      await wrapper.get('[data-testid="pill-accountId-account-id"]').trigger('click');
+      const submit = wrapper.get('[data-testid="income-submit"]');
+      await submit.trigger('click');
+      await submit.trigger('click');
+
+      expect(v2.recordIncomeOccurrence).toHaveBeenCalledTimes(1);
+      expect(v2.recordIncomeOccurrence.mock.calls[0]?.[2]).toEqual(
+        expect.objectContaining({ amount: '100000.00' }),
+      );
+    });
+
+    it('reuses the key on retry, changes it after an edit and shows Russian errors', async () => {
+      v2.recordIncomeOccurrence
+        .mockRejectedValueOnce(
+          new ApiRequestError(409, { code: 'OCCURRENCE_NOT_OPEN', detail: 'raw english' }),
+        )
+        .mockRejectedValueOnce(
+          new ApiRequestError(409, { code: 'OCCURRENCE_NOT_OPEN', detail: 'raw english' }),
+        )
+        .mockResolvedValue({
+          occurrence: { id: 'inc-occ', status: 'COMPLETED', transactionId: 'income-tx' },
+          transaction: { id: 'income-tx' },
+        });
+      wrapper = mountV2();
+      await flushPromises();
+
+      await openRecord();
+      await wrapper.get('[data-testid="pill-accountId-account-id"]').trigger('click');
+      await wrapper.get('[data-testid="income-submit"]').trigger('click');
+      await flushPromises();
+      expect(wrapper.get('[data-testid="income-error"]').text()).toContain('уже записан');
+      expect(wrapper.get('[data-testid="income-error"]').text()).not.toContain('raw english');
+
+      await wrapper.get('[data-testid="income-submit"]').trigger('click');
+      await flushPromises();
+      const calls = v2.recordIncomeOccurrence.mock.calls;
+      expect(calls[1]?.[3]).toBe(calls[0]?.[3]);
+
+      await wrapper.get('[data-testid="income-amount"]').setValue('90000.00');
+      await wrapper.get('[data-testid="income-submit"]').trigger('click');
+      await flushPromises();
+      expect(v2.recordIncomeOccurrence.mock.calls[2]?.[3]).not.toBe(calls[0]?.[3]);
+    });
+
+    it('focuses the amount on open and returns focus to the row button on cancel', async () => {
+      wrapper = mountV2();
+      await flushPromises();
+      const button = wrapper.get('[data-testid="income-record-inc-occ"]');
+
+      (button.element as HTMLElement).focus();
+      await button.trigger('click');
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(document.activeElement?.id).toBe('income-record-amount');
+
+      await wrapper.get('[data-testid="income-cancel"]').trigger('click');
+      await flushPromises();
+      expect(document.activeElement).toBe(button.element);
+    });
+
+    it('does not touch income plans for a v1 budget', async () => {
+      budgetRow.planModelVersion = 1;
+      wrapper = mountV2();
+      await flushPromises();
+
+      expect(v2.listIncomeOccurrences).not.toHaveBeenCalled();
+      expect(wrapper.find('[data-testid="income-list"]').exists()).toBe(false);
+    });
   });
 
   it('keeps the legacy plans UI for a v1 budget', async () => {

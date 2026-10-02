@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { format } from 'date-fns';
-import { AlertTriangle, Check, SkipForward, X } from '@lucide/vue';
+import { AlertTriangle, Check, Plus, SkipForward, TrendingUp, X } from '@lucide/vue';
 import { definePageMeta, navigateTo, useRoute } from '#imports';
 
 import { buildCalendarGrid } from '../../components/plans/calendar-grid.js';
@@ -12,6 +12,9 @@ import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import ObligationPaySheet, {
   type ObligationPaySubmit,
 } from '../../components/obligations/ObligationPaySheet.vue';
+import IncomeRecordSheet, {
+  type IncomeRecordSubmit,
+} from '../../components/obligations/IncomeRecordSheet.vue';
 import { formatPlainDateShort } from '../../components/obligations/format-plain-date.js';
 import PlanForm from '../../components/plans/PlanForm.vue';
 import PlanKpiRow from '../../components/plans/PlanKpiRow.vue';
@@ -23,9 +26,11 @@ import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
 import UiModal from '../../components/ui/Modal.vue';
 import { useAuth } from '../../composables/useAuth.js';
 import {
+  type IncomeOccurrenceItem,
   type ObligationOccurrenceItem,
   useEnvelopePlanV2,
 } from '../../composables/useEnvelopePlanV2.js';
+import { useFundingEntry } from '../../composables/useFundingEntry.js';
 import { ApiRequestError } from '../../composables/useApiClient.js';
 import {
   type CategoryDto,
@@ -45,6 +50,7 @@ const auth = useAuth();
 const route = useRoute();
 const api = useBudgetReferenceData();
 const v2 = useEnvelopePlanV2();
+const fundingEntry = useFundingEntry();
 
 const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -130,6 +136,37 @@ const PAY_ERROR_TEXT: Record<string, string> = {
   OCCURRENCE_HAS_PAYMENTS: 'По обязательству уже есть оплаты, пропустить его нельзя.',
   INSUFFICIENT_BALANCE: 'На выбранном счёте недостаточно средств.',
   IDEMPOTENCY_CONFLICT: 'Данные оплаты изменились. Проверьте форму и повторите.',
+  MODEL_VERSION_MISMATCH: 'Этот бюджет работает по другой модели планов. Обновите страницу.',
+};
+
+// v2 expected income: a forecast only. Loading or viewing never creates a
+// transaction; only the explicit "Записать доход" action does.
+const incomeOccurrences = ref<IncomeOccurrenceItem[]>([]);
+const incomeLoadFailed = ref(false);
+const incomeTarget = ref<IncomeOccurrenceItem | null>(null);
+const incomePending = ref(false);
+const incomeError = ref<string | null>(null);
+const incomeFieldErrors = ref<
+  Partial<Record<'amount' | 'accountId' | 'occurredOn' | 'categoryId', string>>
+>({});
+const incomeListEl = ref<HTMLElement | null>(null);
+const EMPTY_INCOME_OCCURRENCE = {
+  id: '',
+  name: '',
+  scheduledOn: '',
+  expectedMinor: '0',
+  categoryId: null,
+};
+const incomeOccurrence = computed(() => incomeTarget.value ?? EMPTY_INCOME_OCCURRENCE);
+const isOpenIncome = (item: IncomeOccurrenceItem) =>
+  item.status === 'DUE' || item.status === 'PENDING';
+const visibleIncome = computed(() => [
+  ...incomeOccurrences.value.filter(isOpenIncome),
+  ...incomeOccurrences.value.filter((item) => item.status === 'COMPLETED'),
+]);
+const INCOME_ERROR_TEXT: Record<string, string> = {
+  OCCURRENCE_NOT_OPEN: 'Доход по этому плану уже записан или план отключён. Обновите список.',
+  IDEMPOTENCY_CONFLICT: 'Данные дохода изменились. Проверьте форму и повторите.',
   MODEL_VERSION_MISMATCH: 'Этот бюджет работает по другой модели планов. Обновите страницу.',
 };
 
@@ -222,12 +259,16 @@ async function loadReference() {
 async function loadObligations(withReference = false): Promise<void> {
   if (!budget.value) return;
   const budgetId = budget.value.id;
-  const [list, accountData, categoryData] = await Promise.all([
+  const [list, accountData, categoryData, incomeList] = await Promise.all([
     v2.listObligationOccurrences(budgetId, {}),
     withReference ? api.listAccounts(budgetId, 'active') : Promise.resolve(null),
     withReference ? api.listCategories(budgetId, undefined, 'active') : Promise.resolve(null),
+    // A failed forecast read must not hide the obligations.
+    v2.listIncomeOccurrences(budgetId, {}).catch(() => null),
   ]);
   obligations.value = list.items;
+  incomeLoadFailed.value = incomeList === null;
+  if (incomeList) incomeOccurrences.value = incomeList.items;
   if (accountData) {
     accounts.value = accountData.map((account) => ({ value: account.id, label: account.name }));
   }
@@ -299,6 +340,74 @@ async function submitPay(input: ObligationPaySubmit) {
     payError.value = payErrorText(exception);
   } finally {
     payPending.value = false;
+  }
+}
+
+function openIncomeRecord(item: IncomeOccurrenceItem) {
+  incomeError.value = null;
+  incomeFieldErrors.value = {};
+  incomeTarget.value = item;
+}
+
+function closeIncomeRecord() {
+  if (incomePending.value) return;
+  incomeTarget.value = null;
+}
+
+function incomeErrorText(exception: unknown): string {
+  if (exception instanceof ApiRequestError) {
+    return (
+      INCOME_ERROR_TEXT[exception.problem.code] ??
+      'Не удалось записать доход. Проверьте данные и повторите попытку.'
+    );
+  }
+  return 'Не удалось записать доход. Повторите попытку.';
+}
+
+async function submitIncomeRecord(input: IncomeRecordSubmit) {
+  const target = incomeTarget.value;
+  if (!budget.value || !target || incomePending.value) return;
+  incomePending.value = true;
+  incomeError.value = null;
+  incomeFieldErrors.value = {};
+  try {
+    const result = await v2.recordIncomeOccurrence(
+      budget.value.id,
+      target.id,
+      {
+        amount: input.amount,
+        accountId: input.accountId,
+        categoryId: input.categoryId,
+        occurredOn: input.occurredOn,
+      },
+      input.idempotencyKey,
+    );
+    incomeTarget.value = null;
+    statusText.value = 'Доход записан. Данные обновлены на сервере.';
+    try {
+      await loadObligations();
+    } catch {
+      error.value = 'Доход записан, но список не обновился. Обновите страницу.';
+    }
+    await nextTick();
+    incomeListEl.value?.focus();
+    // Assignment stays an explicit step: the host only previews and the user
+    // confirms. Closing it ("Позже") leaves the recorded income untouched.
+    fundingEntry.offer({
+      sourceKind: 'INCOME',
+      incomeTransactionId: result.transaction.id,
+    });
+  } catch (exception) {
+    if (exception instanceof ApiRequestError && exception.problem.fieldErrors?.length) {
+      const known = ['amount', 'accountId', 'occurredOn', 'categoryId'] as const;
+      for (const field of exception.problem.fieldErrors) {
+        const name = known.find((candidate) => candidate === field.field);
+        if (name) incomeFieldErrors.value[name] = field.message;
+      }
+    }
+    incomeError.value = incomeErrorText(exception);
+  } finally {
+    incomePending.value = false;
   }
 }
 
@@ -561,78 +670,138 @@ function errorMessage(exception: unknown) {
         <p v-if="statusText" class="plans-page__status" role="status">{{ statusText }}</p>
         <p v-if="error" class="plans-page__error" role="alert">{{ error }}</p>
         <p v-if="loading">Загрузка планов…</p>
-        <section
-          v-else-if="budget && isV2"
-          ref="obligationListEl"
-          class="obligation-list"
-          tabindex="-1"
-          data-testid="obligation-list"
-          aria-label="Обязательные платежи"
-        >
-          <p v-if="sortedObligations.length === 0" class="obligation-list__empty">
-            Обязательных платежей пока нет.
-          </p>
-          <ul v-else class="obligation-list__items">
-            <li
-              v-for="item in sortedObligations"
-              :key="item.id"
-              class="obligation-row"
-              :data-testid="`obligation-row-${item.id}`"
-            >
-              <div class="obligation-row__main">
-                <span class="obligation-row__name">{{ item.name }}</span>
-                <span class="obligation-row__meta">{{
-                  formatPlainDateShort(item.scheduledOn)
-                }}</span>
-                <span
-                  v-if="isOverdue(item)"
-                  class="obligation-row__badge"
-                  data-testid="obligation-overdue"
-                >
-                  <AlertTriangle :size="14" aria-hidden="true" />
-                  Просрочено
-                </span>
-                <span v-if="obligationStatusLabel[item.status]" class="obligation-row__meta">
-                  {{ obligationStatusLabel[item.status] }}
-                </span>
-              </div>
-              <div class="obligation-row__amounts">
-                <FinanceMoney :minor-units="item.expectedMinor" currency="RUB" :scale="2" />
-                <span v-if="item.unpaidMinor !== '0'" class="obligation-row__meta">
-                  Остаток
-                  <FinanceMoney :minor-units="item.unpaidMinor" currency="RUB" :scale="2" />
-                </span>
-              </div>
-              <div v-if="isOpenObligation(item)" class="obligation-row__actions">
-                <UiButton
-                  variant="tertiary"
-                  size="sm"
-                  class="obligation-row__icon-btn"
-                  :aria-label="`Оплатить ${item.name}`"
-                  :title="`Оплатить ${item.name}`"
-                  :data-testid="`obligation-pay-${item.id}`"
-                  :disabled="pending"
-                  @click="openPay(item)"
-                >
-                  <Check :size="16" aria-hidden="true" />
-                </UiButton>
-                <UiButton
-                  v-if="item.paidMinor === '0'"
-                  size="sm"
-                  variant="tertiary"
-                  class="obligation-row__icon-btn"
-                  :aria-label="`Пропустить ${item.name}`"
-                  :title="`Пропустить ${item.name}`"
-                  :data-testid="`obligation-skip-${item.id}`"
-                  :disabled="pending"
-                  @click="confirmation = { action: 'skip', occurrenceId: item.id }"
-                >
-                  <SkipForward :size="16" aria-hidden="true" />
-                </UiButton>
-              </div>
-            </li>
-          </ul>
-        </section>
+        <template v-else-if="budget && isV2">
+          <section
+            ref="obligationListEl"
+            class="obligation-list"
+            tabindex="-1"
+            data-testid="obligation-list"
+            aria-label="Обязательные платежи"
+          >
+            <p v-if="sortedObligations.length === 0" class="obligation-list__empty">
+              Обязательных платежей пока нет.
+            </p>
+            <ul v-else class="obligation-list__items">
+              <li
+                v-for="item in sortedObligations"
+                :key="item.id"
+                class="obligation-row"
+                :data-testid="`obligation-row-${item.id}`"
+              >
+                <div class="obligation-row__main">
+                  <span class="obligation-row__name">{{ item.name }}</span>
+                  <span class="obligation-row__meta">{{
+                    formatPlainDateShort(item.scheduledOn)
+                  }}</span>
+                  <span
+                    v-if="isOverdue(item)"
+                    class="obligation-row__badge"
+                    data-testid="obligation-overdue"
+                  >
+                    <AlertTriangle :size="14" aria-hidden="true" />
+                    Просрочено
+                  </span>
+                  <span v-if="obligationStatusLabel[item.status]" class="obligation-row__meta">
+                    {{ obligationStatusLabel[item.status] }}
+                  </span>
+                </div>
+                <div class="obligation-row__amounts">
+                  <FinanceMoney :minor-units="item.expectedMinor" currency="RUB" :scale="2" />
+                  <span v-if="item.unpaidMinor !== '0'" class="obligation-row__meta">
+                    Остаток
+                    <FinanceMoney :minor-units="item.unpaidMinor" currency="RUB" :scale="2" />
+                  </span>
+                </div>
+                <div v-if="isOpenObligation(item)" class="obligation-row__actions">
+                  <UiButton
+                    variant="tertiary"
+                    size="sm"
+                    class="obligation-row__icon-btn"
+                    :aria-label="`Оплатить ${item.name}`"
+                    :title="`Оплатить ${item.name}`"
+                    :data-testid="`obligation-pay-${item.id}`"
+                    :disabled="pending"
+                    @click="openPay(item)"
+                  >
+                    <Check :size="16" aria-hidden="true" />
+                  </UiButton>
+                  <UiButton
+                    v-if="item.paidMinor === '0'"
+                    size="sm"
+                    variant="tertiary"
+                    class="obligation-row__icon-btn"
+                    :aria-label="`Пропустить ${item.name}`"
+                    :title="`Пропустить ${item.name}`"
+                    :data-testid="`obligation-skip-${item.id}`"
+                    :disabled="pending"
+                    @click="confirmation = { action: 'skip', occurrenceId: item.id }"
+                  >
+                    <SkipForward :size="16" aria-hidden="true" />
+                  </UiButton>
+                </div>
+              </li>
+            </ul>
+          </section>
+          <section
+            ref="incomeListEl"
+            class="income-list"
+            tabindex="-1"
+            data-testid="income-list"
+            aria-label="Ожидаемые доходы"
+          >
+            <h2 class="income-list__title">Ожидаемые доходы</h2>
+            <p class="income-list__warning">
+              <AlertTriangle :size="14" aria-hidden="true" />
+              Ожидаемое поступление не защищает текущие обязательства.
+            </p>
+            <p v-if="incomeLoadFailed" class="plans-page__error" role="alert">
+              Не удалось загрузить ожидаемые доходы.
+            </p>
+            <p v-else-if="visibleIncome.length === 0" class="obligation-list__empty">
+              Плановых доходов пока нет.
+            </p>
+            <ul v-else class="obligation-list__items">
+              <li
+                v-for="item in visibleIncome"
+                :key="item.id"
+                class="obligation-row"
+                :data-testid="`income-row-${item.id}`"
+              >
+                <div class="obligation-row__main">
+                  <span class="obligation-row__name">{{ item.name }}</span>
+                  <span class="obligation-row__meta">{{
+                    formatPlainDateShort(item.scheduledOn)
+                  }}</span>
+                  <span v-if="isOpenIncome(item)" class="income-row__forecast">
+                    <TrendingUp :size="14" aria-hidden="true" />
+                    Прогноз — не входит в «На счетах»
+                  </span>
+                  <span v-else class="obligation-row__meta">
+                    <Check :size="14" aria-hidden="true" />
+                    Записан
+                  </span>
+                </div>
+                <div class="obligation-row__amounts">
+                  <FinanceMoney :minor-units="item.expectedMinor" currency="RUB" :scale="2" />
+                </div>
+                <div v-if="isOpenIncome(item)" class="obligation-row__actions">
+                  <UiButton
+                    variant="tertiary"
+                    size="sm"
+                    class="obligation-row__icon-btn"
+                    :aria-label="`Записать доход ${item.name}`"
+                    :title="`Записать доход ${item.name}`"
+                    :data-testid="`income-record-${item.id}`"
+                    :disabled="incomePending"
+                    @click="openIncomeRecord(item)"
+                  >
+                    <Plus :size="16" aria-hidden="true" />
+                  </UiButton>
+                </div>
+              </li>
+            </ul>
+          </section>
+        </template>
         <template v-else-if="budget">
           <PlanKpiRow
             :planned-income-minor="kpi.plannedIncomeMinor"
@@ -752,6 +921,19 @@ function errorMessage(exception: unknown) {
       @close="closePay"
     />
 
+    <IncomeRecordSheet
+      :open="incomeTarget !== null"
+      :occurrence="incomeOccurrence"
+      :category-name="categoryById.get(incomeOccurrence.categoryId ?? '')?.name ?? 'Без категории'"
+      :accounts="accounts"
+      :today="today"
+      :pending="incomePending"
+      :error="incomeError"
+      :field-errors="incomeFieldErrors"
+      @submit="submitIncomeRecord"
+      @close="closeIncomeRecord"
+    />
+
     <UiConfirmDialog
       :open="confirmation !== null"
       :title="confirmation?.action === 'remove' ? 'Удалить план?' : 'Подтвердить действие?'"
@@ -830,6 +1012,33 @@ function errorMessage(exception: unknown) {
   min-height: 2.75rem;
   padding-inline: 0;
 }
+.income-list {
+  display: grid;
+  gap: var(--hf-space-2);
+  margin-top: var(--hf-space-6);
+}
+.income-list__title {
+  margin: 0;
+  font-size: var(--hf-font-size-body);
+  font-weight: var(--hf-font-weight-semibold);
+}
+.income-list__warning {
+  display: flex;
+  align-items: center;
+  gap: var(--hf-space-1);
+  margin: 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+}
+.income-row__forecast {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hf-space-1);
+  color: var(--hf-color-status-info);
+  font-size: var(--hf-font-size-small);
+  font-weight: var(--hf-font-weight-medium);
+}
+.income-list:focus-visible,
 .obligation-list:focus-visible {
   outline: 2px solid var(--hf-color-action-primary);
   outline-offset: 2px;
