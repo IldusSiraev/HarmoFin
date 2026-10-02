@@ -127,7 +127,9 @@ describe('v2 notifications', () => {
   });
 
   it('keeps the v1 rule set for a model 1 budget and isolates budgets', async () => {
-    await new NotificationRuleHandler(prisma).execute(now);
+    const handler = new NotificationRuleHandler(prisma);
+    await handler.execute(now, v1.budgetId);
+    await handler.execute(now, v2.budgetId);
 
     const types = new Set((await notifications(v1)).map((item) => item.notificationType));
     expect(types).toEqual(
