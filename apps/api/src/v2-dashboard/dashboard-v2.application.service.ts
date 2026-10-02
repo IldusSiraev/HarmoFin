@@ -209,7 +209,7 @@ export class DashboardV2ApplicationService {
     }, TX_OPTIONS);
   }
 
-  private async compute(
+  async compute(
     tx: Prisma.TransactionClient,
     budgetId: string,
     workspaceId: string,
