@@ -2,6 +2,9 @@ import { type DynamicModule, Module } from '@nestjs/common';
 
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { PrismaService } from '../database/prisma.service.js';
+import { LegacyAssignmentHistoryApplicationService } from './legacy-assignment-history.application.service.js';
+import { LegacyAssignmentHistoryController } from './legacy-assignment-history.controller.js';
+import { LegacyAssignmentHistoryRepository } from './legacy-assignment-history.repository.js';
 import { ReportApplicationService } from './report.application.service.js';
 import { ReportController } from './report.controller.js';
 import { ReportRepository } from './report.repository.js';
@@ -14,7 +17,7 @@ export class ReportModule {
   static register(): DynamicModule {
     return {
       module: ReportModule,
-      controllers: [ReportController, ReportV2Controller],
+      controllers: [ReportController, ReportV2Controller, LegacyAssignmentHistoryController],
       providers: [
         {
           provide: ReportRepository,
@@ -33,6 +36,16 @@ export class ReportModule {
             new ReportV2ApplicationService(
               prisma,
               new ReportV2Repository(),
+              new PlanModelPolicy(prisma),
+            ),
+          inject: [PrismaService],
+        },
+        {
+          provide: LegacyAssignmentHistoryApplicationService,
+          useFactory: (prisma: PrismaService) =>
+            new LegacyAssignmentHistoryApplicationService(
+              prisma,
+              new LegacyAssignmentHistoryRepository(),
               new PlanModelPolicy(prisma),
             ),
           inject: [PrismaService],
