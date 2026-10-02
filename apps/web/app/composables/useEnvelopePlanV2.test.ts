@@ -293,4 +293,55 @@ describe('useEnvelopePlanV2', () => {
     expect(headers.get('Idempotency-Key')).toBe('key-1');
     expect(headers.get('x-csrf-token')).toBe('csrf-1');
   });
+  it('reads one envelope and its history with encoded ids and the history query', async () => {
+    const api = useEnvelopePlanV2();
+    await api.getEnvelope(budgetId, 'env/1 a');
+    let call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/envelopes/env%2F1%20a`);
+    expect(call.init.method).toBe('GET');
+
+    await api.getEnvelopeHistory(budgetId, 'env/1 a', {
+      cursor: 'c 1',
+      limit: '20',
+      status: 'DELETED',
+    });
+    call = lastCall();
+    expect(call.url).toBe(
+      `${apiUrl}${base}/envelopes/env%2F1%20a/history?cursor=c+1&limit=20&status=DELETED`,
+    );
+    expect(call.init.method).toBe('GET');
+
+    await api.getEnvelopeHistory(budgetId, 'env-1');
+    expect(lastCall().url).toBe(`${apiUrl}${base}/envelopes/env-1/history`);
+  });
+
+  it('creates, updates and archives envelopes with CSRF and Idempotency-Key', async () => {
+    const api = useEnvelopePlanV2();
+
+    await api.createEnvelope(budgetId, { name: 'Кафе', envelopeType: 'CURRENT_EXPENSES' }, 'k-c');
+    let call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/envelopes`);
+    expect(call.init.method).toBe('POST');
+    expect(JSON.parse(call.init.body as string)).toEqual({
+      name: 'Кафе',
+      envelopeType: 'CURRENT_EXPENSES',
+    });
+    expect(call.headers.get('Idempotency-Key')).toBe('k-c');
+    expect(call.headers.get('x-csrf-token')).toBe('csrf-1');
+
+    await api.updateEnvelope(budgetId, 'env/1', { name: 'Новое' }, 'k-u');
+    call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/envelopes/env%2F1`);
+    expect(call.init.method).toBe('PATCH');
+    expect(call.init.body).toBe('{"name":"Новое"}');
+    expect(call.headers.get('Idempotency-Key')).toBe('k-u');
+    expect(call.headers.get('x-csrf-token')).toBe('csrf-1');
+
+    await api.archiveEnvelope(budgetId, 'env/1', 'k-a');
+    call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/envelopes/env%2F1/archive`);
+    expect(call.init.method).toBe('POST');
+    expect(call.headers.get('Idempotency-Key')).toBe('k-a');
+    expect(call.headers.get('x-csrf-token')).toBe('csrf-1');
+  });
 });

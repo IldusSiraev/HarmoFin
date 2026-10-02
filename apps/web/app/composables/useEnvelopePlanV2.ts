@@ -71,6 +71,7 @@ export interface EnvelopePlanDto {
   name: string;
   envelopeType: string;
   periodSlot: string | null;
+  /** Goal in DECIMAL rubles ("5000", "5000.5"), unlike the minor-unit amounts below. */
   targetAmountMinor: string | null;
   comment: string | null;
   fundedMinor: string;
@@ -95,6 +96,59 @@ export interface MoveEnvelopeRequest {
   destinationEnvelopeId?: string | null;
   destinationPeriodId?: string;
   amount: string;
+}
+
+// Server answers for assign/move: balances after the change, as minor strings.
+export interface AssignFreeResponse {
+  assignmentId: string;
+  amountMinor: string;
+  fundedMinor: string;
+  spentMinor: string;
+  balanceMinor: string;
+  freeToAssignMinor: string;
+}
+
+export interface MoveEnvelopeResponse {
+  movementId: string;
+  amountMinor: string;
+  sourceBalanceMinor: string;
+  destinationBalanceMinor: string | null;
+  cashMinor: string;
+}
+
+export type EnvelopePlanKind =
+  'CURRENT_EXPENSES' | 'MANDATORY_EXPENSES' | 'SAVINGS_GOAL' | 'RESERVE' | 'CUSTOM';
+
+export interface CreateEnvelopePlanRequest {
+  name: string;
+  envelopeType: EnvelopePlanKind;
+  periodSlot?: 'FIRST' | 'SECOND';
+  /** Decimal rubles (the field name is the API's). */
+  targetAmountMinor?: string;
+  comment?: string;
+}
+
+export interface UpdateEnvelopePlanRequest {
+  name?: string;
+  periodSlot?: 'FIRST' | 'SECOND';
+}
+
+export interface EnvelopeHistoryItem {
+  kind: 'ASSIGNMENT' | 'MOVEMENT' | 'SPENDING';
+  amountMinor: string;
+  effectiveOn: string;
+}
+
+export interface EnvelopeHistoryResponse {
+  items: EnvelopeHistoryItem[];
+  nextCursor: string | null;
+}
+
+export interface EnvelopeHistoryQuery {
+  cursor?: string;
+  limit?: string;
+  /** DELETED returns cancelled facts, read-only. */
+  status?: 'CONFIRMED' | 'DELETED';
 }
 
 export interface PeriodTargetResponse {
@@ -475,13 +529,41 @@ export function useEnvelopePlanV2() {
     confirmFunding: (budgetId: string, input: FundingConfirmRequest, idempotencyKey: string) =>
       postKeyed<FundingConfirmResponse>(`${base(budgetId)}/funding/confirm`, input, idempotencyKey),
     assignFree: (budgetId: string, input: AssignFreeRequest, idempotencyKey: string) =>
-      postKeyed<EnvelopePlanDto>(
+      postKeyed<AssignFreeResponse>(
         `${base(budgetId)}/assignments`,
         { ...input, sourceKind: 'FREE' },
         idempotencyKey,
       ),
     move: (budgetId: string, input: MoveEnvelopeRequest, idempotencyKey: string) =>
-      postKeyed<EnvelopePlanDto>(`${base(budgetId)}/movements`, input, idempotencyKey),
+      postKeyed<MoveEnvelopeResponse>(`${base(budgetId)}/movements`, input, idempotencyKey),
+    getEnvelope: (budgetId: string, envelopeId: string) =>
+      get<EnvelopePlanDto>(`${base(budgetId)}/envelopes/${encodeURIComponent(envelopeId)}`),
+    getEnvelopeHistory: (budgetId: string, envelopeId: string, filter: EnvelopeHistoryQuery = {}) =>
+      get<EnvelopeHistoryResponse>(
+        `${base(budgetId)}/envelopes/${encodeURIComponent(envelopeId)}/history${query({ ...filter })}`,
+      ),
+    createEnvelope: (budgetId: string, input: CreateEnvelopePlanRequest, idempotencyKey: string) =>
+      postKeyed<EnvelopePlanDto>(`${base(budgetId)}/envelopes`, input, idempotencyKey),
+    updateEnvelope: (
+      budgetId: string,
+      envelopeId: string,
+      input: UpdateEnvelopePlanRequest,
+      idempotencyKey: string,
+    ) =>
+      api.request<EnvelopePlanDto>(
+        `${base(budgetId)}/envelopes/${encodeURIComponent(envelopeId)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(input),
+          headers: { 'Idempotency-Key': idempotencyKey },
+        },
+      ),
+    archiveEnvelope: (budgetId: string, envelopeId: string, idempotencyKey: string) =>
+      postKeyed<EnvelopePlanDto>(
+        `${base(budgetId)}/envelopes/${encodeURIComponent(envelopeId)}/archive`,
+        {},
+        idempotencyKey,
+      ),
     confirmPeriodTarget: (budgetId: string, periodId: string, idempotencyKey: string) =>
       postKeyed<PeriodTargetResponse>(
         `${base(budgetId)}/periods/${encodeURIComponent(periodId)}/confirm-target`,

@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { definePageMeta, navigateTo, useRoute } from '#imports';
 
 import EnvelopeDrawer from '../../components/envelopes/EnvelopeDrawer.vue';
+import EnvelopePlanView from '../../components/envelopes/EnvelopesPlanView.vue';
 import EnvelopeRow from '../../components/envelopes/EnvelopeRow.vue';
 import { groupByType } from '../../components/envelopes/group-by-type.js';
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
@@ -92,6 +93,11 @@ const form = reactive({
 });
 
 const budgetId = computed(() => currentData.value?.workspaces[0]?.budgets[0]?.id);
+// Envelope Plan v2.2 budgets use their own view: no v1 summary or balance calls (F06).
+const planQuery = computed(() => route.query as Record<string, string | undefined>);
+const isModelV2 = computed(
+  () => currentData.value?.workspaces[0]?.budgets[0]?.planModelVersion === 2,
+);
 const groups = computed(() => groupByType(envelopes.value, summary.value));
 
 function getEnvelopeTypeOptions() {
@@ -176,7 +182,7 @@ async function loadPage() {
   try {
     if (!currentData.value) await loadMe();
     const id = budgetId.value;
-    if (id) {
+    if (id && !isModelV2.value) {
       [budget.value] = await Promise.all([api.getBudget(id), loadEnvelopes()]);
     }
   } catch {
@@ -368,7 +374,8 @@ onMounted(() => {
 
 <template>
   <div v-if="hydrated" class="reference-page" data-hydrated="true">
-    <template v-if="loadError">
+    <EnvelopePlanView v-if="isModelV2 && budgetId" :budget-id="budgetId" :query="planQuery" />
+    <template v-else-if="loadError">
       <UiEmptyState title="Конверты недоступны" :description="loadError">
         <template #action><UiButton @click="loadPage">Повторить</UiButton></template>
       </UiEmptyState>
