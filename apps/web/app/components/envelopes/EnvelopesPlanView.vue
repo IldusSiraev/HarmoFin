@@ -23,6 +23,7 @@ import { useOperationReferenceData } from '../../composables/useOperationReferen
 import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js';
 import { useToast } from '../../composables/useToast.js';
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
+import RuleSettingsSheet from '../funding/RuleSettingsSheet.vue';
 import EnvelopeMovePanel, { type MovePanelResult } from './EnvelopeMovePanel.vue';
 import EnvelopePlanDrawer from './EnvelopePlanDrawer.vue';
 import EnvelopePlanRow from './EnvelopePlanRow.vue';
@@ -276,6 +277,46 @@ async function onMoveDone(result: MovePanelResult): Promise<void> {
   void restoreFocus();
 }
 
+// Funding rule panel. The envelope DTO carries neither the rule nor the period,
+// so the current period is taken from the dashboard only when it demonstrably
+// belongs to this envelope (an assignment of the envelope in that period).
+
+const ruleEnvelope = ref<EnvelopePlanDto | null>(null);
+const rulePeriodStart = ref<string | null>(null);
+let ruleSeq = 0;
+
+async function startRules(envelope: EnvelopePlanDto): Promise<void> {
+  rememberFocus();
+  detailed.value = null;
+  rulePeriodStart.value = null;
+  const seq = ++ruleSeq;
+  ruleEnvelope.value = envelope;
+  try {
+    const dashboard = await planV2.getDashboard(props.budgetId);
+    if (seq !== ruleSeq) return;
+    const periodId = dashboard.period.periodId;
+    const belongs =
+      periodId !== null &&
+      dashboard.protectedAssignments.some(
+        (item) => item.envelopeId === envelope.id && item.periodId === periodId,
+      );
+    rulePeriodStart.value = belongs ? dashboard.period.start : null;
+  } catch {
+    if (seq === ruleSeq) rulePeriodStart.value = null;
+  }
+}
+
+function closeRules(): void {
+  ruleSeq++;
+  ruleEnvelope.value = null;
+  void restoreFocus();
+}
+
+async function onRuleChanged(message: string): Promise<void> {
+  statusMessage.value = message;
+  await load();
+}
+
 // Archive: an empty envelope needs a confirmation, a positive one needs a
 // destination for the remainder first, an overspent one must be covered first.
 
@@ -436,6 +477,16 @@ onMounted(() => {
                         v-if="!envelope.archivedAt"
                         type="button"
                         role="menuitem"
+                        data-testid="row-rules"
+                        data-action="rules-envelope"
+                        @click="startRules(envelope)"
+                      >
+                        Правило пополнения
+                      </button>
+                      <button
+                        v-if="!envelope.archivedAt"
+                        type="button"
+                        role="menuitem"
                         data-testid="row-edit"
                         data-action="edit-envelope"
                         @click="startEdit(envelope)"
@@ -479,7 +530,17 @@ onMounted(() => {
     "
     @edit="startEdit"
     @reassign="startReassign"
+    @rules="startRules"
     @archive="requestArchive"
+  />
+
+  <RuleSettingsSheet
+    :open="ruleEnvelope !== null"
+    :budget-id="budgetId"
+    :envelope="ruleEnvelope"
+    :period-start="rulePeriodStart"
+    @close="closeRules"
+    @changed="onRuleChanged"
   />
 
   <EnvelopeMovePanel

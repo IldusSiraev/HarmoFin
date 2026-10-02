@@ -488,6 +488,46 @@ export interface RecordIncomeOccurrenceResponse {
   };
 }
 
+// Funding rules and goals
+
+export type FundingRuleType =
+  'MANUAL' | 'SUM_OF_PLANS' | 'FIXED_PER_PERIOD' | 'SUGGESTED_FIXED' | 'PERCENT_OF_INCOME';
+
+export interface PutFundingRuleRequest {
+  type: FundingRuleType;
+  priority: number;
+  /** Decimal rubles; only FIXED_PER_PERIOD and SUGGESTED_FIXED. */
+  fixedAmount?: string;
+  /** Integer 0..10000; only PERCENT_OF_INCOME. */
+  percentBasisPoints?: number;
+}
+
+export interface FundingRuleResponse {
+  id: string;
+  envelopeId: string;
+  type: FundingRuleType;
+  priority: number;
+  fixedAmountMinor: string | null;
+  percentBasisPoints: number | null;
+}
+
+export interface PutPeriodTargetRequest {
+  /** Decimal rubles; null resets the target to UNSET. */
+  target: string | null;
+}
+
+export interface IncomeCategorySuggestionRequest {
+  enabled: boolean;
+  sourceCategoryId: string | null;
+  targetEnvelopeId: string | null;
+}
+
+export interface IncomeCategorySuggestionResponse {
+  enabled: boolean;
+  sourceCategoryId: string | null;
+  targetEnvelopeId: string | null;
+}
+
 function query(params: Record<string, string | undefined>): string {
   const search = new URLSearchParams();
   for (const [name, value] of Object.entries(params)) {
@@ -521,7 +561,48 @@ export function useEnvelopePlanV2() {
     });
   }
 
+  function putKeyed<T>(path: string, body: unknown, idempotencyKey: string): Promise<T> {
+    return api.request<T>(path, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+      headers: { 'Idempotency-Key': idempotencyKey },
+    });
+  }
+
   return {
+    updateFundingRule: (
+      budgetId: string,
+      envelopeId: string,
+      input: PutFundingRuleRequest,
+      idempotencyKey: string,
+    ) =>
+      putKeyed<FundingRuleResponse>(
+        `${base(budgetId)}/envelopes/${encodeURIComponent(envelopeId)}/funding-rule`,
+        input,
+        idempotencyKey,
+      ),
+    updatePeriodTarget: (
+      budgetId: string,
+      envelopeId: string,
+      periodStart: string,
+      input: PutPeriodTargetRequest,
+      idempotencyKey: string,
+    ) =>
+      putKeyed<PeriodTargetResponse>(
+        `${base(budgetId)}/envelopes/${encodeURIComponent(envelopeId)}/periods/${encodeURIComponent(periodStart)}/target`,
+        input,
+        idempotencyKey,
+      ),
+    updateIncomeCategorySuggestion: (
+      budgetId: string,
+      input: IncomeCategorySuggestionRequest,
+      idempotencyKey: string,
+    ) =>
+      putKeyed<IncomeCategorySuggestionResponse>(
+        `${base(budgetId)}/income-category-suggestion`,
+        input,
+        idempotencyKey,
+      ),
     getDashboard: (budgetId: string, asOf?: string) =>
       get<DashboardV2Response>(`${base(budgetId)}/dashboard${query({ asOf })}`),
     previewFunding: (budgetId: string, input: FundingPreviewRequest) =>

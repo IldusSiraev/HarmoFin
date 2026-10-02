@@ -30,6 +30,7 @@ const emit = defineEmits<{
   close: [];
   edit: [envelope: EnvelopePlanDto];
   reassign: [envelope: EnvelopePlanDto];
+  rules: [envelope: EnvelopePlanDto];
   archive: [envelope: EnvelopePlanDto];
 }>();
 
@@ -216,6 +217,14 @@ const operationsLink = computed(() =>
         @click="emit('reassign', envelope)"
       >
         Переназначить
+      </UiButton>
+      <UiButton
+        v-if="!envelope.archivedAt"
+        variant="secondary"
+        data-testid="plan-drawer-rules"
+        @click="emit('rules', envelope)"
+      >
+        Правило пополнения
       </UiButton>
       <UiButton
         v-if="!envelope.archivedAt"

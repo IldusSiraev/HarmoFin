@@ -344,4 +344,32 @@ describe('useEnvelopePlanV2', () => {
     expect(call.headers.get('Idempotency-Key')).toBe('k-a');
     expect(call.headers.get('x-csrf-token')).toBe('csrf-1');
   });
+
+  it('PUTs funding rule, period target and income suggestion with CSRF and keys', async () => {
+    const api = useEnvelopePlanV2();
+
+    const rule = { type: 'FIXED_PER_PERIOD' as const, priority: 10, fixedAmount: '65000' };
+    await api.updateFundingRule(budgetId, 'env/1', rule, 'k-rule');
+    let call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/envelopes/env%2F1/funding-rule`);
+    expect(call.init.method).toBe('PUT');
+    expect(JSON.parse(call.init.body as string)).toEqual(rule);
+    expect(call.headers.get('Idempotency-Key')).toBe('k-rule');
+    expect(call.headers.get('x-csrf-token')).toBe('csrf-1');
+
+    await api.updatePeriodTarget(budgetId, 'env-1', '2026-10-01', { target: '65000.50' }, 'k-t');
+    call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/envelopes/env-1/periods/2026-10-01/target`);
+    expect(call.init.method).toBe('PUT');
+    expect(JSON.parse(call.init.body as string)).toEqual({ target: '65000.50' });
+    expect(call.headers.get('Idempotency-Key')).toBe('k-t');
+
+    const suggestion = { enabled: true, sourceCategoryId: 'c-1', targetEnvelopeId: 'e-1' };
+    await api.updateIncomeCategorySuggestion(budgetId, suggestion, 'k-s');
+    call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/income-category-suggestion`);
+    expect(call.init.method).toBe('PUT');
+    expect(JSON.parse(call.init.body as string)).toEqual(suggestion);
+    expect(call.headers.get('Idempotency-Key')).toBe('k-s');
+  });
 });

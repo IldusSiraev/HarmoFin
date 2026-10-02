@@ -26,6 +26,7 @@ const MESSAGES: Record<string, string> = {
   ASSIGNMENT_HAS_DEPENDENCIES:
     'Назначение нельзя изменить: на него уже опираются расходы или переносы.',
   ENVELOPE_ARCHIVED: 'Конверт в архиве. Выберите активный конверт.',
+  FUNDING_RULE_TYPE_NOT_ALLOWED: 'Этот тип правила подходит только для конверта «Обязательные».',
   VALIDATION_FAILED: 'Проверьте введённые данные.',
 };
 
