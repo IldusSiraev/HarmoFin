@@ -4,6 +4,11 @@ import { PrismaClient } from '@prisma/client';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
 import { todayInTimezone } from '../src/cycles/cycle-period.domain.js';
+import {
+  formatPreviewRu,
+  previewMigration,
+  runPreview,
+} from '../src/migrations/envelope-v2/migration-preview.js';
 import { runPreflight } from '../src/migrations/envelope-v2/preflight.js';
 
 const DISPOSABLE_DATABASE = 'harmofin_v22_test';
@@ -276,6 +281,21 @@ describe('read-only preflight перед переходом на модель v2
   });
 });
 
+const NO_CHOICES = { assignments: [], periodTargets: [], fundingRules: [] };
+
+/** Historical shape: start 60000, income 60000 allocated in full, expense 20000 -> cash 100000. */
+async function historicalWorld(): Promise<World> {
+  const w = await world();
+  await prisma.account.update({
+    where: { id: w.accountA },
+    data: { startingBalanceMinor: 6_000_000n },
+  });
+  const income = await tx(w, 'INCOME', 6_000_000n);
+  await allocation(w, income, 6_000_000n);
+  await tx(w, 'EXPENSE', 2_000_000n);
+  return w;
+}
+
 async function world(): Promise<World> {
   const userId = randomUUID();
   const workspaceId = randomUUID();
@@ -339,7 +359,12 @@ async function world(): Promise<World> {
 
 async function envelope(
   w: World,
-  data: { startingBalanceMinor: bigint; archivedAt?: Date },
+  data: {
+    startingBalanceMinor: bigint;
+    archivedAt?: Date;
+    envelopeType?: 'CUSTOM' | 'MANDATORY_EXPENSES' | 'CURRENT_EXPENSES';
+    periodSlot?: 'FIRST' | 'SECOND';
+  },
 ): Promise<string> {
   const row = await prisma.envelope.create({
     data: {
@@ -506,3 +531,236 @@ async function cleanup(w: World): Promise<void> {
   await prisma.workspace.deleteMany({ where: { id: w.workspaceId } });
   await prisma.user.deleteMany({ where: { id: w.userId } });
 }
+
+describe('предпросмотр opening assignments (M02)', () => {
+  const periodStart = () => '2026-01-01';
+
+  it('без выбора владельца: assignments пусты, free = cash, старые allocations не добавляются', async () => {
+    const w = await historicalWorld();
+    const preview = await runPreview(prisma, w.budgetId, NO_CHOICES);
+    expect(preview.assignments).toEqual([]);
+    expect(preview.freeToAssignMinor).toBe('10000000');
+    expect(preview.unbackedMinor).toBe('0');
+    expect(preview.blockers).toEqual([]);
+    const report = await runPreflight(prisma, w.budgetId);
+    expect(preview.fingerprint).toBe(report.fingerprint);
+    expect(report.totalCashMinor).toBe('10000000');
+  });
+
+  it('выбор opening 40000: остаток 60000, старый виртуальный баланс не применяется повторно', async () => {
+    const w = await historicalWorld();
+    const preview = await runPreview(prisma, w.budgetId, {
+      assignments: [{ envelopeId: w.envelopeA, openingMinor: '4000000' }],
+      periodTargets: [],
+      fundingRules: [],
+    });
+    expect(preview.blockers).toEqual([]);
+    expect(preview.assignments).toEqual([
+      {
+        envelopeId: w.envelopeA,
+        periodStart: null,
+        openingMinor: '4000000',
+        sourceKind: 'OPENING',
+      },
+    ]);
+    expect(preview.freeToAssignMinor).toBe('6000000');
+    expect(preview.unbackedMinor).toBe('0');
+    expect(await prisma.envelopeAssignment.count({ where: { budgetId: w.budgetId } })).toBe(0);
+    const text = formatPreviewRu(preview);
+    expect(text).toContain('40000.00');
+    expect(text).toContain('60000.00');
+  });
+
+  it('отвергает чужой, архивный конверт, дубль, превышение cash, неверные суммы', async () => {
+    const w = await historicalWorld();
+    const other = await world();
+    const archived = await envelope(w, { startingBalanceMinor: 0n, archivedAt: new Date() });
+    const run = (
+      assignments: { envelopeId: string; openingMinor: string; periodStart?: string }[],
+    ) => runPreview(prisma, w.budgetId, { ...NO_CHOICES, assignments });
+
+    expect((await run([{ envelopeId: other.envelopeA, openingMinor: '100' }])).blockers).toContain(
+      'ENVELOPE_NOT_FOUND',
+    );
+    expect((await run([{ envelopeId: archived, openingMinor: '100' }])).blockers).toContain(
+      'ENVELOPE_ARCHIVED',
+    );
+    expect(
+      (
+        await run([
+          { envelopeId: w.envelopeA, openingMinor: '100' },
+          { envelopeId: w.envelopeA, openingMinor: '200' },
+        ])
+      ).blockers,
+    ).toContain('DUPLICATE_ASSIGNMENT');
+    const over = await run([
+      { envelopeId: w.envelopeA, openingMinor: '6000000' },
+      { envelopeId: w.envelopeB, openingMinor: '4000001' },
+    ]);
+    expect(over.blockers).toContain('ASSIGNMENTS_EXCEED_CASH');
+    expect(over.unbackedMinor).toBe('1');
+    for (const bad of ['0', '-5', '1.5', 'abc', '']) {
+      expect((await run([{ envelopeId: w.envelopeA, openingMinor: bad }])).blockers).toContain(
+        'INVALID_AMOUNT',
+      );
+    }
+  });
+
+  it('устаревший preflight и неверный fingerprint владельца блокируют', async () => {
+    const w = await historicalWorld();
+    const stale = await runPreflight(prisma, w.budgetId);
+    await tx(w, 'EXPENSE', 1n);
+    const preview = await prisma.$transaction((t) =>
+      previewMigration(t, w.budgetId, stale, NO_CHOICES),
+    );
+    expect(preview.blockers).toContain('STALE_PREFLIGHT');
+
+    const fresh = await runPreview(prisma, w.budgetId, { ...NO_CHOICES, fingerprint: 'deadbeef' });
+    expect(fresh.blockers).toContain('FINGERPRINT_MISMATCH');
+  });
+
+  it('периоды: только начало периода цикла и совпадение periodSlot конверта', async () => {
+    const w = await historicalWorld();
+    const first = await envelope(w, {
+      startingBalanceMinor: 0n,
+      envelopeType: 'CURRENT_EXPENSES',
+      periodSlot: 'FIRST',
+    });
+    const run = (start: string) =>
+      runPreview(prisma, w.budgetId, {
+        ...NO_CHOICES,
+        assignments: [{ envelopeId: first, periodStart: start, openingMinor: '100' }],
+        periodTargets: [{ envelopeId: first, periodStart: start, targetMinor: '500' }],
+      });
+
+    expect((await run(periodStart())).blockers).toEqual([]);
+    expect((await run('2026-01-05')).blockers).toContain('PERIOD_NOT_IN_CYCLE');
+    expect((await run('2026-01-15')).blockers).toContain('PERIOD_SLOT_MISMATCH');
+    expect((await run('not-a-date')).blockers).toContain('PERIOD_NOT_IN_CYCLE');
+    const dup = await runPreview(prisma, w.budgetId, {
+      ...NO_CHOICES,
+      periodTargets: [
+        { envelopeId: first, periodStart: periodStart(), targetMinor: '1' },
+        { envelopeId: first, periodStart: periodStart(), targetMinor: null },
+      ],
+    });
+    expect(dup.blockers).toContain('DUPLICATE_PERIOD_TARGET');
+  });
+
+  it('правила пополнения: SUM_OF_PLANS только для обязательных, проценты, суммы, приоритеты', async () => {
+    const w = await historicalWorld();
+    const mandatory = await envelope(w, {
+      startingBalanceMinor: 0n,
+      envelopeType: 'MANDATORY_EXPENSES',
+    });
+    const run = (rules: Record<string, unknown>[]) =>
+      runPreview(prisma, w.budgetId, { ...NO_CHOICES, fundingRules: rules as never });
+
+    const ok = await run([
+      { envelopeId: mandatory, type: 'SUM_OF_PLANS', priority: 1 },
+      {
+        envelopeId: w.envelopeA,
+        type: 'PERCENT_OF_INCOME',
+        priority: 2,
+        percentBasisPoints: 10000,
+      },
+      { envelopeId: w.envelopeB, type: 'SUGGESTED_FIXED', priority: 1, fixedMinor: '500' },
+    ]);
+    expect(ok.blockers).toEqual([]);
+    expect(ok.fundingRules).toHaveLength(3);
+    expect(ok.fundingRules.find((r) => r.type === 'SUGGESTED_FIXED')).toMatchObject({
+      mandatory: false,
+    });
+
+    expect(
+      (await run([{ envelopeId: w.envelopeA, type: 'SUM_OF_PLANS', priority: 1 }])).blockers,
+    ).toContain('FUNDING_RULE_TYPE_NOT_ALLOWED');
+    for (const bad of [
+      { type: 'PERCENT_OF_INCOME', priority: 1, percentBasisPoints: 10001 },
+      { type: 'PERCENT_OF_INCOME', priority: 1, percentBasisPoints: 1.5 },
+      { type: 'PERCENT_OF_INCOME', priority: 1 },
+      { type: 'FIXED_PER_PERIOD', priority: 1, fixedMinor: '0' },
+      { type: 'FIXED_PER_PERIOD', priority: 1 },
+      { type: 'MANUAL', priority: -1 },
+      { type: 'MANUAL', priority: 1, fixedMinor: '5' },
+    ]) {
+      expect((await run([{ envelopeId: w.envelopeA, ...bad }])).blockers).toContain(
+        'INVALID_FUNDING_RULE',
+      );
+    }
+    expect(
+      (
+        await run([
+          { envelopeId: w.envelopeA, type: 'MANUAL', priority: 1 },
+          { envelopeId: w.envelopeA, type: 'FIXED_PER_PERIOD', priority: 1, fixedMinor: '5' },
+        ])
+      ).blockers,
+    ).toContain('DUPLICATE_FUNDING_PRIORITY');
+    const foreign = await world();
+    expect(
+      (await run([{ envelopeId: foreign.envelopeA, type: 'MANUAL', priority: 1 }])).blockers,
+    ).toContain('ENVELOPE_NOT_FOUND');
+  });
+
+  it('цель периода: 0 допустим, число вместо строки и неизвестный тип правила отвергаются', async () => {
+    const w = await historicalWorld();
+    const first = await envelope(w, {
+      startingBalanceMinor: 0n,
+      envelopeType: 'CURRENT_EXPENSES',
+      periodSlot: 'FIRST',
+    });
+    const target = (targetMinor: unknown) =>
+      runPreview(prisma, w.budgetId, {
+        ...NO_CHOICES,
+        periodTargets: [{ envelopeId: first, periodStart: '2026-01-01', targetMinor }] as never,
+      });
+    expect((await target('0')).blockers).toEqual([]);
+    expect((await target(null)).blockers).toEqual([]);
+    expect((await target(500)).blockers).toContain('INVALID_AMOUNT');
+    expect((await target('-1')).blockers).toContain('INVALID_AMOUNT');
+
+    const rule = (r: Record<string, unknown>) =>
+      runPreview(prisma, w.budgetId, { ...NO_CHOICES, fundingRules: [r] as never });
+    expect(
+      (await rule({ envelopeId: first, type: 'FIXED_PER_PERIOD', priority: 1, fixedMinor: 500 }))
+        .blockers,
+    ).toContain('INVALID_FUNDING_RULE');
+    expect((await rule({ envelopeId: first, type: 'WHATEVER', priority: 1 })).blockers).toContain(
+      'INVALID_FUNDING_RULE',
+    );
+  });
+
+  it('суммарные проценты выше 100% и отрицательный cash блокируют', async () => {
+    const w = await historicalWorld();
+    const percent = await runPreview(prisma, w.budgetId, {
+      ...NO_CHOICES,
+      fundingRules: [
+        {
+          envelopeId: w.envelopeA,
+          type: 'PERCENT_OF_INCOME',
+          priority: 1,
+          percentBasisPoints: 6000,
+        },
+        {
+          envelopeId: w.envelopeB,
+          type: 'PERCENT_OF_INCOME',
+          priority: 1,
+          percentBasisPoints: 4001,
+        },
+      ],
+    });
+    expect(percent.blockers).toContain('PERCENT_TOTAL_EXCEEDS');
+
+    await tx(w, 'EXPENSE', 20_000_000n);
+    const negative = await runPreview(prisma, w.budgetId, NO_CHOICES);
+    expect(negative.blockers).toContain('NEGATIVE_TOTAL_CASH');
+    expect(negative.freeToAssignMinor).toBe('0');
+  });
+
+  it('блокеры preflight попадают в предпросмотр', async () => {
+    const w = await historicalWorld();
+    await tx(w, 'INCOME', 1n, { occurredOn: isoDay(4) });
+    const preview = await runPreview(prisma, w.budgetId, NO_CHOICES);
+    expect(preview.blockers).toContain('FUTURE_CONFIRMED_FACT');
+  });
+});
