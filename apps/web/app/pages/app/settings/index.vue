@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { definePageMeta } from '#imports';
 
+import TemplatePreviewSheet from '../../../components/funding/TemplatePreviewSheet.vue';
 import CyclePreview from '../../../components/settings/CyclePreview.vue';
 import ReferencePageLayout from '../../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../../components/ui/Button.vue';
@@ -40,6 +41,11 @@ const templateSummary = ref('');
 const templateFailed = ref(false);
 
 const budgetId = computed(() => currentData.value?.workspaces[0]?.budgets[0]?.id);
+// v2 budgets open the shared preview panel; v1 keeps the direct v1 POST.
+const isModelV2 = computed(
+  () => currentData.value?.workspaces[0]?.budgets[0]?.planModelVersion === 2,
+);
+const templateSheetOpen = ref(false);
 const previewCycleStartDay = computed(() => Number(cycleForm.cycleStartDay) || 0);
 const previewPeriodBoundaryOffset = computed(() => Number(cycleForm.periodBoundaryOffset) || 0);
 
@@ -95,9 +101,18 @@ async function saveCycle() {
   }
 }
 
+function onTemplateApplied() {
+  templateSummary.value = 'Базовый шаблон настроен.';
+  templateFailed.value = false;
+}
+
 async function initializeTemplate() {
   const id = budgetId.value;
   if (!id) return;
+  if (isModelV2.value) {
+    templateSheetOpen.value = true;
+    return;
+  }
   templateSaving.value = true;
   templateSummary.value = '';
   templateFailed.value = false;
@@ -152,7 +167,13 @@ onMounted(() => {
           <div class="settings-page__static-row">
             <div>
               <p class="settings-page__static-row-title">Базовый шаблон</p>
-              <p class="settings-page__hint">Создаёт отсутствующие категории и конверты.</p>
+              <p class="settings-page__hint">
+                {{
+                  isModelV2
+                    ? 'Покажем, что создастся, и вы подтвердите. Суммы можно указать позже.'
+                    : 'Создаёт отсутствующие категории и конверты.'
+                }}
+              </p>
             </div>
             <UiButton
               variant="tertiary"
@@ -161,9 +182,16 @@ onMounted(() => {
               :loading="templateSaving"
               @click="initializeTemplate"
             >
-              Создать базовый шаблон
+              {{ isModelV2 ? 'Настроить базовый шаблон' : 'Создать базовый шаблон' }}
             </UiButton>
           </div>
+          <TemplatePreviewSheet
+            v-if="isModelV2 && budgetId"
+            :open="templateSheetOpen"
+            :budget-id="budgetId"
+            @close="templateSheetOpen = false"
+            @applied="onTemplateApplied"
+          />
           <UiStatus
             v-if="templateSummary"
             :label="templateSummary"
