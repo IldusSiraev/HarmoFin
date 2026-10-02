@@ -1,4 +1,5 @@
 import type { CreateTransferInput, TransferDto } from './useBudgetReferenceData.js';
+import type { CreateDirectTransferRequest } from './useEnvelopePlanV2.js';
 
 export type TransferPartFormModel = {
   sourceEnvelopeId: string;
@@ -66,6 +67,17 @@ export function toCreateTransferInput(
       ...(part.comment.trim() ? { comment: part.comment.trim() } : {}),
     })),
     ...(model.comment.trim() ? { comment: model.comment.trim() } : {}),
+  };
+}
+
+// Envelope Plan v2.2: a transfer only moves money between two accounts, so the
+// request carries no envelopes, parts or status.
+export function toDirectTransferInput(model: TransferFormModel): CreateDirectTransferRequest {
+  return {
+    sourceAccountId: model.sourceAccountId,
+    destinationAccountId: model.destinationAccountId,
+    amount: normalizeDecimal(model.total),
+    occurredOn: model.occurredOn,
   };
 }
 

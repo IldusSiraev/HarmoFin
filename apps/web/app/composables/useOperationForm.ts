@@ -16,6 +16,15 @@ export type OperationFormModel = {
   isPlanned: boolean;
 };
 
+export interface OneTimePayEntry {
+  name: string;
+  amount: string;
+  occurredOn: string;
+  accountId: string;
+  categoryId: string;
+  comment?: string;
+}
+
 export function createOperationForm(current?: TransactionDto): OperationFormModel {
   return {
     transactionType: current?.transactionType ?? 'EXPENSE',
