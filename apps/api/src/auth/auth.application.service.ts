@@ -371,7 +371,12 @@ export class AuthApplicationService {
       id: string;
       name: string;
       role: string;
-      budgets: Array<{ id: string; name: string; primaryCurrency: string }>;
+      budgets: Array<{
+        id: string;
+        name: string;
+        primaryCurrency: string;
+        planModelVersion: number;
+      }>;
     }>;
   }> {
     const user = await this.repository.findUserById(userId);
@@ -391,7 +396,7 @@ export class AuthApplicationService {
               name: true,
               budgets: {
                 where: { status: 'ACTIVE' },
-                select: { id: true, name: true, primaryCurrency: true },
+                select: { id: true, name: true, primaryCurrency: true, planModelVersion: true },
               },
             },
           },
