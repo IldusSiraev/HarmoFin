@@ -17,12 +17,18 @@ const api = {
   completePlanOccurrence: vi.fn(),
   createPlanOccurrenceDraft: vi.fn(),
 };
+const v2 = {
+  listObligationOccurrences: vi.fn(),
+  payObligation: vi.fn(),
+  skipObligationOccurrence: vi.fn(),
+};
+const budgetRow: { id: string; name: string; primaryCurrency: string; planModelVersion?: 1 | 2 } = {
+  id: 'budget-id',
+  name: 'Бюджет',
+  primaryCurrency: 'RUB',
+};
 const auth = {
-  currentData: {
-    value: {
-      workspaces: [{ budgets: [{ id: 'budget-id', name: 'Бюджет', primaryCurrency: 'RUB' }] }],
-    },
-  },
+  currentData: { value: { workspaces: [{ budgets: [budgetRow] }] } },
   loadMe: vi.fn(),
 };
 const { navigateTo, route } = vi.hoisted(() => ({ navigateTo: vi.fn(), route: { query: {} } }));
@@ -31,6 +37,10 @@ vi.mock('#imports', () => ({
   definePageMeta: vi.fn(),
   navigateTo,
   useRoute: () => route,
+}));
+vi.mock('../../composables/useEnvelopePlanV2.js', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useEnvelopePlanV2: () => v2,
 }));
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => auth }));
 vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) => ({
@@ -274,5 +284,341 @@ describe('plans page', () => {
       'plans-calendar__cell--selected',
     );
     expect(wrapper.findAll('.plans-calendar__cell--selected')).toHaveLength(1);
+  });
+});
+
+describe('plans page: v2 obligations', () => {
+  let wrapper: ReturnType<typeof mountV2> | null = null;
+
+  const daycare = {
+    id: 'occ-daycare',
+    planId: 'plan-daycare',
+    name: 'Детский сад',
+    scheduledOn: '2026-09-10',
+    status: 'DUE' as const,
+    expectedMinor: '300000',
+    paidMinor: '0',
+    unpaidMinor: '300000',
+    categoryId: 'category-id',
+    envelopeId: 'mandatory-envelope',
+  };
+  const rent = {
+    ...daycare,
+    id: 'occ-rent',
+    planId: 'plan-rent',
+    name: 'Аренда',
+    scheduledOn: '2026-09-30',
+    status: 'PENDING' as const,
+    expectedMinor: '4000000',
+    unpaidMinor: '4000000',
+  };
+  const confirmStub = {
+    UiConfirmDialog: {
+      props: ['open'],
+      emits: ['confirm', 'cancel'],
+      template:
+        '<div v-if="open"><button data-testid="confirm-yes" @click="$emit(\'confirm\')">Да</button></div>',
+    },
+  };
+
+  function mountV2() {
+    return mount(PlansPage, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+          ...confirmStub,
+        },
+      },
+    });
+  }
+
+  async function openPay(id: string) {
+    await wrapper!.get(`[data-testid="obligation-pay-${id}"]`).trigger('click');
+    await flushPromises();
+  }
+  async function fillAndSubmit(amount: string, willPayMore = false) {
+    await wrapper!.get('[data-testid="pay-amount"]').setValue(amount);
+    await wrapper!.get('[data-testid="pill-accountId-account-id"]').trigger('click');
+    if (willPayMore) await wrapper!.get('[data-testid="pay-will-pay-more"]').setValue(true);
+    await wrapper!.get('[data-testid="pay-submit"]').trigger('click');
+    await flushPromises();
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-24T00:00:00.000Z'));
+    route.query = {};
+    budgetRow.planModelVersion = 2;
+    api.listRegularPlans.mockResolvedValue([]);
+    api.listPlanOccurrences.mockResolvedValue([]);
+    api.listTransactions.mockResolvedValue({ items: [], nextCursor: null });
+    api.listEnvelopes.mockResolvedValue([]);
+    v2.listObligationOccurrences.mockResolvedValue({ items: [daycare, rent] });
+    v2.payObligation.mockResolvedValue({ transaction: null, occurrence: daycare, warnings: [] });
+    v2.skipObligationOccurrence.mockResolvedValue({ transaction: null, occurrence: daycare });
+    api.listAccounts.mockResolvedValue([{ id: 'account-id', name: 'Карта' }]);
+    api.listCategories.mockResolvedValue([
+      { id: 'category-id', name: 'Детский сад', categoryType: 'EXPENSE', icon: null },
+    ]);
+  });
+
+  afterEach(() => {
+    wrapper?.unmount();
+    wrapper = null;
+    document.body.innerHTML = '';
+    delete budgetRow.planModelVersion;
+    vi.useRealTimers();
+  });
+
+  it('lists open obligations with an overdue marker before payment and skips v1 plan loads', async () => {
+    wrapper = mountV2();
+    await flushPromises();
+
+    expect(v2.listObligationOccurrences).toHaveBeenCalledWith('budget-id', expect.anything());
+    expect(api.listRegularPlans).not.toHaveBeenCalled();
+    expect(api.listPlanOccurrences).not.toHaveBeenCalled();
+    expect(wrapper.get('[data-testid="obligation-row-occ-daycare"]').text()).toContain(
+      'Просрочено',
+    );
+    expect(wrapper.get('[data-testid="obligation-row-occ-rent"]').text()).not.toContain(
+      'Просрочено',
+    );
+  });
+
+  it('pays the actual amount once, then rereads the server state', async () => {
+    wrapper = mountV2();
+    await flushPromises();
+    v2.listObligationOccurrences.mockResolvedValue({
+      items: [
+        { ...daycare, status: 'COMPLETED', paidMinor: '200000', unpaidMinor: '100000' },
+        rent,
+      ],
+    });
+
+    await openPay('occ-daycare');
+    await fillAndSubmit('2000.00');
+
+    expect(v2.payObligation).toHaveBeenCalledTimes(1);
+    expect(v2.payObligation).toHaveBeenCalledWith(
+      'budget-id',
+      'occ-daycare',
+      expect.objectContaining({
+        amount: '2000.00',
+        willPayMore: false,
+        accountId: 'account-id',
+        categoryId: 'category-id',
+      }),
+      expect.any(String),
+    );
+    expect(api.completePlanOccurrence).not.toHaveBeenCalled();
+    expect(v2.listObligationOccurrences).toHaveBeenCalledTimes(2);
+    expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(false);
+    expect(
+      wrapper.get('[data-testid="obligation-row-occ-daycare"]').text().replace(/\s/g, ' '),
+    ).toContain('1 000,00');
+  });
+
+  it('records a partial payment with willPayMore and leaves the occurrence open from the server', async () => {
+    wrapper = mountV2();
+    await flushPromises();
+    v2.listObligationOccurrences.mockResolvedValue({
+      items: [daycare, { ...rent, paidMinor: '3500000', unpaidMinor: '500000' }],
+    });
+
+    await openPay('occ-rent');
+    await fillAndSubmit('35000.00', true);
+
+    expect(v2.payObligation).toHaveBeenCalledTimes(1);
+    expect(v2.payObligation).toHaveBeenCalledWith(
+      'budget-id',
+      'occ-rent',
+      expect.objectContaining({ amount: '35000.00', willPayMore: true }),
+      expect.any(String),
+    );
+    const row = wrapper.get('[data-testid="obligation-row-occ-rent"]');
+    expect(row.find('[data-testid="obligation-pay-occ-rent"]').exists()).toBe(true);
+    expect(row.text().replace(/\s/g, ' ')).toContain('5 000,00');
+  });
+
+  it('skips through the server action without creating a payment', async () => {
+    wrapper = mountV2();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="obligation-skip-occ-daycare"]').trigger('click');
+    await wrapper.get('[data-testid="confirm-yes"]').trigger('click');
+    await flushPromises();
+
+    expect(v2.skipObligationOccurrence).toHaveBeenCalledWith(
+      'budget-id',
+      'occ-daycare',
+      expect.any(String),
+    );
+    expect(v2.payObligation).not.toHaveBeenCalled();
+    expect(api.createPlanOccurrenceDraft).not.toHaveBeenCalled();
+  });
+
+  it('protects against a double submit', async () => {
+    v2.payObligation.mockReturnValue(new Promise(() => undefined));
+    wrapper = mountV2();
+    await flushPromises();
+
+    await openPay('occ-daycare');
+    await wrapper.get('[data-testid="pill-accountId-account-id"]').trigger('click');
+    const submit = wrapper.get('[data-testid="pay-submit"]');
+    await submit.trigger('click');
+    await submit.trigger('click');
+
+    expect(v2.payObligation).toHaveBeenCalledTimes(1);
+  });
+
+  it('reuses the key on retry of an unchanged attempt and shows a Russian server error', async () => {
+    v2.payObligation
+      .mockRejectedValueOnce(
+        new ApiRequestError(409, { code: 'OCCURRENCE_NOT_OPEN', detail: 'raw english detail' }),
+      )
+      .mockResolvedValueOnce({ transaction: null, occurrence: daycare, warnings: [] });
+    wrapper = mountV2();
+    await flushPromises();
+
+    await openPay('occ-daycare');
+    await wrapper.get('[data-testid="pill-accountId-account-id"]').trigger('click');
+    await wrapper.get('[data-testid="pay-submit"]').trigger('click');
+    await flushPromises();
+
+    const errorText = wrapper.get('[data-testid="pay-error"]').text();
+    expect(errorText).toContain('уже закрыто');
+    expect(errorText).not.toContain('raw english detail');
+
+    await wrapper.get('[data-testid="pay-submit"]').trigger('click');
+    await flushPromises();
+
+    expect(v2.payObligation).toHaveBeenCalledTimes(2);
+    expect(v2.payObligation.mock.calls[1]?.[3]).toBe(v2.payObligation.mock.calls[0]?.[3]);
+  });
+
+  it('labels icon-only row actions with the obligation name and shows Russian dates', async () => {
+    wrapper = mountV2();
+    await flushPromises();
+
+    const pay = wrapper.get('[data-testid="obligation-pay-occ-daycare"]');
+    expect(pay.attributes('aria-label')).toBe('Оплатить Детский сад');
+    expect(pay.text()).toBe('');
+    expect(
+      wrapper.get('[data-testid="obligation-skip-occ-daycare"]').attributes('aria-label'),
+    ).toBe('Пропустить Детский сад');
+    const rowText = wrapper.get('[data-testid="obligation-row-occ-daycare"]').text();
+    expect(rowText).toContain('10 сен');
+    expect(rowText).not.toContain('2026-09-10');
+  });
+
+  it('focuses the amount field on open and returns focus to the row button on cancel and Escape', async () => {
+    wrapper = mountV2();
+    await flushPromises();
+    const pay = wrapper.get('[data-testid="obligation-pay-occ-daycare"]');
+
+    (pay.element as HTMLElement).focus();
+    await pay.trigger('click');
+    await flushPromises();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(document.activeElement?.id).toBe('obligation-pay-amount');
+
+    await wrapper.get('[data-testid="pay-cancel"]').trigger('click');
+    await flushPromises();
+    expect(document.activeElement).toBe(pay.element);
+
+    await pay.trigger('click');
+    await flushPromises();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await flushPromises();
+    expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(false);
+    expect(document.activeElement).toBe(pay.element);
+  });
+
+  it('moves focus to the list after a successful payment', async () => {
+    wrapper = mountV2();
+    await flushPromises();
+    await openPay('occ-daycare');
+    await fillAndSubmit('3000.00');
+
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="obligation-list"]').element);
+  });
+
+  it('sends one payment with a stable key and the date on a double submit', async () => {
+    v2.payObligation.mockReturnValue(new Promise(() => undefined));
+    wrapper = mountV2();
+    await flushPromises();
+
+    await openPay('occ-daycare');
+    await wrapper.get('[data-testid="pill-accountId-account-id"]').trigger('click');
+    const submit = wrapper.get('[data-testid="pay-submit"]');
+    await submit.trigger('click');
+    await submit.trigger('click');
+
+    expect(v2.payObligation).toHaveBeenCalledTimes(1);
+    expect(v2.payObligation.mock.calls[0]?.[2]).toEqual(
+      expect.objectContaining({ occurredOn: expect.stringMatching(/^2026-09-2[34]$/) }),
+    );
+    expect(v2.payObligation.mock.calls[0]?.[3]).toEqual(expect.any(String));
+  });
+
+  it('rereads obligations after a skip and explains a 409 in Russian', async () => {
+    wrapper = mountV2();
+    await flushPromises();
+    await wrapper.get('[data-testid="obligation-skip-occ-daycare"]').trigger('click');
+    await wrapper.get('[data-testid="confirm-yes"]').trigger('click');
+    await flushPromises();
+    expect(v2.listObligationOccurrences).toHaveBeenCalledTimes(2);
+
+    v2.skipObligationOccurrence.mockRejectedValueOnce(
+      new ApiRequestError(409, { code: 'OCCURRENCE_HAS_PAYMENTS', detail: 'raw english detail' }),
+    );
+    await wrapper.get('[data-testid="obligation-skip-occ-rent"]').trigger('click');
+    await wrapper.get('[data-testid="confirm-yes"]').trigger('click');
+    await flushPromises();
+    const alertText = wrapper.get('.plans-page__error').text();
+    expect(alertText).toContain('уже есть оплаты');
+    expect(alertText).not.toContain('raw english detail');
+  });
+
+  it('keeps the v1 skip and complete actions on the legacy methods', async () => {
+    budgetRow.planModelVersion = 1;
+    api.listPlanOccurrences.mockResolvedValue([occurrence]);
+    wrapper = mountV2();
+    await flushPromises();
+    await wrapper.get('[data-date="2026-09-10"]').trigger('click');
+    await flushPromises();
+
+    await wrapper.findAll('input[type="checkbox"]')[0]!.setValue(true);
+    await flushPromises();
+    expect(api.completePlanOccurrence).toHaveBeenCalledWith(
+      'budget-id',
+      'occurrence-id',
+      expect.any(String),
+    );
+
+    await wrapper.findAll('[data-testid="action-menu-trigger"]')[0]!.trigger('click');
+    await wrapper.findAll('[data-testid="row-skip"]')[0]!.trigger('click');
+    await wrapper.get('[data-testid="confirm-yes"]').trigger('click');
+    await flushPromises();
+    expect(api.skipPlanOccurrence).toHaveBeenCalledWith(
+      'budget-id',
+      'occurrence-id',
+      expect.any(String),
+    );
+    expect(v2.skipObligationOccurrence).not.toHaveBeenCalled();
+    expect(v2.payObligation).not.toHaveBeenCalled();
+  });
+
+  it('keeps the legacy plans UI for a v1 budget', async () => {
+    budgetRow.planModelVersion = 1;
+    wrapper = mountV2();
+    await flushPromises();
+
+    expect(v2.listObligationOccurrences).not.toHaveBeenCalled();
+    expect(api.listRegularPlans).toHaveBeenCalled();
+    expect(wrapper.find('.plans-page__main').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="obligation-list"]').exists()).toBe(false);
   });
 });

@@ -371,6 +371,19 @@ export interface OccurrenceListQuery {
   to?: string;
 }
 
+export interface ObligationOccurrenceItem {
+  id: string;
+  planId: string;
+  name: string;
+  scheduledOn: string;
+  status: OccurrenceStatus;
+  expectedMinor: string;
+  paidMinor: string;
+  unpaidMinor: string;
+  categoryId: string | null;
+  envelopeId: string | null;
+}
+
 // Income plans
 
 export interface IncomeOccurrenceItem {
@@ -466,6 +479,16 @@ export function useEnvelopePlanV2() {
         `${base(budgetId)}/obligations/${encodeURIComponent(occurrenceId)}/pay`,
         input,
         idempotencyKey,
+      ),
+    skipObligationOccurrence: (budgetId: string, occurrenceId: string, idempotencyKey: string) =>
+      postKeyed<ObligationResultResponse>(
+        `${base(budgetId)}/obligations/${encodeURIComponent(occurrenceId)}/skip`,
+        {},
+        idempotencyKey,
+      ),
+    listObligationOccurrences: (budgetId: string, filter: OccurrenceListQuery = {}) =>
+      get<{ items: ObligationOccurrenceItem[] }>(
+        `${base(budgetId)}/obligations/occurrences${query({ ...filter })}`,
       ),
     getTemplatePreview: (budgetId: string) =>
       get<TemplatePreviewResponse>(`${base(budgetId)}/reference-template/preview`),
