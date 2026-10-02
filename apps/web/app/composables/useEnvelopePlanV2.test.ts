@@ -278,4 +278,19 @@ describe('useEnvelopePlanV2', () => {
       expect(call, `${path} with ${key}`).toBeDefined();
     }
   });
+
+  it.each([
+    ['confirmPeriodTarget', 'confirm-target'],
+    ['rejectPeriodTarget', 'reject-target'],
+  ] as const)('%s posts an empty keyed body to the encoded period path', async (method, path) => {
+    const api = useEnvelopePlanV2();
+    await api[method](budgetId, 'period/id 1', 'key-1');
+
+    const { url, init, headers } = lastCall();
+    expect(url).toBe(`${apiUrl}${base}/periods/period%2Fid%201/${path}`);
+    expect(init.method).toBe('POST');
+    expect(init.body).toBe('{}');
+    expect(headers.get('Idempotency-Key')).toBe('key-1');
+    expect(headers.get('x-csrf-token')).toBe('csrf-1');
+  });
 });

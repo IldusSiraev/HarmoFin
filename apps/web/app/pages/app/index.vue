@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { definePageMeta } from '#imports';
 import { RefreshCw, Wallet } from '@lucide/vue';
 
@@ -9,6 +9,7 @@ import AvailableBudgetCard from '../../components/dashboard/AvailableBudgetCard.
 import BalanceList from '../../components/dashboard/BalanceList.vue';
 import DashboardWarnings from '../../components/dashboard/DashboardWarnings.vue';
 import OnboardingChecklist from '../../components/dashboard/OnboardingChecklist.vue';
+import PeriodDecisionCard from '../../components/dashboard/PeriodDecisionCard.vue';
 import PeriodLeftoverPrompt from '../../components/dashboard/PeriodLeftoverPrompt.vue';
 import FinancialMonthTimeline from '../../components/dashboard/FinancialMonthTimeline.vue';
 import RecentOperations from '../../components/dashboard/RecentOperations.vue';
@@ -116,6 +117,33 @@ onMounted(() => {
   void loadDashboard();
 });
 
+// Period leftover/deficit warnings are decisions owned by PeriodDecisionCard;
+// the shared warnings list keeps only the coverage ones.
+const coverageWarnings = computed(
+  () => dashboardV2.value?.warnings.filter((warning) => warning.kind !== 'PERIOD') ?? [],
+);
+
+// Re-reads the server dashboard after a decision without swapping the page for
+// the loading skeleton, so focus stays on the decision card.
+const pageTitle = ref<HTMLElement | null>(null);
+function focusFallback(preferCard = false) {
+  const card = preferCard ? document.getElementById('period-decision-title') : null;
+  (card ?? pageTitle.value)?.focus();
+}
+
+async function refreshDashboardV2() {
+  const budget = activeBudget.value;
+  if (!budget) return;
+  try {
+    dashboardV2.value = await (planV2 ?? useEnvelopePlanV2()).getDashboard(budget.id);
+    // The decision card may be gone now: keep focus on a stable element.
+    await nextTick();
+    focusFallback(true);
+  } catch {
+    error.value = 'Не удалось обновить сводку бюджета.';
+  }
+}
+
 // A dashboard total is a nice-to-have next to the balance rows below it, not
 // something worth failing the whole page over — a rejection here becomes
 // "no total shown" instead of the generic error state.
@@ -210,7 +238,7 @@ async function loadDashboard() {
       <div class="dashboard-header">
         <div>
           <p class="dashboard-kicker">{{ workspaceName() }}</p>
-          <h1 class="dashboard-title">{{ activeBudget.name }}</h1>
+          <h1 ref="pageTitle" class="dashboard-title" tabindex="-1">{{ activeBudget.name }}</h1>
         </div>
         <div class="dashboard-header__actions">
           <AppAddMenu tooltip-placement="bottom" />
@@ -234,7 +262,17 @@ async function loadDashboard() {
           @template-initialized="loadDashboard"
         />
 
-        <DashboardWarnings :v2-warnings="dashboardV2.warnings" />
+        <PeriodDecisionCard
+          :budget-id="activeBudget.id"
+          :warnings="dashboardV2.warnings"
+          :suggested-target="dashboardV2.suggestedTarget"
+          :period-id="dashboardV2.period.periodId"
+          :protected-assignments="dashboardV2.protectedAssignments"
+          @changed="refreshDashboardV2"
+          @focus-fallback="focusFallback()"
+        />
+
+        <DashboardWarnings :v2-warnings="coverageWarnings" />
 
         <AvailableBudgetCard :dashboard="dashboardV2" />
 

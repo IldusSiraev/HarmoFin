@@ -31,7 +31,13 @@ const auth = {
 
 vi.mock('#imports', () => ({ definePageMeta: vi.fn(), navigateTo: vi.fn() }));
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => auth }));
-const v2Api = vi.hoisted(() => ({ getDashboard: vi.fn() }));
+const v2Api = vi.hoisted(() => ({
+  getDashboard: vi.fn(),
+  move: vi.fn(),
+  listEnvelopes: vi.fn(),
+  confirmPeriodTarget: vi.fn(),
+  rejectPeriodTarget: vi.fn(),
+}));
 vi.mock('../../composables/useEnvelopePlanV2.js', () => ({ useEnvelopePlanV2: () => v2Api }));
 vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -412,5 +418,90 @@ describe('dashboard page, plan model 2', () => {
 
     expect(wrapper.text()).toContain('Настройте лимит периода');
     expect(normalize(wrapper.text())).not.toMatch(/(^|[^\d,])0,00 ₽/);
+  });
+
+  const leftoverWarning = {
+    kind: 'PERIOD',
+    code: 'PERIOD_LEFTOVER',
+    message: 'Остаток прошлого периода 10 000,00 ₽ ещё не передан.',
+    amountMinor: '1000000',
+    envelopeId: 'env-current',
+    periodId: 'period-old',
+    balanceMinor: '1000000',
+    actionPath: '/app/envelopes?leftoverPeriod=period-old',
+  };
+
+  it('shows last period leftover as a decision, not added automatically, without the v1 prompt', async () => {
+    v2Api.getDashboard.mockResolvedValue({ ...dashboardV2, warnings: [leftoverWarning] });
+    const wrapper = mount(DashboardPage, { global: { stubs } });
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="period-decision-card"]').exists()).toBe(true);
+    expect(normalize(wrapper.text())).toContain('10 000,00 ₽');
+    expect(wrapper.find('[data-testid="period-leftover-prompt"]').exists()).toBe(false);
+    expect(v2Api.move).not.toHaveBeenCalled();
+  });
+
+  it('moves leftover only after confirmation and then rereads the dashboard', async () => {
+    v2Api.getDashboard.mockResolvedValueOnce({ ...dashboardV2, warnings: [leftoverWarning] });
+    v2Api.getDashboard.mockResolvedValue(dashboardV2);
+    v2Api.move.mockResolvedValue({ movementId: 'm1' });
+    const wrapper = mount(DashboardPage, { global: { stubs } });
+    await flushPromises();
+    const initialReads = v2Api.getDashboard.mock.calls.length;
+
+    await wrapper.get('[data-testid="action-menu-trigger"]').trigger('click');
+    await wrapper.get('[data-action="leftover-free"]').trigger('click');
+    expect(v2Api.move).not.toHaveBeenCalled();
+    await wrapper.get('[data-testid="leftover-confirm"]').trigger('click');
+    await flushPromises();
+
+    expect(v2Api.move).toHaveBeenCalledTimes(1);
+    expect(v2Api.getDashboard).toHaveBeenCalledTimes(initialReads + 1);
+    expect(wrapper.find('[data-testid="period-decision-card"]').exists()).toBe(false);
+  });
+
+  it('offers no move for a negative previous period balance', async () => {
+    v2Api.getDashboard.mockResolvedValue({
+      ...dashboardV2,
+      warnings: [
+        {
+          ...leftoverWarning,
+          code: 'PERIOD_DEFICIT',
+          balanceMinor: '-1000000',
+          actionPath: '/app/envelopes?coverPeriod=period-old',
+        },
+      ],
+    });
+    const wrapper = mount(DashboardPage, { global: { stubs } });
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="period-decision-card"]').exists()).toBe(true);
+    expect(wrapper.text()).not.toContain('Перенести');
+    expect(wrapper.find('[data-testid="action-menu-trigger"]').exists()).toBe(false);
+  });
+
+  it('confirms the suggested period target only on explicit click', async () => {
+    v2Api.getDashboard.mockResolvedValue({ ...dashboardV2, suggestedTarget: '5000000' });
+    v2Api.confirmPeriodTarget.mockResolvedValue({ periodId: 'period-id' });
+    const wrapper = mount(DashboardPage, { global: { stubs } });
+    await flushPromises();
+
+    expect(normalize(wrapper.text())).toContain('Предложенный план периода');
+    expect(v2Api.confirmPeriodTarget).not.toHaveBeenCalled();
+    await wrapper.get('[data-testid="target-confirm"]').trigger('click');
+    await flushPromises();
+    expect(v2Api.confirmPeriodTarget).toHaveBeenCalledTimes(1);
+    expect(v2Api.confirmPeriodTarget.mock.calls[0]![1]).toBe('period-id');
+  });
+
+  it('does not render the decision card for plan model 1', async () => {
+    delete budget.planModelVersion;
+    api.getDashboardSummary.mockResolvedValue(summary);
+    api.getAccountsSummary.mockResolvedValue({ totalMinor: '0' });
+    api.getEnvelopesSummary.mockResolvedValue({ totalMinor: '0' });
+    const wrapper = mount(DashboardPage, { global: { stubs } });
+    await flushPromises();
+    expect(wrapper.find('[data-testid="period-decision-card"]').exists()).toBe(false);
   });
 });

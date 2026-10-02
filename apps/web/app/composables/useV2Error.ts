@@ -12,6 +12,10 @@ const MESSAGES: Record<string, string> = {
   IDEMPOTENCY_CONFLICT:
     'Этот запрос уже отправлялся с другими данными. Проверьте поля и повторите.',
   MODEL_VERSION_MISMATCH: 'Модель бюджета изменилась. Обновите страницу и повторите.',
+  INSUFFICIENT_ENVELOPE_BALANCE:
+    'Нельзя перенести больше доступного остатка. Обновите данные и проверьте сумму.',
+  PERIOD_TARGET_NOT_DRAFT: 'План периода уже изменился. Обновите страницу.',
+  PERIOD_TARGET_ALREADY_CONFIRMED: 'План периода уже подтверждён. Обновите страницу.',
   VALIDATION_FAILED: 'Проверьте введённые данные.',
 };
 
@@ -19,6 +23,7 @@ export function v2ErrorMessage(error: unknown, fallback: string): string {
   if (!(error instanceof ApiRequestError)) return fallback;
   const mapped = MESSAGES[error.problem.code];
   if (mapped) return mapped;
+  if (error.status === 403) return 'Недостаточно прав для этого действия.';
   if (error.status === 422 || error.status === 400) return MESSAGES.VALIDATION_FAILED!;
   return fallback;
 }

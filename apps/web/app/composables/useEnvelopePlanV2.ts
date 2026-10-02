@@ -97,6 +97,14 @@ export interface MoveEnvelopeRequest {
   amount: string;
 }
 
+export interface PeriodTargetResponse {
+  periodId: string;
+  envelopeId: string;
+  periodStart: string;
+  periodEnd: string;
+  [key: string]: unknown;
+}
+
 // Dashboard
 
 export interface DashboardV2Response {
@@ -474,6 +482,18 @@ export function useEnvelopePlanV2() {
       ),
     move: (budgetId: string, input: MoveEnvelopeRequest, idempotencyKey: string) =>
       postKeyed<EnvelopePlanDto>(`${base(budgetId)}/movements`, input, idempotencyKey),
+    confirmPeriodTarget: (budgetId: string, periodId: string, idempotencyKey: string) =>
+      postKeyed<PeriodTargetResponse>(
+        `${base(budgetId)}/periods/${encodeURIComponent(periodId)}/confirm-target`,
+        {},
+        idempotencyKey,
+      ),
+    rejectPeriodTarget: (budgetId: string, periodId: string, idempotencyKey: string) =>
+      postKeyed<PeriodTargetResponse>(
+        `${base(budgetId)}/periods/${encodeURIComponent(periodId)}/reject-target`,
+        {},
+        idempotencyKey,
+      ),
     payObligation: (
       budgetId: string,
       occurrenceId: string,
