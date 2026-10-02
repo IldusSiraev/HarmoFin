@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { type EnvelopeType, Prisma } from '@prisma/client';
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 
 import { calculateSpendable } from '../common/finance/v2-money.domain.js';
@@ -33,6 +33,43 @@ export type DashboardV2Summary = {
   /** Last day of the mandatory-protection horizon (end of the next period). */
   horizonEnd: string;
   upcoming: Array<{ occurrenceId: string; scheduledOn: string; unpaidMinor: string }>;
+  /**
+   * True when the unpaid mandatory total may miss occurrences: the reader cannot materialize them
+   * (VIEWER) or asOf is outside the period containing today (nothing materialized for it).
+   */
+  dueMayBeIncomplete: boolean;
+  accounts: Array<{ id: string; name: string; balanceMinor: string }>;
+  /** Positive assignment balances held outside the current main period (mandatory, savings, leftovers). */
+  protectedAssignments: DashboardV2ProtectedAssignment[];
+  warnings: DashboardV2Warning[];
+  onboarding: {
+    categoriesSeeded: boolean;
+    hasAccounts: boolean;
+    needsOpeningAssignment: boolean;
+    needsPeriodSetup: boolean;
+    hasMandatoryPlans: boolean;
+  };
+};
+
+export type DashboardV2ProtectedAssignment = {
+  envelopeId: string;
+  envelopeName: string;
+  envelopeType: EnvelopeType;
+  periodId: string | null;
+  balanceMinor: string;
+};
+
+export type DashboardV2Warning = {
+  kind: 'PERIOD' | 'COVERAGE';
+  code: 'PERIOD_LEFTOVER' | 'PERIOD_DEFICIT' | 'MANDATORY_GAP' | 'CASH_SHORTFALL';
+  /** Russian text status so the state never relies on colour alone. */
+  message: string;
+  amountMinor: string;
+  envelopeId: string | null;
+  periodId: string | null;
+  /** Signed envelope balance for PERIOD warnings, null for COVERAGE ones. */
+  balanceMinor: string | null;
+  actionPath: string;
 };
 
 function invalidDate(): BadRequestException {
@@ -69,6 +106,16 @@ function isSerializationFailure(error: unknown): boolean {
 
 const positive = (value: bigint) => (value > 0n ? value : 0n);
 
+/** Human text for a minor-unit amount: "12 345 ₽" or "12 345,50 ₽" (display text only). */
+function rubles(minor: bigint): string {
+  const negative = minor < 0n;
+  const abs = negative ? -minor : minor;
+  const whole = (abs / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  const kopecks = abs % 100n;
+  const tail = kopecks === 0n ? '' : `,${kopecks.toString().padStart(2, '0')}`;
+  return `${negative ? '-' : ''}${whole}${tail}\u00a0\u20bd`;
+}
+
 /**
  * One consistent server-side projection of the safe spendable number (spec v2.2 section 8).
  * The read is one RepeatableRead READ ONLY transaction without locks (cash, balances and mandatory
@@ -83,19 +130,34 @@ export class DashboardV2ApplicationService {
     private readonly repository: DashboardV2Repository = new DashboardV2Repository(prisma),
   ) {}
 
-  async summary(userId: string, budgetId: string, asOf: string): Promise<DashboardV2Summary> {
-    assertAsOf(asOf);
+  /** `asOfInput` defaults to today in the budget timezone. */
+  async summary(userId: string, budgetId: string, asOfInput?: string): Promise<DashboardV2Summary> {
+    if (asOfInput !== undefined) assertAsOf(asOfInput);
     const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
+    const asOf = asOfInput ?? (await this.todayOf(budgetId, model.workspaceId));
     await this.retry(() => this.prepareCurrentPeriod(budgetId, model.workspaceId, userId, asOf));
     return this.retry(() =>
       this.prisma.$transaction(
         async (tx) => {
           await tx.$executeRaw`SET TRANSACTION READ ONLY`;
-          return this.compute(tx, budgetId, model.workspaceId, asOf);
+          return this.compute(tx, budgetId, model.workspaceId, userId, asOf);
         },
         { ...TX_OPTIONS, isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
       ),
     );
+  }
+
+  private async todayOf(budgetId: string, workspaceId: string): Promise<string> {
+    const settings = await this.prisma.$transaction((tx) =>
+      this.repository.budgetSettings(tx, budgetId, workspaceId),
+    );
+    if (!settings) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        detail: 'Бюджет не найден или недоступен для этого пользователя.',
+      });
+    }
+    return todayInTimezone(new Date(), settings.timezone);
   }
 
   private async retry<T>(run: () => Promise<T>): Promise<T> {
@@ -151,6 +213,7 @@ export class DashboardV2ApplicationService {
     tx: Prisma.TransactionClient,
     budgetId: string,
     workspaceId: string,
+    userId: string,
     asOf: string,
   ): Promise<DashboardV2Summary> {
     const repo = this.repository;
@@ -214,6 +277,87 @@ export class DashboardV2ApplicationService {
         ? formatMinorUnits(periodRow.targetMinor)
         : null;
 
+    const today = todayInTimezone(new Date(), settings.timezone);
+    const currentPeriod = (await cycleAndPeriodAt(tx, budgetId, today, settings)).period;
+    const role = await repo.memberRole(tx, workspaceId, userId);
+    const dueMayBeIncomplete =
+      !role || !WRITE_ROLES.has(role) || asOf < currentPeriod.start || asOf > currentPeriod.end;
+
+    const envelopeById = new Map(envelopes.map((envelope) => [envelope.id, envelope]));
+    const isCurrentRow = (row: { envelopeId: string; periodId: string | null }) =>
+      periodRow !== null &&
+      row.envelopeId === periodRow.envelopeId &&
+      row.periodId === periodRow.id;
+    const periodRowIds = rows
+      .filter((row) => row.periodId !== null && !isCurrentRow(row))
+      .map((row) => row.periodId as string);
+    const ranges = new Map(
+      (await repo.periodRanges(tx, budgetId, periodRowIds)).map((range) => [range.id, range]),
+    );
+
+    const protectedAssignments: DashboardV2ProtectedAssignment[] = [];
+    const warnings: DashboardV2Warning[] = [];
+    for (const row of rows) {
+      const envelope = envelopeById.get(row.envelopeId);
+      if (!envelope || isCurrentRow(row)) continue;
+      if (row.balance > 0n) {
+        protectedAssignments.push({
+          envelopeId: row.envelopeId,
+          envelopeName: envelope.name,
+          envelopeType: envelope.envelopeType,
+          periodId: row.periodId,
+          balanceMinor: formatMinorUnits(row.balance),
+        });
+      }
+      const range = row.periodId ? ranges.get(row.periodId) : undefined;
+      if (!range || range.endsOn >= period.start || row.balance === 0n) continue;
+      const leftover = row.balance > 0n;
+      warnings.push({
+        kind: 'PERIOD',
+        code: leftover ? 'PERIOD_LEFTOVER' : 'PERIOD_DEFICIT',
+        message: leftover
+          ? `Остаток прошлого периода ${rubles(row.balance)} ещё не передан: решите, куда его направить.`
+          : `Перерасход прошлого периода ${rubles(-row.balance)}: покройте его отдельным назначением.`,
+        amountMinor: formatMinorUnits(leftover ? row.balance : -row.balance),
+        envelopeId: row.envelopeId,
+        periodId: row.periodId,
+        balanceMinor: formatMinorUnits(row.balance),
+        actionPath: leftover
+          ? `/app/envelopes?leftoverPeriod=${row.periodId}`
+          : `/app/envelopes?coverPeriod=${row.periodId}`,
+      });
+    }
+    if (result.mandatoryGap > 0n) {
+      warnings.push({
+        kind: 'COVERAGE',
+        code: 'MANDATORY_GAP',
+        message: `Не хватает на обязательства ${rubles(result.mandatoryGap)}: можно потратить меньше остатка периода. Покройте обязательства.`,
+        amountMinor: formatMinorUnits(result.mandatoryGap),
+        envelopeId: null,
+        periodId: null,
+        balanceMinor: null,
+        actionPath: '/app/envelopes?cover=mandatory',
+      });
+    }
+    if (result.unbackedAssignments > 0n) {
+      warnings.push({
+        kind: 'COVERAGE',
+        code: 'CASH_SHORTFALL',
+        message: `Не хватает денег на счетах ${rubles(result.unbackedAssignments)} для назначенных сумм. Проверьте счета и назначения.`,
+        amountMinor: formatMinorUnits(result.unbackedAssignments),
+        envelopeId: null,
+        periodId: null,
+        balanceMinor: null,
+        actionPath: '/app/accounts',
+      });
+    }
+
+    const accounts = await repo.accounts(tx, budgetId, instant);
+    const mandatoryIds = envelopes
+      .filter((envelope) => envelope.envelopeType === 'MANDATORY_EXPENSES')
+      .map((envelope) => envelope.id);
+    const hasAssignments = await repo.hasConfirmedAssignments(tx, budgetId, asOf);
+
     return {
       cashMinor: formatMinorUnits(cash),
       currentBalanceMinor: formatMinorUnits(mainBalance),
@@ -234,6 +378,21 @@ export class DashboardV2ApplicationService {
         scheduledOn: item.scheduledOn,
         unpaidMinor: formatMinorUnits(item.unpaidMinor),
       })),
+      dueMayBeIncomplete,
+      accounts: accounts.map((account) => ({
+        id: account.id,
+        name: account.name,
+        balanceMinor: formatMinorUnits(account.balanceMinor),
+      })),
+      protectedAssignments,
+      warnings,
+      onboarding: {
+        categoriesSeeded: envelopes.length > 0 || (await repo.hasCategories(tx, budgetId)),
+        hasAccounts: accounts.length > 0,
+        needsOpeningAssignment: cash > 0n && !hasAssignments,
+        needsPeriodSetup: needsSetup,
+        hasMandatoryPlans: await repo.hasMandatoryPlans(tx, budgetId, mandatoryIds),
+      },
     };
   }
 }

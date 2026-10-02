@@ -19,10 +19,15 @@ import { V2OccurrenceMaterializer } from '../plans/v2-occurrence-materializer.js
 
 export type DashboardEnvelope = {
   id: string;
+  name: string;
   envelopeType: EnvelopeType;
   periodSlot: 'FIRST' | 'SECOND' | null;
   archivedAt: Date | null;
 };
+
+export type DashboardAccount = { id: string; name: string; balanceMinor: bigint };
+
+export type DashboardPeriodRange = { id: string; envelopeId: string; endsOn: string };
 
 export type UpcomingOccurrence = {
   occurrenceId: string;
@@ -87,7 +92,7 @@ export class DashboardV2Repository {
   ): Promise<DashboardEnvelope[]> {
     return tx.envelope.findMany({
       where: { budgetId },
-      select: { id: true, envelopeType: true, periodSlot: true, archivedAt: true },
+      select: { id: true, name: true, envelopeType: true, periodSlot: true, archivedAt: true },
       orderBy: [{ displayOrder: 'asc' }, { id: 'asc' }],
     });
   }
@@ -182,5 +187,92 @@ export class DashboardV2Repository {
       scheduledOn: row.scheduledOn,
       unpaidMinor: BigInt(row.unpaid),
     }));
+  }
+
+  /**
+   * Active accounts (and archived ones that still hold money, so the list sums to the cash figure)
+   * with their balance on the as-of day.
+   */
+  async accounts(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    asOf: Date,
+  ): Promise<DashboardAccount[]> {
+    const rows = await tx.account.findMany({
+      where: { budgetId },
+      select: { id: true, name: true, archivedAt: true },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    const result: DashboardAccount[] = [];
+    for (const row of rows) {
+      const balanceMinor = await this.cashBalances.accountBalanceAsOf(tx, budgetId, row.id, asOf);
+      if (row.archivedAt === null || balanceMinor !== 0n) {
+        result.push({ id: row.id, name: row.name, balanceMinor });
+      }
+    }
+    return result;
+  }
+
+  /** Date ranges of the given period rows of this budget (pure read). */
+  async periodRanges(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    periodIds: string[],
+  ): Promise<DashboardPeriodRange[]> {
+    if (periodIds.length === 0) return [];
+    const rows = await tx.envelopePeriod.findMany({
+      where: { budgetId, id: { in: periodIds } },
+      select: { id: true, envelopeId: true, endsOn: true },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      envelopeId: row.envelopeId,
+      endsOn: row.endsOn.toISOString().slice(0, 10),
+    }));
+  }
+
+  /** True when any CONFIRMED assignment is effective on or before the as-of day. */
+  async hasConfirmedAssignments(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    asOf: string,
+  ): Promise<boolean> {
+    const found = await tx.envelopeAssignment.findFirst({
+      where: {
+        budgetId,
+        status: 'CONFIRMED',
+        effectiveOn: { lte: new Date(`${asOf}T00:00:00.000Z`) },
+      },
+      select: { id: true },
+    });
+    return found !== null;
+  }
+
+  async hasCategories(tx: Prisma.TransactionClient, budgetId: string): Promise<boolean> {
+    const found = await tx.category.findFirst({
+      where: { budgetId, archivedAt: null },
+      select: { id: true },
+    });
+    return found !== null;
+  }
+
+  /** True when the budget has an active, not deleted expense plan paid from a mandatory envelope. */
+  async hasMandatoryPlans(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    mandatoryEnvelopeIds: string[],
+  ): Promise<boolean> {
+    if (mandatoryEnvelopeIds.length === 0) return false;
+    const found = await tx.regularPlan.findFirst({
+      where: {
+        budgetId,
+        planType: 'EXPENSE',
+        isActive: true,
+        deletedAt: null,
+        envelopeId: { in: mandatoryEnvelopeIds },
+      },
+      select: { id: true },
+    });
+    return found !== null;
   }
 }

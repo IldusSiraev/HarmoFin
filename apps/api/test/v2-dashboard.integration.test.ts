@@ -40,6 +40,7 @@ type World = {
   incomeCategoryId: string;
   mainEnvelopeId: string;
   mandatoryEnvelopeId: string;
+  cookie: string;
 };
 
 let app: NestFastifyApplication;
@@ -276,7 +277,7 @@ describe('v2 dashboard summary (P01)', () => {
         updatedByUserId: w.userId,
       },
     });
-    const editor = await addMember(w, 'EDITOR');
+    const editor = (await addMember(w, 'EDITOR')).userId;
     const summary = await service.summary(editor, w.budgetId, TODAY);
     expect(summary.spendable).toEqual({ state: 'NEEDS_PERIOD_SETUP', amountMinor: null });
     expect(summary.suggestedTarget).toBe('6500000');
@@ -293,7 +294,7 @@ describe('v2 dashboard summary (P01)', () => {
 
   it('VIEWER ничего не создаёт: нет envelope_period и audit, NEEDS_PERIOD_SETUP с periodId null', async () => {
     const w = await currentWorld(10_000_000n);
-    const viewer = await addMember(w, 'VIEWER');
+    const viewer = (await addMember(w, 'VIEWER')).userId;
     const before = await writeCounts(w.budgetId);
     const summary = await service.summary(viewer, w.budgetId, TODAY);
     expect(summary.spendable).toEqual({ state: 'NEEDS_PERIOD_SETUP', amountMinor: null });
@@ -324,7 +325,7 @@ describe('v2 dashboard summary (P01)', () => {
       6_500_000n,
     );
     await assign(w, w.mainEnvelopeId, period, 6_500_000n);
-    const viewer = await addMember(w, 'VIEWER');
+    const viewer = (await addMember(w, 'VIEWER')).userId;
     let release!: () => void;
     const gate = new Promise<void>((resolve) => (release = resolve));
     let locked!: () => void;
@@ -485,6 +486,276 @@ describe('v2 dashboard summary (P01)', () => {
     const fresh = await service.summary(w.userId, w.budgetId, ASOF);
     expect(fresh.cashMinor).toBe('7000000');
     expect(fresh.currentBalanceMinor).toBe('3500000');
+  });
+});
+
+type DashboardBody = {
+  planModelVersion: number;
+  period: { periodId: string | null; start: string; end: string };
+  spendable: { state: string; amountMinor: string | null };
+  suggestedTarget: string | null;
+  dueMayBeIncomplete: boolean;
+  accounts: Array<{ id: string; name: string; balanceMinor: string }>;
+  protectedAssignments: Array<Record<string, unknown>>;
+  warnings: Array<Record<string, unknown>>;
+  onboarding: Record<string, boolean>;
+};
+
+async function getDashboard(
+  w: World,
+  query = `?asOf=${ASOF}`,
+  options: { cookie?: string | null; budgetId?: string } = {},
+) {
+  const cookie = options.cookie === undefined ? w.cookie : options.cookie;
+  return server.inject({
+    method: 'GET',
+    url: `/api/v2/budgets/${options.budgetId ?? w.budgetId}/dashboard${query}`,
+    headers: cookie ? { origin, cookie: `harmofin_session=${cookie}` } : { origin },
+  });
+}
+
+describe('v2 dashboard HTTP contract (P02)', () => {
+  it('один счёт с начальным балансом без дохода: подсказка назначить, без ложного нуля', async () => {
+    const w = await world(5_000_000n);
+    const response = await getDashboard(w);
+    expect(response.statusCode).toBe(200);
+    const body = response.json<DashboardBody>();
+    expect(body.planModelVersion).toBe(2);
+    expect(body.onboarding.needsOpeningAssignment).toBe(true);
+    expect(body.spendable.state).toBe('NEEDS_PERIOD_SETUP');
+    expect(body.spendable.amountMinor).toBeNull();
+    expect(body.accounts).toEqual([
+      { id: w.accountId, name: 'Основной счёт', balanceMinor: '5000000' },
+    ]);
+    expect(body.period).toMatchObject({ ...PERIOD, periodId: null });
+    expect(body.dueMayBeIncomplete).toBe(true);
+
+    await assign(w, w.mandatoryEnvelopeId, null, 1_000_000n);
+    const after = (await getDashboard(w)).json<DashboardBody>();
+    expect(after.onboarding.needsOpeningAssignment).toBe(false);
+  });
+
+  it('тело не содержит полей v1 и имеет заданный набор флагов онбординга', async () => {
+    const w = await world(5_000_000n);
+    const response = await getDashboard(w);
+    for (const forbidden of [
+      'previousPeriodLeftover',
+      'unassignedStartingBalanceMinor',
+      'hasEnvelopeStartingBalances',
+      'hasAllocatedIncome',
+      'periodLimit',
+    ]) {
+      expect(response.body).not.toContain(forbidden);
+    }
+    const body = response.json<DashboardBody>();
+    expect(Object.keys(body.onboarding).sort()).toEqual([
+      'categoriesSeeded',
+      'hasAccounts',
+      'hasMandatoryPlans',
+      'needsOpeningAssignment',
+      'needsPeriodSetup',
+    ]);
+    expect(body.onboarding.needsPeriodSetup).toBe(true);
+    expect(body.onboarding.hasAccounts).toBe(true);
+  });
+
+  it('предупреждение об ограничении: текстовый статус, сумма и действие (нехватка на обязательства)', async () => {
+    const w = await world(10_000_000n);
+    const period = await addPeriod(
+      w,
+      w.mainEnvelopeId,
+      PERIOD.start,
+      PERIOD.end,
+      'CONFIRMED',
+      6_500_000n,
+    );
+    await assign(w, w.mainEnvelopeId, period, 6_500_000n);
+    await assign(w, w.mandatoryEnvelopeId, null, 3_500_000n);
+    await occurrence(w, 4_500_000n, '2026-03-12');
+    const body = (await getDashboard(w)).json<DashboardBody>();
+    expect(body.spendable).toEqual({ state: 'READY', amountMinor: '5500000' });
+    expect(body.period.periodId).toBe(period);
+    expect(body.warnings).toContainEqual(
+      expect.objectContaining({
+        kind: 'COVERAGE',
+        code: 'MANDATORY_GAP',
+        amountMinor: '1000000',
+        message: expect.stringContaining('Не хватает на обязательства'),
+        actionPath: expect.stringMatching(/^\/app\//),
+      }),
+    );
+    expect(body.protectedAssignments).toContainEqual(
+      expect.objectContaining({
+        envelopeId: w.mandatoryEnvelopeId,
+        envelopeName: 'Обязательные',
+        envelopeType: 'MANDATORY_EXPENSES',
+        balanceMinor: '3500000',
+      }),
+    );
+  });
+
+  it('нехватка реальных денег: отдельное предупреждение, а не отрицательное число', async () => {
+    const w = await world(1_000_000n);
+    const period = await addPeriod(
+      w,
+      w.mainEnvelopeId,
+      PERIOD.start,
+      PERIOD.end,
+      'CONFIRMED',
+      100_000n,
+    );
+    await assign(w, w.mainEnvelopeId, period, 100_000n);
+    await assign(w, w.mandatoryEnvelopeId, null, 5_000_000n);
+    const body = (await getDashboard(w)).json<DashboardBody>();
+    expect(body.spendable.amountMinor).toBe('0');
+    expect(body.warnings).toContainEqual(
+      expect.objectContaining({
+        kind: 'COVERAGE',
+        code: 'CASH_SHORTFALL',
+        amountMinor: '4100000',
+        message: expect.stringContaining('Не хватает денег на счетах'),
+        actionPath: expect.stringMatching(/^\/app\//),
+      }),
+    );
+  });
+
+  it('PERIOD_LEFTOVER и PERIOD_DEFICIT ссылаются на конверт и период; periodId текущего периода отдан', async () => {
+    const w = await world(10_000_000n);
+    const current = await addPeriod(
+      w,
+      w.mainEnvelopeId,
+      PERIOD.start,
+      PERIOD.end,
+      'CONFIRMED',
+      1_000_000n,
+    );
+    await assign(w, w.mainEnvelopeId, current, 1_000_000n);
+    const leftover = await addPeriod(
+      w,
+      w.mainEnvelopeId,
+      '2026-02-01',
+      '2026-02-14',
+      'UNSET',
+      null,
+    );
+    await assign(w, w.mainEnvelopeId, leftover, 300_000n);
+    const deficit = await addPeriod(w, w.mainEnvelopeId, '2026-02-15', '2026-02-28', 'UNSET', null);
+    await expense(w, w.mainEnvelopeId, 200_000n, '2026-02-20');
+
+    const body = (await getDashboard(w)).json<DashboardBody>();
+    expect(body.period.periodId).toBe(current);
+    expect(body.warnings).toContainEqual({
+      kind: 'PERIOD',
+      code: 'PERIOD_LEFTOVER',
+      envelopeId: w.mainEnvelopeId,
+      periodId: leftover,
+      balanceMinor: '300000',
+      amountMinor: '300000',
+      message: expect.any(String),
+      actionPath: expect.stringContaining(leftover),
+    });
+    expect(body.warnings).toContainEqual({
+      kind: 'PERIOD',
+      code: 'PERIOD_DEFICIT',
+      envelopeId: w.mainEnvelopeId,
+      periodId: deficit,
+      balanceMinor: '-200000',
+      amountMinor: '200000',
+      message: expect.any(String),
+      actionPath: expect.stringContaining(deficit),
+    });
+    expect(body.protectedAssignments).toContainEqual(
+      expect.objectContaining({ periodId: leftover, balanceMinor: '300000' }),
+    );
+    expect(body.protectedAssignments.some((item) => item.periodId === deficit)).toBe(false);
+    expect(body.warnings.some((item) => item.periodId === current)).toBe(false);
+  });
+
+  it('dueMayBeIncomplete: VIEWER и прошлая дата true, OWNER в текущем периоде по умолчанию false', async () => {
+    const w = await currentWorld(10_000_000n);
+    const viewer = await addMember(w, 'VIEWER');
+    const asViewer = await getDashboard(w, `?asOf=${TODAY}`, { cookie: viewer.cookie });
+    expect(asViewer.statusCode).toBe(200);
+    expect(asViewer.json<DashboardBody>().dueMayBeIncomplete).toBe(true);
+
+    const past = (await getDashboard(w, '?asOf=2020-01-05')).json<DashboardBody>();
+    expect(past.dueMayBeIncomplete).toBe(true);
+
+    const byDefault = await getDashboard(w, '');
+    expect(byDefault.statusCode).toBe(200);
+    const body = byDefault.json<DashboardBody>();
+    expect(body.dueMayBeIncomplete).toBe(false);
+    expect(body.period.start <= TODAY && TODAY <= body.period.end).toBe(true);
+    expect(body.period.periodId).not.toBeNull();
+  });
+
+  it('ошибки: 400 asOf/budgetId, 401, 404 чужой, 409 v1', async () => {
+    const a = await world(1_000_000n);
+    const b = await world(1_000_000n);
+    for (const query of ['?asOf=2026-02-30', '?asOf=tomorrow']) {
+      const response = await getDashboard(a, query);
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
+    }
+    const badId = await getDashboard(a, `?asOf=${ASOF}`, { budgetId: 'not-a-uuid' });
+    expect(badId.statusCode).toBe(400);
+    expect((await getDashboard(a, `?asOf=${ASOF}`, { cookie: null })).statusCode).toBe(401);
+    const foreign = await getDashboard(b, `?asOf=${ASOF}`, { budgetId: a.budgetId });
+    expect(foreign.statusCode).toBe(404);
+    const v1 = await world(1_000_000n, { planModelVersion: 1 });
+    const mismatch = await getDashboard(v1);
+    expect(mismatch.statusCode).toBe(409);
+    expect(mismatch.json()).toMatchObject({ code: 'MODEL_VERSION_MISMATCH' });
+  });
+
+  it('OpenAPI описывает GET, параметры, ответ и ошибки; схемы без полей v1', async () => {
+    const document = (await server.inject({ method: 'GET', url: '/openapi.json' })).json<{
+      paths: Record<
+        string,
+        Record<
+          string,
+          {
+            parameters?: Array<{ name: string; in: string; required?: boolean }>;
+            responses: Record<string, unknown>;
+          }
+        >
+      >;
+      components: { schemas: Record<string, { properties?: Record<string, unknown> }> };
+    }>();
+    const operation = document.paths['/api/v2/budgets/{budgetId}/dashboard']?.get;
+    expect(operation).toBeDefined();
+    expect(operation!.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'budgetId', in: 'path', required: true }),
+        expect.objectContaining({ name: 'asOf', in: 'query' }),
+      ]),
+    );
+    for (const status of ['200', '400', '401', '404', '409']) {
+      expect(operation!.responses[status]).toBeDefined();
+    }
+    const schema = document.components.schemas.DashboardV2Response;
+    expect(schema).toBeDefined();
+    expect(Object.keys(schema!.properties ?? {})).toEqual(
+      expect.arrayContaining([
+        'planModelVersion',
+        'period',
+        'spendable',
+        'suggestedTarget',
+        'accounts',
+        'protectedAssignments',
+        'warnings',
+        'onboarding',
+        'dueMayBeIncomplete',
+      ]),
+    );
+    const names = Object.keys(document.components.schemas).filter((name) =>
+      name.startsWith('DashboardV2'),
+    );
+    expect(names.length).toBeGreaterThan(4);
+    const text = JSON.stringify(names.map((name) => document.components.schemas[name]));
+    expect(text).not.toContain('previousPeriodLeftover');
+    expect(text).not.toContain('unassignedStartingBalanceMinor');
+    expect(text).not.toContain('hasEnvelopeStartingBalances');
   });
 });
 
@@ -701,12 +972,15 @@ function currentWorld(startingBalanceMinor: bigint): Promise<World> {
   return world(startingBalanceMinor, { mainSlot: TODAY_SLOT });
 }
 
-async function addMember(w: World, role: 'VIEWER' | 'EDITOR'): Promise<string> {
+async function addMember(
+  w: World,
+  role: 'VIEWER' | 'EDITOR',
+): Promise<{ userId: string; cookie: string }> {
   const member = await register(`v2-dash-${randomUUID()}@harmofin.test`);
   await prisma.workspaceMembership.create({
     data: { id: randomUUID(), workspaceId: w.workspaceId, userId: member.userId, role },
   });
-  return member.userId;
+  return { userId: member.userId, cookie: member.cookie };
 }
 
 async function writeCounts(budgetId: string) {
@@ -732,6 +1006,7 @@ async function register(email: string): Promise<{
   userId: string;
   workspaceId: string;
   budgetId: string;
+  cookie: string;
 }> {
   const response = await server.inject({
     method: 'POST',
@@ -746,7 +1021,16 @@ async function register(email: string): Promise<{
     budget: { id: string };
   }>();
   createdUsers.push(body.user.id);
-  return { userId: body.user.id, workspaceId: body.workspace.id, budgetId: body.budget.id };
+  const raw = response.headers['set-cookie'];
+  const setCookie = Array.isArray(raw) ? raw.join('; ') : (raw ?? '');
+  const match = /harmofin_session=([^;]+)/.exec(setCookie);
+  expect(match).not.toBeNull();
+  return {
+    userId: body.user.id,
+    workspaceId: body.workspace.id,
+    budgetId: body.budget.id,
+    cookie: decodeURIComponent(match![1]!),
+  };
 }
 
 async function cleanupUser(userId: string): Promise<void> {
