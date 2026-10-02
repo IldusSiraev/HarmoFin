@@ -212,7 +212,14 @@ onMounted(() => {
             :tone="Object.keys(cycleFieldErrors).length ? 'danger' : 'success'"
             aria-live="polite"
           />
-          <form class="settings-page__cycle-form" @submit.prevent="saveCycle">
+          <div v-if="isModelV2" class="settings-page__cycle-form">
+            <p class="settings-page__cycle-note">
+              Изменение цикла вступает в силу только с будущего периода: сначала покажем, с какой
+              даты, а прошлые периоды останутся без изменений.
+            </p>
+            <UiButton variant="secondary" to="/app/settings/general">Изменить цикл</UiButton>
+          </div>
+          <form v-else class="settings-page__cycle-form" @submit.prevent="saveCycle">
             <UiInput
               v-model="cycleForm.cycleStartDay"
               name="cycleStartDay"

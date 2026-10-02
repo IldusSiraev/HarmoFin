@@ -605,6 +605,57 @@ function query(params: Record<string, string | undefined>): string {
   return text === '' ? '' : `?${text}`;
 }
 
+export interface CycleRange {
+  start: string;
+  end: string;
+}
+
+export interface CycleChangePreviewRequest {
+  cycleStartDay: number;
+  periodBoundaryOffset: number;
+}
+
+// effectiveOn and every date come from the server; the browser never computes them.
+export interface CycleChangePreviewResponse {
+  effectiveOn: string;
+  transitionRanges: CycleRange[];
+  previewHash: string;
+}
+
+export interface CycleTransitionTarget {
+  periodStart: string;
+  // Decimal string, null (or absent) means no fixed target.
+  target?: string | null;
+}
+
+export interface CycleChangeConfirmRequest extends CycleChangePreviewRequest {
+  previewHash: string;
+  transitionTargets: CycleTransitionTarget[];
+}
+
+export interface CycleChangeConfirmResponse {
+  effectiveOn: string;
+  baselineCreated: boolean;
+  transitionRanges: CycleRange[];
+  createdPeriods: number;
+}
+
+export interface BudgetSettingsV2Request {
+  name?: string;
+  allowNegativeAccountBalance?: boolean;
+  timezone?: string;
+}
+
+export interface BudgetSettingsV2Response {
+  id: string;
+  name: string;
+  timezone: string;
+  allowNegativeAccountBalance: boolean;
+  cycleStartDay: number;
+  periodBoundaryOffset: number;
+  planModelVersion: number;
+}
+
 export function useEnvelopePlanV2() {
   const api = useApiClient();
 
@@ -637,7 +688,32 @@ export function useEnvelopePlanV2() {
     });
   }
 
+  function patchKeyed<T>(path: string, body: unknown, idempotencyKey: string): Promise<T> {
+    return api.request<T>(path, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+      headers: { 'Idempotency-Key': idempotencyKey },
+    });
+  }
+
   return {
+    previewCycleChange: (budgetId: string, input: CycleChangePreviewRequest) =>
+      post<CycleChangePreviewResponse>(`${base(budgetId)}/cycle-change/preview`, input),
+    confirmCycleChange: (
+      budgetId: string,
+      input: CycleChangeConfirmRequest,
+      idempotencyKey: string,
+    ) =>
+      postKeyed<CycleChangeConfirmResponse>(
+        `${base(budgetId)}/cycle-change/confirm`,
+        input,
+        idempotencyKey,
+      ),
+    updateBudgetSettings: (
+      budgetId: string,
+      input: BudgetSettingsV2Request,
+      idempotencyKey: string,
+    ) => patchKeyed<BudgetSettingsV2Response>(`${base(budgetId)}/settings`, input, idempotencyKey),
     getReport: (budgetId: string, key: ReportV2Key, filters: ReportV2Filters = {}) =>
       get<ReportV2Response>(
         `${base(budgetId)}/reports/${encodeURIComponent(key)}${query({ ...filters })}`,

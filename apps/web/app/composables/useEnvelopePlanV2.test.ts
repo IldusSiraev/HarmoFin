@@ -424,4 +424,38 @@ describe('useEnvelopePlanV2', () => {
     expect(JSON.parse(call.init.body as string)).toEqual(suggestion);
     expect(call.headers.get('Idempotency-Key')).toBe('k-s');
   });
+
+  it('previews and confirms a cycle change and patches settings (T02/T02b contracts)', async () => {
+    const api = useEnvelopePlanV2();
+    await api.previewCycleChange(budgetId, { cycleStartDay: 12, periodBoundaryOffset: 14 });
+    let call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/cycle-change/preview`);
+    expect(call.init.method).toBe('POST');
+    expect(JSON.parse(call.init.body as string)).toEqual({
+      cycleStartDay: 12,
+      periodBoundaryOffset: 14,
+    });
+    expect(call.headers.get('X-CSRF-Token')).toBe('csrf-1');
+    expect(call.headers.has('Idempotency-Key')).toBe(false);
+
+    const confirm = {
+      cycleStartDay: 12,
+      periodBoundaryOffset: 14,
+      previewHash: 'a'.repeat(64),
+      transitionTargets: [{ periodStart: '2026-10-01', target: null }],
+    };
+    await api.confirmCycleChange(budgetId, confirm, 'k-c');
+    call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/cycle-change/confirm`);
+    expect(call.init.method).toBe('POST');
+    expect(JSON.parse(call.init.body as string)).toEqual(confirm);
+    expect(call.headers.get('Idempotency-Key')).toBe('k-c');
+
+    await api.updateBudgetSettings(budgetId, { timezone: 'Asia/Tokyo' }, 'k-s');
+    call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/settings`);
+    expect(call.init.method).toBe('PATCH');
+    expect(JSON.parse(call.init.body as string)).toEqual({ timezone: 'Asia/Tokyo' });
+    expect(call.headers.get('Idempotency-Key')).toBe('k-s');
+  });
 });
