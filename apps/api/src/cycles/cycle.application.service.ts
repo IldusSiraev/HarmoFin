@@ -1,7 +1,13 @@
 import { Injectable } from '@nestjs/common';
 
 import { resourceNotFound } from '../common/reference-data/reference-data.errors.js';
-import { cycleAndPeriodFor, todayInTimezone, type CycleAndPeriod } from './cycle-period.domain.js';
+import {
+  cycleAndPeriodFor,
+  todayInTimezone,
+  type CycleAndPeriod,
+  type CycleSettings,
+} from './cycle-period.domain.js';
+import { clipAtNextRevision } from './cycle-settings-at.js';
 import { CycleRepository } from './cycle.repository.js';
 
 @Injectable()
@@ -10,12 +16,18 @@ export class CycleApplicationService {
 
   async current(userId: string, budgetId: string): Promise<CycleAndPeriod> {
     const budget = await this.requireAccessibleBudget(userId, budgetId);
-    return cycleAndPeriodFor(budget, todayInTimezone(new Date(), budget.timezone));
+    return this.at(budgetId, budget, todayInTimezone(new Date(), budget.timezone));
   }
 
   async selected(userId: string, budgetId: string, date: string): Promise<CycleAndPeriod> {
     const budget = await this.requireAccessibleBudget(userId, budgetId);
-    return cycleAndPeriodFor(budget, date);
+    return this.at(budgetId, budget, date);
+  }
+
+  private async at(budgetId: string, budget: CycleSettings, date: string): Promise<CycleAndPeriod> {
+    const settings = (await this.repository.settingsAt(budgetId, date)) ?? budget;
+    const next = await this.repository.nextEffectiveAfter(budgetId, date);
+    return clipAtNextRevision(cycleAndPeriodFor(settings, date), date, next);
   }
 
   private async requireAccessibleBudget(userId: string, budgetId: string) {

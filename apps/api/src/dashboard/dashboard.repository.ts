@@ -1,6 +1,7 @@
 import { Prisma, type PeriodSlot } from '@prisma/client';
 
 import { FinancialBalanceRepository } from '../common/finance/financial-balance.repository.js';
+import { CycleRevisionRepository } from '../cycles/cycle-revision.repository.js';
 import { PrismaService } from '../database/prisma.service.js';
 
 export type DashboardPeriod = {
@@ -55,13 +56,16 @@ export type DashboardSummaryRecord = {
 };
 
 export class DashboardRepository {
+  private readonly revisions = new CycleRevisionRepository();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly balances = new FinancialBalanceRepository(),
   ) {}
 
-  async findAccessible(userId: string, budgetId: string) {
-    return this.prisma.budget.findFirst({
+  /** With `asOf`, cycle fields are the settings in force on that date (revisions, else Budget). */
+  async findAccessible(userId: string, budgetId: string, asOf?: string) {
+    const budget = await this.prisma.budget.findFirst({
       where: activeBudgetWhere(userId, budgetId),
       select: {
         id: true,
@@ -71,6 +75,10 @@ export class DashboardRepository {
         allowNegativeBalance: true,
       },
     });
+    if (!budget || !asOf) return budget;
+    const settings = await this.revisions.settingsAt(this.prisma, budgetId, asOf);
+    const nextRevisionOn = await this.revisions.nextEffectiveAfter(this.prisma, budgetId, asOf);
+    return { ...budget, ...(settings ?? {}), nextRevisionOn };
   }
 
   async summary(

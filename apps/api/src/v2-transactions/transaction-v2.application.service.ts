@@ -11,7 +11,8 @@ import {
   invalidReference,
   resourceNotFound,
 } from '../common/reference-data/reference-data.errors.js';
-import { cycleAndPeriodFor, todayInTimezone } from '../cycles/cycle-period.domain.js';
+import { todayInTimezone } from '../cycles/cycle-period.domain.js';
+import { cycleAndPeriodAt } from '../cycles/cycle-settings-at.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { FinancialBalanceRepository } from '../common/finance/financial-balance.repository.js';
 import { AssignmentBalanceRepository } from '../envelope-plans/assignment-balance.repository.js';
@@ -962,7 +963,7 @@ export class TransactionV2ApplicationService {
     );
     if (periods.length > 1) throw ambiguousPeriod();
     if (periods[0]) return periods[0].id;
-    const range = cycleAndPeriodFor(budget, occurredOn).period;
+    const range = (await cycleAndPeriodAt(tx, budgetId, occurredOn, budget)).period;
     const created = await this.repository.createUnsetPeriod(tx, {
       budgetId,
       workspaceId,

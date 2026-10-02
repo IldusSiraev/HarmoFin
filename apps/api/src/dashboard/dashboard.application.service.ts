@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { cycleAndPeriodFor, todayInTimezone } from '../cycles/cycle-period.domain.js';
+import { clipAtNextRevision } from '../cycles/cycle-settings-at.js';
 import { formatMinorUnits } from '../common/money/minor-units.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { resourceNotFound } from '../common/reference-data/reference-data.errors.js';
@@ -69,9 +70,13 @@ export class DashboardApplicationService {
 
   async summary(userId: string, budgetId: string, asOf: string): Promise<DashboardSummary> {
     await this.requireBudgetPlanModel(userId, budgetId);
-    const budget = await this.repository.findAccessible(userId, budgetId);
+    const budget = await this.repository.findAccessible(userId, budgetId, asOf);
     if (!budget) throw resourceNotFound();
-    const range = cycleAndPeriodFor(budget, asOf);
+    const range = clipAtNextRevision(
+      cycleAndPeriodFor(budget, asOf),
+      asOf,
+      'nextRevisionOn' in budget ? budget.nextRevisionOn : null,
+    );
     const values = await this.repository.summary(
       userId,
       budgetId,

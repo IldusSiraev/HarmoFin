@@ -10,7 +10,8 @@ import {
   invalidReference,
   resourceNotFound,
 } from '../common/reference-data/reference-data.errors.js';
-import { cycleAndPeriodFor, todayInTimezone } from '../cycles/cycle-period.domain.js';
+import { todayInTimezone } from '../cycles/cycle-period.domain.js';
+import { nextPeriodEndAt } from '../cycles/cycle-settings-at.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { PlanOccurrenceRepository } from '../plans/plan-occurrence.repository.js';
 import { RegularPlanRepository } from '../plans/regular-plan.repository.js';
@@ -33,7 +34,6 @@ import type {
 } from './obligation-plan.schemas.js';
 
 const RUB_SCALE = 2;
-const dayMs = 86_400_000;
 
 type Tx = Parameters<Parameters<PrismaService['$transaction']>[0]>[0];
 
@@ -86,10 +86,6 @@ export type ObligationOccurrenceListItem = {
 
 const isoDate = (value: Date) => value.toISOString().slice(0, 10);
 const dateValue = (value: string) => new Date(`${value}T00:00:00.000Z`);
-
-function addDays(value: string, days: number): string {
-  return isoDate(new Date(dateValue(value).getTime() + days * dayMs));
-}
 
 function validationFailed(detail: string): BadRequestException {
   return new BadRequestException({ code: 'VALIDATION_FAILED', detail });
@@ -314,7 +310,7 @@ export class ObligationPlanApplicationService {
     );
 
     const today = todayInTimezone(new Date(), budget.timezone);
-    let to = this.nextPeriodEnd(budget, today);
+    let to = await nextPeriodEndAt(tx, budgetId, today, budget);
     if (input.recurrence === 'ONE_TIME' && input.scheduledOn > to) to = input.scheduledOn;
     const created = await this.materializer.ensureOccurrences(tx, budgetId, input.scheduledOn, to, {
       actorUserId: userId,
@@ -491,7 +487,7 @@ export class ObligationPlanApplicationService {
             tx,
             budgetId,
             today,
-            this.nextPeriodEnd(budget, today),
+            await nextPeriodEndAt(tx, budgetId, today, budget),
             { actorUserId: userId },
           );
         }
@@ -502,15 +498,6 @@ export class ObligationPlanApplicationService {
         };
       },
     );
-  }
-
-  /** End of the period after the current one (current + next period are materialized). */
-  private nextPeriodEnd(
-    budget: { cycleStartDay: number; periodBoundaryOffset: number; timezone: string },
-    today: string,
-  ): string {
-    const current = cycleAndPeriodFor(budget, today);
-    return cycleAndPeriodFor(budget, addDays(current.period.end, 1)).period.end;
   }
 
   private async run<T extends Record<string, unknown>>(
