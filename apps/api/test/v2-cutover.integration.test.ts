@@ -3,25 +3,22 @@ import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
+import { AssignmentBalanceRepository } from '../src/envelope-plans/assignment-balance.repository.js';
+import {
+  CUTOVER_APPLICATION_NAME,
+  cutover,
+  foreignSessions,
+} from '../src/migrations/envelope-v2/cutover.js';
+import { assertDisposableDatabase, withApplicationName } from './helpers/disposable-db.js';
+import { FinancialBalanceRepository } from '../src/common/finance/financial-balance.repository.js';
 import { todayInTimezone } from '../src/cycles/cycle-period.domain.js';
 import {
   formatPreviewRu,
   previewMigration,
   runPreview,
+  type OwnerChoices,
 } from '../src/migrations/envelope-v2/migration-preview.js';
 import { runPreflight } from '../src/migrations/envelope-v2/preflight.js';
-
-const DISPOSABLE_DATABASE = 'harmofin_v22_test';
-
-export function assertDisposableDatabase(url: string | undefined): string {
-  if (!url) throw new Error('DATABASE_URL is required and must point to the disposable database.');
-  const parsed = new URL(url);
-  const name = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
-  if (name !== DISPOSABLE_DATABASE || !['localhost', '127.0.0.1'].includes(parsed.hostname)) {
-    throw new Error(`Refusing to run cutover tests outside local ${DISPOSABLE_DATABASE}.`);
-  }
-  return url;
-}
 
 const databaseUrl = assertDisposableDatabase(process.env.DATABASE_URL);
 const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
@@ -59,6 +56,21 @@ describe('guard disposable БД', () => {
       assertDisposableDatabase('postgresql://u:p@db.example.com/harmofin_v22_test'),
     ).toThrow();
     expect(() => assertDisposableDatabase(undefined)).toThrow();
+    for (const param of [
+      'host=db.example.com',
+      'hostaddr=10.0.0.1',
+      'service=prod',
+      'options=-c%20x=1',
+    ]) {
+      expect(() =>
+        assertDisposableDatabase(`postgresql://u:p@localhost:5432/harmofin_v22_test?${param}`),
+      ).toThrow();
+    }
+    expect(
+      assertDisposableDatabase(
+        'postgresql://u:p@localhost:5432/harmofin_v22_test?connection_limit=5&application_name=x',
+      ),
+    ).toContain('connection_limit');
     expect(assertDisposableDatabase('postgresql://u:p@127.0.0.1:5432/harmofin_v22_test')).toContain(
       'harmofin_v22_test',
     );
@@ -351,6 +363,9 @@ async function world(): Promise<World> {
     incomeCategoryId: (await category('INCOME')).id,
     expenseCategoryId: (await category('EXPENSE')).id,
   };
+  await prisma.workspaceMembership.create({
+    data: { id: randomUUID(), workspaceId, userId, role: 'OWNER' },
+  });
   worlds.push(w);
   w.envelopeA = await envelope(w, { startingBalanceMinor: 0n });
   w.envelopeB = await envelope(w, { startingBalanceMinor: 0n });
@@ -511,6 +526,8 @@ async function plan(
 
 async function cleanup(w: World): Promise<void> {
   const where = { budgetId: w.budgetId };
+  await prisma.idempotencyRecord.deleteMany({ where });
+  await prisma.auditEvent.deleteMany({ where: { workspaceId: w.workspaceId } });
   await prisma.planPayment.deleteMany({ where });
   await prisma.planOccurrence.deleteMany({ where });
   await prisma.regularPlan.deleteMany({ where });
@@ -528,6 +545,7 @@ async function cleanup(w: World): Promise<void> {
   await prisma.category.deleteMany({ where });
   await prisma.envelope.deleteMany({ where });
   await prisma.budget.deleteMany({ where: { id: w.budgetId } });
+  await prisma.workspaceMembership.deleteMany({ where: { workspaceId: w.workspaceId } });
   await prisma.workspace.deleteMany({ where: { id: w.workspaceId } });
   await prisma.user.deleteMany({ where: { id: w.userId } });
 }
@@ -762,5 +780,283 @@ describe('предпросмотр opening assignments (M02)', () => {
     await tx(w, 'INCOME', 1n, { occurredOn: isoDay(4) });
     const preview = await runPreview(prisma, w.budgetId, NO_CHOICES);
     expect(preview.blockers).toContain('FUTURE_CONFIRMED_FACT');
+  });
+});
+
+describe('атомарное переключение на модель v2 (M03)', () => {
+  const noFreeze = { checkFreeze: async () => undefined };
+
+  const approval = async (w: World, extra: Partial<OwnerChoices> = {}) => {
+    const report = await runPreflight(prisma, w.budgetId);
+    return {
+      budgetId: w.budgetId,
+      ownerId: w.userId,
+      approvedFingerprint: report.fingerprint,
+      approvedAssignments: [{ envelopeId: w.envelopeA, openingMinor: '4000000' }],
+      approvedPeriodTargets: [] as OwnerChoices['periodTargets'],
+      approvedFundingRules: [] as OwnerChoices['fundingRules'],
+      dryRun: false,
+      ...Object.fromEntries(
+        Object.entries(extra).map(([key, value]) => [
+          `approved${key[0]!.toUpperCase()}${key.slice(1)}`,
+          value,
+        ]),
+      ),
+    };
+  };
+  const writes = (w: World) =>
+    Promise.all([
+      prisma.envelopeAssignment.count({ where: { budgetId: w.budgetId } }),
+      prisma.envelopePeriod.count({ where: { budgetId: w.budgetId } }),
+      prisma.envelopeFundingRule.count({ where: { budgetId: w.budgetId } }),
+      prisma.idempotencyRecord.count({ where: { budgetId: w.budgetId } }),
+      prisma.auditEvent.count({ where: { budgetId: w.budgetId } }),
+      prisma.transaction.count({ where: { budgetId: w.budgetId } }),
+      prisma.transfer.count({ where: { budgetId: w.budgetId } }),
+      prisma.transferPart.count({ where: { budgetId: w.budgetId } }),
+    ]);
+  const cashNow = async (w: World) => {
+    const rows: Record<string, bigint> = {};
+    for (const id of [w.accountA, w.accountB]) {
+      rows[id] = await prisma.$transaction((t) =>
+        new FinancialBalanceRepository().accountBalance(t, w.budgetId, id),
+      );
+    }
+    return rows;
+  };
+  const version = async (w: World) =>
+    (await prisma.budget.findUniqueOrThrow({ where: { id: w.budgetId } })).planModelVersion;
+
+  it('dry-run проверяет, но ничего не пишет', async () => {
+    const w = await historicalWorld();
+    const before = await writes(w);
+    const result = await cutover(prisma, { ...(await approval(w)), dryRun: true }, noFreeze);
+    expect(result).toEqual({
+      beforeCash: '10000000',
+      afterCash: '10000000',
+      modelVersion: 1,
+      assignmentCount: 1,
+    });
+    expect(await writes(w)).toEqual(before);
+    expect(await version(w)).toBe(1);
+  });
+
+  it('apply: версия 2, opening назначен, периоды и цели созданы, деньги не движутся', async () => {
+    const w = await historicalWorld();
+    const slot = await envelope(w, {
+      startingBalanceMinor: 0n,
+      envelopeType: 'CURRENT_EXPENSES',
+      periodSlot: 'FIRST',
+    });
+    const cashBefore = await cashNow(w);
+    const accountsBefore = await prisma.account.findMany({
+      where: { budgetId: w.budgetId },
+      orderBy: { id: 'asc' },
+    });
+    const writesBefore = await writes(w);
+    const params = await approval(w, {
+      assignments: [
+        { envelopeId: w.envelopeA, openingMinor: '4000000' },
+        { envelopeId: slot, periodStart: '2026-01-01', openingMinor: '1000000' },
+      ],
+      periodTargets: [
+        { envelopeId: slot, periodStart: '2026-01-01', targetMinor: '1500000' },
+        { envelopeId: w.envelopeB, periodStart: '2026-01-15', targetMinor: null },
+      ],
+      fundingRules: [
+        { envelopeId: w.envelopeB, type: 'SUGGESTED_FIXED', priority: 1, fixedMinor: '700' },
+      ],
+    });
+
+    const result = await cutover(prisma, params, noFreeze);
+
+    expect(result).toEqual({
+      beforeCash: '10000000',
+      afterCash: '10000000',
+      modelVersion: 2,
+      assignmentCount: 2,
+    });
+    const budget = await prisma.budget.findUniqueOrThrow({ where: { id: w.budgetId } });
+    expect(budget.planModelVersion).toBe(2);
+    expect(budget.planModelActivatedOn?.toISOString().slice(0, 10)).toBe(isoDay(0));
+    expect(await cashNow(w)).toEqual(cashBefore);
+    expect(
+      await prisma.account.findMany({ where: { budgetId: w.budgetId }, orderBy: { id: 'asc' } }),
+    ).toEqual(accountsBefore);
+    const [, , , , , transactions, transfers, parts] = await writes(w);
+    expect([transactions, transfers, parts]).toEqual([
+      writesBefore[5],
+      writesBefore[6],
+      writesBefore[7],
+    ]);
+
+    const assignments = await prisma.envelopeAssignment.findMany({
+      where: { budgetId: w.budgetId },
+    });
+    expect(assignments.map((a) => a.type)).toEqual(['OPENING', 'OPENING']);
+    expect(assignments.every((a) => a.effectiveOn.toISOString().slice(0, 10) === isoDay(0))).toBe(
+      true,
+    );
+    const periods = await prisma.envelopePeriod.findMany({ where: { budgetId: w.budgetId } });
+    const confirmed = periods.find((p) => p.envelopeId === slot)!;
+    expect(confirmed).toMatchObject({ targetStatus: 'CONFIRMED', targetMinor: 1_500_000n });
+    expect(confirmed.confirmedByUserId).toBe(w.userId);
+    expect(periods.find((p) => p.envelopeId === w.envelopeB)).toMatchObject({
+      targetStatus: 'UNSET',
+      targetMinor: null,
+    });
+    expect(assignments.find((a) => a.envelopeId === slot)?.periodId).toBe(confirmed.id);
+    const rules = await prisma.envelopeFundingRule.findMany({ where: { budgetId: w.budgetId } });
+    expect(rules).toHaveLength(1);
+    expect(await prisma.auditEvent.count({ where: { budgetId: w.budgetId } })).toBeGreaterThan(0);
+  });
+
+  it('повторный apply возвращает сохранённый результат без дублей, даже после версии 2', async () => {
+    const w = await historicalWorld();
+    const params = await approval(w);
+    const first = await cutover(prisma, params, noFreeze);
+    const writesAfterFirst = await writes(w);
+
+    const second = await cutover(prisma, params, noFreeze);
+
+    expect(second).toEqual(first);
+    expect(await writes(w)).toEqual(writesAfterFirst);
+    expect(await prisma.envelopeAssignment.count({ where: { budgetId: w.budgetId } })).toBe(1);
+  });
+
+  it('другие fingerprint или choices при повторе дают 409 IDEMPOTENCY_CONFLICT', async () => {
+    const w = await historicalWorld();
+    const params = await approval(w);
+    await cutover(prisma, params, noFreeze);
+
+    await expect(
+      cutover(
+        prisma,
+        { ...params, approvedAssignments: [{ envelopeId: w.envelopeA, openingMinor: '1' }] },
+        noFreeze,
+      ),
+    ).rejects.toMatchObject({ response: { code: 'IDEMPOTENCY_CONFLICT' } });
+    await expect(
+      cutover(prisma, { ...params, approvedFingerprint: 'f'.repeat(64) }, noFreeze),
+    ).rejects.toMatchObject({ response: { code: 'IDEMPOTENCY_CONFLICT' } });
+    expect(await prisma.envelopeAssignment.count({ where: { budgetId: w.budgetId } })).toBe(1);
+  });
+
+  it('повтор после успешного cutover от другого пользователя не получает сохранённый результат', async () => {
+    const w = await historicalWorld();
+    const params = await approval(w);
+    await cutover(prisma, params, noFreeze);
+    const stranger = randomUUID();
+    await prisma.user.create({
+      data: { id: stranger, email: `v2-cutover-${stranger}@harmofin.test`, passwordHash: 'x' },
+    });
+    try {
+      await expect(
+        cutover(prisma, { ...params, ownerId: stranger }, noFreeze),
+      ).rejects.toMatchObject({ code: 'OWNER_REQUIRED' });
+    } finally {
+      await prisma.user.delete({ where: { id: stranger } });
+    }
+  });
+
+  it('не владелец отвергается без записи', async () => {
+    const w = await historicalWorld();
+    const params = await approval(w);
+    const stranger = randomUUID();
+    await prisma.user.create({
+      data: { id: stranger, email: `v2-cutover-${stranger}@harmofin.test`, passwordHash: 'x' },
+    });
+    try {
+      const before = await writes(w);
+      await expect(
+        cutover(prisma, { ...params, ownerId: stranger }, noFreeze),
+      ).rejects.toMatchObject({ code: 'OWNER_REQUIRED' });
+      await prisma.workspaceMembership.create({
+        data: { id: randomUUID(), workspaceId: w.workspaceId, userId: stranger, role: 'EDITOR' },
+      });
+      await expect(
+        cutover(prisma, { ...params, ownerId: stranger }, noFreeze),
+      ).rejects.toMatchObject({ code: 'OWNER_REQUIRED' });
+      expect(await writes(w)).toEqual(before);
+      expect(await version(w)).toBe(1);
+    } finally {
+      await prisma.workspaceMembership.deleteMany({ where: { userId: stranger } });
+      await prisma.user.delete({ where: { id: stranger } });
+    }
+  });
+
+  it('новый v2 расход уменьшает opening один раз, старый v1 расход не вычитается заново', async () => {
+    const w = await historicalWorld();
+    await prisma.transaction.create({
+      data: {
+        id: randomUUID(),
+        budgetId: w.budgetId,
+        transactionType: 'EXPENSE',
+        status: 'CONFIRMED',
+        amountMinor: 123_456n,
+        occurredOn: day(isoDay(-12)),
+        accountId: w.accountA,
+        categoryId: w.expenseCategoryId,
+        envelopeId: w.envelopeA,
+        isPlanned: false,
+        confirmedAt: new Date(),
+        createdByUserId: w.userId,
+        updatedByUserId: w.userId,
+        accountingModelVersion: 1,
+      },
+    });
+    await cutover(prisma, await approval(w), noFreeze);
+    const balances = new AssignmentBalanceRepository();
+    const balance = () =>
+      prisma.$transaction((t) => balances.balance(t, w.budgetId, w.envelopeA, null, new Date()));
+
+    expect((await balance()).balance).toBe(4_000_000n);
+
+    await prisma.transaction.create({
+      data: {
+        id: randomUUID(),
+        budgetId: w.budgetId,
+        transactionType: 'EXPENSE',
+        status: 'CONFIRMED',
+        amountMinor: 1_000n,
+        occurredOn: day(isoDay(0)),
+        accountId: w.accountA,
+        categoryId: w.expenseCategoryId,
+        envelopeId: w.envelopeA,
+        isPlanned: false,
+        confirmedAt: new Date(),
+        createdByUserId: w.userId,
+        updatedByUserId: w.userId,
+        accountingModelVersion: 2,
+      },
+    });
+    expect((await balance()).balance).toBe(3_999_000n);
+  });
+
+  it('без доказанного freeze apply прерывается до записи; проба видит чужие сессии', async () => {
+    const w = await historicalWorld();
+    const other = new PrismaClient({
+      datasources: { db: { url: withApplicationName(databaseUrl, 'zz-other-session') } },
+    });
+    const self = new PrismaClient({
+      datasources: { db: { url: withApplicationName(databaseUrl, CUTOVER_APPLICATION_NAME) } },
+    });
+    try {
+      await other.$queryRaw`SELECT 1`;
+      await self.$queryRaw`SELECT 1`;
+      const seen = await self.$transaction((t) => foreignSessions(t));
+      expect(seen.some((s) => s.applicationName === 'zz-other-session')).toBe(true);
+      expect(seen.some((s) => s.applicationName === CUTOVER_APPLICATION_NAME)).toBe(false);
+
+      const before = await writes(w);
+      await expect(cutover(self, await approval(w))).rejects.toMatchObject({
+        code: 'MAINTENANCE_FREEZE_NOT_PROVEN',
+      });
+      expect(await writes(w)).toEqual(before);
+      expect(await version(w)).toBe(1);
+    } finally {
+      await other.$disconnect();
+      await self.$disconnect();
+    }
   });
 });
