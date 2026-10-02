@@ -528,6 +528,74 @@ export interface IncomeCategorySuggestionResponse {
   targetEnvelopeId: string | null;
 }
 
+// Reports (v2). Keys and row shapes follow the API DTO; amounts are minor strings.
+
+export const REPORT_V2_KEYS = [
+  'account-balances',
+  'expenses-by-category',
+  'expenses-by-period',
+  'expenses-by-cycle',
+  'incomes-by-cycle',
+  'net-cash-flow',
+  'savings-goals',
+  'plan-vs-actual',
+  'assignment-movements',
+] as const;
+export type ReportV2Key = (typeof REPORT_V2_KEYS)[number];
+
+export interface ReportV2Filters {
+  from?: string;
+  to?: string;
+  accountId?: string;
+  categoryId?: string;
+  envelopeId?: string;
+}
+
+export interface SavingsGoalV2Row {
+  envelopeId: string;
+  name: string;
+  envelopeType: string;
+  /** Continuous v2 balance: assigned + moved net - spent. */
+  currentMinor: string;
+  targetMinor: string;
+  targetDate: string | null;
+  assignedMinor: string;
+  movedNetMinor: string;
+  spentMinor: string;
+  remainingMinor: string;
+  progressPermille: number;
+  isReached: boolean;
+  daysRemaining: number | null;
+}
+
+export interface ReportV2Response {
+  key: ReportV2Key;
+  rows: Array<Record<string, unknown>>;
+}
+
+// Read-only archive of model 1 assignments (P03b). Not model v2 funds.
+export interface LegacyAssignmentItem {
+  sourceKind: 'LEGACY_ALLOCATION' | 'LEGACY_ENVELOPE_START' | 'LEGACY_REALLOCATION';
+  id: string;
+  occurredOn: string;
+  amountMinor: string;
+  status: 'CONFIRMED' | 'CANCELLED' | 'DELETED';
+  isDeleted: boolean;
+  isEnvelopeArchived: boolean;
+  envelopeId: string | null;
+  sourceEnvelopeId: string | null;
+  destinationEnvelopeId: string | null;
+  incomeTransactionId: string | null;
+  categoryId: string | null;
+  accountId: string | null;
+}
+
+export interface LegacyAssignmentHistoryResponse {
+  items: LegacyAssignmentItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
 function query(params: Record<string, string | undefined>): string {
   const search = new URLSearchParams();
   for (const [name, value] of Object.entries(params)) {
@@ -570,6 +638,25 @@ export function useEnvelopePlanV2() {
   }
 
   return {
+    getReport: (budgetId: string, key: ReportV2Key, filters: ReportV2Filters = {}) =>
+      get<ReportV2Response>(
+        `${base(budgetId)}/reports/${encodeURIComponent(key)}${query({ ...filters })}`,
+      ),
+    getLegacyAssignmentHistory: (
+      budgetId: string,
+      filter: { cursor?: string; limit?: string } = {},
+    ) =>
+      get<LegacyAssignmentHistoryResponse>(
+        `${base(budgetId)}/history/legacy-assignments${query({ ...filter })}`,
+      ),
+    // CSV exports (OWNER only). The shared client sends the session cookie and
+    // turns JSON problems (403, 409, 422 EXPORT_LIMIT_EXCEEDED) into ApiRequestError.
+    exportTransactions: (budgetId: string) =>
+      api.requestBlob(`${base(budgetId)}/exports/transactions.csv`),
+    exportAssignments: (budgetId: string) =>
+      api.requestBlob(`${base(budgetId)}/exports/assignments.csv`),
+    exportLegacyAssignments: (budgetId: string) =>
+      api.requestBlob(`${base(budgetId)}/exports/legacy-assignments.csv`),
     updateFundingRule: (
       budgetId: string,
       envelopeId: string,

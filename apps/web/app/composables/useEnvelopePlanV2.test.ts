@@ -9,7 +9,7 @@ vi.mock('./useApiClient.js', async () => {
   return { ...actual, useApiClient: () => state.client };
 });
 
-import { useEnvelopePlanV2 } from './useEnvelopePlanV2.js';
+import { REPORT_V2_KEYS, useEnvelopePlanV2 } from './useEnvelopePlanV2.js';
 
 const budgetId = '0190a000-0000-7000-8000-000000000001';
 const base = `/api/v2/budgets/${budgetId}`;
@@ -343,6 +343,58 @@ describe('useEnvelopePlanV2', () => {
     expect(call.init.method).toBe('POST');
     expect(call.headers.get('Idempotency-Key')).toBe('k-a');
     expect(call.headers.get('x-csrf-token')).toBe('csrf-1');
+  });
+
+  it('reads v2 reports and the legacy history with GET and no mutation headers', async () => {
+    const api = useEnvelopePlanV2();
+
+    await api.getReport(budgetId, 'savings-goals', { to: '2026-09-30', envelopeId: 'e-1' });
+    let call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/reports/savings-goals?to=2026-09-30&envelopeId=e-1`);
+    expect(call.init.method ?? 'GET').toBe('GET');
+    expect(call.headers.get('Idempotency-Key')).toBeNull();
+
+    await api.getReport(budgetId, 'account-balances');
+    expect(lastCall().url).toBe(`${apiUrl}${base}/reports/account-balances`);
+
+    await api.getLegacyAssignmentHistory(budgetId, { cursor: 'c 1', limit: '50' });
+    call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/history/legacy-assignments?cursor=c+1&limit=50`);
+    expect(call.init.method ?? 'GET').toBe('GET');
+  });
+
+  it('lists exactly the nine API report keys', () => {
+    expect([...REPORT_V2_KEYS]).toEqual([
+      'account-balances',
+      'expenses-by-category',
+      'expenses-by-period',
+      'expenses-by-cycle',
+      'incomes-by-cycle',
+      'net-cash-flow',
+      'savings-goals',
+      'plan-vs-actual',
+      'assignment-movements',
+    ]);
+  });
+
+  it('downloads v2 CSV exports as GET blobs', async () => {
+    fetchSpy.mockImplementation(
+      async () => new Response('a;b', { headers: { 'content-type': 'text/csv' } }),
+    );
+    const api = useEnvelopePlanV2();
+
+    const blob = await api.exportTransactions(budgetId);
+    expect(await blob.text()).toBe('a;b');
+    expect(lastCall().url).toBe(`${apiUrl}${base}/exports/transactions.csv`);
+    await api.exportAssignments(budgetId);
+    expect(lastCall().url).toBe(`${apiUrl}${base}/exports/assignments.csv`);
+    await api.exportLegacyAssignments(budgetId);
+    const call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/exports/legacy-assignments.csv`);
+    expect(call.init.method ?? 'GET').toBe('GET');
+    expect(call.headers.get('x-csrf-token')).toBeNull();
+    expect(call.init.credentials).toBe('include');
+    expect(call.headers.get('Origin')).toBe('http://web.test');
   });
 
   it('PUTs funding rule, period target and income suggestion with CSRF and keys', async () => {

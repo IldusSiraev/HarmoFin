@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { format } from 'date-fns';
-import { AlertTriangle, Check, Plus, SkipForward, TrendingUp, X } from '@lucide/vue';
+import { AlertTriangle, Bell, Check, Plus, SkipForward, TrendingUp, X } from '@lucide/vue';
 import { definePageMeta, navigateTo, useRoute } from '#imports';
 
 import { buildCalendarGrid } from '../../components/plans/calendar-grid.js';
@@ -118,6 +118,9 @@ const EMPTY_PAY_OCCURRENCE = {
 };
 const payOccurrence = computed(() => payTarget.value ?? EMPTY_PAY_OCCURRENCE);
 const obligationListEl = ref<HTMLElement | null>(null);
+// `?occurrence=` from a notification: highlight that obligation once, no automatic action.
+const linkedOccurrenceId = ref<string | null>(null);
+let linkApplied = false;
 const isOpenObligation = (item: ObligationOccurrenceItem) =>
   item.status === 'DUE' || item.status === 'PENDING';
 // Open obligations first (overdue stay visible until paid or skipped).
@@ -229,10 +232,17 @@ async function loadAll() {
   error.value = '';
   try {
     await (isV2.value ? loadObligations(true) : Promise.all([loadReference(), loadRange()]));
+    if (isV2.value) applyOccurrenceLink();
   } catch {
     error.value = 'Не удалось загрузить планы. Повторите попытку.';
   } finally {
     loading.value = false;
+  }
+  // The list renders once loading ends; only then can the linked row scroll into view.
+  const linked = linkedOccurrenceId.value;
+  if (linked) {
+    await nextTick();
+    document.getElementById(`obligation-${linked}`)?.scrollIntoView?.({ block: 'center' });
   }
 }
 
@@ -273,6 +283,16 @@ async function loadObligations(withReference = false): Promise<void> {
     accounts.value = accountData.map((account) => ({ value: account.id, label: account.name }));
   }
   if (categoryData) categories.value = categoryData;
+}
+
+function applyOccurrenceLink() {
+  if (linkApplied) return;
+  linkApplied = true;
+  const wanted = route.query.occurrence;
+  if (typeof wanted !== 'string') return;
+  // Unknown or foreign ids are ignored: the highlight needs a row from the server list.
+  if (!obligations.value.some((item) => item.id === wanted)) return;
+  linkedOccurrenceId.value = wanted;
 }
 
 function isOverdue(item: ObligationOccurrenceItem): boolean {
@@ -684,12 +704,23 @@ function errorMessage(exception: unknown) {
             <ul v-else class="obligation-list__items">
               <li
                 v-for="item in sortedObligations"
+                :id="`obligation-${item.id}`"
                 :key="item.id"
                 class="obligation-row"
+                :class="{ 'obligation-row--linked': linkedOccurrenceId === item.id }"
+                :aria-current="linkedOccurrenceId === item.id ? 'true' : undefined"
                 :data-testid="`obligation-row-${item.id}`"
               >
                 <div class="obligation-row__main">
                   <span class="obligation-row__name">{{ item.name }}</span>
+                  <span
+                    v-if="linkedOccurrenceId === item.id"
+                    class="obligation-row__linked"
+                    data-testid="obligation-linked"
+                  >
+                    <Bell :size="14" aria-hidden="true" />
+                    Из уведомления
+                  </span>
                   <span class="obligation-row__meta">{{
                     formatPlainDateShort(item.scheduledOn)
                   }}</span>
@@ -984,6 +1015,18 @@ function errorMessage(exception: unknown) {
   border: 1px solid var(--hf-color-border);
   border-radius: var(--hf-radius-lg);
   background: var(--hf-color-surface);
+}
+.obligation-row__linked {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hf-space-1);
+  color: var(--hf-color-action-primary-hover);
+  font-size: var(--hf-font-size-small);
+  font-weight: var(--hf-font-weight-semibold);
+}
+.obligation-row--linked {
+  border-color: var(--hf-color-action-primary);
+  box-shadow: 0 0 0 2px var(--hf-color-action-primary);
 }
 .obligation-row__main,
 .obligation-row__amounts {

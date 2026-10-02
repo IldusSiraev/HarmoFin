@@ -409,6 +409,34 @@ describe('plans page: v2 obligations', () => {
     );
   });
 
+  it('highlights and scrolls to the obligation named by ?occurrence= without any action', async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    route.query = { occurrence: 'occ-rent' };
+    wrapper = mountV2();
+    await flushPromises();
+
+    const row = wrapper.get('[data-testid="obligation-row-occ-rent"]');
+    expect(row.attributes('aria-current')).toBe('true');
+    expect(row.classes()).toContain('obligation-row--linked');
+    expect(
+      wrapper.get('[data-testid="obligation-row-occ-daycare"]').attributes('aria-current'),
+    ).toBe(undefined);
+    expect(row.get('[data-testid="obligation-linked"]').text()).toContain('Из уведомления');
+    expect(wrapper.findAll('[data-testid="obligation-linked"]')).toHaveLength(1);
+    expect(scroll).toHaveBeenCalled();
+    expect(v2.payObligation).not.toHaveBeenCalled();
+    expect(v2.skipObligationOccurrence).not.toHaveBeenCalled();
+  });
+
+  it('ignores an unknown ?occurrence= id', async () => {
+    route.query = { occurrence: 'no-such-id' };
+    wrapper = mountV2();
+    await flushPromises();
+
+    expect(wrapper.find('[aria-current="true"]').exists()).toBe(false);
+  });
+
   it('pays the actual amount once, then rereads the server state', async () => {
     wrapper = mountV2();
     await flushPromises();

@@ -545,7 +545,7 @@ export interface PlanVsActualRowDto {
   varianceMinor: string;
   plannedOccurrenceCount: number;
   confirmedOccurrenceCount: number;
-  journalFilters: { planId: string; status: 'CONFIRMED' };
+  journalFilters?: { planId: string; status: 'CONFIRMED' };
 }
 
 export interface PlanVsActualReportDto {
@@ -564,7 +564,7 @@ export interface GoalProgressRowDto {
   progressPermille: number;
   isReached: boolean;
   daysRemaining: number | null;
-  journalFilters: { envelopeId: string };
+  journalFilters?: { envelopeId: string };
 }
 
 export interface GoalProgressReportDto {
@@ -572,7 +572,8 @@ export interface GoalProgressReportDto {
   rows: GoalProgressRowDto[];
 }
 
-export type GenericReportKey = Exclude<ReportKey, 'plan-vs-actual' | 'savings-goals'>;
+export type GenericReportKey =
+  Exclude<ReportKey, 'plan-vs-actual' | 'savings-goals'> | 'assignment-movements';
 
 export interface GenericReportDto {
   key: GenericReportKey;

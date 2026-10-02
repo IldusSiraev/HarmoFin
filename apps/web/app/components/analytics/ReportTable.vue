@@ -2,7 +2,10 @@
 import type { GenericReportDto } from '../../composables/useBudgetReferenceData.js';
 import { formatMinorUnits } from '../finance/money-format.js';
 
-defineProps<{ rows: ReadonlyArray<GenericReportDto['rows'][number]> }>();
+defineProps<{
+  rows: ReadonlyArray<GenericReportDto['rows'][number]>;
+  hideJournal?: boolean;
+}>();
 
 function title(row: Record<string, unknown>) {
   return (
@@ -10,6 +13,7 @@ function title(row: Record<string, unknown>) {
     stringValue(row.name) ||
     stringValue(row.cycleStart) ||
     stringValue(row.periodStart) ||
+    stringValue(row.effectiveOn) ||
     'Показатель'
   );
 }
@@ -44,14 +48,16 @@ function journalHref(row: Record<string, unknown>) {
         <tr>
           <th scope="col">Показатель</th>
           <th scope="col">Сумма</th>
-          <th scope="col">Операции</th>
+          <th v-if="!hideJournal" scope="col">Операции</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="(row, index) in rows" :key="`${title(row)}-${index}`">
           <td>{{ title(row) }}</td>
           <td>{{ amount(row) }}</td>
-          <td><NuxtLink :to="journalHref(row)" data-journal-link>Открыть</NuxtLink></td>
+          <td v-if="!hideJournal">
+            <NuxtLink :to="journalHref(row)" data-journal-link>Открыть</NuxtLink>
+          </td>
         </tr>
       </tbody>
     </table>
