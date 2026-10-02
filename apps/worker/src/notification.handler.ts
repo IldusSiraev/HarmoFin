@@ -16,6 +16,7 @@ export class NotificationRuleHandler {
         id: true,
         workspaceId: true,
         timezone: true,
+        planModelVersion: true,
         workspace: { select: { ownerId: true } },
       },
     });
@@ -31,6 +32,7 @@ type ActiveBudget = {
   id: string;
   workspaceId: string;
   timezone: string;
+  planModelVersion: number;
   workspace: { ownerId: string };
 };
 
@@ -41,6 +43,10 @@ async function evaluateBudget(
   budget: ActiveBudget,
   now: Date,
 ): Promise<void> {
+  if (budget.planModelVersion === 2) {
+    await evaluateBudgetV2(tx, budget, now);
+    return;
+  }
   const today = localDate(now, budget.timezone);
   const upcoming = addDays(today, 3);
   const obligationEnd = addDays(today, 30);
@@ -130,6 +136,91 @@ async function evaluateBudget(
       `Конверту «${envelope.name}» не хватает средств на ближайшие обязательства.`,
       '/app/plans',
     );
+  }
+}
+
+const LEGACY_STATE_TYPES: NotificationType[] = [
+  'PLAN_UPCOMING',
+  'UNALLOCATED_INCOME',
+  'NEGATIVE_ACCOUNT',
+  'NEGATIVE_ENVELOPE',
+  'INSUFFICIENT_MANDATORY_OBLIGATIONS',
+];
+
+/**
+ * Plan model 2: only occurrence-level due/overdue notifications. No balance SQL, no deficit or
+ * "free money" rules (those are the actionable dashboard). The notification carries only ids, the
+ * plan name and the date; amounts and remainders never go into title, body or audit payload.
+ * "Remainder > 0" is evaluated only to decide whether the occurrence still needs attention.
+ */
+async function evaluateBudgetV2(
+  tx: Prisma.TransactionClient,
+  budget: ActiveBudget,
+  now: Date,
+): Promise<void> {
+  const today = localDate(now, budget.timezone);
+  const ownerId = budget.workspace.ownerId;
+  const occurrences = await tx.planOccurrence.findMany({
+    where: {
+      budgetId: budget.id,
+      status: { in: ['PENDING', 'DUE'] },
+      scheduledOn: { lte: dateValue(today) },
+    },
+    select: {
+      id: true,
+      planName: true,
+      planType: true,
+      scheduledOn: true,
+      amountMinor: true,
+      payments: {
+        where: {
+          budgetId: budget.id,
+          transaction: { status: 'CONFIRMED', deletedAt: null },
+        },
+        select: { transaction: { select: { amountMinor: true } } },
+      },
+    },
+  });
+
+  const active = new Set<string>();
+  for (const occurrence of occurrences) {
+    const paid = occurrence.payments.reduce((sum, item) => sum + item.transaction.amountMinor, 0n);
+    if (occurrence.amountMinor - paid <= 0n) continue;
+    const type = isoDate(occurrence.scheduledOn) < today ? 'PLAN_OVERDUE' : 'PLAN_TODAY';
+    active.add(`${occurrence.id}:${type}`);
+    await createOccurrenceNotification(tx, budget, ownerId, type, occurrence);
+  }
+
+  const unresolved = await tx.notification.findMany({
+    where: {
+      budgetId: budget.id,
+      userId: ownerId,
+      resolvedAt: null,
+      OR: [
+        { notificationType: { in: ['PLAN_TODAY', 'PLAN_OVERDUE'] }, occurrenceId: { not: null } },
+        { notificationType: { in: LEGACY_STATE_TYPES } },
+      ],
+    },
+    select: { id: true, notificationType: true, occurrenceId: true, actionPath: true },
+  });
+  for (const notification of unresolved) {
+    const stillActive =
+      notification.occurrenceId !== null &&
+      active.has(`${notification.occurrenceId}:${notification.notificationType}`);
+    if (stillActive) continue;
+    const result = await tx.notification.updateMany({
+      where: { id: notification.id, budgetId: budget.id, resolvedAt: null },
+      data: { resolvedAt: new Date() },
+    });
+    if (result.count === 0) continue;
+    await createNotificationAudit(tx, budget, ownerId, notification.id, {
+      notificationType: notification.notificationType,
+      occurrenceId: notification.occurrenceId,
+      relatedEntityType: null,
+      relatedEntityId: null,
+      actionPath: notification.actionPath ?? '/app/plans',
+      state: 'RESOLVED',
+    });
   }
 }
 
