@@ -516,6 +516,60 @@ describe('TemplatePreviewSheet dialog', () => {
   });
 });
 
+describe('TemplatePreviewSheet envelopes section', () => {
+  const headings = (level: string) =>
+    Array.from(document.querySelectorAll(level)).map((node) => node.textContent?.trim());
+
+  it('groups period, mandatory and savings envelopes under one "Конверты" section', async () => {
+    await mountSheet();
+
+    expect(headings('h3')).toEqual(['Цикл', 'Категории', 'Конверты']);
+    expect(headings('h4')).toEqual([
+      'На обычные траты по периодам',
+      'Обязательные платежи',
+      'Накопления по желанию',
+    ]);
+    expect(text()).not.toContain('Обязательные расходы');
+    expect(text()).not.toContain('Конверты периодов');
+    expect(q('section[aria-label="Конверты"]')).not.toBeNull();
+    const section = q('section[aria-label="Конверты"]');
+    expect(section?.querySelector('[data-testid="template-row-FIRST"]')).not.toBeNull();
+    expect(section?.querySelector('[data-testid="template-row-MANDATORY"]')).not.toBeNull();
+    expect(
+      section?.querySelector('[data-testid="template-savings-v2-savings-car"]'),
+    ).not.toBeNull();
+  });
+
+  it('explains what an envelope is and marks new envelopes as empty', async () => {
+    await mountSheet();
+
+    expect(text()).toContain('не отдельный кошелёк');
+    expect(q('[data-testid="template-row-MANDATORY"]')?.textContent).toContain(
+      'Будет создан (пустой)',
+    );
+    expect(q('[data-testid="template-row-FIRST"]')?.textContent).toContain('Будет создан (пустой)');
+    expect(
+      q('[data-testid="template-savings-v2-savings-car"]')?.closest('li')?.textContent,
+    ).toContain('Будет создан (пустой)');
+    expect(q('[data-testid="template-envelopes-mandatory-note"]')?.textContent).toContain('аренду');
+  });
+
+  it('hides the savings group when the template has no savings', async () => {
+    mocks.v2.getTemplatePreview.mockResolvedValueOnce(
+      previewBody({
+        envelopes: [
+          envelope('FIRST', 'v2-period-first', 'Первый период'),
+          envelope('SECOND', 'v2-period-second', 'Второй период'),
+          envelope('MANDATORY', 'v2-mandatory', 'Обязательные'),
+        ],
+      }),
+    );
+    await mountSheet();
+
+    expect(headings('h4')).toEqual(['На обычные траты по периодам', 'Обязательные платежи']);
+  });
+});
+
 describe('TemplatePreviewSheet tooltips', () => {
   it.each([
     ['Что такое финансовый цикл', 'от зарплаты до зарплаты'],
@@ -523,7 +577,7 @@ describe('TemplatePreviewSheet tooltips', () => {
     ['Что такое конверты периодов', 'еда, транспорт'],
     ['Что такое целевая сумма на период', 'ориентир'],
     ['Что значит «Укажу позже»', 'без суммы'],
-    ['Что такое обязательные расходы', 'аренда'],
+    ['Что такое обязательные платежи', 'аренда'],
     ['Что такое накопления по желанию', 'отпуск'],
   ])('opens "%s" by click and links it with aria-describedby', async (label, fragment) => {
     await mountSheet();

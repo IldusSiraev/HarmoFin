@@ -157,7 +157,7 @@ interface StatusView {
   label: string;
   icon: Component;
 }
-function statusView(status: string): StatusView {
+function statusView(status: string, emptyEnvelope = false): StatusView {
   switch (status) {
     case 'EXISTING':
       return { label: 'Уже есть', icon: CircleCheck };
@@ -166,7 +166,7 @@ function statusView(status: string): StatusView {
     case 'COLLISION':
       return { label: 'Конфликт: не меняется', icon: AlertTriangle };
     default:
-      return { label: 'Будет создан', icon: Plus };
+      return { label: emptyEnvelope ? 'Будет создан (пустой)' : 'Будет создан', icon: Plus };
   }
 }
 
@@ -515,9 +515,23 @@ function requestClose(): void {
           </ul>
         </section>
 
-        <section class="template-sheet__block" aria-label="Конверты периодов">
+        <section class="template-sheet__block" aria-label="Конверты">
           <div class="template-sheet__heading-row">
-            <h3 class="template-sheet__heading">Конверты периодов</h3>
+            <h3 class="template-sheet__heading">Конверты</h3>
+            <UiInfoTooltip
+              label="Что такое конверты"
+              placement="bottom"
+              align="start"
+              text="Конверт — это назначение денег на определённую цель. Деньги по-прежнему лежат на ваших счетах, конверт лишь показывает, какая их часть для чего предназначена."
+            />
+          </div>
+          <p class="template-sheet__muted" data-testid="template-envelopes-intro">
+            Конверт — назначение денег на цель, а не отдельный кошелёк. Создаваемые конверты пустые:
+            денег и платежей в них нет.
+          </p>
+
+          <div class="template-sheet__heading-row">
+            <h4 class="template-sheet__subheading">На обычные траты по периодам</h4>
             <UiInfoTooltip
               label="Что такое конверты периодов"
               placement="bottom"
@@ -537,11 +551,11 @@ function requestClose(): void {
                   <span class="template-sheet__name">{{ byRole(role)?.name }}</span>
                   <span class="template-sheet__status">
                     <component
-                      :is="statusView(byRole(role)?.status ?? '').icon"
+                      :is="statusView(byRole(role)?.status ?? '', true).icon"
                       :size="16"
                       aria-hidden="true"
                     />
-                    {{ statusView(byRole(role)?.status ?? '').label }}
+                    {{ statusView(byRole(role)?.status ?? '', true).label }}
                   </span>
                 </div>
                 <label v-if="byRole(role)?.status === 'ARCHIVED'" class="template-sheet__check-row">
@@ -612,103 +626,112 @@ function requestClose(): void {
               </template>
             </li>
           </ul>
-        </section>
 
-        <section v-if="byRole('MANDATORY')" class="template-sheet__block" aria-label="Обязательные">
-          <div class="template-sheet__heading-row">
-            <h3 class="template-sheet__heading">Обязательные расходы</h3>
-            <UiInfoTooltip
-              label="Что такое обязательные расходы"
-              placement="bottom"
-              align="start"
-              text="Обязательные расходы — платежи, которые нельзя пропустить: аренда, коммунальные услуги, кредиты."
-            />
-          </div>
-          <div class="template-sheet__row" data-testid="template-row-MANDATORY">
-            <span class="template-sheet__name">{{ byRole('MANDATORY')?.name }}</span>
-            <span class="template-sheet__status">
-              <component
-                :is="statusView(byRole('MANDATORY')?.status ?? '').icon"
-                :size="16"
-                aria-hidden="true"
+          <template v-if="byRole('MANDATORY')">
+            <div class="template-sheet__heading-row">
+              <h4 class="template-sheet__subheading">Обязательные платежи</h4>
+              <UiInfoTooltip
+                label="Что такое обязательные платежи"
+                placement="bottom"
+                align="start"
+                text="Обязательные платежи — платежи, которые нельзя пропустить: аренда, коммунальные услуги, кредиты. Для них создаётся отдельный конверт «Обязательные»."
               />
-              {{ statusView(byRole('MANDATORY')?.status ?? '').label }}
-            </span>
-          </div>
-          <label
-            v-if="byRole('MANDATORY')?.status === 'ARCHIVED'"
-            class="template-sheet__check-row"
-          >
-            <input
-              v-model="consent.MANDATORY"
-              type="checkbox"
-              class="template-sheet__check"
-              data-testid="template-consent-MANDATORY"
-            />
-            Создать новый вместо архивного
-          </label>
-        </section>
+            </div>
+            <p class="template-sheet__muted" data-testid="template-envelopes-mandatory-note">
+              В конверт «Обязательные» назначаются деньги на аренду, коммунальные услуги и кредиты.
+            </p>
+            <div class="template-sheet__row" data-testid="template-row-MANDATORY">
+              <span class="template-sheet__name">{{ byRole('MANDATORY')?.name }}</span>
+              <span class="template-sheet__status">
+                <component
+                  :is="statusView(byRole('MANDATORY')?.status ?? '', true).icon"
+                  :size="16"
+                  aria-hidden="true"
+                />
+                {{ statusView(byRole('MANDATORY')?.status ?? '', true).label }}
+              </span>
+            </div>
+            <label
+              v-if="byRole('MANDATORY')?.status === 'ARCHIVED'"
+              class="template-sheet__check-row"
+            >
+              <input
+                v-model="consent.MANDATORY"
+                type="checkbox"
+                class="template-sheet__check"
+                data-testid="template-consent-MANDATORY"
+              />
+              Создать новый вместо архивного
+            </label>
+          </template>
 
-        <section v-if="savings.length > 0" class="template-sheet__block" aria-label="Накопления">
-          <div class="template-sheet__heading-row">
-            <h3 class="template-sheet__heading">Накопления по желанию</h3>
-            <UiInfoTooltip
-              label="Что такое накопления по желанию"
-              placement="bottom"
-              align="start"
-              text="Накопления — цели, на которые вы откладываете деньги: отпуск, автомобиль. Ничего не создаётся, пока вы не отметите нужное."
-            />
-          </div>
-          <p class="template-sheet__muted">
-            Ничего не создаётся, пока вы не отметите. Взнос необязателен и деньги не назначает.
-          </p>
-          <ul class="template-sheet__list">
-            <li v-for="item in savings" :key="item.templateKey" class="template-sheet__item">
-              <div class="template-sheet__row">
-                <label class="template-sheet__check-row">
-                  <input
-                    v-model="savingsSelected[item.templateKey]"
-                    type="checkbox"
-                    class="template-sheet__check"
-                    :disabled="item.status === 'ARCHIVED' || item.status === 'COLLISION'"
-                    :data-testid="`template-savings-${item.templateKey}`"
-                  />
-                  <span class="template-sheet__name">{{ item.name }}</span>
-                </label>
-                <span class="template-sheet__status">
-                  <component :is="statusView(item.status).icon" :size="16" aria-hidden="true" />
-                  {{ statusView(item.status).label }}
-                </span>
-              </div>
-              <template v-if="savingsSelected[item.templateKey]">
-                <label class="template-sheet__field">
-                  <span>Желательный взнос (необязательно)</span>
-                  <input
-                    v-model="contributions[item.templateKey]"
-                    type="text"
-                    class="template-sheet__input"
-                    inputmode="decimal"
-                    autocomplete="off"
-                    placeholder="Сумма, ₽"
-                    :data-testid="`template-contribution-${item.templateKey}`"
-                    :aria-invalid="fieldErrors[item.templateKey] ? 'true' : undefined"
-                    :aria-describedby="
-                      fieldErrors[item.templateKey] ? `template-err-${item.templateKey}` : undefined
-                    "
-                  />
-                </label>
-                <p
-                  v-if="fieldErrors[item.templateKey]"
-                  :id="`template-err-${item.templateKey}`"
-                  class="template-sheet__field-error"
-                  :data-testid="`template-error-${item.templateKey}`"
-                >
-                  <AlertTriangle :size="14" aria-hidden="true" />
-                  {{ fieldErrors[item.templateKey] }}
-                </p>
-              </template>
-            </li>
-          </ul>
+          <template v-if="savings.length > 0">
+            <div class="template-sheet__heading-row">
+              <h4 class="template-sheet__subheading">Накопления по желанию</h4>
+              <UiInfoTooltip
+                label="Что такое накопления по желанию"
+                placement="bottom"
+                align="start"
+                text="Накопления — цели, на которые вы откладываете деньги: отпуск, автомобиль. Ничего не создаётся, пока вы не отметите нужное."
+              />
+            </div>
+            <p class="template-sheet__muted">
+              Ничего не создаётся, пока вы не отметите. Взнос необязателен и деньги не назначает.
+            </p>
+            <ul class="template-sheet__list">
+              <li v-for="item in savings" :key="item.templateKey" class="template-sheet__item">
+                <div class="template-sheet__row">
+                  <label class="template-sheet__check-row">
+                    <input
+                      v-model="savingsSelected[item.templateKey]"
+                      type="checkbox"
+                      class="template-sheet__check"
+                      :disabled="item.status === 'ARCHIVED' || item.status === 'COLLISION'"
+                      :data-testid="`template-savings-${item.templateKey}`"
+                    />
+                    <span class="template-sheet__name">{{ item.name }}</span>
+                  </label>
+                  <span class="template-sheet__status">
+                    <component
+                      :is="statusView(item.status, true).icon"
+                      :size="16"
+                      aria-hidden="true"
+                    />
+                    {{ statusView(item.status, true).label }}
+                  </span>
+                </div>
+                <template v-if="savingsSelected[item.templateKey]">
+                  <label class="template-sheet__field">
+                    <span>Желательный взнос (необязательно)</span>
+                    <input
+                      v-model="contributions[item.templateKey]"
+                      type="text"
+                      class="template-sheet__input"
+                      inputmode="decimal"
+                      autocomplete="off"
+                      placeholder="Сумма, ₽"
+                      :data-testid="`template-contribution-${item.templateKey}`"
+                      :aria-invalid="fieldErrors[item.templateKey] ? 'true' : undefined"
+                      :aria-describedby="
+                        fieldErrors[item.templateKey]
+                          ? `template-err-${item.templateKey}`
+                          : undefined
+                      "
+                    />
+                  </label>
+                  <p
+                    v-if="fieldErrors[item.templateKey]"
+                    :id="`template-err-${item.templateKey}`"
+                    class="template-sheet__field-error"
+                    :data-testid="`template-error-${item.templateKey}`"
+                  >
+                    <AlertTriangle :size="14" aria-hidden="true" />
+                    {{ fieldErrors[item.templateKey] }}
+                  </p>
+                </template>
+              </li>
+            </ul>
+          </template>
         </section>
       </template>
     </div>
@@ -751,6 +774,13 @@ function requestClose(): void {
 
 .template-sheet__heading {
   margin: 0;
+  font-size: var(--hf-font-size-body);
+  line-height: var(--hf-line-height-body);
+  font-weight: 700;
+}
+
+.template-sheet__subheading {
+  margin: var(--hf-space-2) 0 0;
   font-size: var(--hf-font-size-body);
   line-height: var(--hf-line-height-body);
   font-weight: 600;
@@ -815,7 +845,7 @@ function requestClose(): void {
 
 .template-sheet__name {
   min-width: 0;
-  font-weight: 600;
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
 
@@ -860,13 +890,20 @@ function requestClose(): void {
   align-items: center;
   gap: var(--hf-space-2);
   min-height: 44px;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
   cursor: pointer;
+}
+
+.template-sheet__check-row .template-sheet__name {
+  color: var(--hf-color-text);
+  font-size: var(--hf-font-size-body);
 }
 
 .template-sheet__check {
   flex: none;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.125rem;
+  height: 1.125rem;
   accent-color: var(--hf-color-action-primary);
 }
 
