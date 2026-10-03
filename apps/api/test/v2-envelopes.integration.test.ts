@@ -963,6 +963,305 @@ describe('v2 envelopes: HTTP-контракт', () => {
   });
 });
 
+describe('v2 envelopes: периоды конверта в ответе', () => {
+  const dayMs = 86_400_000;
+  const dateOnly = (delta: number) =>
+    new Date(`${new Date(Date.now() + delta * dayMs).toISOString().slice(0, 10)}T00:00:00Z`);
+  let periodEnvelope: string;
+  let pastPeriod: string;
+  let currentPeriod: string;
+
+  type PeriodItem = {
+    periodId: string;
+    startsOn: string;
+    endsOn: string;
+    fundedMinor: string;
+    spentMinor: string;
+    balanceMinor: string;
+    current: boolean;
+  };
+
+  async function listOwn(): Promise<
+    Array<{ id: string; periods: PeriodItem[]; balanceMinor: string }>
+  > {
+    const result = await service!.list(ctx.owner!.userId, ctx.owner!.budgetId);
+    return result.body.items as unknown as Array<{
+      id: string;
+      periods: PeriodItem[];
+      balanceMinor: string;
+    }>;
+  }
+
+  it('отдаёт периоды периодного конверта: id, даты, остаток и признак текущего', async () => {
+    const created = await service!.create(
+      ctx.owner!.userId,
+      ctx.owner!.budgetId,
+      { name: 'Второй период', envelopeType: 'CURRENT_EXPENSES', periodSlot: 'SECOND' },
+      'env-periods-create',
+    );
+    periodEnvelope = created.body.id;
+    expect((created.body as unknown as { periods: unknown[] }).periods).toEqual([]);
+
+    pastPeriod = (
+      await prisma.envelopePeriod.create({
+        data: {
+          id: randomUUID(),
+          budgetId: ctx.owner!.budgetId,
+          envelopeId: periodEnvelope,
+          startsOn: dateOnly(-31),
+          endsOn: dateOnly(-1),
+        },
+      })
+    ).id;
+    currentPeriod = (
+      await prisma.envelopePeriod.create({
+        data: {
+          id: randomUUID(),
+          budgetId: ctx.owner!.budgetId,
+          envelopeId: periodEnvelope,
+          startsOn: dateOnly(-2),
+          endsOn: dateOnly(12),
+        },
+      })
+    ).id;
+    await assignments!.assignFree(
+      ctx.owner!.userId,
+      ctx.owner!.budgetId,
+      { envelopeId: periodEnvelope, periodId: pastPeriod, amount: '50', sourceKind: 'FREE' },
+      'env-periods-assign-past',
+    );
+    await assignments!.assignFree(
+      ctx.owner!.userId,
+      ctx.owner!.budgetId,
+      { envelopeId: periodEnvelope, periodId: currentPeriod, amount: '100', sourceKind: 'FREE' },
+      'env-periods-assign-current',
+    );
+
+    const item = (await listOwn()).find((row) => row.id === periodEnvelope)!;
+
+    expect(item.periods.map((period) => period.periodId)).toEqual([pastPeriod, currentPeriod]);
+    const [past, current] = item.periods as [PeriodItem, PeriodItem];
+    expect(past).toMatchObject({
+      startsOn: dateOnly(-31).toISOString().slice(0, 10),
+      endsOn: dateOnly(-1).toISOString().slice(0, 10),
+      fundedMinor: '5000',
+      spentMinor: '0',
+      balanceMinor: '5000',
+      current: false,
+    });
+    expect(current).toMatchObject({ fundedMinor: '10000', balanceMinor: '10000', current: true });
+    expect(BigInt(past.balanceMinor) + BigInt(current.balanceMinor)).toBe(
+      BigInt(item.balanceMinor),
+    );
+
+    const single = await service!.get(ctx.owner!.userId, ctx.owner!.budgetId, periodEnvelope);
+    expect((single.body as unknown as { periods: PeriodItem[] }).periods).toHaveLength(2);
+  });
+
+  it('конверт без периодов отдаёт пустой список, чужие периоды не попадают', async () => {
+    const items = await listOwn();
+    const mandatory = items.find((row) => row.id === firstMandatory)!;
+    expect(mandatory.periods).toEqual([]);
+
+    const foreignPeriod = await prisma.envelopePeriod.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ctx.outsider!.budgetId,
+        envelopeId: outsiderEnvelope,
+        startsOn: dateOnly(-2),
+        endsOn: dateOnly(12),
+      },
+    });
+    const ownPeriodIds = (await listOwn()).flatMap((row) =>
+      row.periods.map((period) => period.periodId),
+    );
+    expect(ownPeriodIds).not.toContain(foreignPeriod.id);
+  });
+
+  it('перенос из текущего периода в свободные работает по id периода из списка', async () => {
+    const before = (await listOwn()).find((row) => row.id === periodEnvelope)!;
+    const current = before.periods.find((period) => period.current)!;
+
+    const moved = await movements!.move(
+      ctx.owner!.userId,
+      ctx.owner!.budgetId,
+      {
+        sourceEnvelopeId: periodEnvelope,
+        sourcePeriodId: current.periodId,
+        destinationEnvelopeId: null,
+        amount: '30',
+      },
+      'env-periods-move-free',
+    );
+    expect(moved.status).toBe(201);
+
+    const after = (await listOwn()).find((row) => row.id === periodEnvelope)!;
+    expect(after.periods.find((period) => period.current)!.balanceMinor).toBe('7000');
+    expect(after.periods.find((period) => !period.current)!.balanceMinor).toBe('5000');
+  });
+
+  it('текущий период с нулём виден, прошлый пустой и будущий скрыты', async () => {
+    const rows = await prisma.envelopePeriod.createManyAndReturn({
+      data: [
+        {
+          id: randomUUID(),
+          budgetId: ctx.owner!.budgetId,
+          envelopeId: firstPeriod,
+          startsOn: dateOnly(-100),
+          endsOn: dateOnly(-90),
+        },
+        {
+          id: randomUUID(),
+          budgetId: ctx.owner!.budgetId,
+          envelopeId: firstPeriod,
+          startsOn: dateOnly(-1),
+          endsOn: dateOnly(1),
+        },
+        {
+          id: randomUUID(),
+          budgetId: ctx.owner!.budgetId,
+          envelopeId: firstPeriod,
+          startsOn: dateOnly(100),
+          endsOn: dateOnly(110),
+        },
+      ],
+    });
+    const [emptyPast, currentZero, future] = rows as unknown as [
+      { id: string },
+      { id: string },
+      { id: string },
+    ];
+    try {
+      const item = (await listOwn()).find((row) => row.id === firstPeriod)!;
+      const ids = item.periods.map((period) => period.periodId);
+
+      expect(ids).toContain(currentZero.id);
+      expect(item.periods.find((period) => period.periodId === currentZero.id)).toMatchObject({
+        current: true,
+        balanceMinor: '0',
+      });
+      expect(ids).not.toContain(emptyPast.id);
+      expect(ids).not.toContain(future.id);
+    } finally {
+      await prisma.envelopePeriod.deleteMany({
+        where: { id: { in: rows.map((row) => row.id) } },
+      });
+    }
+  });
+
+  it.each(['Pacific/Kiritimati', 'Pacific/Pago_Pago'])(
+    'признак текущего считается по часовому поясу бюджета (%s)',
+    async (timezone) => {
+      const localToday = new Intl.DateTimeFormat('en-CA', {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date());
+      const at = (delta: number) =>
+        new Date(new Date(`${localToday}T00:00:00Z`).getTime() + delta * dayMs);
+      await prisma.budget.update({ where: { id: ctx.owner!.budgetId }, data: { timezone } });
+      const rows = await prisma.envelopePeriod.createManyAndReturn({
+        data: [
+          {
+            id: randomUUID(),
+            budgetId: ctx.owner!.budgetId,
+            envelopeId: firstPeriod,
+            startsOn: at(0),
+            endsOn: at(0),
+          },
+          {
+            id: randomUUID(),
+            budgetId: ctx.owner!.budgetId,
+            envelopeId: firstPeriod,
+            startsOn: at(1),
+            endsOn: at(1),
+          },
+          {
+            id: randomUUID(),
+            budgetId: ctx.owner!.budgetId,
+            envelopeId: firstPeriod,
+            startsOn: at(-1),
+            endsOn: at(-1),
+          },
+        ],
+      });
+      const [todayRow, tomorrowRow, yesterdayRow] = rows as unknown as [
+        { id: string },
+        { id: string },
+        { id: string },
+      ];
+      try {
+        const item = (await listOwn()).find((row) => row.id === firstPeriod)!;
+        const byId = new Map(item.periods.map((period) => [period.periodId, period]));
+
+        expect(byId.get(todayRow.id)?.current).toBe(true);
+        expect(byId.has(tomorrowRow.id)).toBe(false);
+        // Yesterday of the budget timezone has no money and is not current: hidden.
+        expect(byId.has(yesterdayRow.id)).toBe(false);
+      } finally {
+        await prisma.envelopePeriod.deleteMany({
+          where: { id: { in: rows.map((row) => row.id) } },
+        });
+        await prisma.budget.update({
+          where: { id: ctx.owner!.budgetId },
+          data: { timezone: 'UTC' },
+        });
+      }
+    },
+  );
+
+  it('ответы изменения и архива конверта тоже содержат периоды', async () => {
+    const renamed = await service!.update(
+      ctx.owner!.userId,
+      ctx.owner!.budgetId,
+      periodEnvelope,
+      { name: 'Второй период (новый)' },
+      'env-periods-rename',
+    );
+    const renamedPeriods = (renamed.body as unknown as { periods: PeriodItem[] }).periods;
+    expect(renamedPeriods.map((period) => period.periodId)).toEqual([pastPeriod, currentPeriod]);
+
+    // Empty both buckets to free by period id, then archive.
+    await movements!.move(
+      ctx.owner!.userId,
+      ctx.owner!.budgetId,
+      {
+        sourceEnvelopeId: periodEnvelope,
+        sourcePeriodId: pastPeriod,
+        destinationEnvelopeId: null,
+        amount: '50',
+      },
+      'env-periods-empty-past',
+    );
+    await movements!.move(
+      ctx.owner!.userId,
+      ctx.owner!.budgetId,
+      {
+        sourceEnvelopeId: periodEnvelope,
+        sourcePeriodId: currentPeriod,
+        destinationEnvelopeId: null,
+        amount: '70',
+      },
+      'env-periods-empty-current',
+    );
+    const archived = await service!.archive(
+      ctx.owner!.userId,
+      ctx.owner!.budgetId,
+      periodEnvelope,
+      'env-periods-archive',
+    );
+    const archivedPeriods = (archived.body as unknown as { periods: PeriodItem[] }).periods;
+    // The emptied past period has no money any more and is not current: hidden.
+    expect(archivedPeriods).toHaveLength(1);
+    expect(archivedPeriods[0]).toMatchObject({
+      periodId: currentPeriod,
+      balanceMinor: '0',
+      current: true,
+    });
+  });
+});
+
 function authHeaders(user: RegisteredUser | undefined): Record<string, string> {
   return { origin, cookie: `harmofin_session=${user?.cookie ?? ''}` };
 }

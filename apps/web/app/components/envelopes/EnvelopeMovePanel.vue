@@ -3,15 +3,16 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { AlertTriangle } from '@lucide/vue';
 
 import FinanceMoney from '../finance/FinanceMoney.vue';
+import { formatMinorUnits } from '../finance/money-format.js';
 import UiButton from '../ui/Button.vue';
 import UiDrawer from '../ui/Drawer.vue';
 import {
   type AssignFreeResponse,
+  type EnvelopePeriodDto,
   type EnvelopePlanDto,
   type MoveEnvelopeResponse,
   useEnvelopePlanV2,
 } from '../../composables/useEnvelopePlanV2.js';
-import { ApiRequestError } from '../../composables/useApiClient.js';
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
 import { toDecimalText } from './envelope-plan-kind.js';
 
@@ -41,10 +42,38 @@ const emit = defineEmits<{ close: []; done: [result: MovePanelResult] }>();
 
 const planV2 = useEnvelopePlanV2();
 
-// A period envelope's balance may live in period buckets, which a plain move
-// without a period cannot touch; the server answers 409 for that.
-const PERIOD_BOUND_MESSAGE =
-  'Остаток привязан к периоду; перенос из этого конверта пока недоступен — используйте карточку остатка периода на главной.';
+// The money of a period envelope lives in period buckets. The server sends the
+// buckets (ids, dates, balances, which one is current); the panel only picks
+// one and sends its id, it never computes a balance. Sign checks on minor-unit
+// strings are the only "math" here.
+const dayMonth = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' });
+
+function isPeriodEnvelope(envelope: EnvelopePlanDto | null | undefined): boolean {
+  return envelope?.envelopeType === 'CURRENT_EXPENSES';
+}
+
+function periodsOf(envelope: EnvelopePlanDto | null | undefined): EnvelopePeriodDto[] {
+  return envelope?.periods ?? [];
+}
+
+function hasMoney(period: EnvelopePeriodDto): boolean {
+  return period.balanceMinor !== '0' && !period.balanceMinor.startsWith('-');
+}
+
+function dayText(iso: string): string {
+  const [year, month, day] = iso.split('-').map(Number);
+  if (!year || !month || !day) return iso;
+  return dayMonth.format(new Date(year, month - 1, day));
+}
+
+function periodLabel(period: EnvelopePeriodDto): string {
+  const range = `${dayText(period.startsOn)} – ${dayText(period.endsOn)}`;
+  return period.current ? `${range} · идёт сейчас` : range;
+}
+
+function periodOption(period: EnvelopePeriodDto): string {
+  return `${periodLabel(period)} · ${formatMinorUnits(period.balanceMinor, 'RUB', 2)}`;
+}
 
 const AMOUNT_PATTERN = /^\d+(?:[.,]\d{1,2})?$/;
 
@@ -84,19 +113,60 @@ const destination = computed(
 );
 const amountLocked = computed(() => props.mode === 'archive');
 
+const sourceMoneyPeriods = computed(() =>
+  isPeriodEnvelope(props.source) ? periodsOf(props.source).filter(hasMoney) : [],
+);
+const sourceUsesPeriods = computed(
+  () => isPeriodEnvelope(props.source) && periodsOf(props.source).length > 0,
+);
+const sourcePeriodId = ref('');
+const sourcePeriod = computed(
+  () => sourceMoneyPeriods.value.find((item) => item.periodId === sourcePeriodId.value) ?? null,
+);
+const showSourcePeriods = computed(
+  () => sourceUsesPeriods.value && direction.value !== 'free-envelope',
+);
+const sourceBalanceMinor = computed(
+  () => sourcePeriod.value?.balanceMinor ?? props.source?.balanceMinor ?? '0',
+);
+
+// Default: the current period when it holds money, otherwise the first that does.
+watch(
+  sourceMoneyPeriods,
+  (periods) => {
+    if (periods.some((item) => item.periodId === sourcePeriodId.value)) return;
+    sourcePeriodId.value = (periods.find((item) => item.current) ?? periods[0])?.periodId ?? '';
+  },
+  { immediate: true },
+);
+
+// Archive moves the whole remainder of the chosen bucket.
+watch(sourcePeriodId, () => {
+  if (props.mode === 'archive' && sourcePeriod.value) {
+    amount.value = toDecimalText(sourcePeriod.value.balanceMinor);
+  }
+});
+
 watch(
   () => props.source?.id,
   (id) => {
     if (!id || !props.source) return;
     direction.value = props.mode === 'archive' ? 'envelope-free' : 'envelope-envelope';
     destinationId.value = '';
-    amount.value = props.mode === 'archive' ? toDecimalText(props.source.balanceMinor) : '';
+    amount.value =
+      props.mode === 'archive'
+        ? toDecimalText(sourcePeriod.value?.balanceMinor ?? props.source.balanceMinor)
+        : '';
     amountError.value = '';
     destinationError.value = '';
     submitError.value = '';
   },
   { immediate: true },
 );
+
+watch(destinationId, () => {
+  destinationError.value = '';
+});
 
 watch(direction, (next) => {
   destinationError.value = '';
@@ -127,6 +197,12 @@ function close(): void {
 async function confirm(): Promise<void> {
   const source = props.source;
   if (!source || pending.value) return;
+  // Nothing to move at all: say it before asking for an amount.
+  if (direction.value !== 'free-envelope' && sourceUsesPeriods.value && !sourcePeriod.value) {
+    submitError.value = 'В этом конверте нет денег, которые можно перенести.';
+    amountError.value = '';
+    return;
+  }
   const text = amount.value.trim();
   if (!AMOUNT_PATTERN.test(text)) {
     amountError.value =
@@ -148,12 +224,27 @@ async function confirm(): Promise<void> {
   destinationError.value = '';
   const decimal = text.replace(',', '.');
 
+  // Period envelopes: the destination is always its current period.
+  let destinationPeriodId: string | undefined;
+  if (needsDestination.value && isPeriodEnvelope(destination.value)) {
+    destinationPeriodId = periodsOf(destination.value).find((item) => item.current)?.periodId;
+    if (destinationPeriodId === undefined) {
+      destinationError.value = `У конверта «${destination.value?.name ?? ''}» нет текущего периода. Сначала назначьте в него деньги кнопкой «Назначить» на главной.`;
+      focusById('move-destination');
+      return;
+    }
+  }
+
   pending.value = true;
   submitError.value = '';
   try {
     let result: MovePanelResult;
     if (direction.value === 'free-envelope') {
-      const body = { envelopeId: destinationId.value, amount: decimal };
+      const body = {
+        envelopeId: destinationId.value,
+        ...(destinationPeriodId ? { periodId: destinationPeriodId } : {}),
+        amount: decimal,
+      };
       result = {
         kind: 'assign',
         response: await planV2.assignFree(props.budgetId, body, attemptKey(['assign', body])),
@@ -161,7 +252,9 @@ async function confirm(): Promise<void> {
     } else {
       const body = {
         sourceEnvelopeId: source.id,
+        ...(sourcePeriod.value ? { sourcePeriodId: sourcePeriod.value.periodId } : {}),
         destinationEnvelopeId: direction.value === 'envelope-free' ? null : destinationId.value,
+        ...(destinationPeriodId ? { destinationPeriodId } : {}),
         amount: decimal,
       };
       result = {
@@ -172,12 +265,7 @@ async function confirm(): Promise<void> {
     attempt = null;
     emit('done', result);
   } catch (cause) {
-    submitError.value =
-      cause instanceof ApiRequestError &&
-      cause.problem.code === 'INSUFFICIENT_ENVELOPE_BALANCE' &&
-      source.envelopeType === 'CURRENT_EXPENSES'
-        ? PERIOD_BOUND_MESSAGE
-        : v2ErrorMessage(cause, 'Не удалось выполнить перенос. Попробуйте ещё раз.');
+    submitError.value = v2ErrorMessage(cause, 'Не удалось выполнить перенос. Попробуйте ещё раз.');
     focusById('move-amount');
   } finally {
     pending.value = false;
@@ -225,7 +313,7 @@ defineExpose({ confirm });
           <dt>Откуда: «{{ source.name }}»</dt>
           <dd data-testid="move-source-balance">
             Сейчас осталось
-            <FinanceMoney :minor-units="source.balanceMinor" currency="RUB" :scale="2" />
+            <FinanceMoney :minor-units="sourceBalanceMinor" currency="RUB" :scale="2" />
           </dd>
         </div>
         <div v-else>
@@ -233,6 +321,28 @@ defineExpose({ confirm });
           <dd>Свободные деньги</dd>
         </div>
       </dl>
+
+      <div v-if="showSourcePeriods && sourceMoneyPeriods.length > 1" class="move-panel__field">
+        <label for="move-source-period" class="move-panel__label">Из какого периода</label>
+        <select
+          id="move-source-period"
+          v-model="sourcePeriodId"
+          class="move-panel__input"
+          data-testid="move-source-period"
+          :disabled="pending"
+        >
+          <option v-for="item in sourceMoneyPeriods" :key="item.periodId" :value="item.periodId">
+            {{ periodOption(item) }}
+          </option>
+        </select>
+      </div>
+      <p
+        v-else-if="showSourcePeriods && sourcePeriod"
+        class="move-panel__muted"
+        data-testid="move-source-period-note"
+      >
+        Деньги периода: {{ periodLabel(sourcePeriod) }}.
+      </p>
 
       <div v-if="needsDestination" class="move-panel__field">
         <label for="move-destination" class="move-panel__label">

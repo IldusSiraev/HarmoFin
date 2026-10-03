@@ -1,5 +1,36 @@
 import { ApiProperty, ApiSchema } from '@nestjs/swagger';
 
+export class EnvelopePeriodBalanceResponse {
+  @ApiProperty({
+    type: String,
+    description: 'Идентификатор периода конверта; передаётся как sourcePeriodId/periodId.',
+    example: '0195f3c3-aaaa-bbbb-cccc-000000000003',
+  })
+  periodId!: string;
+
+  @ApiProperty({ type: String, format: 'date', example: '2026-09-25' })
+  startsOn!: string;
+
+  @ApiProperty({ type: String, format: 'date', example: '2026-10-09' })
+  endsOn!: string;
+
+  @ApiProperty({ type: String, example: '1000000' })
+  fundedMinor!: string;
+
+  @ApiProperty({ type: String, example: '200000' })
+  spentMinor!: string;
+
+  @ApiProperty({ type: String, example: '800000' })
+  balanceMinor!: string;
+
+  @ApiProperty({
+    type: Boolean,
+    description: 'Сегодняшняя дата по часовому поясу бюджета попадает в этот период.',
+    example: true,
+  })
+  current!: boolean;
+}
+
 export class EnvelopePlanResponse {
   @ApiProperty({ type: String, example: '0195f3c3-aaaa-bbbb-cccc-000000000001' })
   id!: string;
@@ -34,6 +65,51 @@ export class EnvelopePlanResponse {
 
   @ApiProperty({ type: String, nullable: true, example: '2026-09-30T12:00:00.000Z' })
   archivedAt!: string | null;
+
+  @ApiProperty({
+    type: [EnvelopePeriodBalanceResponse],
+    description:
+      'Периоды периодного конверта, в которых есть движение денег, и текущий период; ' +
+      'по возрастанию даты начала. Для конвертов без периодов — пустой список.',
+  })
+  periods!: EnvelopePeriodBalanceResponse[];
+}
+
+export class AssignmentResultResponse {
+  @ApiProperty({ type: String, example: '0195f3c3-aaaa-bbbb-cccc-000000000010' })
+  assignmentId!: string;
+
+  @ApiProperty({ type: String, example: '10000' })
+  amountMinor!: string;
+
+  @ApiProperty({ type: String, example: '12000' })
+  fundedMinor!: string;
+
+  @ApiProperty({ type: String, example: '2000' })
+  spentMinor!: string;
+
+  @ApiProperty({ type: String, example: '10000' })
+  balanceMinor!: string;
+
+  @ApiProperty({ type: String, example: '0' })
+  freeToAssignMinor!: string;
+}
+
+export class MovementResultResponse {
+  @ApiProperty({ type: String, example: '0195f3c3-aaaa-bbbb-cccc-000000000020' })
+  movementId!: string;
+
+  @ApiProperty({ type: String, example: '10000' })
+  amountMinor!: string;
+
+  @ApiProperty({ type: String, example: '5000' })
+  sourceBalanceMinor!: string;
+
+  @ApiProperty({ type: String, nullable: true, example: '15000' })
+  destinationBalanceMinor!: string | null;
+
+  @ApiProperty({ type: String, example: '30000000' })
+  cashMinor!: string;
 }
 
 export class EnvelopePlanListResponse {

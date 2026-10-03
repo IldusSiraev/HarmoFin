@@ -545,17 +545,265 @@ describe('envelopes page, plan model v2', () => {
     expect(message).not.toContain('technical');
   });
 
-  it('explains period-bound balances when a period envelope move is rejected', async () => {
-    mocks.v2.move.mockRejectedValue(problem(409, 'INSUFFICIENT_ENVELOPE_BALANCE'));
-    const wrapper = mountPage();
-    await flushPromises();
-    await openMove(wrapper, 'env-food');
-    await setValue('[data-testid="move-amount"]', '10');
-    await clickConfirm();
+  describe('period envelopes (balances live in period buckets)', () => {
+    const OLD = {
+      periodId: 'p-old',
+      startsOn: '2026-09-10',
+      endsOn: '2026-09-24',
+      fundedMinor: '100000',
+      spentMinor: '0',
+      balanceMinor: '100000',
+      current: false,
+    };
+    const CURRENT = {
+      periodId: 'p-cur',
+      startsOn: '2026-09-25',
+      endsOn: '2026-10-09',
+      fundedMinor: '600000',
+      spentMinor: '0',
+      balanceMinor: '600000',
+      current: true,
+    };
+    const periodFood = (periods: unknown[]) => ({ ...food, balanceMinor: '700000', periods });
 
-    const message = document.querySelector('[data-testid="move-error"]')!.textContent!;
-    expect(message).toContain('Остаток привязан к периоду');
-    expect(message).toContain('карточку остатка периода на главной');
+    async function mountWith(items: unknown[]) {
+      mocks.v2.listEnvelopes.mockResolvedValue({ items });
+      const wrapper = mountPage();
+      await flushPromises();
+      return wrapper;
+    }
+
+    async function chooseDirection(direction: string) {
+      (
+        document.querySelector(`[data-testid="move-direction-${direction}"]`) as HTMLInputElement
+      ).click();
+      await flushPromises();
+    }
+
+    it('returns money to free from the current period and sends its id', async () => {
+      const wrapper = await mountWith([repair, savings, periodFood([OLD, CURRENT])]);
+      await openRowAction(wrapper, 'env-food', 'row-reassign');
+      await chooseDirection('envelope-free');
+      await setValue('[data-testid="move-source-period"]', 'p-cur', 'change');
+      await setValue('[data-testid="move-amount"]', '1000');
+      await clickConfirm();
+
+      expect(mocks.v2.move).toHaveBeenCalledWith(
+        'budget-id',
+        {
+          sourceEnvelopeId: 'env-food',
+          sourcePeriodId: 'p-cur',
+          destinationEnvelopeId: null,
+          amount: '1000',
+        },
+        expect.any(String),
+      );
+    });
+
+    it('offers the period choice with the current one preselected and server balances', async () => {
+      const wrapper = await mountWith([repair, savings, periodFood([OLD, CURRENT])]);
+      await openRowAction(wrapper, 'env-food', 'row-reassign');
+      await chooseDirection('envelope-free');
+
+      const select = document.querySelector(
+        '[data-testid="move-source-period"]',
+      ) as HTMLSelectElement;
+      expect(select.value).toBe('p-cur');
+      const label = normalize(select.textContent ?? '');
+      expect(label).toContain('идёт сейчас');
+      expect(label).toContain('6 000,00');
+      expect(label).toContain('1 000,00');
+    });
+
+    it('moves from an older period when the user picks it', async () => {
+      const wrapper = await mountWith([repair, savings, periodFood([OLD, CURRENT])]);
+      await openRowAction(wrapper, 'env-food', 'row-reassign');
+      await chooseDirection('envelope-free');
+      await setValue('[data-testid="move-source-period"]', 'p-old', 'change');
+      await setValue('[data-testid="move-amount"]', '500');
+      await clickConfirm();
+
+      expect(mocks.v2.move.mock.calls[0]![1]).toMatchObject({ sourcePeriodId: 'p-old' });
+    });
+
+    it('does not show a period choice when only one period holds money', async () => {
+      const wrapper = await mountWith([
+        repair,
+        savings,
+        periodFood([{ ...OLD, balanceMinor: '0', fundedMinor: '0' }, CURRENT]),
+      ]);
+      await openRowAction(wrapper, 'env-food', 'row-reassign');
+      await chooseDirection('envelope-free');
+      expect(document.querySelector('[data-testid="move-source-period"]')).toBeNull();
+      await setValue('[data-testid="move-amount"]', '10');
+      await clickConfirm();
+
+      expect(mocks.v2.move.mock.calls[0]![1]).toMatchObject({ sourcePeriodId: 'p-cur' });
+    });
+
+    it('says so and sends nothing when no period of the envelope holds money', async () => {
+      const wrapper = await mountWith([
+        repair,
+        savings,
+        periodFood([{ ...CURRENT, balanceMinor: '0', fundedMinor: '0' }]),
+      ]);
+      await openRowAction(wrapper, 'env-food', 'row-reassign');
+      await chooseDirection('envelope-free');
+      // No amount typed: the "no money" message comes first, not "Введите сумму".
+      await clickConfirm();
+
+      expect(mocks.v2.move).not.toHaveBeenCalled();
+      expect(document.querySelector('[data-testid="move-amount-error"]')).toBeNull();
+      expect(document.querySelector('[data-testid="move-error"]')!.textContent).toContain(
+        'нет денег',
+      );
+    });
+
+    it('sends the destination current period when moving into a period envelope', async () => {
+      const wrapper = await mountWith([repair, periodFood([OLD, CURRENT])]);
+      await openRowAction(wrapper, 'env-repair', 'row-reassign');
+      await setValue('[data-testid="move-destination"]', 'env-food', 'change');
+      await setValue('[data-testid="move-amount"]', '10');
+      await clickConfirm();
+
+      expect(mocks.v2.move.mock.calls[0]![1]).toEqual({
+        sourceEnvelopeId: 'env-repair',
+        destinationEnvelopeId: 'env-food',
+        destinationPeriodId: 'p-cur',
+        amount: '10',
+      });
+    });
+
+    it('does not move into a period envelope that has no current period', async () => {
+      const wrapper = await mountWith([repair, periodFood([OLD])]);
+      await openRowAction(wrapper, 'env-repair', 'row-reassign');
+      await setValue('[data-testid="move-destination"]', 'env-food', 'change');
+      await setValue('[data-testid="move-amount"]', '10');
+      await clickConfirm();
+
+      expect(mocks.v2.move).not.toHaveBeenCalled();
+      const error = document.querySelector('[data-testid="move-destination-error"]');
+      expect(error!.textContent).toContain('нет текущего периода');
+
+      // Picking another envelope clears the stale error.
+      await setValue('[data-testid="move-destination"]', 'env-repair', 'change');
+      expect(document.querySelector('[data-testid="move-destination-error"]')).toBeNull();
+    });
+
+    it('assigns free money to the current period of a period envelope', async () => {
+      mocks.v2.assignFree.mockResolvedValue({
+        assignmentId: 'a2',
+        amountMinor: '1000',
+        fundedMinor: '1',
+        spentMinor: '0',
+        balanceMinor: '1',
+        freeToAssignMinor: '0',
+      });
+      const wrapper = await mountWith([repair, periodFood([OLD, CURRENT])]);
+      await openRowAction(wrapper, 'env-food', 'row-reassign');
+      await chooseDirection('free-envelope');
+      await setValue('[data-testid="move-amount"]', '10');
+      await clickConfirm();
+
+      expect(mocks.v2.assignFree).toHaveBeenCalledWith(
+        'budget-id',
+        { envelopeId: 'env-food', periodId: 'p-cur', amount: '10' },
+        expect.any(String),
+      );
+    });
+
+    it('archive: locks the amount to the chosen period bucket and follows a bucket switch', async () => {
+      const wrapper = await mountWith([repair, savings, periodFood([OLD, CURRENT])]);
+      await openRowAction(wrapper, 'env-food', 'row-archive');
+      const amount = () =>
+        (document.querySelector('[data-testid="move-amount"]') as HTMLInputElement).value;
+
+      expect(amount()).toBe('6000.00');
+      await setValue('[data-testid="move-source-period"]', 'p-old', 'change');
+      expect(amount()).toBe('1000.00');
+      await clickConfirm();
+
+      expect(mocks.v2.move.mock.calls[0]![1]).toMatchObject({
+        sourceEnvelopeId: 'env-food',
+        sourcePeriodId: 'p-old',
+        amount: '1000.00',
+      });
+    });
+
+    it('archive with one money bucket sends that bucket and its whole balance', async () => {
+      const wrapper = await mountWith([repair, savings, periodFood([CURRENT])]);
+      await openRowAction(wrapper, 'env-food', 'row-archive');
+      await clickConfirm();
+
+      expect(mocks.v2.move.mock.calls[0]![1]).toEqual({
+        sourceEnvelopeId: 'env-food',
+        sourcePeriodId: 'p-cur',
+        destinationEnvelopeId: null,
+        amount: '6000.00',
+      });
+    });
+
+    it('uses a new Idempotency-Key after the user switches the source period', async () => {
+      mocks.v2.move.mockRejectedValue(problem(500, 'BROKEN'));
+      const wrapper = await mountWith([repair, savings, periodFood([OLD, CURRENT])]);
+      await openRowAction(wrapper, 'env-food', 'row-reassign');
+      await chooseDirection('envelope-free');
+      await setValue('[data-testid="move-amount"]', '10');
+      await clickConfirm();
+      await setValue('[data-testid="move-source-period"]', 'p-old', 'change');
+      await clickConfirm();
+
+      expect(keyOf(mocks.v2.move, 1)).not.toBe(keyOf(mocks.v2.move, 0));
+    });
+
+    it('does not carry the period of one envelope over to another', async () => {
+      const other = plan({
+        id: 'env-second',
+        name: 'Второй период',
+        envelopeType: 'CURRENT_EXPENSES',
+        periodSlot: 'SECOND',
+        balanceMinor: '300000',
+        periods: [
+          {
+            periodId: 'p2-cur',
+            startsOn: '2026-09-25',
+            endsOn: '2026-10-09',
+            fundedMinor: '300000',
+            spentMinor: '0',
+            balanceMinor: '300000',
+            current: true,
+          },
+        ],
+      });
+      const wrapper = await mountWith([repair, periodFood([OLD, CURRENT]), other]);
+      await openRowAction(wrapper, 'env-food', 'row-reassign');
+      await chooseDirection('envelope-free');
+      (document.querySelector('[data-testid="move-cancel"]') as HTMLButtonElement).click();
+      await flushPromises();
+
+      await openRowAction(wrapper, 'env-second', 'row-reassign');
+      await chooseDirection('envelope-free');
+      await setValue('[data-testid="move-amount"]', '10');
+      await clickConfirm();
+
+      expect(mocks.v2.move.mock.calls[0]![1]).toMatchObject({
+        sourceEnvelopeId: 'env-second',
+        sourcePeriodId: 'p2-cur',
+      });
+    });
+
+    it('no longer points to a main-screen card that does not exist for the current period', async () => {
+      mocks.v2.move.mockRejectedValue(problem(409, 'INSUFFICIENT_ENVELOPE_BALANCE'));
+      const wrapper = await mountWith([repair, savings, periodFood([CURRENT])]);
+      await openRowAction(wrapper, 'env-food', 'row-reassign');
+      await chooseDirection('envelope-free');
+      await setValue('[data-testid="move-amount"]', '10');
+      await clickConfirm();
+
+      const message = document.querySelector('[data-testid="move-error"]')!.textContent!;
+      expect(message).not.toContain('карточку остатка периода');
+      expect(message).toContain('Нельзя перенести больше доступного остатка');
+    });
   });
 
   it('does not archive when the remainder move fails', async () => {

@@ -435,6 +435,44 @@ describe('v2 OpenAPI contract (P06)', () => {
     expect(bad).toEqual([]);
   });
 
+  it('схема конверта описывает периоды, а назначения и переносы отвечают собственными схемами', () => {
+    const schemas = document.components.schemas;
+    expect(schemas['EnvelopePlanResponse']?.properties?.['periods']?.items?.$ref).toBe(
+      '#/components/schemas/EnvelopePeriodBalanceResponse',
+    );
+    expect(Object.keys(schemas['EnvelopePeriodBalanceResponse']?.properties ?? {}).sort()).toEqual(
+      [
+        'balanceMinor',
+        'current',
+        'endsOn',
+        'fundedMinor',
+        'periodId',
+        'spentMinor',
+        'startsOn',
+      ].sort(),
+    );
+
+    const responseRef = (method: Method, path: string, code: string) =>
+      v2Ops.find((op) => op.method === method && op.path === path)?.operation.responses?.[code]
+        ?.content?.['application/json']?.schema?.$ref;
+    const base = '/api/v2/budgets/{budgetId}';
+    expect(responseRef('post', `${base}/assignments`, '201')).toBe(
+      '#/components/schemas/AssignmentResultResponse',
+    );
+    expect(responseRef('patch', `${base}/assignments/{assignmentId}`, '200')).toBe(
+      '#/components/schemas/AssignmentResultResponse',
+    );
+    expect(responseRef('delete', `${base}/assignments/{assignmentId}`, '200')).toBe(
+      '#/components/schemas/AssignmentResultResponse',
+    );
+    expect(responseRef('post', `${base}/movements`, '201')).toBe(
+      '#/components/schemas/MovementResultResponse',
+    );
+    expect(responseRef('get', `${base}/envelopes`, '200')).toBe(
+      '#/components/schemas/EnvelopePlanListResponse',
+    );
+  });
+
   it('мутации v2 требуют Idempotency-Key (кроме предпросмотров) и описывают 403', () => {
     const bad: string[] = [];
     for (const op of v2Ops.filter(isMutating)) {

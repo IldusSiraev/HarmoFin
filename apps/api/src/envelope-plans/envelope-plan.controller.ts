@@ -43,7 +43,9 @@ import {
   CreateEnvelopeRequest,
   EnvelopeHistoryListResponse,
   EnvelopePlanListResponse,
+  AssignmentResultResponse,
   EnvelopePlanResponse,
+  MovementResultResponse,
   FundingRuleResponse,
   MoveEnvelopeRequest,
   PeriodTargetResponse,
@@ -338,7 +340,7 @@ export class EnvelopePlanController {
   @UseGuards(CsrfGuard)
   @ApiHeader(idempotencyHeader)
   @ApiBody({ type: CreateAssignmentRequest })
-  @ApiCreatedResponse({ type: EnvelopePlanResponse })
+  @ApiCreatedResponse({ type: AssignmentResultResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 403, type: ProblemDetailsResponse })
@@ -385,7 +387,7 @@ export class EnvelopePlanController {
   @UseGuards(CsrfGuard)
   @ApiHeader(idempotencyHeader)
   @ApiBody({ type: ReviseAssignmentRequest })
-  @ApiOkResponse({ type: EnvelopePlanResponse })
+  @ApiOkResponse({ type: AssignmentResultResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 403, type: ProblemDetailsResponse })
@@ -415,7 +417,7 @@ export class EnvelopePlanController {
   @HttpCode(200)
   @UseGuards(CsrfGuard)
   @ApiHeader(idempotencyHeader)
-  @ApiOkResponse({ type: EnvelopePlanResponse })
+  @ApiOkResponse({ type: AssignmentResultResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 403, type: ProblemDetailsResponse })
@@ -443,7 +445,7 @@ export class EnvelopePlanController {
   @UseGuards(CsrfGuard)
   @ApiHeader(idempotencyHeader)
   @ApiBody({ type: MoveEnvelopeRequest })
-  @ApiCreatedResponse({ type: EnvelopePlanResponse })
+  @ApiCreatedResponse({ type: MovementResultResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 403, type: ProblemDetailsResponse })

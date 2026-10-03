@@ -111,6 +111,28 @@ export class EnvelopePlanRepository {
     });
   }
 
+  async listPeriods(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    envelopeIds: string[],
+  ): Promise<Array<{ id: string; envelopeId: string; startsOn: Date; endsOn: Date }>> {
+    if (envelopeIds.length === 0) return [];
+    return tx.envelopePeriod.findMany({
+      where: { budgetId, envelopeId: { in: envelopeIds } },
+      select: { id: true, envelopeId: true, startsOn: true, endsOn: true },
+      orderBy: [{ startsOn: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  async requireBudgetTimezone(tx: Prisma.TransactionClient, budgetId: string): Promise<string> {
+    const budget = await tx.budget.findUnique({
+      where: { id: budgetId },
+      select: { timezone: true },
+    });
+    if (!budget) throw resourceNotFound();
+    return budget.timezone;
+  }
+
   async findEnvelope(
     tx: Prisma.TransactionClient,
     budgetId: string,

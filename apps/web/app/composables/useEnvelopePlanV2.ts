@@ -66,6 +66,18 @@ export interface FundingConfirmResponse {
 
 // Envelopes, assignments, movements
 
+/** One period bucket of a period envelope; amounts are minor-unit strings from the server. */
+export interface EnvelopePeriodDto {
+  periodId: string;
+  startsOn: string;
+  endsOn: string;
+  fundedMinor: string;
+  spentMinor: string;
+  balanceMinor: string;
+  /** The server decides which period is current (budget timezone). */
+  current: boolean;
+}
+
 export interface EnvelopePlanDto {
   id: string;
   name: string;
@@ -78,6 +90,8 @@ export interface EnvelopePlanDto {
   spentMinor: string;
   balanceMinor: string;
   archivedAt: string | null;
+  /** Period buckets with money movement plus the current one; empty for non-period envelopes. */
+  periods?: EnvelopePeriodDto[];
 }
 
 export interface EnvelopePlanListResponse {
