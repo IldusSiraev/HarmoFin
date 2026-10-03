@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { ChevronDown, ChevronUp, CircleAlert, TriangleAlert } from '@lucide/vue';
 
 import FinanceMoney from '../finance/FinanceMoney.vue';
+import UiButton from '../ui/Button.vue';
 import type { DashboardV2Response } from '../../composables/useEnvelopePlanV2.js';
 
 defineOptions({ name: 'AvailableBudgetCard' });
@@ -11,6 +12,9 @@ defineOptions({ name: 'AvailableBudgetCard' });
 const props = defineProps<{
   dashboard: DashboardV2Response;
 }>();
+
+// `assign`: the user wants to assign the free money; the page opens the panel.
+const emit = defineEmits<{ assign: [] }>();
 
 const monthFormatter = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
 
@@ -28,6 +32,10 @@ const overrunMinor = computed(() => props.dashboard.currentBalanceMinor.replace(
 const emptyPeriod = computed(
   () => !needsSetup.value && props.dashboard.currentBalanceMinor === '0',
 );
+const hasFreeMoney = computed(() => {
+  const free = props.dashboard.freeToAssignMinor;
+  return free !== '0' && !free.startsWith('-');
+});
 const hasGap = computed(() => {
   const gap = props.dashboard.mandatoryGapMinor;
   return gap !== '0' && !gap.startsWith('-');
@@ -74,6 +82,21 @@ const breakdownOpen = ref(false);
           : 'Добавьте счёт и назначьте деньги конверту периода.'
       }}
       <NuxtLink to="/app/accounts" class="available-budget__link">Перейти к счетам</NuxtLink>
+    </p>
+
+    <p v-if="hasFreeMoney" class="available-budget__free" data-testid="available-budget-free-row">
+      <span>
+        Свободно для назначения
+        <FinanceMoney :minor-units="dashboard.freeToAssignMinor" currency="RUB" :scale="2" />
+      </span>
+      <UiButton
+        variant="tertiary"
+        size="sm"
+        data-action="assign-free-money"
+        @click="emit('assign')"
+      >
+        Назначить
+      </UiButton>
     </p>
 
     <p v-if="overrun" class="available-budget__flag available-budget__flag--danger">
@@ -167,6 +190,16 @@ const breakdownOpen = ref(false);
   border-radius: var(--hf-radius-lg);
   background: var(--hf-color-surface);
   box-shadow: var(--hf-shadow-sm);
+}
+
+.available-budget__free {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hf-space-2);
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .available-budget__label {

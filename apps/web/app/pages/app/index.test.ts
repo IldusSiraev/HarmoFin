@@ -43,6 +43,7 @@ vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) =>
   useBudgetReferenceData: () => api,
 }));
 
+import { useFundingEntry } from '../../composables/useFundingEntry.js';
 import DashboardPage from './index.vue';
 import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
@@ -295,6 +296,21 @@ describe('dashboard page', () => {
 
     expect(wrapper.find('[data-testid="target-row"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="onboarding-target-confirm"]').exists()).toBe(false);
+  });
+
+  it('opens the free money assignment from the dashboard and refreshes after confirm', async () => {
+    v2Api.getDashboard.mockResolvedValue({ ...dashboardV2, freeToAssignMinor: '5215531' });
+    const wrapper = mount(DashboardPage, { global: { stubs } });
+    await flushPromises();
+
+    await wrapper.get('[data-action="assign-free-money"]').trigger('click');
+    expect(useFundingEntry().request.value?.source).toEqual({ sourceKind: 'FREE' });
+
+    const reads = v2Api.getDashboard.mock.calls.length;
+    useFundingEntry().markConfirmed();
+    await flushPromises();
+    expect(v2Api.getDashboard.mock.calls.length).toBeGreaterThan(reads);
+    useFundingEntry().dismiss();
   });
 
   it('shows retry after a dashboard request error', async () => {

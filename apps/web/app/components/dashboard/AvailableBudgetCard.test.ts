@@ -109,6 +109,24 @@ describe('AvailableBudgetCard', () => {
     expect(overrun.find('[data-testid="available-budget-empty-hint"]').exists()).toBe(false);
   });
 
+  it('offers to assign free money as an action and shows the server amount', async () => {
+    const dashboard = { ...v2Base, freeToAssignMinor: '5215531' };
+    const wrapper = mount(AvailableBudgetCard, { props: { dashboard }, global: { stubs } });
+    const row = wrapper.get('[data-testid="available-budget-free-row"]');
+
+    expect(normalize(row.text())).toContain('Свободно для назначения');
+    expect(normalize(row.text())).toContain('52 155,31 ₽');
+    await row.get('[data-action="assign-free-money"]').trigger('click');
+
+    expect(wrapper.emitted('assign')).toHaveLength(1);
+  });
+
+  it('hides the free money action when nothing is free to assign', () => {
+    const wrapper = mount(AvailableBudgetCard, { props: { dashboard: v2Base }, global: { stubs } });
+
+    expect(wrapper.find('[data-testid="available-budget-free-row"]').exists()).toBe(false);
+  });
+
   it('invites to set up the period limit instead of showing zero', () => {
     const wrapper = mount(AvailableBudgetCard, {
       props: {

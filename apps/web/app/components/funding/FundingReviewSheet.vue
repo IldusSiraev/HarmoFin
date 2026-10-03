@@ -157,6 +157,11 @@ function handleConfirm(): void {
       <section class="funding-sheet__source" aria-label="Сумма источника">
         <p class="funding-sheet__caption">Можно назначить</p>
         <p class="funding-sheet__amount" data-testid="funding-source">{{ money(sourceMinor) }}</p>
+        <p class="funding-sheet__muted" data-testid="funding-intro">
+          Эти деньги лежат на ваших счетах и пока свободны. Мы заранее предложили, для каких
+          конвертов их отметить. Деньги со счетов никуда не переводятся. Проверьте суммы и нажмите
+          «Назначить предложенное» или выберите «Позже».
+        </p>
       </section>
 
       <div
@@ -248,20 +253,25 @@ function handleConfirm(): void {
             <AlertTriangle :size="14" aria-hidden="true" />
             {{ lineError(line) }}
           </p>
-          <div class="funding-sheet__line-actions">
+          <div
+            v-if="line.toTargetMinor !== undefined || line.allRemainingMinor !== undefined"
+            class="funding-sheet__line-actions"
+          >
             <UiButton
+              v-if="line.toTargetMinor !== undefined"
               variant="tertiary"
               size="sm"
-              :disabled="pending || line.toTargetMinor === undefined"
+              :disabled="pending"
               :data-testid="`funding-to-target-${line.envelopeId}`"
               @click="applyHint(line, line.toTargetMinor)"
             >
               До нужной суммы
             </UiButton>
             <UiButton
+              v-if="line.allRemainingMinor !== undefined"
               variant="tertiary"
               size="sm"
-              :disabled="pending || line.allRemainingMinor === undefined"
+              :disabled="pending"
               :data-testid="`funding-all-remaining-${line.envelopeId}`"
               @click="applyHint(line, line.allRemainingMinor)"
             >
@@ -279,6 +289,13 @@ function handleConfirm(): void {
           <strong class="funding-sheet__total-amount" data-testid="funding-remaining">
             {{ isExcess ? money(remainingMinor.slice(1)) : money(remainingMinor) }}
           </strong>
+          <span
+            v-if="remainingMinor === '0' && previewLines.length > 0"
+            class="funding-sheet__muted"
+            data-testid="funding-all-proposed"
+          >
+            Всё предложено: ничего не остаётся.
+          </span>
           <span v-if="isExcess" class="funding-sheet__status" data-testid="funding-excess">
             Превышение: назначено больше, чем доступно
           </span>

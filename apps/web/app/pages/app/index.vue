@@ -16,6 +16,7 @@ import UiButton from '../../components/ui/Button.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
 import UiSkeleton from '../../components/ui/Skeleton.vue';
 import { useAuth } from '../../composables/useAuth.js';
+import { useFundingEntry } from '../../composables/useFundingEntry.js';
 import {
   type DashboardV2Response,
   type TransactionJournalV2Item,
@@ -57,6 +58,7 @@ function accountSubtitleFor(id: string): string {
 
 const activeBudget = computed(() => currentData.value?.workspaces[0]?.budgets[0] ?? null);
 const planV2 = useEnvelopePlanV2();
+const funding = useFundingEntry();
 function workspaceName() {
   return currentData.value?.workspaces[0]?.name ?? 'Бюджет';
 }
@@ -70,6 +72,12 @@ watch(openDialog, (value, previous) => {
 onMounted(() => {
   void loadDashboard();
 });
+
+// A confirmed assignment changes what is free and what the period holds.
+watch(
+  () => funding.confirmedCount.value,
+  () => void refreshDashboardV2(),
+);
 
 // Period leftover/deficit warnings are decisions owned by PeriodDecisionCard;
 // the shared warnings list keeps only the coverage ones.
@@ -189,7 +197,10 @@ async function loadDashboard() {
 
         <DashboardWarnings :v2-warnings="coverageWarnings" />
 
-        <AvailableBudgetCard :dashboard="dashboardV2" />
+        <AvailableBudgetCard
+          :dashboard="dashboardV2"
+          @assign="funding.offer({ sourceKind: 'FREE' })"
+        />
 
         <BalanceList
           title="Счета"

@@ -188,6 +188,11 @@ async function start(request: FundingEntryRequest): Promise<void> {
 function later(): void {
   if (confirming) return;
   close();
+  push({
+    tone: 'info',
+    title: 'Деньги остались свободными',
+    description: 'Назначить их можно позже: на главной, в строке «Свободно для назначения».',
+  });
 }
 
 function close(): void {

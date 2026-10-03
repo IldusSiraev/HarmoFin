@@ -160,9 +160,31 @@ describe('FundingReviewSheet', () => {
       [{ envelopeId: ENV_A, amount: '45000.00' }],
       [{ envelopeId: ENV_A, amount: '80000.00' }],
     ]);
-    expect(
-      wrapper.get(`[data-testid="funding-to-target-${ENV_B}"]`).attributes('disabled'),
-    ).toBeDefined();
+    // No server hint for this line: no dead buttons.
+    expect(wrapper.find(`[data-testid="funding-to-target-${ENV_B}"]`).exists()).toBe(false);
+    expect(wrapper.find(`[data-testid="funding-all-remaining-${ENV_B}"]`).exists()).toBe(false);
+  });
+
+  it('explains that the proposal is ready and nothing moves between accounts', () => {
+    const wrapper = mountSheet();
+    const intro = norm(wrapper.get('[data-testid="funding-intro"]').text());
+
+    expect(intro).toContain('пока свободны');
+    expect(intro).toContain('никуда не переводятся');
+    expect(intro).toContain('Назначить предложенное');
+    expect(intro).toContain('Позже');
+  });
+
+  it('says everything is proposed when nothing remains to assign', () => {
+    const none = mountSheet({ remainingMinor: '0' });
+    expect(none.get('[data-testid="funding-all-proposed"]').text()).toContain('Всё предложено');
+
+    const some = mountSheet();
+    expect(some.find('[data-testid="funding-all-proposed"]').exists()).toBe(false);
+
+    // Nothing was proposed at all (e.g. the free money vanished): no false claim.
+    const empty = mountSheet({ remainingMinor: '0', previewLines: [] });
+    expect(empty.find('[data-testid="funding-all-proposed"]').exists()).toBe(false);
   });
 
   it('disables confirm while pending', async () => {

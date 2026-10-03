@@ -25,6 +25,7 @@ vi.mock('../../composables/useOperationReferenceData.js', () => ({
 }));
 
 import FundingEntryHost from './FundingEntryHost.vue';
+import { useToast } from '../../composables/useToast.js';
 import { useFundingEntry } from '../../composables/useFundingEntry.js';
 
 function previewBody(overrides: Record<string, unknown> = {}) {
@@ -115,6 +116,21 @@ describe('FundingEntryHost', () => {
       BUDGET,
       expect.objectContaining({ sourceKind: 'OPENING' }),
     );
+  });
+
+  it('tells where to assign the money again when the panel is closed with Later', async () => {
+    useToast().clear();
+    mountHost();
+    useFundingEntry().offer({ sourceKind: 'OPENING' });
+    await flushPromises();
+
+    click('funding-later');
+    await flushPromises();
+
+    const toast = useToast().toasts.value.at(-1);
+    expect(toast?.title).toBe('Деньги остались свободными');
+    expect(toast?.description).toContain('Свободно для назначения');
+    useToast().clear();
   });
 
   it('closes on Later without confirming anything', async () => {
