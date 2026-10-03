@@ -11,6 +11,7 @@ import {
   Query,
   Req,
   UseGuards,
+  Inject,
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import {
@@ -91,7 +92,9 @@ const idPipe = new ZodValidationPipe(incomeUuidParamSchema);
 @UseGuards(SessionAuthGuard)
 @ApiCookieAuth('session')
 export class IncomePlanController {
-  constructor(private readonly service: IncomePlanApplicationService) {}
+  constructor(
+    @Inject(IncomePlanApplicationService) private readonly service: IncomePlanApplicationService,
+  ) {}
 
   @Get()
   @ApiOperation({

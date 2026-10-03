@@ -80,6 +80,40 @@ describe('ProblemDetailsFilter', () => {
     );
     expect(send.mock.calls[0]?.[0]).not.toHaveProperty('comment');
   });
+  it('logs server errors for diagnosis without changing the generic response', () => {
+    const send = vi.fn();
+    const reply = { type: vi.fn().mockReturnThis(), status: vi.fn().mockReturnThis(), send };
+    const sink = vi.fn();
+    const error = Object.assign(new Error('boom'), { code: 'P2003' });
+
+    new ProblemDetailsFilter(undefined, sink, true).catch(error, createHost(reply, 'request-9'));
+
+    expect(sink).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: 'request-9',
+        errorName: 'Error',
+        errorCode: 'P2003',
+        stack: expect.stringContaining('boom'),
+      }),
+    );
+    expect(send.mock.calls[0]?.[0]).toMatchObject({ status: 500, code: 'INTERNAL_ERROR' });
+  });
+
+  it('omits the stack outside diagnostic mode and ignores client errors', () => {
+    const reply = {
+      type: vi.fn().mockReturnThis(),
+      status: vi.fn().mockReturnThis(),
+      send: vi.fn(),
+    };
+    const sink = vi.fn();
+    const filter = new ProblemDetailsFilter(undefined, sink, false);
+
+    filter.catch(new Error('boom'), createHost(reply, 'r1'));
+    filter.catch(new HttpException('bad', HttpStatus.BAD_REQUEST), createHost(reply, 'r2'));
+
+    expect(sink).toHaveBeenCalledTimes(1);
+    expect(sink.mock.calls[0]?.[0]).not.toHaveProperty('stack');
+  });
 });
 
 function createHost(reply: object, requestId: string) {

@@ -8,6 +8,7 @@ import {
   Post,
   Req,
   UseGuards,
+  Inject,
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import {
@@ -70,7 +71,9 @@ const idPipe = new ZodValidationPipe(uuidParamSchema);
 @UseGuards(SessionAuthGuard)
 @ApiCookieAuth('session')
 export class ObligationController {
-  constructor(private readonly service: ObligationApplicationService) {}
+  constructor(
+    @Inject(ObligationApplicationService) private readonly service: ObligationApplicationService,
+  ) {}
 
   @Post('pay')
   @HttpCode(200)

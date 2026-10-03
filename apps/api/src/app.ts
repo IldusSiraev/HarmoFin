@@ -47,7 +47,11 @@ export async function createApiApp(config: ApiConfig): Promise<NestFastifyApplic
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
   });
   app.useGlobalFilters(
-    new ProblemDetailsFilter(createErrorReporter(config.errorReportingEndpoint)),
+    new ProblemDetailsFilter(
+      createErrorReporter(config.errorReportingEndpoint),
+      (fields) => logger.unhandledError(fields),
+      config.nodeEnv !== 'production',
+    ),
   );
   app.useGlobalGuards(new OriginGuard(config));
   registerObservabilityHooks(app.getHttpAdapter().getInstance(), app.get(MetricsRegistry), logger);

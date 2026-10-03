@@ -12,6 +12,7 @@ import {
   Query,
   Req,
   UseGuards,
+  Inject,
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import {
@@ -82,7 +83,10 @@ function contextOf(request: AuthenticatedRequest): RequestContext {
 @UseGuards(SessionAuthGuard)
 @ApiCookieAuth('session')
 export class TransactionV2Controller {
-  constructor(private readonly service: TransactionV2ApplicationService) {}
+  constructor(
+    @Inject(TransactionV2ApplicationService)
+    private readonly service: TransactionV2ApplicationService,
+  ) {}
 
   @Get()
   @ApiQuery({
