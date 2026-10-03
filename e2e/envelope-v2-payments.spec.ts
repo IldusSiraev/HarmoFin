@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { apiMutate } from './api-mutate';
 import { apiOrigin, apiV1 } from './env';
 
 // Envelope Plan v2.2, M06b: partial income assignment and partial mandatory
@@ -120,8 +121,12 @@ test('v2: partial income assignment, rent in two parts and a smaller kindergarte
   // 2. Income smaller than the need (43 000 due, 30 000 received) through "+".
   await page.goto('/app');
   await expect(page.getByTestId('dashboard-loading')).toHaveCount(0);
-  await expect(page.getByTestId('add-menu-trigger')).toBeVisible();
-  await page.getByTestId('add-menu-trigger').click();
+  // The dashboard renders three triggers (sidebar, header, main); use the sidebar one.
+  const addTrigger = page
+    .getByRole('complementary', { name: 'Основная навигация' })
+    .getByTestId('add-menu-trigger');
+  await expect(addTrigger).toBeVisible();
+  await addTrigger.click();
   await page.getByTestId('operation-type-income').click();
   await fillOperationDate(page);
   await page.getByLabel('Сумма').fill(INCOME_TYPED);
@@ -257,18 +262,9 @@ async function getJson<T>(page: Page, url: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-// SETUP only: a mutating API call with the session cookie, CSRF token and a key.
+// SETUP only: a mutating API call (Origin, CSRF with one refresh retry, key).
 async function mutate<T>(page: Page, url: string, body: unknown): Promise<T> {
-  const csrf = await getJson<{ csrfToken: string }>(page, `${apiV1}/auth/csrf`);
-  const response = await page.request.post(url, {
-    data: body,
-    headers: {
-      'X-CSRF-Token': csrf.csrfToken,
-      'Idempotency-Key': `e2e-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    },
-  });
-  expect(response.ok(), `${url} -> ${response.status()}`).toBe(true);
-  return (await response.json()) as T;
+  return apiMutate<T>(page, url, body);
 }
 
 async function budgetIdOf(page: Page): Promise<string> {

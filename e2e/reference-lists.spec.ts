@@ -10,7 +10,7 @@ test.describe('reference lists on a phone', () => {
     await createAccount(page, 'Карта телефона с длинным названием', '10 000,00');
 
     await page.goto('/app/accounts');
-    await expect(page.getByTestId('list-row-select').first()).toBeVisible();
+    await expect(page.getByTestId('account-card-select').first()).toBeVisible();
     const overflow = await page.evaluate(() => {
       const root = document.scrollingElement;
       return root ? root.scrollWidth - root.clientWidth : 0;
@@ -36,6 +36,18 @@ async function createAccount(page: Page, name: string, balance: string): Promise
   await page.getByLabel('Название счёта').fill(name);
   await page.getByLabel('Начальный баланс').fill(balance);
   await page.getByLabel('Дата начала учёта').pressSequentially('04092026');
+  // A positive opening balance makes the app offer "Назначить деньги" (a drawer
+  // with a backdrop); postpone it so it cannot cover the accounts page.
+  const fundingPreview = page.waitForResponse(
+    (response) =>
+      response.url().includes('/funding/preview') && response.request().method() === 'POST',
+  );
   await page.getByRole('button', { name: 'Сохранить счёт' }).click();
-  await expect(page.getByText(name)).toBeVisible();
+  if ((await fundingPreview).ok()) {
+    const later = page.getByTestId('funding-later');
+    await expect(later).toBeVisible({ timeout: 15_000 });
+    await later.click();
+    await expect(page.getByRole('dialog', { name: 'Назначить деньги' })).toHaveCount(0);
+  }
+  await expect(page.getByTestId('account-card-select').first()).toBeVisible();
 }

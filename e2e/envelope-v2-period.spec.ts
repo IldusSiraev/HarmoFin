@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { apiMutate } from './api-mutate';
 import { apiOrigin, apiV1 } from './env';
 import { createPastLeftover, type PastLeftover } from './fixtures/v2-period-fixture';
 
@@ -271,18 +272,9 @@ async function getJson<T>(page: Page, url: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-// SETUP or user action via API: session cookie + CSRF token + Idempotency-Key.
+// SETUP or user action via API (Origin, CSRF with one refresh retry, key).
 async function mutate<T = unknown>(page: Page, url: string, body: unknown): Promise<T> {
-  const csrf = await getJson<{ csrfToken: string }>(page, `${apiV1}/auth/csrf`);
-  const response = await page.request.post(url, {
-    data: body,
-    headers: {
-      'X-CSRF-Token': csrf.csrfToken,
-      'Idempotency-Key': `e2e-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    },
-  });
-  expect(response.ok(), `${url} -> ${response.status()}`).toBe(true);
-  return (await response.json()) as T;
+  return apiMutate<T>(page, url, body);
 }
 
 // Today's date in the budget's own time zone (en-CA formats as YYYY-MM-DD).
