@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
-import { CircleCheck, Circle, ChevronDown, ChevronUp } from '@lucide/vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { AlertTriangle, CircleCheck, Circle, ChevronDown, ChevronUp } from '@lucide/vue';
 
+import FinanceMoney from '../finance/FinanceMoney.vue';
 import TemplatePreviewSheet from '../funding/TemplatePreviewSheet.vue';
 import UiButton from '../ui/Button.vue';
 import UiStatus from '../ui/Status.vue';
@@ -10,6 +11,7 @@ import {
   type DashboardV2Response,
 } from '../../composables/useEnvelopePlanV2.js';
 import { useFundingEntry } from '../../composables/useFundingEntry.js';
+import { v2ErrorMessage } from '../../composables/useV2Error.js';
 
 defineOptions({ name: 'OnboardingChecklist' });
 
@@ -21,11 +23,16 @@ const props = defineProps<{
   budgetId: string;
 }>();
 
+// `targetDecided`: the period plan was confirmed or rejected here, the page
+// rereads its dashboard. `hostsTarget`: this checklist currently shows the
+// plan decision, so the period card must not repeat it.
 const emit = defineEmits<{
   templateInitialized: [];
+  targetDecided: [];
+  hostsTarget: [hosts: boolean];
 }>();
 
-type StepAction = 'template' | 'assign' | 'link';
+type StepAction = 'template' | 'assign' | 'target' | 'link';
 
 type Step = {
   key: string;
@@ -41,14 +48,48 @@ const funding = useFundingEntry();
 
 // Progress comes from the server's dashboard onboarding block.
 const v2Status = ref<V2Onboarding | null>(null);
+// The draft period plan proposed by the template; the server owns the amount.
+const proposal = ref<{ amountMinor: string; periodId: string } | null>(null);
 const v2 = useEnvelopePlanV2();
 
 async function loadV2Status(): Promise<void> {
   try {
-    v2Status.value = (await v2.getDashboard(props.budgetId)).onboarding;
+    const dashboard = await v2.getDashboard(props.budgetId);
+    v2Status.value = dashboard.onboarding;
+    const periodId = dashboard.period?.periodId ?? null;
+    proposal.value =
+      dashboard.suggestedTarget != null && periodId !== null
+        ? { amountMinor: dashboard.suggestedTarget, periodId }
+        : null;
   } catch {
     // Keep the last known status; the dashboard itself reports load errors.
   }
+}
+
+const CYCLE_NOTE = 'Цикл уже задан в шаблоне; изменить его можно в Настройках.';
+
+function periodStep(status: V2Onboarding): Step {
+  const done = !status.needsPeriodSetup;
+  if (proposal.value && !done) {
+    return {
+      key: 'periodSetup',
+      title: 'Подтвердите план периода',
+      description: `Шаблон предложил сумму на обычные траты периода. Пока вы её не подтвердите, «Можно потратить» не считается. «Отклонить» — задать лимит самостоятельно. ${CYCLE_NOTE}`,
+      href: '/app/envelopes',
+      linkLabel: 'Перейти',
+      action: 'target',
+      done,
+    };
+  }
+  return {
+    key: 'periodSetup',
+    title: 'Лимит на текущий период',
+    description: `Укажите, сколько планируете тратить на обычные траты в этом периоде. ${CYCLE_NOTE}`,
+    href: '/app/envelopes',
+    linkLabel: 'Задать лимит',
+    action: 'link',
+    done,
+  };
 }
 
 const steps = computed<Step[]>(() => {
@@ -65,15 +106,7 @@ const steps = computed<Step[]>(() => {
       action: 'template',
       done: status.categoriesSeeded,
     },
-    {
-      key: 'periodSetup',
-      title: 'Периоды и цикл',
-      description: 'Проверьте границы финансового месяца и целевые суммы периодов.',
-      href: '/app/settings',
-      linkLabel: 'Перейти',
-      action: 'link',
-      done: !status.needsPeriodSetup,
-    },
+    periodStep(status),
     {
       key: 'hasAccounts',
       title: 'Счета',
@@ -141,6 +174,51 @@ function onTemplateApplied(): void {
 function offerOpeningAssignment(): void {
   funding.offer({ sourceKind: 'OPENING' });
 }
+
+const hostsTarget = computed(
+  () =>
+    ready.value &&
+    !allDone.value &&
+    !collapsed.value &&
+    proposal.value !== null &&
+    steps.value.some((step) => step.action === 'target' && !step.done),
+);
+watch(hostsTarget, (value) => emit('hostsTarget', value), { immediate: true });
+onBeforeUnmount(() => emit('hostsTarget', false));
+
+// One Idempotency-Key per attempt: a retry of the same decision reuses it.
+let attempt: { fingerprint: string; key: string } | null = null;
+const targetPending = ref(false);
+const targetError = ref('');
+// Polite announcement for screen readers: the focused button disappears.
+const decisionNotice = ref('');
+
+async function decideTarget(kind: 'confirm' | 'reject'): Promise<void> {
+  const current = proposal.value;
+  if (targetPending.value || current === null) return;
+  targetPending.value = true;
+  targetError.value = '';
+  try {
+    const fingerprint = `${kind}:${current.periodId}`;
+    if (attempt?.fingerprint !== fingerprint) attempt = { fingerprint, key: crypto.randomUUID() };
+    if (kind === 'confirm') {
+      await v2.confirmPeriodTarget(props.budgetId, current.periodId, attempt.key);
+    } else {
+      await v2.rejectPeriodTarget(props.budgetId, current.periodId, attempt.key);
+    }
+    attempt = null;
+    // The decision is done: never offer it again, even if the reread fails.
+    proposal.value = null;
+    decisionNotice.value =
+      kind === 'confirm' ? 'План периода подтверждён.' : 'План периода отклонён.';
+    await loadV2Status();
+    emit('targetDecided');
+  } catch (error) {
+    targetError.value = v2ErrorMessage(error, 'Не удалось выполнить действие. Попробуйте ещё раз.');
+  } finally {
+    targetPending.value = false;
+  }
+}
 </script>
 
 <template>
@@ -150,6 +228,9 @@ function offerOpeningAssignment(): void {
     data-testid="onboarding-checklist"
     :aria-labelledby="collapsed ? undefined : 'onboarding-checklist-title'"
   >
+    <p class="onboarding-checklist__sr" role="status" data-testid="onboarding-notice">
+      {{ decisionNotice }}
+    </p>
     <button
       v-if="collapsed"
       type="button"
@@ -187,6 +268,7 @@ function offerOpeningAssignment(): void {
           :key="step.key"
           class="onboarding-checklist__row"
           data-testid="onboarding-step"
+          :data-step="step.key"
         >
           <span
             class="onboarding-checklist__icon"
@@ -210,10 +292,49 @@ function offerOpeningAssignment(): void {
               />
             </span>
             <span class="onboarding-checklist__description">{{ step.description }}</span>
+            <template v-if="step.action === 'target' && proposal">
+              <FinanceMoney
+                class="onboarding-checklist__amount"
+                data-testid="onboarding-target-amount"
+                :minor-units="proposal.amountMinor"
+                currency="RUB"
+                :scale="2"
+              />
+              <span
+                v-if="targetError"
+                class="onboarding-checklist__error"
+                role="alert"
+                data-testid="onboarding-target-error"
+              >
+                <AlertTriangle :size="14" aria-hidden="true" />
+                {{ targetError }}
+              </span>
+            </template>
           </span>
 
+          <div v-if="step.action === 'target'" class="onboarding-checklist__actions">
+            <UiButton
+              variant="primary"
+              size="sm"
+              :loading="targetPending"
+              data-testid="onboarding-target-confirm"
+              @click="decideTarget('confirm')"
+            >
+              Подтвердить план
+            </UiButton>
+            <UiButton
+              variant="secondary"
+              size="sm"
+              :disabled="targetPending"
+              data-testid="onboarding-target-reject"
+              @click="decideTarget('reject')"
+            >
+              Отклонить
+            </UiButton>
+          </div>
+
           <UiButton
-            v-if="step.action === 'template'"
+            v-else-if="step.action === 'template'"
             variant="tertiary"
             size="sm"
             data-action="onboarding-initialize-template"
@@ -324,6 +445,38 @@ function offerOpeningAssignment(): void {
 
 .onboarding-checklist__row-title {
   font-weight: var(--hf-font-weight-medium);
+}
+
+.onboarding-checklist__amount {
+  font-weight: var(--hf-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.onboarding-checklist__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hf-space-2);
+}
+
+.onboarding-checklist__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.onboarding-checklist__error {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hf-space-1);
+  color: var(--hf-color-text-danger);
+  font-size: var(--hf-font-size-caption);
+  line-height: var(--hf-line-height-caption);
 }
 
 .onboarding-checklist__description {

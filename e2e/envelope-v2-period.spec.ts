@@ -187,7 +187,11 @@ for (const [label, viewport, theme] of [
         // (user action via API: the UI has no period-aware free assignment).
         await page.reload();
         await dashboardReady(page);
-        await page.getByTestId('target-confirm').click();
+        // While the onboarding checklist is expanded it hosts the plan decision.
+        await page
+          .locator('[data-testid="target-confirm"], [data-testid="onboarding-target-confirm"]')
+          .first()
+          .click();
         await expect(page.getByTestId('target-row')).toBeHidden();
         await mutate(page, `${base}/assignments`, {
           sourceKind: 'FREE',

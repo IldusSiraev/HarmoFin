@@ -21,7 +21,13 @@ const mocks = vi.hoisted(() => ({
     },
     loadMe: vi.fn(),
   },
-  v2: { getDashboard: vi.fn(), getTemplatePreview: vi.fn(), applyTemplate: vi.fn() },
+  v2: {
+    getDashboard: vi.fn(),
+    getTemplatePreview: vi.fn(),
+    applyTemplate: vi.fn(),
+    confirmPeriodTarget: vi.fn(),
+    rejectPeriodTarget: vi.fn(),
+  },
 }));
 
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => mocks.auth }));
@@ -65,8 +71,19 @@ const match = {
   requiresConsent: false,
 };
 
-function dashboard(onboarding = v2Onboarding) {
-  return { planModelVersion: 2, onboarding };
+function dashboard(
+  onboarding = v2Onboarding,
+  proposal: { suggestedTarget: string | null; periodId: string | null } = {
+    suggestedTarget: null,
+    periodId: null,
+  },
+) {
+  return {
+    planModelVersion: 2,
+    onboarding,
+    suggestedTarget: proposal.suggestedTarget,
+    period: { start: '2026-10-01', end: '2026-10-14', periodId: proposal.periodId },
+  };
 }
 
 function mountChecklist() {
@@ -207,5 +224,182 @@ describe('OnboardingChecklist', () => {
     expect(mocks.v2.getDashboard).toHaveBeenCalledTimes(2);
     expect(wrapper.emitted('templateInitialized')).toHaveLength(1);
     wrapper.unmount();
+  });
+
+  describe('period plan step', () => {
+    const proposal = { suggestedTarget: '6500000', periodId: 'period-1' };
+
+    beforeEach(() => {
+      mocks.v2.getDashboard.mockResolvedValue(dashboard(v2Onboarding, proposal));
+      mocks.v2.confirmPeriodTarget.mockResolvedValue({ periodId: 'period-1' });
+      mocks.v2.rejectPeriodTarget.mockResolvedValue({ periodId: 'period-1' });
+    });
+
+    it('asks to confirm the proposed plan inside the step and explains the cycle is set', async () => {
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+
+      const step = wrapper.get('[data-step="periodSetup"]');
+      expect(step.text()).toContain('Подтвердите план периода');
+      expect(step.text()).toContain('Цикл уже задан в шаблоне');
+      expect(step.text()).not.toContain('Периоды и цикл');
+      expect(step.get('[data-testid="onboarding-target-amount"]').text()).toContain('65');
+      expect(step.find('[data-testid="onboarding-target-confirm"]').exists()).toBe(true);
+      expect(mocks.v2.confirmPeriodTarget).not.toHaveBeenCalled();
+    });
+
+    it('confirms the plan on click, refreshes the status and tells the page', async () => {
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+
+      await wrapper.get('[data-testid="onboarding-target-confirm"]').trigger('click');
+      await flushPromises();
+
+      expect(mocks.v2.confirmPeriodTarget).toHaveBeenCalledTimes(1);
+      const [budgetId, periodId, key] = mocks.v2.confirmPeriodTarget.mock.calls[0]!;
+      expect([budgetId, periodId]).toEqual(['budget-1', 'period-1']);
+      expect(typeof key).toBe('string');
+      expect(mocks.v2.getDashboard).toHaveBeenCalledTimes(2);
+      expect(wrapper.emitted('targetDecided')).toHaveLength(1);
+    });
+
+    it('rejects the plan on explicit click', async () => {
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+
+      await wrapper.get('[data-testid="onboarding-target-reject"]').trigger('click');
+      await flushPromises();
+
+      expect(mocks.v2.rejectPeriodTarget).toHaveBeenCalledWith(
+        'budget-1',
+        'period-1',
+        expect.any(String),
+      );
+      expect(mocks.v2.confirmPeriodTarget).not.toHaveBeenCalled();
+    });
+
+    it('shows an error and keeps the buttons when the decision fails', async () => {
+      mocks.v2.confirmPeriodTarget.mockRejectedValueOnce(new Error('boom'));
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+
+      await wrapper.get('[data-testid="onboarding-target-confirm"]').trigger('click');
+      await flushPromises();
+
+      expect(wrapper.get('[data-testid="onboarding-target-error"]').text()).not.toBe('');
+      expect(wrapper.find('[data-testid="onboarding-target-confirm"]').exists()).toBe(true);
+      expect(wrapper.emitted('targetDecided')).toBeUndefined();
+    });
+
+    it('reports that it hosts the target only while expanded', async () => {
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+      expect(wrapper.emitted('hostsTarget')?.at(-1)).toEqual([true]);
+
+      await wrapper.get('[data-action="onboarding-collapse"]').trigger('click');
+      expect(wrapper.emitted('hostsTarget')?.at(-1)).toEqual([false]);
+
+      await wrapper.get('[data-testid="onboarding-pill"]').trigger('click');
+      expect(wrapper.emitted('hostsTarget')?.at(-1)).toEqual([true]);
+    });
+
+    it('reuses the Idempotency-Key on retry and mints a new one for another decision', async () => {
+      mocks.v2.confirmPeriodTarget.mockRejectedValueOnce(new Error('boom'));
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+
+      await wrapper.get('[data-testid="onboarding-target-confirm"]').trigger('click');
+      await flushPromises();
+      await wrapper.get('[data-testid="onboarding-target-confirm"]').trigger('click');
+      await flushPromises();
+
+      const [first, second] = mocks.v2.confirmPeriodTarget.mock.calls;
+      expect(second![2]).toBe(first![2]);
+    });
+
+    it('uses a different key when the user switches from confirm to reject', async () => {
+      mocks.v2.confirmPeriodTarget.mockRejectedValueOnce(new Error('boom'));
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+
+      await wrapper.get('[data-testid="onboarding-target-confirm"]').trigger('click');
+      await flushPromises();
+      await wrapper.get('[data-testid="onboarding-target-reject"]').trigger('click');
+      await flushPromises();
+
+      expect(mocks.v2.rejectPeriodTarget.mock.calls[0]![2]).not.toBe(
+        mocks.v2.confirmPeriodTarget.mock.calls[0]![2],
+      );
+    });
+
+    it('sends a single request for a double click while the first is pending', async () => {
+      let resolve: (value: unknown) => void = () => undefined;
+      mocks.v2.confirmPeriodTarget.mockReturnValueOnce(new Promise((r) => (resolve = r)));
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+
+      const button = wrapper.get('[data-testid="onboarding-target-confirm"]');
+      await button.trigger('click');
+      await button.trigger('click');
+      resolve({ periodId: 'period-1' });
+      await flushPromises();
+
+      expect(mocks.v2.confirmPeriodTarget).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops hosting the target when it unmounts', async () => {
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+      expect(wrapper.emitted('hostsTarget')?.at(-1)).toEqual([true]);
+
+      wrapper.unmount();
+
+      expect(wrapper.emitted('hostsTarget')?.at(-1)).toEqual([false]);
+    });
+
+    it('announces the decision and never offers it again even if the reread fails', async () => {
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+      mocks.v2.getDashboard.mockRejectedValueOnce(new Error('network'));
+
+      await wrapper.get('[data-testid="onboarding-target-confirm"]').trigger('click');
+      await flushPromises();
+
+      expect(wrapper.get('[data-testid="onboarding-notice"]').text()).toBe(
+        'План периода подтверждён.',
+      );
+      expect(wrapper.find('[data-testid="onboarding-target-confirm"]').exists()).toBe(false);
+      expect(mocks.v2.confirmPeriodTarget).toHaveBeenCalledTimes(1);
+    });
+
+    it('explains what reject does and shows no buttons once the step is done', async () => {
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+      expect(wrapper.get('[data-step="periodSetup"]').text()).toContain(
+        'Отклонить» — задать лимит самостоятельно',
+      );
+
+      mocks.v2.getDashboard.mockResolvedValue(
+        dashboard({ ...v2Onboarding, needsPeriodSetup: false }, proposal),
+      );
+      await wrapper.get('[data-testid="onboarding-target-confirm"]').trigger('click');
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="onboarding-target-confirm"]').exists()).toBe(false);
+      expect(wrapper.emitted('hostsTarget')?.at(-1)).toEqual([false]);
+    });
+
+    it('falls back to a link to the envelopes when there is no proposal', async () => {
+      mocks.v2.getDashboard.mockResolvedValue(dashboard());
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+
+      const step = wrapper.get('[data-step="periodSetup"]');
+      expect(step.text()).toContain('Лимит на текущий период');
+      expect(step.text()).toContain('Цикл уже задан в шаблоне');
+      expect(step.find('[data-testid="onboarding-target-confirm"]').exists()).toBe(false);
+      expect(step.get('a').attributes('href')).toBe('/app/envelopes');
+      expect(wrapper.emitted('hostsTarget')?.at(-1)).toEqual([false]);
+    });
   });
 });

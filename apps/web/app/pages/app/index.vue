@@ -30,6 +30,8 @@ const { currentData, loadMe } = useAuth();
 const loading = ref(true);
 const error = ref('');
 const dashboardV2 = ref<DashboardV2Response | null>(null);
+// The onboarding checklist shows the period plan decision while it is expanded.
+const checklistHostsTarget = ref(false);
 const recent = ref<TransactionJournalV2Item[]>([]);
 const {
   accounts,
@@ -167,12 +169,18 @@ async function loadDashboard() {
       </div>
 
       <div class="dashboard-sections">
-        <OnboardingChecklist :budget-id="activeBudget.id" @template-initialized="loadDashboard" />
+        <OnboardingChecklist
+          :budget-id="activeBudget.id"
+          @template-initialized="loadDashboard"
+          @target-decided="refreshDashboardV2"
+          @hosts-target="checklistHostsTarget = $event"
+        />
 
         <PeriodDecisionCard
           :budget-id="activeBudget.id"
           :warnings="dashboardV2.warnings"
           :suggested-target="dashboardV2.suggestedTarget"
+          :hide-target="checklistHostsTarget"
           :period-id="dashboardV2.period.periodId"
           :protected-assignments="dashboardV2.protectedAssignments"
           @changed="refreshDashboardV2"

@@ -258,6 +258,45 @@ describe('dashboard page', () => {
     expect(v2Api.confirmPeriodTarget.mock.calls[0]![1]).toBe('period-id');
   });
 
+  it('shows the period plan decision once, inside the onboarding step', async () => {
+    v2Api.getDashboard.mockResolvedValue({
+      ...dashboardV2,
+      suggestedTarget: '5000000',
+      onboarding: { ...dashboardV2.onboarding, needsPeriodSetup: true, hasMandatoryPlans: false },
+    });
+    v2Api.confirmPeriodTarget.mockResolvedValue({ periodId: 'period-id' });
+    const wrapper = mount(DashboardPage, { global: { stubs } });
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="target-row"]').exists()).toBe(false);
+    expect(wrapper.findAll('[data-testid="onboarding-target-confirm"]')).toHaveLength(1);
+    const reads = v2Api.getDashboard.mock.calls.length;
+
+    await wrapper.get('[data-testid="onboarding-target-confirm"]').trigger('click');
+    await flushPromises();
+
+    expect(v2Api.confirmPeriodTarget).toHaveBeenCalledTimes(1);
+    expect(v2Api.confirmPeriodTarget.mock.calls[0]![1]).toBe('period-id');
+    expect(v2Api.getDashboard.mock.calls.length).toBeGreaterThan(reads);
+  });
+
+  it('shows the plan decision in the period card once the checklist is collapsed', async () => {
+    v2Api.getDashboard.mockResolvedValue({
+      ...dashboardV2,
+      suggestedTarget: '5000000',
+      onboarding: { ...dashboardV2.onboarding, needsPeriodSetup: true, hasMandatoryPlans: false },
+    });
+    const wrapper = mount(DashboardPage, { global: { stubs } });
+    await flushPromises();
+    expect(wrapper.find('[data-testid="target-row"]').exists()).toBe(false);
+
+    await wrapper.get('[data-action="onboarding-collapse"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="target-row"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="onboarding-target-confirm"]').exists()).toBe(false);
+  });
+
   it('shows retry after a dashboard request error', async () => {
     v2Api.getDashboard.mockRejectedValueOnce(new Error('network'));
     const wrapper = mount(DashboardPage, { global: { stubs } });

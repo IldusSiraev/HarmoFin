@@ -55,7 +55,12 @@ const stubs = { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>
 
 function mountCard(
   warnings: Warning[],
-  extra: { suggestedTarget?: string | null; periodId?: string | null; attach?: boolean } = {},
+  extra: {
+    suggestedTarget?: string | null;
+    periodId?: string | null;
+    attach?: boolean;
+    hideTarget?: boolean;
+  } = {},
 ) {
   return mount(PeriodDecisionCard, {
     ...(extra.attach ? { attachTo: document.body } : {}),
@@ -63,6 +68,7 @@ function mountCard(
       budgetId: 'budget-id',
       warnings,
       suggestedTarget: extra.suggestedTarget ?? null,
+      ...(extra.hideTarget === undefined ? {} : { hideTarget: extra.hideTarget }),
       periodId: extra.periodId === undefined ? 'period-new' : extra.periodId,
       protectedAssignments: [
         {
@@ -359,6 +365,20 @@ describe('PeriodDecisionCard', () => {
     expect(wrapper.find('[data-testid="action-menu-trigger"]').exists()).toBe(false);
     expect(wrapper.get('a[href="/app/envelopes?coverPeriod=period-old"]')).toBeTruthy();
     expect(v2Api.move).not.toHaveBeenCalled();
+  });
+
+  it('hides the target proposal when another block hosts that decision', () => {
+    const wrapper = mountCard([], { suggestedTarget: '5000000', hideTarget: true });
+
+    expect(wrapper.find('[data-testid="target-row"]').exists()).toBe(false);
+    expect(wrapper.find('#period-decision-title').exists()).toBe(false);
+  });
+
+  it('keeps leftovers visible while the target proposal is hosted elsewhere', () => {
+    const wrapper = mountCard([leftover], { suggestedTarget: '5000000', hideTarget: true });
+
+    expect(wrapper.find('[data-testid="target-row"]').exists()).toBe(false);
+    expect(wrapper.find('#period-decision-title').exists()).toBe(true);
   });
 
   it('presents the draft target as a proposal and confirms it only on click', async () => {

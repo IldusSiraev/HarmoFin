@@ -28,6 +28,8 @@ const props = defineProps<{
   warnings: ReadonlyArray<Warning>;
   suggestedTarget: string | null;
   periodId: string | null;
+  // The onboarding checklist already shows the plan decision: do not repeat it.
+  hideTarget?: boolean;
   protectedAssignments: DashboardV2Response['protectedAssignments'];
 }>();
 
@@ -53,7 +55,9 @@ const leftovers = computed(() =>
   ),
 );
 const deficits = computed(() => props.warnings.filter((w) => w.code === 'PERIOD_DEFICIT'));
-const hasTarget = computed(() => props.suggestedTarget !== null && props.periodId !== null);
+const hasTarget = computed(
+  () => props.suggestedTarget !== null && props.periodId !== null && props.hideTarget !== true,
+);
 const visible = computed(
   () => hasTarget.value || leftovers.value.length > 0 || deficits.value.length > 0,
 );
