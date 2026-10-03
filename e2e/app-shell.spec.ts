@@ -4,7 +4,6 @@ const password = 'e2e-password-10';
 
 test('adds an operation from a page other than the dashboard', async ({ page }) => {
   await registerAndReachApp(page, 'shell');
-  await initializeTemplate(page);
 
   await page.goto('/app/operations');
   // The shell renders server-side, so its buttons are clickable before Vue has
@@ -26,7 +25,6 @@ test('adds an operation from a page other than the dashboard', async ({ page }) 
 
 test('shows a toast after a reference record is created', async ({ page }) => {
   await registerAndReachApp(page, 'toast');
-  await initializeTemplate(page);
 
   await page.goto('/app/accounts');
   await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
@@ -44,7 +42,6 @@ test.describe('app shell on a phone', () => {
 
   test('keeps the dashboard order and bottom navigation', async ({ page }) => {
     await registerAndReachApp(page, 'phone');
-    await initializeTemplate(page);
 
     await page.goto('/app');
     await expect(page.getByRole('heading', { name: 'Можно потратить' })).toBeVisible();
@@ -66,10 +63,4 @@ async function registerAndReachApp(page: Page, suffix: string): Promise<void> {
   await page.getByLabel('Пароль').fill(password);
   await page.getByRole('button', { name: 'Создать аккаунт' }).click();
   await expect(page).toHaveURL(/\/app$/);
-}
-
-async function initializeTemplate(page: Page): Promise<void> {
-  await page.goto('/app/settings');
-  await page.getByRole('button', { name: 'Создать базовый шаблон' }).click();
-  await expect(page.getByText('Базовый шаблон создан.')).toBeVisible();
 }

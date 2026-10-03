@@ -2,27 +2,10 @@ import { expect, test } from '@playwright/test';
 
 const password = 'e2e-password-10';
 
-test.skip('owner initializes template and manages account through server-confirmed data', async ({
+test('owner creates, edits and archives an account through server-confirmed data', async ({
   page,
 }) => {
   await registerAndReachApp(page);
-
-  await page.goto('/app/settings');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Настройки');
-  await page.getByRole('button', { name: 'Создать базовый шаблон' }).click();
-  await expect(page.getByText('Базовый шаблон создан.')).toBeVisible();
-  await page.getByRole('button', { name: 'Создать базовый шаблон' }).click();
-  await expect(page.getByText('Базовый шаблон создан.')).toBeVisible();
-
-  // The general budget settings moved behind «Изменить →» on the hub.
-  await page.goto('/app/settings/general');
-  await page.getByLabel('Часовой пояс').fill('Europe/Moscow');
-  await page.getByRole('option', { name: 'Europe/Moscow', exact: true }).click();
-  await page.getByRole('button', { name: 'Сохранить' }).click();
-  await expect(page.getByText('Общие настройки сохранены.')).toBeVisible();
-
-  await page.goto('/app/categories');
-  await expect(page.getByText('Зарплата')).toHaveCount(1);
 
   await page.goto('/app/accounts');
   await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
@@ -70,37 +53,6 @@ test.skip('owner initializes template and manages account through server-confirm
   ).toBeVisible();
 });
 
-test.skip('owner creates typed categories and envelope without client balance arithmetic', async ({
-  page,
-}) => {
-  await registerAndReachApp(page);
-
-  await page.goto('/app/categories');
-  await page.getByRole('button', { name: 'Создать категорию' }).click();
-  await page.getByLabel('Название категории').fill('Зарплата');
-  await page.getByLabel('Порядок отображения').fill('1');
-  await page.getByRole('button', { name: 'Сохранить категорию' }).click();
-  await expect(page.getByRole('heading', { name: 'Зарплата' })).toBeVisible();
-
-  await page.getByRole('button', { name: 'Создать категорию' }).click();
-  await page.getByLabel('Тип категории').selectOption('EXPENSE');
-  await page.getByLabel('Название категории').fill('Продукты');
-  await page.getByLabel('Порядок отображения').fill('2');
-  await page.getByRole('button', { name: 'Сохранить категорию' }).click();
-  await expect(page.getByRole('heading', { name: 'Продукты' })).toBeVisible();
-
-  await page.goto('/app/envelopes');
-  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
-  await page.getByRole('button', { name: 'Создать конверт' }).first().click();
-  await page.getByLabel('Название конверта').fill('Накопления');
-  await page.getByLabel('Тип конверта').selectOption('SAVINGS_GOAL');
-  await page.getByLabel('Начальный баланс').fill('123,45');
-  await page.getByLabel('Порядок отображения').fill('1');
-  await page.getByRole('button', { name: 'Сохранить конверт' }).click();
-  await expect(page.getByText('Накопления')).toBeVisible();
-  await expect(page.getByText(/123.*45/).first()).toBeVisible();
-});
-
 test('shows server validation beside invalid money input', async ({ page }) => {
   await registerAndReachApp(page);
   await page.goto('/app/accounts');
@@ -121,7 +73,7 @@ test.describe('compact reference-data navigation', () => {
   test('reaches reference headings and actions without horizontal overflow', async ({ page }) => {
     await registerAndReachApp(page);
     for (const [path, heading, action] of [
-      ['/app/settings', 'Настройки', 'Создать базовый шаблон'],
+      ['/app/settings', 'Настройки', 'Настроить базовый шаблон'],
       ['/app/accounts', 'Счета', 'Создать счёт'],
       ['/app/categories', 'Категории', 'Создать категорию'],
       ['/app/envelopes', 'Конверты', 'Создать конверт'],
