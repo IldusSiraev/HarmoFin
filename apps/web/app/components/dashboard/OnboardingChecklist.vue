@@ -5,29 +5,20 @@ import { CircleCheck, Circle, ChevronDown, ChevronUp } from '@lucide/vue';
 import TemplatePreviewSheet from '../funding/TemplatePreviewSheet.vue';
 import UiButton from '../ui/Button.vue';
 import UiStatus from '../ui/Status.vue';
-import { useAuth } from '../../composables/useAuth.js';
 import {
   useEnvelopePlanV2,
   type DashboardV2Response,
 } from '../../composables/useEnvelopePlanV2.js';
 import { useFundingEntry } from '../../composables/useFundingEntry.js';
-import type {
-  DashboardSummaryDto,
-  ReferenceTemplateResult,
-} from '../../composables/useBudgetReferenceData.js';
 
 defineOptions({ name: 'OnboardingChecklist' });
 
 const STORAGE_KEY = 'harmofin-onboarding-collapsed';
 
-type OnboardingStatus = DashboardSummaryDto['onboarding'];
 type V2Onboarding = DashboardV2Response['onboarding'];
 
 const props = defineProps<{
   budgetId: string;
-  // Plan model 2 reads its own v2 onboarding, so only v1 budgets must pass this.
-  onboarding?: OnboardingStatus;
-  initializeTemplate: (budgetId: string) => Promise<ReferenceTemplateResult>;
 }>();
 
 const emit = defineEmits<{
@@ -46,20 +37,13 @@ type Step = {
   done: boolean;
 };
 
-const auth = useAuth();
 const funding = useFundingEntry();
 
-// v1 budgets keep the original checklist and the direct template POST; v2
-// budgets read their progress from the server's v2 dashboard onboarding block.
-const isModelV2 = computed(
-  () => auth.currentData.value?.workspaces[0]?.budgets[0]?.planModelVersion === 2,
-);
+// Progress comes from the server's dashboard onboarding block.
 const v2Status = ref<V2Onboarding | null>(null);
-// The v2 client needs the Nuxt app context, so it is only created for v2 budgets.
-const v2 = isModelV2.value ? useEnvelopePlanV2() : null;
+const v2 = useEnvelopePlanV2();
 
 async function loadV2Status(): Promise<void> {
-  if (!isModelV2.value || !v2) return;
   try {
     v2Status.value = (await v2.getDashboard(props.budgetId)).onboarding;
   } catch {
@@ -67,63 +51,7 @@ async function loadV2Status(): Promise<void> {
   }
 }
 
-const v1Steps = computed<Step[]>(() => {
-  const status = props.onboarding;
-  if (!status) return [];
-  return [
-    {
-      key: 'categoriesSeeded',
-      title: 'Базовые категории и конверты',
-      description:
-        'Создайте набор стандартных категорий и конвертов одним нажатием — их можно будет изменить позже.',
-      href: '/app/settings',
-      linkLabel: 'Перейти',
-      action: 'template',
-      done: status.categoriesSeeded,
-    },
-    {
-      key: 'cycleConfigured',
-      title: 'Финансовый цикл',
-      description:
-        'Финансовый месяц не обязан начинаться 1-го числа — настройте день, который соответствует вашему графику доходов.',
-      href: '/app/settings',
-      linkLabel: 'Перейти',
-      action: 'link',
-      done: status.cycleConfigured,
-    },
-    {
-      key: 'hasAccounts',
-      title: 'Счета',
-      description: 'Добавьте счета, на которых реально лежат деньги, с их текущим остатком.',
-      href: '/app/accounts',
-      linkLabel: 'Перейти',
-      action: 'link',
-      done: status.hasAccounts,
-    },
-    {
-      key: 'hasEnvelopeStartingBalances',
-      title: 'Начальные остатки конвертов',
-      description:
-        'Разнесите деньги со счетов по конвертам — так будет видно, что уже распределено, а что нет.',
-      href: '/app/envelopes',
-      linkLabel: 'Перейти',
-      action: 'link',
-      done: status.hasEnvelopeStartingBalances,
-    },
-    {
-      key: 'hasAllocatedIncome',
-      title: 'Первый доход и распределение',
-      description:
-        'Добавьте операцию дохода и распределите её по конвертам — это включит расчёт доступного лимита периода.',
-      href: '/app/operations',
-      linkLabel: 'Перейти',
-      action: 'link',
-      done: status.hasAllocatedIncome,
-    },
-  ];
-});
-
-const v2Steps = computed<Step[]>(() => {
+const steps = computed<Step[]>(() => {
   const status = v2Status.value;
   if (!status) return [];
   return [
@@ -177,8 +105,7 @@ const v2Steps = computed<Step[]>(() => {
   ];
 });
 
-const steps = computed<Step[]>(() => (isModelV2.value ? v2Steps.value : v1Steps.value));
-const ready = computed(() => !isModelV2.value || v2Status.value !== null);
+const ready = computed(() => v2Status.value !== null);
 
 const collapsed = ref(false);
 const templateSheetOpen = ref(false);
@@ -203,24 +130,8 @@ function setCollapsed(value: boolean): void {
 const doneCount = computed(() => steps.value.filter((step) => step.done).length);
 const allDone = computed(() => steps.value.length > 0 && doneCount.value === steps.value.length);
 
-const templateSaving = ref(false);
-const templateFailed = ref(false);
-
-async function runInitializeTemplate(): Promise<void> {
-  if (isModelV2.value) {
-    templateSheetOpen.value = true;
-    return;
-  }
-  templateSaving.value = true;
-  templateFailed.value = false;
-  try {
-    await props.initializeTemplate(props.budgetId);
-    emit('templateInitialized');
-  } catch {
-    templateFailed.value = true;
-  } finally {
-    templateSaving.value = false;
-  }
+function openTemplateSheet(): void {
+  templateSheetOpen.value = true;
 }
 
 function onTemplateApplied(): void {
@@ -306,10 +217,9 @@ function offerOpeningAssignment(): void {
             variant="tertiary"
             size="sm"
             data-action="onboarding-initialize-template"
-            :loading="templateSaving"
-            @click="runInitializeTemplate"
+            @click="openTemplateSheet"
           >
-            {{ isModelV2 ? 'Настроить базовый шаблон' : 'Создать базовый шаблон' }}
+            Настроить базовый шаблон
           </UiButton>
           <UiButton
             v-else-if="step.action === 'assign'"
@@ -326,14 +236,7 @@ function offerOpeningAssignment(): void {
         </li>
       </ul>
 
-      <UiStatus
-        v-if="templateFailed"
-        label="Не удалось выполнить действие. Повторите попытку."
-        tone="danger"
-        aria-live="polite"
-      />
       <TemplatePreviewSheet
-        v-if="isModelV2"
         :open="templateSheetOpen"
         :budget-id="budgetId"
         @close="templateSheetOpen = false"

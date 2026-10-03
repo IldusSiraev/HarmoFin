@@ -18,8 +18,6 @@ import {
 } from '../../composables/useOperationForm.js';
 import {
   createTransferForm,
-  syncSourceEnvelope,
-  toCreateTransferInput,
   toDirectTransferInput,
   type TransferFormModel,
 } from '../../composables/useTransferForm.js';
@@ -40,23 +38,19 @@ const props = withDefaults(
     accounts: ReadonlyArray<{ value: string; label: string }>;
     categories: ReadonlyArray<CategoryDto>;
     envelopes: ReadonlyArray<{ value: string; label: string }>;
-    /** Envelope Plan v2.2 budget: optional envelope, direct transfers, one-time mandatory payments. */
-    modelV2?: boolean;
     mandatoryEnvelopeIds?: ReadonlyArray<string>;
     pending?: boolean;
     error?: string;
   }>(),
-  { modelV2: false, mandatoryEnvelopeIds: () => [], pending: false, error: '' },
+  { mandatoryEnvelopeIds: () => [], pending: false, error: '' },
 );
 
 const emit = defineEmits<{
   close: [];
   back: [];
   submitOperation: [input: ReturnType<typeof toTransactionInput>];
-  submitTransfer: [input: ReturnType<typeof toCreateTransferInput>];
   submitDirectTransfer: [input: ReturnType<typeof toDirectTransferInput>];
   submitOneTimePay: [input: OneTimePayEntry];
-  splitTransfer: [model: TransferFormModel];
 }>();
 
 const tabs: ReadonlyArray<{ type: EntryType; label: string; modifier: string }> = [
@@ -188,35 +182,26 @@ const transferDestinationOptions = computed(() =>
   props.accounts.filter((account) => account.value !== transfer.sourceAccountId),
 );
 
-// v2: an expense does not need an envelope; "" is the explicit "no assignment".
-const envelopeOptions = computed(() =>
-  props.modelV2 ? [{ value: '', label: 'Без назначения' }, ...props.envelopes] : props.envelopes,
-);
+// An expense does not need an envelope; "" is the explicit "no assignment".
+const envelopeOptions = computed(() => [
+  { value: '', label: 'Без назначения' },
+  ...props.envelopes,
+]);
 const mandatorySelected = computed(
-  () =>
-    props.modelV2 &&
-    activeType.value === 'EXPENSE' &&
-    props.mandatoryEnvelopeIds.includes(operation.envelopeId),
+  () => activeType.value === 'EXPENSE' && props.mandatoryEnvelopeIds.includes(operation.envelopeId),
 );
 
 const canSubmit = computed(() => {
   if (activeType.value === 'TRANSFER') {
-    return Boolean(
-      transfer.total &&
-      transfer.sourceAccountId &&
-      transfer.destinationAccountId &&
-      (props.modelV2 || transfer.parts[0]?.sourceEnvelopeId),
-    );
+    return Boolean(transfer.total && transfer.sourceAccountId && transfer.destinationAccountId);
   }
-  if (!operation.amount || !operation.accountId || !operation.categoryId) return false;
-  return activeType.value === 'INCOME' || props.modelV2 || Boolean(operation.envelopeId);
+  return Boolean(operation.amount && operation.accountId && operation.categoryId);
 });
 
 function submit(): void {
   if (!canSubmit.value || props.pending) return;
   if (activeType.value === 'TRANSFER') {
-    if (props.modelV2) emit('submitDirectTransfer', toDirectTransferInput(transfer));
-    else emit('submitTransfer', toCreateTransferInput(transfer, 'CONFIRMED'));
+    emit('submitDirectTransfer', toDirectTransferInput(transfer));
     return;
   }
   if (mandatorySelected.value) {
@@ -261,10 +246,6 @@ function submitOneTime(): void {
     categoryId: operation.categoryId,
     ...(comment ? { comment } : {}),
   });
-}
-
-function requestSplit(): void {
-  emit('splitTransfer', { ...transfer, parts: transfer.parts.map((part) => ({ ...part })) });
 }
 </script>
 
@@ -374,7 +355,6 @@ function requestSplit(): void {
           label="Конверт"
           :options="envelopeOptions"
           :accent="accent"
-          :required="!modelV2"
         />
         <p v-if="mandatorySelected" class="entry-dialog__hint" data-testid="entry-mandatory-hint">
           Обязательные оплачиваются по плану, а не обычным расходом. Нажмите «Добавить разовый
@@ -432,17 +412,6 @@ function requestSplit(): void {
           accent="info"
           required
         />
-        <UiPillSelect
-          v-if="!modelV2"
-          name="transferEnvelope"
-          label="Конверт"
-          :options="envelopes"
-          :model-value="transfer.parts[0]?.sourceEnvelopeId ?? ''"
-          accent="info"
-          required
-          @update:model-value="transfer.parts[0] && syncSourceEnvelope(transfer.parts[0], $event)"
-        />
-
         <div class="entry-dialog__row">
           <UiDatePicker
             v-model="transfer.occurredOn"
@@ -450,27 +419,6 @@ function requestSplit(): void {
             label="Дата"
             required
             quick-dates
-          />
-          <UiInput
-            v-if="!modelV2"
-            v-model="transfer.comment"
-            name="transferComment"
-            label="Заметка"
-            placeholder="Необязательно"
-          />
-        </div>
-
-        <div v-if="!modelV2" class="entry-dialog__split-row">
-          <button
-            type="button"
-            class="entry-dialog__split"
-            data-testid="entry-split-transfer"
-            @click="requestSplit"
-          >
-            Разбить перевод на несколько конвертов
-          </button>
-          <UiInfoTooltip
-            text="Нужно только если этим переводом вы одновременно двигаете деньги нескольких разных конвертов — например, часть на «Автомобиль», часть на «Отпуск». Для обычного перевода это не требуется."
           />
         </div>
       </template>
@@ -581,24 +529,6 @@ function requestSplit(): void {
   gap: var(--hf-space-2);
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-small);
-}
-
-.entry-dialog__split-row {
-  display: flex;
-  align-items: center;
-  gap: var(--hf-space-2);
-  justify-self: start;
-}
-
-.entry-dialog__split {
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--hf-color-action-primary);
-  font: inherit;
-  font-weight: var(--hf-font-weight-medium);
-  text-decoration: underline;
-  cursor: pointer;
 }
 
 .entry-dialog__step-button {

@@ -232,17 +232,6 @@ describe('FundingEntryHost', () => {
     expect(document.querySelector('[data-testid="funding-stale"]')).toBeNull();
   });
 
-  it('does not open for a v1 budget', async () => {
-    setBudgetVersion(1);
-    const wrapper = mountHost();
-
-    useFundingEntry().offer({ sourceKind: 'INCOME', incomeTransactionId: INCOME });
-    await flushPromises();
-
-    expect(mocks.v2.previewFunding).not.toHaveBeenCalled();
-    expect(wrapper.find('[data-testid="funding-source"]').exists()).toBe(false);
-  });
-
   it('stays quiet when an opening preview is not available', async () => {
     const wrapper = mountHost();
     mocks.v2.previewFunding.mockRejectedValue(

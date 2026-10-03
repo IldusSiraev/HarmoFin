@@ -4,20 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiRequestError } from '../../composables/useApiClient.js';
 
 const api = {
-  listRegularPlans: vi.fn(),
-  listPlanOccurrences: vi.fn(),
   listAccounts: vi.fn(),
   listCategories: vi.fn(),
-  listEnvelopes: vi.fn(),
-  createRegularPlan: vi.fn(),
-  updateRegularPlan: vi.fn(),
-  deleteRegularPlan: vi.fn(),
-  skipPlanOccurrence: vi.fn(),
-  completePlanOccurrence: vi.fn(),
-  createPlanOccurrenceDraft: vi.fn(),
 };
 const v2 = {
-  listTransactions: vi.fn(),
   listObligationOccurrences: vi.fn(),
   payObligation: vi.fn(),
   skipObligationOccurrence: vi.fn(),
@@ -26,20 +16,20 @@ const v2 = {
   createTransaction: vi.fn(),
 };
 const funding = { offer: vi.fn(), dismiss: vi.fn() };
-const budgetRow: { id: string; name: string; primaryCurrency: string; planModelVersion?: 1 | 2 } = {
+const budgetRow = {
   id: 'budget-id',
   name: 'Бюджет',
   primaryCurrency: 'RUB',
+  planModelVersion: 2,
 };
 const auth = {
   currentData: { value: { workspaces: [{ budgets: [budgetRow] }] } },
   loadMe: vi.fn(),
 };
-const { navigateTo, route } = vi.hoisted(() => ({ navigateTo: vi.fn(), route: { query: {} } }));
+const { route } = vi.hoisted(() => ({ route: { query: {} } }));
 
 vi.mock('#imports', () => ({
   definePageMeta: vi.fn(),
-  navigateTo,
   useRoute: () => route,
 }));
 vi.mock('../../composables/useEnvelopePlanV2.js', async (importOriginal) => ({
@@ -55,241 +45,7 @@ vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) =>
 
 import PlansPage from './plans.vue';
 
-function mountPage() {
-  return mount(PlansPage, {
-    attachTo: document.body,
-    global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } },
-  });
-}
-
-const occurrence = {
-  id: 'occurrence-id',
-  planId: 'plan-id',
-  planName: 'Ипотека',
-  planType: 'EXPENSE' as const,
-  scheduledOn: '2026-09-10',
-  status: 'DUE' as const,
-  amountMinor: '3600000',
-  currency: 'RUB' as const,
-  scale: 2 as const,
-  accountId: 'account-id',
-  categoryId: 'category-id',
-  envelopeId: 'envelope-id',
-  comment: null,
-  transactionId: null,
-  cancellationReason: null,
-};
-
-const transaction = {
-  id: 'transaction-id',
-  budgetId: 'budget-id',
-  accountingModelVersion: 2 as const,
-  transactionType: 'EXPENSE' as const,
-  status: 'CONFIRMED' as const,
-  amountMinor: '85000',
-  currency: 'RUB',
-  occurredOn: '2026-09-13',
-  accountId: 'account-id',
-  categoryId: 'category-id',
-  envelopeId: 'envelope-id',
-  sourceDescription: null,
-  merchantName: null,
-  comment: null,
-  planOccurrenceIds: [],
-  confirmedAt: '2026-09-13T00:00:00.000Z',
-  cancelledAt: null,
-  deletedAt: null,
-  createdAt: '2026-09-13T00:00:00.000Z',
-};
-
 describe('plans page', () => {
-  let wrapper: ReturnType<typeof mountPage> | null = null;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    // The page computes "today" from the real clock (`format(new Date(), ...)`
-    // in plans.vue) to build the default calendar month and the overdue/
-    // upcoming dot split — pin it so the fixed 2026-09-10/2026-09-13 dates
-    // below always fall inside the rendered grid regardless of when this
-    // suite actually runs. Fake only `Date`, not timers — `flushPromises()`
-    // from `@vue/test-utils` resolves via a real `setTimeout`, which would
-    // hang forever under full fake timers.
-    vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(new Date('2026-09-24T00:00:00.000Z'));
-    route.query = {};
-    api.listRegularPlans.mockResolvedValue([]);
-    api.listPlanOccurrences.mockResolvedValue([occurrence]);
-    v2.listTransactions.mockResolvedValue({ items: [transaction], nextCursor: null });
-    api.listAccounts.mockResolvedValue([{ id: 'account-id', name: 'Счёт планов' }]);
-    api.listCategories.mockResolvedValue([
-      { id: 'category-id', name: 'Расходы планов', categoryType: 'EXPENSE', icon: null },
-    ]);
-    api.listEnvelopes.mockResolvedValue([
-      { id: 'envelope-id', name: 'Конверт планов', envelopeType: 'CURRENT_EXPENSES' },
-    ]);
-    api.createRegularPlan.mockResolvedValue({ id: 'plan-id' });
-    api.completePlanOccurrence.mockResolvedValue({ ...occurrence, status: 'COMPLETED' });
-    api.createPlanOccurrenceDraft.mockResolvedValue({ id: 'draft-id', status: 'DRAFT' });
-  });
-
-  afterEach(() => {
-    if (wrapper) {
-      wrapper.unmount();
-      wrapper = null;
-    }
-    vi.useRealTimers();
-  });
-
-  it('marks plan controls ready after client hydration and loads calendar-range data', async () => {
-    wrapper = mountPage();
-    await flushPromises();
-
-    expect(wrapper.get('[data-hydrated]').attributes('data-hydrated')).toBe('true');
-    expect(api.listPlanOccurrences).toHaveBeenCalled();
-    expect(v2.listTransactions).toHaveBeenCalled();
-  });
-
-  it('selects a day and opens the create-draft flow for its occurrence', async () => {
-    wrapper = mountPage();
-    await flushPromises();
-
-    await wrapper.get('[data-date="2026-09-10"]').trigger('click');
-    await flushPromises();
-    await wrapper.get('[data-testid="action-menu-trigger"]').trigger('click');
-    await wrapper.get('[data-testid="row-draft"]').trigger('click');
-
-    expect(api.createPlanOccurrenceDraft).toHaveBeenCalledWith(
-      'budget-id',
-      'occurrence-id',
-      expect.any(String),
-    );
-    expect(navigateTo).toHaveBeenCalledWith('/app/operations?draftId=draft-id');
-  });
-
-  it('places server validation errors beside the plan field', async () => {
-    api.createRegularPlan.mockRejectedValue(
-      new ApiRequestError(400, {
-        code: 'VALIDATION_FAILED',
-        detail: 'Проверьте поля формы.',
-        fieldErrors: [{ field: 'name', message: 'Укажите название плана.', code: 'custom' }],
-      }),
-    );
-    wrapper = mountPage();
-    await flushPromises();
-
-    await wrapper.get('[data-action="create-plan"]').trigger('click');
-    await flushPromises();
-
-    const planForm = document.querySelector('form.plan-form') as HTMLFormElement;
-    const nameInput = document.querySelector(
-      'form.plan-form input[name="name"]',
-    ) as HTMLInputElement;
-
-    nameInput.value = '';
-    nameInput.dispatchEvent(new Event('input', { bubbles: true }));
-    await flushPromises();
-
-    planForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    await flushPromises();
-
-    const fullText = document.body.innerText;
-    expect(fullText).toContain('Укажите название плана.');
-    expect(nameInput.getAttribute('aria-invalid')).toBe('true');
-  });
-
-  it('selects the day of the occurrence referenced by the notification route', async () => {
-    route.query = { occurrence: 'occurrence-id' };
-    wrapper = mountPage();
-    await flushPromises();
-
-    expect(wrapper.get('[data-date="2026-09-10"]').classes()).toContain(
-      'plans-calendar__cell--selected',
-    );
-  });
-
-  it('moves the calendar to the month of a deep-linked occurrence outside the default month', async () => {
-    route.query = { occurrence: 'occurrence-id' };
-    api.listPlanOccurrences.mockResolvedValue([{ ...occurrence, scheduledOn: '2026-11-05' }]);
-    wrapper = mountPage();
-    await flushPromises();
-
-    expect(wrapper.get('[data-date="2026-11-05"]').classes()).toContain(
-      'plans-calendar__cell--selected',
-    );
-    expect(api.listPlanOccurrences).toHaveBeenCalledWith(
-      'budget-id',
-      expect.objectContaining({ from: expect.stringMatching(/^2026-10/) }),
-    );
-  });
-
-  it('lets the user navigate away from a deep-linked occurrence month', async () => {
-    route.query = { occurrence: 'occurrence-id' };
-    wrapper = mountPage();
-    await flushPromises();
-
-    // The DUE/PENDING lists that back "Ближайшие" are not range-scoped, so the
-    // linked occurrence stays visible to the highlight lookup forever — it must
-    // only be honoured once, otherwise every month change snaps back.
-    await wrapper.get('[data-action="calendar-next-month"]').trigger('click');
-    await flushPromises();
-
-    expect(wrapper.find('[data-date="2026-10-15"]').exists()).toBe(true);
-    expect(wrapper.get('[data-date="2026-10-01"]').classes()).toContain(
-      'plans-calendar__cell--selected',
-    );
-  });
-
-  it('keeps the page mounted on month change and refetches only range data', async () => {
-    wrapper = mountPage();
-    await flushPromises();
-
-    expect(wrapper.find('.plans-page__main').exists()).toBe(true);
-    api.listRegularPlans.mockClear();
-    api.listAccounts.mockClear();
-    api.listCategories.mockClear();
-    api.listEnvelopes.mockClear();
-    api.listPlanOccurrences.mockClear();
-    v2.listTransactions.mockClear();
-
-    // The old `load()` flipped the page-wide `loading` flag synchronously, which
-    // unmounted the whole calendar/day-panel/list block (and dropped keyboard
-    // focus) before the new data arrived. `trigger` awaits a render tick, so a
-    // regression would already be visible here.
-    await wrapper.get('[data-action="calendar-next-month"]').trigger('click');
-    expect(wrapper.find('.plans-page__main').exists()).toBe(true);
-    expect(wrapper.find('[data-hydrated]').exists()).toBe(true);
-
-    await flushPromises();
-
-    expect(wrapper.find('.plans-page__main').exists()).toBe(true);
-    expect(api.listPlanOccurrences).toHaveBeenCalled();
-    expect(v2.listTransactions).toHaveBeenCalled();
-    expect(api.listRegularPlans).not.toHaveBeenCalled();
-    expect(api.listAccounts).not.toHaveBeenCalled();
-    expect(api.listCategories).not.toHaveBeenCalled();
-    expect(api.listEnvelopes).not.toHaveBeenCalled();
-  });
-
-  it('reconciles a selected day that falls outside the newly navigated month', async () => {
-    wrapper = mountPage();
-    await flushPromises();
-
-    await wrapper.get('[data-date="2026-09-10"]').trigger('click');
-    expect(wrapper.get('[data-date="2026-09-10"]').classes()).toContain(
-      'plans-calendar__cell--selected',
-    );
-
-    await wrapper.get('[data-action="calendar-next-month"]').trigger('click');
-    await flushPromises();
-
-    expect(wrapper.get('[data-date="2026-10-01"]').classes()).toContain(
-      'plans-calendar__cell--selected',
-    );
-    expect(wrapper.findAll('.plans-calendar__cell--selected')).toHaveLength(1);
-  });
-});
-
-describe('plans page: v2 obligations', () => {
   let wrapper: ReturnType<typeof mountV2> | null = null;
 
   const daycare = {
@@ -363,11 +119,6 @@ describe('plans page: v2 obligations', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-09-24T00:00:00.000Z'));
     route.query = {};
-    budgetRow.planModelVersion = 2;
-    api.listRegularPlans.mockResolvedValue([]);
-    api.listPlanOccurrences.mockResolvedValue([]);
-    v2.listTransactions.mockResolvedValue({ items: [], nextCursor: null });
-    api.listEnvelopes.mockResolvedValue([]);
     v2.listObligationOccurrences.mockResolvedValue({ items: [daycare, rent] });
     v2.payObligation.mockResolvedValue({ transaction: null, occurrence: daycare, warnings: [] });
     v2.skipObligationOccurrence.mockResolvedValue({ transaction: null, occurrence: daycare });
@@ -387,17 +138,16 @@ describe('plans page: v2 obligations', () => {
     wrapper?.unmount();
     wrapper = null;
     document.body.innerHTML = '';
-    delete budgetRow.planModelVersion;
     vi.useRealTimers();
   });
 
-  it('lists open obligations with an overdue marker before payment and skips v1 plan loads', async () => {
+  it('lists open obligations with an overdue marker before payment and loads no legacy plan calendar', async () => {
     wrapper = mountV2();
     await flushPromises();
 
     expect(v2.listObligationOccurrences).toHaveBeenCalledWith('budget-id', expect.anything());
-    expect(api.listRegularPlans).not.toHaveBeenCalled();
-    expect(api.listPlanOccurrences).not.toHaveBeenCalled();
+    expect(wrapper.find('.plans-page__main').exists()).toBe(false);
+    expect(wrapper.find('[data-action="create-plan"]').exists()).toBe(false);
     expect(wrapper.get('[data-testid="obligation-row-occ-daycare"]').text()).toContain(
       'Просрочено',
     );
@@ -459,7 +209,6 @@ describe('plans page: v2 obligations', () => {
       }),
       expect.any(String),
     );
-    expect(api.completePlanOccurrence).not.toHaveBeenCalled();
     expect(v2.listObligationOccurrences).toHaveBeenCalledTimes(2);
     expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(false);
     expect(
@@ -503,7 +252,6 @@ describe('plans page: v2 obligations', () => {
       expect.any(String),
     );
     expect(v2.payObligation).not.toHaveBeenCalled();
-    expect(api.createPlanOccurrenceDraft).not.toHaveBeenCalled();
   });
 
   it('protects against a double submit', async () => {
@@ -627,35 +375,6 @@ describe('plans page: v2 obligations', () => {
     const alertText = wrapper.get('.plans-page__error').text();
     expect(alertText).toContain('уже есть оплаты');
     expect(alertText).not.toContain('raw english detail');
-  });
-
-  it('keeps the v1 skip and complete actions on the legacy methods', async () => {
-    budgetRow.planModelVersion = 1;
-    api.listPlanOccurrences.mockResolvedValue([occurrence]);
-    wrapper = mountV2();
-    await flushPromises();
-    await wrapper.get('[data-date="2026-09-10"]').trigger('click');
-    await flushPromises();
-
-    await wrapper.findAll('input[type="checkbox"]')[0]!.setValue(true);
-    await flushPromises();
-    expect(api.completePlanOccurrence).toHaveBeenCalledWith(
-      'budget-id',
-      'occurrence-id',
-      expect.any(String),
-    );
-
-    await wrapper.findAll('[data-testid="action-menu-trigger"]')[0]!.trigger('click');
-    await wrapper.findAll('[data-testid="row-skip"]')[0]!.trigger('click');
-    await wrapper.get('[data-testid="confirm-yes"]').trigger('click');
-    await flushPromises();
-    expect(api.skipPlanOccurrence).toHaveBeenCalledWith(
-      'budget-id',
-      'occurrence-id',
-      expect.any(String),
-    );
-    expect(v2.skipObligationOccurrence).not.toHaveBeenCalled();
-    expect(v2.payObligation).not.toHaveBeenCalled();
   });
 
   describe('expected income', () => {
@@ -824,25 +543,5 @@ describe('plans page: v2 obligations', () => {
       await flushPromises();
       expect(document.activeElement).toBe(button.element);
     });
-
-    it('does not touch income plans for a v1 budget', async () => {
-      budgetRow.planModelVersion = 1;
-      wrapper = mountV2();
-      await flushPromises();
-
-      expect(v2.listIncomeOccurrences).not.toHaveBeenCalled();
-      expect(wrapper.find('[data-testid="income-list"]').exists()).toBe(false);
-    });
-  });
-
-  it('keeps the legacy plans UI for a v1 budget', async () => {
-    budgetRow.planModelVersion = 1;
-    wrapper = mountV2();
-    await flushPromises();
-
-    expect(v2.listObligationOccurrences).not.toHaveBeenCalled();
-    expect(api.listRegularPlans).toHaveBeenCalled();
-    expect(wrapper.find('.plans-page__main').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="obligation-list"]').exists()).toBe(false);
   });
 });

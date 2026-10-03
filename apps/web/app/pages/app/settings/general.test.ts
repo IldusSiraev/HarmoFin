@@ -56,7 +56,14 @@ describe('settings general page', () => {
           id: 'workspace-id',
           name: 'Семья',
           role: 'OWNER',
-          budgets: [{ id: 'budget-id', name: 'Семейный бюджет', primaryCurrency: 'RUB' }],
+          budgets: [
+            {
+              id: 'budget-id',
+              name: 'Семейный бюджет',
+              primaryCurrency: 'RUB',
+              planModelVersion: 2,
+            },
+          ],
         },
       ],
     };
@@ -64,8 +71,8 @@ describe('settings general page', () => {
     mocks.api.getBudget.mockResolvedValue(budget);
   });
 
-  it('saves name, timezone and negative-balance without touching the income rule', async () => {
-    mocks.api.updateBudget.mockResolvedValue(budget);
+  it('saves only the changed settings through the settings endpoint', async () => {
+    mocks.planV2.updateBudgetSettings.mockResolvedValue(budget);
     const wrapper = mountPage();
     await flushPromises();
 
@@ -73,29 +80,30 @@ describe('settings general page', () => {
     await wrapper.get('form').trigger('submit');
     await flushPromises();
 
-    expect(mocks.api.updateBudget).toHaveBeenCalledWith('budget-id', {
-      name: 'Новое имя',
-      timezone: 'Europe/Moscow',
-      allowNegativeBalance: false,
-    });
+    expect(mocks.planV2.updateBudgetSettings).toHaveBeenCalledWith(
+      'budget-id',
+      { name: 'Новое имя' },
+      expect.any(String),
+    );
+    expect(mocks.api.updateBudget).not.toHaveBeenCalled();
     expect(wrapper.text()).toContain('Общие настройки сохранены.');
   });
 
-  it('shows a field error next to the matching control', async () => {
-    mocks.api.updateBudget.mockRejectedValue(
-      new ApiRequestError(400, {
-        code: 'VALIDATION_FAILED',
-        detail: 'Не доверять этой детали.',
-        fieldErrors: [{ field: 'name', message: 'Укажите название.', code: 'custom' }],
+  it('shows a Russian error and marks the timezone field when a timezone change is blocked', async () => {
+    mocks.planV2.updateBudgetSettings.mockRejectedValue(
+      new ApiRequestError(409, {
+        code: 'TIMEZONE_CHANGE_REQUIRES_RECONCILIATION',
+        detail: 'technical',
       }),
     );
     const wrapper = mountPage();
     await flushPromises();
+    await wrapper.get('[name="name"]').setValue('Другое имя');
     await wrapper.get('form').trigger('submit');
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Укажите название.');
-    expect(wrapper.get('[name="name"]').attributes('aria-invalid')).toBe('true');
+    expect(wrapper.get('[data-testid="summary-status"]').text()).not.toContain('technical');
+    expect(wrapper.get('[name="timezone"]').attributes('aria-invalid')).toBe('true');
   });
 
   describe('budget model v2 cycle change', () => {
@@ -126,10 +134,6 @@ describe('settings general page', () => {
     }
 
     beforeEach(() => {
-      const row = mocks.auth.currentData.value as {
-        workspaces: { budgets: { planModelVersion?: number }[] }[];
-      };
-      row.workspaces[0]!.budgets[0]!.planModelVersion = 2;
       mocks.planV2.previewCycleChange.mockResolvedValue(preview);
       mocks.planV2.confirmCycleChange.mockResolvedValue(confirmed);
       mocks.planV2.updateBudgetSettings.mockResolvedValue({ ...budget, planModelVersion: 2 });

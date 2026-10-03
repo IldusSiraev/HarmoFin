@@ -15,20 +15,18 @@ import { ApiRequestError } from '../../../composables/useApiClient.js';
 import { useAuth } from '../../../composables/useAuth.js';
 import {
   type BudgetDto,
-  type UpdateBudgetInput,
   useBudgetReferenceData,
 } from '../../../composables/useBudgetReferenceData.js';
 import {
   type CycleChangePreviewResponse,
   useEnvelopePlanV2,
 } from '../../../composables/useEnvelopePlanV2.js';
-import { useReferenceDataForm } from '../../../composables/useReferenceDataForm.js';
 import { v2ErrorMessage } from '../../../composables/useV2Error.js';
 
 defineOptions({ name: 'AppSettingsGeneralPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
 
-const generalFields = ['name', 'timezone', 'allowNegativeBalance'] as const;
+type GeneralField = 'name' | 'timezone' | 'allowNegativeBalance';
 type CycleErrorField = 'cycleStartDay' | 'periodBoundaryOffset';
 interface TransitionDecision {
   target: string;
@@ -38,7 +36,6 @@ interface TransitionDecision {
 const { currentData, loadMe } = useAuth();
 const api = useBudgetReferenceData();
 const planV2 = useEnvelopePlanV2();
-const formHelper = useReferenceDataForm(generalFields);
 
 const loading = ref(true);
 const saving = ref(false);
@@ -46,7 +43,7 @@ const loadError = ref('');
 const summary = ref('');
 const summaryTone = ref<'success' | 'danger'>('success');
 const summaryRef = ref<HTMLElement | null>(null);
-const fieldErrors = ref<Partial<Record<(typeof generalFields)[number], string>>>({});
+const fieldErrors = ref<Partial<Record<GeneralField, string>>>({});
 const budget = ref<BudgetDto | null>(null);
 const form = reactive({
   name: '',
@@ -57,10 +54,7 @@ const form = reactive({
 });
 
 const budgetId = computed(() => currentData.value?.workspaces[0]?.budgets[0]?.id);
-// v2 budgets change the cycle only through a read-only preview and one explicit confirmation.
-const isModelV2 = computed(
-  () => currentData.value?.workspaces[0]?.budgets[0]?.planModelVersion === 2,
-);
+// The cycle changes only through a read-only preview and one explicit confirmation.
 
 const cycleErrors = ref<Partial<Record<CycleErrorField, string>>>({});
 const preview = ref<CycleChangePreviewResponse | null>(null);
@@ -79,7 +73,7 @@ const cycleChanged = computed(
     (form.cycleStartDay.trim() !== String(budget.value.cycleStartDay) ||
       form.periodBoundaryOffset.trim() !== String(budget.value.periodBoundaryOffset)),
 );
-const showCycleFlow = computed(() => isModelV2.value && cycleChanged.value);
+const showCycleFlow = computed(() => cycleChanged.value);
 
 // The target is a decimal string passed to the server as is; no money arithmetic here.
 const TARGET_PATTERN = /^\d{1,12}([.,]\d{1,2})?$/;
@@ -162,7 +156,7 @@ async function loadPage() {
   }
 }
 
-function getFieldError(field: (typeof generalFields)[number]) {
+function getFieldError(field: GeneralField) {
   return fieldErrors.value[field];
 }
 
@@ -240,46 +234,22 @@ async function showError(message: string) {
 async function save() {
   const id = budgetId.value;
   if (!id) return;
-  if (isModelV2.value) {
-    if (saving.value || previewLoading.value) return;
-    if (cycleChanged.value) {
-      await runPreview();
-      return;
-    }
-    saving.value = true;
-    summary.value = '';
-    fieldErrors.value = {};
-    confirmedNote.value = '';
-    try {
-      await saveSettingsV2(id);
-      await reloadBudget(id);
-      summaryTone.value = 'success';
-      summary.value = 'Общие настройки сохранены.';
-    } catch (error) {
-      applyV2Error(error);
-    } finally {
-      saving.value = false;
-    }
+  if (saving.value || previewLoading.value) return;
+  if (cycleChanged.value) {
+    await runPreview();
     return;
   }
   saving.value = true;
   summary.value = '';
   fieldErrors.value = {};
-  const input: UpdateBudgetInput = {
-    name: form.name,
-    timezone: form.timezone,
-    allowNegativeBalance: form.allowNegativeBalance,
-  };
+  confirmedNote.value = '';
   try {
-    budget.value = await api.updateBudget(id, input);
-    syncForm(budget.value);
+    await saveSettingsV2(id);
+    await reloadBudget(id);
     summaryTone.value = 'success';
     summary.value = 'Общие настройки сохранены.';
   } catch (error) {
-    const mapped = formHelper.errorMessage(error);
-    fieldErrors.value = mapped.fields;
-    summaryTone.value = 'danger';
-    summary.value = mapped.summary;
+    applyV2Error(error);
   } finally {
     saving.value = false;
   }
@@ -437,33 +407,31 @@ onMounted(() => {
               text="Если выключено, HarmoFin не даст сохранить операцию, которая уведёт счёт или конверт в минус."
             />
           </label>
-          <template v-if="isModelV2">
-            <UiInput
-              v-model="form.cycleStartDay"
-              name="cycleStartDay"
-              label="Начало первого периода"
-              inputmode="numeric"
-              :error="getCycleError('cycleStartDay')"
-              required
-            />
-            <UiInput
-              v-model="form.periodBoundaryOffset"
-              name="periodBoundaryOffset"
-              label="Граница второго периода (дней от начала первого)"
-              inputmode="numeric"
-              :error="getCycleError('periodBoundaryOffset')"
-              required
-            />
-            <p v-if="showCycleFlow" class="general-settings-form__note">
-              Сначала покажем, с какой даты изменение вступит в силу. Ничего не изменится, пока вы
-              не подтвердите.
-            </p>
-          </template>
+          <UiInput
+            v-model="form.cycleStartDay"
+            name="cycleStartDay"
+            label="Начало первого периода"
+            inputmode="numeric"
+            :error="getCycleError('cycleStartDay')"
+            required
+          />
+          <UiInput
+            v-model="form.periodBoundaryOffset"
+            name="periodBoundaryOffset"
+            label="Граница второго периода (дней от начала первого)"
+            inputmode="numeric"
+            :error="getCycleError('periodBoundaryOffset')"
+            required
+          />
+          <p v-if="showCycleFlow" class="general-settings-form__note">
+            Сначала покажем, с какой даты изменение вступит в силу. Ничего не изменится, пока вы не
+            подтвердите.
+          </p>
           <UiButton type="submit" :loading="saving || previewLoading" data-action="submit-general">
             {{ showCycleFlow ? 'Показать последствия' : 'Сохранить' }}
           </UiButton>
         </form>
-        <div v-if="isModelV2 && preview && previewRequest" class="general-settings-form__effect">
+        <div v-if="preview && previewRequest" class="general-settings-form__effect">
           <CyclePreview
             ref="previewRef"
             :cycle-start-day="previewRequest.cycleStartDay"

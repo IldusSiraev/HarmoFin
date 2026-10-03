@@ -25,12 +25,13 @@ import {
   type GoalProgressReportDto,
   type PlanVsActualReportDto,
   type ReportDto,
-  type ReportKey,
   useBudgetReferenceData,
 } from '../../composables/useBudgetReferenceData.js';
 
 defineOptions({ name: 'BudgetAnalyticsPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
+
+const V2_KEYS: ReadonlyArray<string> = REPORT_V2_KEYS;
 
 const auth = useAuth();
 const route = useRoute();
@@ -39,15 +40,12 @@ const v2 = useEnvelopePlanV2();
 const loading = ref(true);
 const error = ref('');
 const report = ref<ReportDto | null>(null);
-type AnyReportKey = ReportKey | ReportV2Key;
-const reportKey = ref<AnyReportKey>(reportKeyFromQuery(route.query.report));
+const reportKey = ref<ReportV2Key>(reportKeyFromQuery(route.query.report));
 const filters = ref<AnalyticsFilters>(filtersFromQuery(route.query));
 const accounts = ref<Array<{ value: string; label: string }>>([]);
 const categories = ref<Array<{ value: string; label: string }>>([]);
 const envelopes = ref<Array<{ value: string; label: string }>>([]);
 const budget = computed(() => auth.currentData.value?.workspaces[0]?.budgets[0] ?? null);
-// The budget decides the model: v2 reads v2 reports/exports only (v1 ones answer 409).
-const isV2 = computed(() => budget.value?.planModelVersion === 2);
 const isOwner = computed(() => auth.currentData.value?.workspaces[0]?.role === 'OWNER');
 
 onMounted(() => {
@@ -60,49 +58,29 @@ async function load() {
     loading.value = false;
     return;
   }
-  // A shared link may carry a key of the other model; fall back to the default.
-  if (
-    isV2.value ? !V2_KEYS.includes(reportKey.value) : reportKey.value === 'assignment-movements'
-  ) {
-    reportKey.value = 'expenses-by-category';
-  }
+  // A shared link may carry an unknown key; fall back to the default.
+  if (!V2_KEYS.includes(reportKey.value)) reportKey.value = 'expenses-by-category';
   loading.value = true;
   error.value = '';
   try {
-    if (isV2.value) {
-      await loadV2(budget.value.id);
-      return;
-    }
+    const budgetId = budget.value.id;
     const [reportData, accountData, categoryData, envelopeData] = await Promise.all([
-      api.getReport(budget.value.id, reportKey.value as ReportKey, reportFilters()),
-      api.listAccounts(budget.value.id, 'active'),
-      api.listCategories(budget.value.id, undefined, 'active'),
-      api.listEnvelopes(budget.value.id, 'active'),
+      v2.getReport(budgetId, reportKey.value, reportFilters()),
+      api.listAccounts(budgetId, 'active'),
+      api.listCategories(budgetId, undefined, 'active'),
+      v2.listEnvelopes(budgetId),
     ]);
-    report.value = reportData;
+    report.value = reportData as ReportDto;
     accounts.value = accountData.map((item) => ({ value: item.id, label: item.name }));
     categories.value = categoryData.map((item) => ({ value: item.id, label: item.name }));
-    envelopes.value = envelopeData.map((item) => ({ value: item.id, label: item.name }));
+    envelopes.value = envelopeData.items
+      .filter((item) => item.archivedAt === null)
+      .map((item) => ({ value: item.id, label: item.name }));
   } catch {
     error.value = 'Не удалось загрузить отчёт.';
   } finally {
     loading.value = false;
   }
-}
-
-async function loadV2(budgetId: string) {
-  const [reportData, accountData, categoryData, envelopeData] = await Promise.all([
-    v2.getReport(budgetId, reportKey.value as ReportV2Key, reportFilters()),
-    api.listAccounts(budgetId, 'active'),
-    api.listCategories(budgetId, undefined, 'active'),
-    v2.listEnvelopes(budgetId),
-  ]);
-  report.value = reportData as ReportDto;
-  accounts.value = accountData.map((item) => ({ value: item.id, label: item.name }));
-  categories.value = categoryData.map((item) => ({ value: item.id, label: item.name }));
-  envelopes.value = envelopeData.items
-    .filter((item) => item.archivedAt === null)
-    .map((item) => ({ value: item.id, label: item.name }));
 }
 
 function updateFilters(value: AnalyticsFilters) {
@@ -111,7 +89,7 @@ function updateFilters(value: AnalyticsFilters) {
 }
 
 function updateReportKey(value: string) {
-  reportKey.value = value as AnyReportKey;
+  reportKey.value = value as ReportV2Key;
   updateUrlAndLoad();
 }
 
@@ -127,7 +105,6 @@ function reportFilters() {
     ...(filters.value.accountId ? { accountId: filters.value.accountId } : {}),
     ...(filters.value.categoryId ? { categoryId: filters.value.categoryId } : {}),
     ...(filters.value.envelopeId ? { envelopeId: filters.value.envelopeId } : {}),
-    ...(filters.value.type && !isV2.value ? { type: filters.value.type } : {}),
   };
 }
 
@@ -139,14 +116,12 @@ function filtersFromQuery(
   query: Record<string, string | null | Array<string | null> | undefined>,
 ): AnalyticsFilters {
   const value = (name: string) => (typeof query[name] === 'string' ? query[name] : '');
-  const type = value('type');
   return {
     from: value('from'),
     to: value('to'),
     accountId: value('accountId'),
     categoryId: value('categoryId'),
     envelopeId: value('envelopeId'),
-    type: type === 'INCOME' || type === 'EXPENSE' ? type : '',
   };
 }
 
@@ -162,41 +137,14 @@ function isGenericReport(value: ReportDto | null): value is GenericReportDto {
   return value !== null && !isPlanVsActualReport(value) && !isGoalProgressReport(value);
 }
 
-const V2_KEYS: ReadonlyArray<string> = REPORT_V2_KEYS;
-
-function reportKeyFromQuery(value: string | null | Array<string | null> | undefined): AnyReportKey {
-  const keys: AnyReportKey[] = [
-    'assignment-movements',
-    'expenses-by-category',
-    'expenses-by-period',
-    'expenses-by-cycle',
-    'incomes-by-cycle',
-    'savings-reallocation-by-cycle',
-    'net-cash-flow',
-    'account-balances',
-    'envelope-balances',
-    'savings-goals',
-    'plan-vs-actual',
-  ];
-  return typeof value === 'string' && keys.includes(value as AnyReportKey)
-    ? (value as AnyReportKey)
+function reportKeyFromQuery(value: string | null | Array<string | null> | undefined): ReportV2Key {
+  return typeof value === 'string' && V2_KEYS.includes(value)
+    ? (value as ReportV2Key)
     : 'expenses-by-category';
 }
 
-const V1_OPTIONS = [
-  { value: 'expenses-by-category', label: 'Расходы по категориям' },
-  { value: 'expenses-by-period', label: 'Расходы по периодам' },
-  { value: 'expenses-by-cycle', label: 'Расходы по циклам' },
-  { value: 'incomes-by-cycle', label: 'Доходы по циклам' },
-  { value: 'savings-reallocation-by-cycle', label: 'Перераспределения накоплений' },
-  { value: 'net-cash-flow', label: 'Доходы минус расходы' },
-  { value: 'account-balances', label: 'Остатки счетов' },
-  { value: 'envelope-balances', label: 'Остатки конвертов' },
-  { value: 'savings-goals', label: 'Цели накоплений' },
-  { value: 'plan-vs-actual', label: 'План и факт' },
-];
-// v2 has no physical envelope balance report: savings goals show the assigned balance.
-const V2_OPTIONS = [
+// There is no physical envelope balance report: savings goals show the assigned balance.
+const reportOptions = [
   { value: 'expenses-by-category', label: 'Расходы по категориям' },
   { value: 'expenses-by-period', label: 'Расходы по периодам' },
   { value: 'expenses-by-cycle', label: 'Расходы по циклам' },
@@ -207,13 +155,11 @@ const V2_OPTIONS = [
   { value: 'plan-vs-actual', label: 'План и факт' },
   { value: 'assignment-movements', label: 'Назначения и переносы' },
 ];
-const reportOptions = computed(() => (isV2.value ? V2_OPTIONS : V1_OPTIONS));
 
 function activeFilterCount() {
   const advanced: Array<string> = [
     filters.value.from,
     filters.value.to,
-    filters.value.type,
     filters.value.accountId,
     filters.value.categoryId,
     filters.value.envelopeId,
@@ -246,7 +192,6 @@ function activeFilterCount() {
             :accounts="accounts"
             :categories="categories"
             :envelopes="envelopes"
-            :hide-type="isV2"
             @update:model-value="updateFilters"
           />
         </FilterPanel>
@@ -262,18 +207,14 @@ function activeFilterCount() {
           description="Измените фильтры или добавьте подтверждённые операции."
         />
         <PlanVsActualReport v-else-if="isPlanVsActualReport(report)" :rows="report.rows" />
-        <GoalProgressReport
-          v-else-if="isGoalProgressReport(report)"
-          :rows="report.rows"
-          :v2="isV2"
-        />
+        <GoalProgressReport v-else-if="isGoalProgressReport(report)" :rows="report.rows" />
         <ReportTable
-          v-else-if="isV2 && report && report.key === 'assignment-movements'"
+          v-else-if="report && report.key === 'assignment-movements'"
           :rows="report.rows"
           hide-journal
         />
         <ReportChart v-else-if="isGenericReport(report)" :report="report" />
-        <template v-if="isV2 && budget">
+        <template v-if="budget">
           <ExportPanelV2 :budget-id="budget.id" :is-owner="isOwner" />
           <LegacyAssignmentsArchive :budget-id="budget.id" :is-owner="isOwner" />
         </template>

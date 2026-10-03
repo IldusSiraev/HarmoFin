@@ -1,20 +1,12 @@
-import type { CreateTransferInput, TransferDto } from './useBudgetReferenceData.js';
 import type { CreateDirectTransferRequest } from './useEnvelopePlanV2.js';
 
-export type TransferPartFormModel = {
-  sourceEnvelopeId: string;
-  destinationEnvelopeId: string;
-  amount: string;
-  comment: string;
-};
-
+// Envelope Plan v2.2: a transfer only moves money between two different
+// accounts, so the form carries only an amount, a date and the two accounts.
 export type TransferFormModel = {
   total: string;
   occurredOn: string;
   sourceAccountId: string;
   destinationAccountId: string;
-  comment: string;
-  parts: TransferPartFormModel[];
 };
 
 export function createTransferForm(sourceAccountId = ''): TransferFormModel {
@@ -23,55 +15,9 @@ export function createTransferForm(sourceAccountId = ''): TransferFormModel {
     occurredOn: new Date().toISOString().slice(0, 10),
     sourceAccountId,
     destinationAccountId: '',
-    comment: '',
-    parts: [createTransferPart()],
   };
 }
 
-export function createTransferPart(): TransferPartFormModel {
-  return { sourceEnvelopeId: '', destinationEnvelopeId: '', amount: '', comment: '' };
-}
-
-export function addTransferPart(model: TransferFormModel): void {
-  model.parts.push(createTransferPart());
-}
-
-export function removeTransferPart(model: TransferFormModel, index: number): void {
-  if (model.parts.length > 1) model.parts.splice(index, 1);
-}
-
-// The destination envelope defaults to the source one until explicitly
-// changed — an ordinary transfer preserves purpose, so picking a source
-// envelope should not silently leave the destination unset.
-export function syncSourceEnvelope(part: TransferPartFormModel, value: string): void {
-  part.sourceEnvelopeId = value;
-  part.destinationEnvelopeId = value;
-}
-
-export function toCreateTransferInput(
-  model: TransferFormModel,
-  status: 'DRAFT' | 'CONFIRMED' = 'DRAFT',
-): CreateTransferInput {
-  return {
-    status,
-    total: normalizeDecimal(model.total),
-    occurredOn: model.occurredOn,
-    sourceAccountId: model.sourceAccountId,
-    destinationAccountId: model.destinationAccountId,
-    parts: model.parts.map((part) => ({
-      sourceEnvelopeId: part.sourceEnvelopeId,
-      ...(part.destinationEnvelopeId && part.destinationEnvelopeId !== part.sourceEnvelopeId
-        ? { destinationEnvelopeId: part.destinationEnvelopeId }
-        : {}),
-      amount: normalizeDecimal(part.amount),
-      ...(part.comment.trim() ? { comment: part.comment.trim() } : {}),
-    })),
-    ...(model.comment.trim() ? { comment: model.comment.trim() } : {}),
-  };
-}
-
-// Envelope Plan v2.2: a transfer only moves money between two accounts, so the
-// request carries no envelopes, parts or status.
 export function toDirectTransferInput(model: TransferFormModel): CreateDirectTransferRequest {
   return {
     sourceAccountId: model.sourceAccountId,
@@ -81,29 +27,6 @@ export function toDirectTransferInput(model: TransferFormModel): CreateDirectTra
   };
 }
 
-export function transferFormFrom(transfer: TransferDto): TransferFormModel {
-  return {
-    total: minorToDecimal(transfer.totalMinor),
-    occurredOn: transfer.occurredOn,
-    sourceAccountId: transfer.parts[0]?.sourceAccountId ?? '',
-    destinationAccountId: transfer.parts[0]?.destinationAccountId ?? '',
-    comment: transfer.comment ?? '',
-    parts: transfer.parts.map((part) => ({
-      sourceEnvelopeId: part.sourceEnvelopeId,
-      destinationEnvelopeId: part.destinationEnvelopeId,
-      amount: minorToDecimal(part.amountMinor),
-      comment: part.comment ?? '',
-    })),
-  };
-}
-
 function normalizeDecimal(value: string): string {
   return value.replaceAll(/(?:\s|\xA0)/g, '').replace(',', '.');
-}
-
-function minorToDecimal(value: string): string {
-  const parsed = BigInt(value);
-  const sign = parsed < 0n ? '-' : '';
-  const digits = (parsed < 0n ? -parsed : parsed).toString().padStart(3, '0');
-  return `${sign}${digits.slice(0, -2)}.${digits.slice(-2)}`;
 }

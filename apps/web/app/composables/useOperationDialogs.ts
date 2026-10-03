@@ -1,6 +1,6 @@
 import { readonly, ref, type Ref } from 'vue';
 
-export type OperationDialog = 'none' | 'choose' | 'entry' | 'transferAdvanced';
+export type OperationDialog = 'none' | 'choose' | 'entry';
 export type EntryType = 'EXPENSE' | 'INCOME' | 'TRANSFER';
 export type OperationPresetType = 'INCOME' | 'EXPENSE';
 
@@ -14,7 +14,6 @@ export function useOperationDialogs(): {
   openChoose: () => void;
   openOperation: (type?: OperationPresetType) => void;
   openTransfer: () => void;
-  openTransferAdvanced: () => void;
   close: () => void;
 } {
   return {
@@ -31,10 +30,6 @@ export function useOperationDialogs(): {
     openTransfer: () => {
       entryType.value = 'TRANSFER';
       openDialog.value = 'entry';
-    },
-    openTransferAdvanced: () => {
-      entryType.value = 'TRANSFER';
-      openDialog.value = 'transferAdvanced';
     },
     close: () => {
       entryType.value = null;

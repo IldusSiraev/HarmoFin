@@ -1,14 +1,25 @@
 import { flushPromises, mount } from '@vue/test-utils';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   auth: {
     currentData: {
       value: {
-        workspaces: [{ budgets: [{ id: 'budget-id', name: 'Бюджет', primaryCurrency: 'RUB' }] }],
+        workspaces: [
+          {
+            budgets: [
+              { id: 'budget-id', name: 'Бюджет', primaryCurrency: 'RUB', planModelVersion: 2 },
+            ],
+          },
+        ],
       } as {
         workspaces: Array<{
-          budgets: Array<{ id: string; name: string; primaryCurrency: string }>;
+          budgets: Array<{
+            id: string;
+            name: string;
+            primaryCurrency: string;
+            planModelVersion: number;
+          }>;
         }>;
       } | null,
     },
@@ -18,12 +29,6 @@ const mocks = vi.hoisted(() => ({
   api: {
     listAccounts: vi.fn(),
     listCategories: vi.fn(),
-    listEnvelopes: vi.fn(),
-    listTransfers: vi.fn(),
-    createTransfer: vi.fn(),
-    confirmTransfer: vi.fn(),
-    cancelTransfer: vi.fn(),
-    deleteTransfer: vi.fn(),
   },
 }));
 
@@ -52,8 +57,8 @@ describe('transfers page', () => {
       { id: 'source-account', name: 'Основной счёт', archivedAt: null },
       { id: 'destination-account', name: 'Накопительный счёт', archivedAt: null },
     ]);
-    mocks.api.listEnvelopes.mockResolvedValue([{ id: 'repair', name: 'Ремонт', archivedAt: null }]);
-    mocks.api.listTransfers.mockResolvedValue({ items: [], nextCursor: null });
+    mocks.v2.listEnvelopes.mockResolvedValue({ items: [] });
+    mocks.v2.listDirectTransfers.mockResolvedValue({ items: [], nextCursor: null });
   });
 
   it('loads server references before applying source-account prefill', async () => {
@@ -90,29 +95,8 @@ describe('transfers page', () => {
       .requestSubmit();
   }
 
-  it('creates a v1 transfer through the v1 API', async () => {
-    mocks.api.createTransfer.mockResolvedValue({ id: 'new' });
-    const wrapper = mountPage();
-    await flushPromises();
-    await wrapper.get('[data-action="create-transfer"]').trigger('click');
-    document
-      .querySelector('form.transfer-form')!
-      .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    await flushPromises();
-
-    expect(mocks.v2.createTransfer).not.toHaveBeenCalled();
-    expect(mocks.api.createTransfer).toHaveBeenCalledTimes(1);
-    expect(mocks.api.createTransfer.mock.calls[0]![1]).toHaveProperty('parts');
-    expect(mocks.v2.listDirectTransfers).not.toHaveBeenCalled();
-  });
-
-  describe('v2 budget', () => {
-    const budget = () =>
-      mocks.auth.currentData.value!.workspaces[0]!.budgets[0] as Record<string, unknown>;
-
+  describe('transfer list and form', () => {
     beforeEach(() => {
-      budget().planModelVersion = 2;
-      mocks.v2.listEnvelopes.mockResolvedValue({ items: [] });
       mocks.v2.listDirectTransfers.mockResolvedValue({
         items: [
           {
@@ -131,10 +115,6 @@ describe('transfers page', () => {
       });
     });
 
-    afterEach(() => {
-      delete budget().planModelVersion;
-    });
-
     async function openForm() {
       const wrapper = mountPage();
       await flushPromises();
@@ -149,13 +129,13 @@ describe('transfers page', () => {
       const wrapper = mountPage();
       await flushPromises();
 
-      expect(mocks.api.listTransfers).not.toHaveBeenCalled();
       expect(mocks.v2.listDirectTransfers).toHaveBeenCalledWith('budget-id', {});
       expect(wrapper.find('select[name="status"]').exists()).toBe(false);
       expect(wrapper.text()).toContain('Основной счёт');
       expect(wrapper.text()).toContain('Накопительный счёт');
       expect(wrapper.text()).not.toContain('Подтвердить');
       expect(wrapper.text()).not.toContain('Удалить');
+      expect(wrapper.text()).not.toContain('Разбить перевод на несколько конвертов');
     });
 
     it('offers an account-to-account form and sends only the four fields', async () => {
@@ -166,7 +146,6 @@ describe('transfers page', () => {
       submitDirect();
       await flushPromises();
 
-      expect(mocks.api.createTransfer).not.toHaveBeenCalled();
       const [id, body] = mocks.v2.createTransfer.mock.calls[0]!;
       expect(id).toBe('budget-id');
       expect(body).not.toHaveProperty('parts');

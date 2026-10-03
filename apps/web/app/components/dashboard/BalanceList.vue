@@ -1,35 +1,26 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import type {
-  DashboardBalance,
-  DashboardWarning,
-} from '../../composables/useBudgetReferenceData.js';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiMoreLink from '../ui/MoreLink.vue';
-import UiStatus from '../ui/Status.vue';
 
 const LIMIT = 5;
+
+type DashboardBalance = { id: string; name: string; balanceMinor: string };
 
 const props = defineProps<{
   title: string;
   items: ReadonlyArray<DashboardBalance>;
-  warnings: ReadonlyArray<DashboardWarning>;
-  subject: DashboardWarning['subject'];
   totalMinor: string | null;
   moreLink: string;
   limit?: number;
 }>();
 
 defineSlots<{
-  row?(props: { item: DashboardBalance; hasWarning: boolean }): unknown;
+  row?(props: { item: DashboardBalance }): unknown;
 }>();
 
 const visible = computed(() => props.items.slice(0, props.limit ?? LIMIT));
-
-function hasWarning(id: string): boolean {
-  return props.warnings.some((warning) => warning.subject === props.subject && warning.id === id);
-}
 </script>
 
 <template>
@@ -52,12 +43,9 @@ function hasWarning(id: string): boolean {
         class="balance-list__row"
         data-testid="balance-list-row"
       >
-        <slot name="row" :item="item" :has-warning="hasWarning(item.id)">
+        <slot name="row" :item="item">
           <span class="balance-list__body">
             <span class="balance-list__name">{{ item.name }}</span>
-            <span v-if="hasWarning(item.id)" class="balance-list__meta">
-              <UiStatus label="Дефицит" tone="warning" />
-            </span>
           </span>
 
           <span class="balance-list__trailing">
@@ -148,10 +136,5 @@ function hasWarning(id: string): boolean {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.balance-list__meta {
-  display: flex;
-  align-items: center;
 }
 </style>

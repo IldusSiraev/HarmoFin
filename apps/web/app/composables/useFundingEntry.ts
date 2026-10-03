@@ -29,25 +29,15 @@ let nextSeq = 0;
 export function useFundingEntry(): {
   request: Readonly<Ref<FundingEntryRequest | null>>;
   confirmedCount: Readonly<Ref<number>>;
-  isModelV2: () => boolean;
   offer: (source: FundingEntrySource) => boolean;
   dismiss: () => void;
   markConfirmed: () => void;
 } {
   const auth = useAuth();
 
-  function activeBudget(): { id: string; planModelVersion?: number } | null {
-    return auth.currentData.value?.workspaces[0]?.budgets[0] ?? null;
-  }
-
-  function isModelV2(): boolean {
-    return activeBudget()?.planModelVersion === 2;
-  }
-
-  // v1 budgets keep their behaviour: no offer, nothing opens.
   function offer(source: FundingEntrySource): boolean {
-    const budget = activeBudget();
-    if (!budget || budget.planModelVersion !== 2) return false;
+    const budget = auth.currentData.value?.workspaces[0]?.budgets[0] ?? null;
+    if (!budget) return false;
     nextSeq += 1;
     request.value = { budgetId: budget.id, source, seq: nextSeq };
     return true;
@@ -56,7 +46,6 @@ export function useFundingEntry(): {
   return {
     request: readonly(request) as Readonly<Ref<FundingEntryRequest | null>>,
     confirmedCount: readonly(confirmedCount),
-    isModelV2,
     offer,
     dismiss: () => {
       request.value = null;

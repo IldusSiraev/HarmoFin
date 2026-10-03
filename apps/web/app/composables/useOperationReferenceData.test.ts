@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const api = {
   listAccounts: vi.fn(),
   listCategories: vi.fn(),
-  listEnvelopes: vi.fn(),
 };
 const v2 = { listEnvelopes: vi.fn() };
 type AuthData = {
@@ -40,34 +39,36 @@ beforeEach(() => {
   api.listCategories.mockResolvedValue([
     { id: 'category-id', name: 'Продукты', categoryType: 'EXPENSE', templateKey: null },
   ]);
-  api.listEnvelopes.mockResolvedValue([
-    { id: 'envelope-id', name: 'Текущие', envelopeType: 'CURRENT_EXPENSES' },
-  ]);
+  v2.listEnvelopes.mockResolvedValue({
+    items: [
+      { id: 'envelope-id', name: 'Текущие', envelopeType: 'CURRENT_EXPENSES', archivedAt: null },
+      { id: 'archived-id', name: 'Старый', envelopeType: 'CURRENT_EXPENSES', archivedAt: 'x' },
+    ],
+  });
 });
 
 describe('useOperationReferenceData', () => {
-  it('loads options for the active budget', async () => {
+  it('loads options for the active budget through the v2 envelope list', async () => {
     const { load, accounts, envelopes, categories, budgetId } = useOperationReferenceData();
 
     await load();
 
+    expect(v2.listEnvelopes).toHaveBeenCalledWith('budget-id');
     expect(budgetId.value).toBe('budget-id');
     expect(accounts.value).toEqual([{ value: 'account-id', label: 'Основная карта' }]);
     expect(envelopes.value).toEqual([{ value: 'envelope-id', label: 'Текущие' }]);
     expect(categories.value).toHaveLength(1);
   });
 
-  it('also keeps the full account and envelope records for callers that need more than name', async () => {
-    const { load, accountDetails, envelopeDetails } = useOperationReferenceData();
+  it('also keeps the full account and envelope plan records for callers that need more than name', async () => {
+    const { load, accountDetails, envelopePlans } = useOperationReferenceData();
 
     await load();
 
     expect(accountDetails.value).toEqual([
       { id: 'account-id', name: 'Основная карта', accountType: 'BANK_CARD' },
     ]);
-    expect(envelopeDetails.value).toEqual([
-      { id: 'envelope-id', name: 'Текущие', envelopeType: 'CURRENT_EXPENSES' },
-    ]);
+    expect(envelopePlans.value.map((plan) => plan.id)).toEqual(['envelope-id']);
   });
 
   it('does not refetch what it already has', async () => {
@@ -114,34 +115,5 @@ describe('useOperationReferenceData', () => {
     await load();
 
     expect(accounts.value).toEqual([]);
-  });
-});
-
-describe('useOperationReferenceData for an Envelope Plan v2 budget', () => {
-  it('loads envelopes through the v2 list and never calls the v1 envelope endpoint', async () => {
-    auth.currentData.value = {
-      user: { email: 'owner@example.test' },
-      workspaces: [
-        {
-          name: 'Семья',
-          budgets: [{ id: 'budget-v2', name: 'Бюджет', planModelVersion: 2 }],
-        },
-      ],
-    } as never;
-    v2.listEnvelopes.mockResolvedValue({
-      items: [{ id: 'env-v2', name: 'Обязательные', envelopeType: 'MANDATORY', archivedAt: null }],
-    });
-    const { load, envelopes, envelopePlans, envelopeDetails, accounts } =
-      useOperationReferenceData();
-
-    await load();
-
-    expect(v2.listEnvelopes).toHaveBeenCalledWith('budget-v2');
-    expect(api.listEnvelopes).not.toHaveBeenCalled();
-    expect(api.listAccounts).toHaveBeenCalledWith('budget-v2', 'active');
-    expect(envelopes.value).toEqual([{ value: 'env-v2', label: 'Обязательные' }]);
-    expect(envelopePlans.value).toHaveLength(1);
-    expect(envelopeDetails.value).toEqual([]);
-    expect(accounts.value).toHaveLength(1);
   });
 });

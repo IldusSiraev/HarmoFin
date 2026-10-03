@@ -139,18 +139,12 @@ describe('accounts page', () => {
     expect(useFundingEntry().request.value?.source).toEqual({ sourceKind: 'OPENING' });
   });
 
-  it('offers nothing for a zero balance or a v1 budget', async () => {
+  it('offers nothing for a zero starting balance', async () => {
     useFundingEntry().dismiss();
     const budget = (mocks.auth.currentData.value as { workspaces: Array<{ budgets: object[] }> })
       .workspaces[0]!.budgets[0] as Record<string, unknown>;
     budget.planModelVersion = 2;
     await createWithBalance('0');
-    expect(useFundingEntry().request.value).toBeNull();
-    wrapper?.unmount();
-    document.body.innerHTML = '';
-
-    budget.planModelVersion = 1;
-    await createWithBalance('1000');
     expect(useFundingEntry().request.value).toBeNull();
   });
 

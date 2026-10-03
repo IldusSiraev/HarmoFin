@@ -1,22 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { definePageMeta } from '#imports';
-
-import { useAuth } from '../../composables/useAuth.js';
 
 defineOptions({ name: 'AppHelpPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
-
-const auth = useAuth();
-// Model 2 budgets get the new explanation; model 1 keeps the legacy text until cutover.
-const isV2 = computed(
-  () => auth.currentData.value?.workspaces[0]?.budgets[0]?.planModelVersion === 2,
-);
 </script>
 
 <template>
   <div class="help-page">
-    <section v-if="isV2" class="help-page__content" data-testid="help-v2">
+    <section class="help-page__content" data-testid="help-v2">
       <p class="help-page__kicker">Справка</p>
       <h1>Как пользоваться HarmoFin</h1>
       <p class="help-page__description">
@@ -94,85 +85,6 @@ const isV2 = computed(
             После подтверждённых операций смена часового пояса может сдвинуть даты прошлых записей.
             Сервер ответит ошибкой TIMEZONE_CHANGE_REQUIRES_RECONCILIATION и не изменит историю. В
             пустом бюджете часовой пояс менять можно.
-          </p>
-        </details>
-      </div>
-    </section>
-    <section v-else class="help-page__content">
-      <p class="help-page__kicker">Справка</p>
-      <h1>Как пользоваться HarmoFin</h1>
-      <p class="help-page__description">
-        Пять понятий, которых достаточно, чтобы понимать всё остальное в HarmoFin.
-      </p>
-
-      <dl class="help-page__terms">
-        <div class="help-page__term">
-          <dt>Счёт</dt>
-          <dd>Где физически находятся деньги: карта, банковский счёт или наличные.</dd>
-        </div>
-        <div class="help-page__term">
-          <dt>Конверт</dt>
-          <dd>
-            Для чего эти деньги предназначены — продукты, ипотека, ремонт. Один счёт может
-            одновременно содержать деньги нескольких конвертов.
-          </dd>
-        </div>
-        <div class="help-page__term">
-          <dt>Категория</dt>
-          <dd>На что деньги фактически потрачены — не путать с конвертом.</dd>
-        </div>
-        <div class="help-page__term">
-          <dt>Финансовый месяц</dt>
-          <dd>
-            Ваш период планирования денег между двумя поступлениями. Не обязательно начинается 1-го
-            числа — можно настроить в Настройках.
-          </dd>
-        </div>
-        <div class="help-page__term">
-          <dt>Можно потратить</dt>
-          <dd>
-            Сколько денег доступно в текущем периоде с учётом фактических доходов и того, что уже
-            распределено по конвертам.
-          </dd>
-        </div>
-      </dl>
-
-      <h2>Частые вопросы</h2>
-
-      <div class="help-page__faq">
-        <details>
-          <summary>Чем счёт отличается от конверта?</summary>
-          <p>
-            Счёт — это физическое место (карта, наличные). Конверт — назначение денег (продукты,
-            ипотека). На одной карте может одновременно лежать несколько конвертов.
-          </p>
-        </details>
-        <details>
-          <summary>Что делать с ещё не распределёнными деньгами?</summary>
-          <p>
-            Откройте доход в журнале операций и распределите его по конвертам. Пока деньги не
-            распределены, HarmoFin показывает их отдельно и не считает доступными для трат.
-          </p>
-        </details>
-        <details>
-          <summary>Почему «Можно потратить» меньше остатка на счёте?</summary>
-          <p>
-            Остаток счёта — все деньги на нём. «Можно потратить» — только та часть, что относится к
-            текущему периоду и ещё не назначена на обязательные платежи или накопления.
-          </p>
-        </details>
-        <details>
-          <summary>Почему счёт или конверт ушёл в минус?</summary>
-          <p>
-            Расход превысил доступные деньги. HarmoFin предупреждает об этом до сохранения. В
-            Настройках можно запретить сохранять такие расходы совсем.
-          </p>
-        </details>
-        <details>
-          <summary>Я ввёл не ту сумму дохода, которую планировал — это ошибка?</summary>
-          <p>
-            Нет. HarmoFin всегда использует фактически полученную сумму, а не плановую. Плановые
-            значения — только ориентир.
           </p>
         </details>
       </div>

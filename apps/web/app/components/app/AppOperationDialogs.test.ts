@@ -1,12 +1,9 @@
 import { flushPromises, mount } from '@vue/test-utils';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const api = {
   listAccounts: vi.fn(),
   listCategories: vi.fn(),
-  listEnvelopes: vi.fn(),
-  createTransaction: vi.fn(),
-  createTransfer: vi.fn(),
 };
 const v2 = {
   createTransaction: vi.fn(),
@@ -18,7 +15,12 @@ const auth = {
   currentData: {
     value: {
       user: { email: 'owner@harmofin.test' },
-      workspaces: [{ role: 'OWNER', budgets: [{ id: 'budget-id', name: 'Бюджет' }] }],
+      workspaces: [
+        {
+          role: 'OWNER',
+          budgets: [{ id: 'budget-id', name: 'Бюджет', planModelVersion: 2 }],
+        },
+      ],
     },
   },
   loadMe: vi.fn(),
@@ -71,7 +73,6 @@ beforeEach(() => {
       archivedAt: null,
     },
   ]);
-  api.listEnvelopes.mockResolvedValue([{ id: 'envelope-id', name: 'Текущие' }]);
   v2.listEnvelopes.mockResolvedValue({
     items: [{ id: 'envelope-id', name: 'Текущие', archivedAt: null }],
   });
@@ -118,55 +119,7 @@ describe('AppOperationDialogs', () => {
     wrapper.unmount();
   });
 
-  it('creates an expense through the API and closes', async () => {
-    api.createTransaction.mockResolvedValue({ id: 'transaction-id' });
-    const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
-    useOperationDialogs().openOperation('EXPENSE');
-    await flushPromises();
-
-    typeAmount('500');
-    click('pill-account-account-id');
-    click('pill-category-category-id');
-    click('pill-envelope-envelope-id');
-    await flushPromises();
-    click('entry-submit');
-    await flushPromises();
-
-    expect(api.createTransaction).toHaveBeenCalledWith(
-      'budget-id',
-      expect.objectContaining({ transactionType: 'EXPENSE', status: 'CONFIRMED' }),
-      expect.any(String),
-    );
-    expect(useOperationDialogs().openDialog.value).toBe('none');
-    expect(useToast().toasts.value.at(-1)?.title).toBe('Операция сохранена');
-    expect(wrapper.emitted('saved')).toHaveLength(1);
-    wrapper.unmount();
-  });
-
-  it('creates an income without requiring an envelope', async () => {
-    api.createTransaction.mockResolvedValue({ id: 'transaction-id' });
-    const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
-    useOperationDialogs().openOperation('INCOME');
-    await flushPromises();
-
-    typeAmount('1000');
-    click('pill-account-account-id');
-    click('pill-category-income-category-id');
-    await flushPromises();
-    click('entry-submit');
-    await flushPromises();
-
-    expect(api.createTransaction).toHaveBeenCalledWith(
-      'budget-id',
-      expect.objectContaining({ transactionType: 'INCOME', status: 'CONFIRMED' }),
-      expect.any(String),
-    );
-    wrapper.unmount();
-  });
-
-  it('saves income of a v2 budget through the v2 endpoint and then offers the optional assignment', async () => {
-    const budget = auth.currentData.value.workspaces[0]!.budgets[0] as Record<string, unknown>;
-    budget.planModelVersion = 2;
+  it('saves income through the v2 endpoint and then offers the optional assignment', async () => {
     v2.createTransaction.mockResolvedValue({ id: 'income-id' });
     const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
     useOperationDialogs().openOperation('INCOME');
@@ -179,8 +132,6 @@ describe('AppOperationDialogs', () => {
     click('entry-submit');
     await flushPromises();
 
-    delete budget.planModelVersion;
-    expect(api.createTransaction).not.toHaveBeenCalled();
     expect(v2.createTransaction).toHaveBeenCalledWith(
       'budget-id',
       expect.objectContaining({ transactionType: 'INCOME', status: 'CONFIRMED' }),
@@ -194,26 +145,8 @@ describe('AppOperationDialogs', () => {
     wrapper.unmount();
   });
 
-  it('does not offer an assignment after income of a v1 budget', async () => {
-    useFundingEntry().dismiss();
-    api.createTransaction.mockResolvedValue({ id: 'income-id' });
-    const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
-    useOperationDialogs().openOperation('INCOME');
-    await flushPromises();
-
-    typeAmount('1000');
-    click('pill-account-account-id');
-    click('pill-category-income-category-id');
-    await flushPromises();
-    click('entry-submit');
-    await flushPromises();
-
-    expect(useFundingEntry().request.value).toBeNull();
-    wrapper.unmount();
-  });
-
   it('announces a failed save and keeps the entry dialog open', async () => {
-    api.createTransaction.mockRejectedValue(new Error('network'));
+    v2.createTransaction.mockRejectedValue(new Error('network'));
     const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
     useOperationDialogs().openOperation('INCOME');
     await flushPromises();
@@ -280,63 +213,8 @@ describe('AppOperationDialogs', () => {
     wrapper.unmount();
   });
 
-  it('creates a v1 transfer with parts through the v1 API', async () => {
-    api.createTransfer.mockResolvedValue({ id: 'transfer-id' });
-    api.listAccounts.mockResolvedValue([
-      { id: 'account-id', name: 'Основная карта' },
-      { id: 'savings-id', name: 'Накопительный' },
-    ]);
-    const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
-    useOperationDialogs().openTransfer();
-    await flushPromises();
-
-    typeAmount('2000');
-    click('pill-transferSource-account-id');
-    click('pill-transferDestination-savings-id');
-    click('pill-transferEnvelope-envelope-id');
-    await flushPromises();
-    click('entry-submit');
-    await flushPromises();
-
-    expect(v2.createTransfer).not.toHaveBeenCalled();
-    expect(api.createTransfer).toHaveBeenCalledWith(
-      'budget-id',
-      expect.objectContaining({
-        total: '2000',
-        parts: [expect.objectContaining({ sourceEnvelopeId: 'envelope-id' })],
-      }),
-      expect.any(String),
-    );
-    wrapper.unmount();
-  });
-
-  it('hands the quick transfer fields to the advanced split-by-envelope form', async () => {
-    const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
-    api.listAccounts.mockResolvedValue([
-      { id: 'account-id', name: 'Основная карта' },
-      { id: 'savings-id', name: 'Накопительный' },
-    ]);
-    useOperationDialogs().openTransfer();
-    await flushPromises();
-
-    typeAmount('2000');
-    click('pill-transferSource-account-id');
-    click('pill-transferDestination-savings-id');
-    click('pill-transferEnvelope-envelope-id');
-    click('entry-split-transfer');
-    await flushPromises();
-
-    expect(useOperationDialogs().openDialog.value).toBe('transferAdvanced');
-    expect(document.querySelector<HTMLInputElement>('input[name="total"]')?.value).toBe('2000');
-    wrapper.unmount();
-  });
-
-  describe('Envelope Plan v2.2 budget', () => {
-    const budget = () =>
-      auth.currentData.value.workspaces[0]!.budgets[0] as Record<string, unknown>;
-
+  describe('entry flows', () => {
     beforeEach(() => {
-      budget().planModelVersion = 2;
       v2.listEnvelopes.mockResolvedValue({
         items: [
           {
@@ -359,10 +237,6 @@ describe('AppOperationDialogs', () => {
       ]);
     });
 
-    afterEach(() => {
-      delete budget().planModelVersion;
-    });
-
     async function openExpense(): Promise<ReturnType<typeof mount>> {
       const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
       useOperationDialogs().openOperation('EXPENSE');
@@ -383,7 +257,6 @@ describe('AppOperationDialogs', () => {
       click('entry-submit');
       await flushPromises();
 
-      expect(api.createTransaction).not.toHaveBeenCalled();
       expect(v2.createTransaction).toHaveBeenCalledTimes(1);
       const [id, body, key] = v2.createTransaction.mock.calls[0]!;
       expect(id).toBe('budget-id');
@@ -418,7 +291,6 @@ describe('AppOperationDialogs', () => {
       await flushPromises();
 
       expect(v2.createTransaction).not.toHaveBeenCalled();
-      expect(api.createTransaction).not.toHaveBeenCalled();
       expect(v2.payOneTimeObligation).not.toHaveBeenCalled();
       click('entry-onetime-confirm');
       click('entry-onetime-confirm');
@@ -475,7 +347,6 @@ describe('AppOperationDialogs', () => {
       click('entry-submit');
       await flushPromises();
 
-      expect(api.createTransfer).not.toHaveBeenCalled();
       expect(v2.createTransfer).toHaveBeenCalledTimes(1);
       const [id, body] = v2.createTransfer.mock.calls[0]!;
       expect(id).toBe('budget-id');

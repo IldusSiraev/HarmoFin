@@ -26,11 +26,11 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{ submit: [input: CreateDirectTransferRequest] }>();
-const form = reactive<TransferFormModel>({ ...props.model, parts: [] });
+const form = reactive<TransferFormModel>({ ...props.model });
 
 watch(
   () => props.model,
-  (model) => Object.assign(form, { ...model, parts: [] }),
+  (model) => Object.assign(form, model),
   { deep: true },
 );
 

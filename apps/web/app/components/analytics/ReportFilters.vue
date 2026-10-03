@@ -10,7 +10,6 @@ export type AnalyticsFilters = {
   accountId: string;
   categoryId: string;
   envelopeId: string;
-  type: '' | 'INCOME' | 'EXPENSE';
 };
 
 const props = defineProps<{
@@ -18,8 +17,6 @@ const props = defineProps<{
   accounts?: ReadonlyArray<{ value: string; label: string }>;
   categories?: ReadonlyArray<{ value: string; label: string }>;
   envelopes?: ReadonlyArray<{ value: string; label: string }>;
-  /** Model v2 reports have no income/expense type filter. */
-  hideType?: boolean;
 }>();
 const emit = defineEmits<{ 'update:modelValue': [value: AnalyticsFilters] }>();
 const model = reactive({ ...props.modelValue });
@@ -39,18 +36,6 @@ function update() {
   <section class="report-filters" aria-label="Фильтры аналитики">
     <UiDatePicker v-model="model.from" name="from" label="С даты" @update:model-value="update" />
     <UiDatePicker v-model="model.to" name="to" label="По дату" @update:model-value="update" />
-    <UiSelect
-      v-if="!hideType"
-      v-model="model.type"
-      name="type"
-      label="Тип"
-      :options="[
-        { value: '', label: 'Все операции' },
-        { value: 'INCOME', label: 'Доходы' },
-        { value: 'EXPENSE', label: 'Расходы' },
-      ]"
-      @update:model-value="update"
-    />
     <UiSelect
       v-model="model.accountId"
       name="accountId"

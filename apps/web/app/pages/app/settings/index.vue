@@ -1,68 +1,32 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { definePageMeta } from '#imports';
 
 import TemplatePreviewSheet from '../../../components/funding/TemplatePreviewSheet.vue';
-import CyclePreview from '../../../components/settings/CyclePreview.vue';
 import ReferencePageLayout from '../../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../../components/ui/Button.vue';
 import UiCard from '../../../components/ui/Card.vue';
 import UiEmptyState from '../../../components/ui/EmptyState.vue';
-import UiInput from '../../../components/ui/Input.vue';
 import UiStatus from '../../../components/ui/Status.vue';
 import { useAuth } from '../../../composables/useAuth.js';
-import {
-  type BudgetDto,
-  type UpdateBudgetInput,
-  useBudgetReferenceData,
-} from '../../../composables/useBudgetReferenceData.js';
-import { useReferenceDataForm } from '../../../composables/useReferenceDataForm.js';
 
 defineOptions({ name: 'AppSettingsPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
 
-const cycleFields = ['cycleStartDay', 'periodBoundaryOffset'] as const;
-
 const { currentData, loadMe } = useAuth();
-const api = useBudgetReferenceData();
-const formHelper = useReferenceDataForm(cycleFields);
 
 const loading = ref(true);
 const loadError = ref('');
-const budget = ref<BudgetDto | null>(null);
-
-const cycleSaving = ref(false);
-const cycleSummary = ref('');
-const cycleFieldErrors = ref<Partial<Record<(typeof cycleFields)[number], string>>>({});
-const cycleForm = reactive({ cycleStartDay: '', periodBoundaryOffset: '' });
-
-const templateSaving = ref(false);
 const templateSummary = ref('');
-const templateFailed = ref(false);
+const templateSheetOpen = ref(false);
 
 const budgetId = computed(() => currentData.value?.workspaces[0]?.budgets[0]?.id);
-// v2 budgets open the shared preview panel; v1 keeps the direct v1 POST.
-const isModelV2 = computed(
-  () => currentData.value?.workspaces[0]?.budgets[0]?.planModelVersion === 2,
-);
-const templateSheetOpen = ref(false);
-const previewCycleStartDay = computed(() => Number(cycleForm.cycleStartDay) || 0);
-const previewPeriodBoundaryOffset = computed(() => Number(cycleForm.periodBoundaryOffset) || 0);
-
-function syncCycleForm(nextBudget: BudgetDto) {
-  cycleForm.cycleStartDay = String(nextBudget.cycleStartDay);
-  cycleForm.periodBoundaryOffset = String(nextBudget.periodBoundaryOffset);
-}
 
 async function loadPage() {
   loading.value = true;
   loadError.value = '';
   try {
     if (!currentData.value) await loadMe();
-    const id = budgetId.value;
-    if (!id) return;
-    budget.value = await api.getBudget(id);
-    syncCycleForm(budget.value);
   } catch {
     loadError.value = 'Не удалось загрузить настройки бюджета. Повторите попытку.';
   } finally {
@@ -70,61 +34,16 @@ async function loadPage() {
   }
 }
 
-function getCycleFieldError(field: (typeof cycleFields)[number]) {
-  return cycleFieldErrors.value[field];
-}
-
 function accountEmail() {
   return currentData.value?.user?.email ?? '';
 }
 
-async function saveCycle() {
-  const id = budgetId.value;
-  if (!id) return;
-  cycleSaving.value = true;
-  cycleSummary.value = '';
-  cycleFieldErrors.value = {};
-  const input: UpdateBudgetInput = {
-    cycleStartDay: Number(cycleForm.cycleStartDay),
-    periodBoundaryOffset: Number(cycleForm.periodBoundaryOffset),
-  };
-  try {
-    budget.value = await api.updateBudget(id, input);
-    syncCycleForm(budget.value);
-    cycleSummary.value = 'Финансовый цикл сохранён.';
-  } catch (error) {
-    const mapped = formHelper.errorMessage(error);
-    cycleFieldErrors.value = mapped.fields;
-    cycleSummary.value = mapped.summary;
-  } finally {
-    cycleSaving.value = false;
-  }
-}
-
 function onTemplateApplied() {
   templateSummary.value = 'Базовый шаблон настроен.';
-  templateFailed.value = false;
 }
 
-async function initializeTemplate() {
-  const id = budgetId.value;
-  if (!id) return;
-  if (isModelV2.value) {
-    templateSheetOpen.value = true;
-    return;
-  }
-  templateSaving.value = true;
-  templateSummary.value = '';
-  templateFailed.value = false;
-  try {
-    await api.initializeTemplate(id);
-    templateSummary.value = 'Базовый шаблон создан.';
-  } catch {
-    templateFailed.value = true;
-    templateSummary.value = 'Не удалось выполнить действие. Повторите попытку.';
-  } finally {
-    templateSaving.value = false;
-  }
+function openTemplateSheet() {
+  templateSheetOpen.value = true;
 }
 
 onMounted(() => {
@@ -168,25 +87,19 @@ onMounted(() => {
             <div>
               <p class="settings-page__static-row-title">Базовый шаблон</p>
               <p class="settings-page__hint">
-                {{
-                  isModelV2
-                    ? 'Покажем, что создастся, и вы подтвердите. Суммы можно указать позже.'
-                    : 'Создаёт отсутствующие категории и конверты.'
-                }}
+                Покажем, что создастся, и вы подтвердите. Суммы можно указать позже.
               </p>
             </div>
             <UiButton
               variant="tertiary"
               size="sm"
               data-action="initialize-template"
-              :loading="templateSaving"
-              @click="initializeTemplate"
+              @click="openTemplateSheet"
             >
-              {{ isModelV2 ? 'Настроить базовый шаблон' : 'Создать базовый шаблон' }}
+              Настроить базовый шаблон
             </UiButton>
           </div>
           <TemplatePreviewSheet
-            v-if="isModelV2 && budgetId"
             :open="templateSheetOpen"
             :budget-id="budgetId"
             @close="templateSheetOpen = false"
@@ -195,7 +108,7 @@ onMounted(() => {
           <UiStatus
             v-if="templateSummary"
             :label="templateSummary"
-            :tone="templateFailed ? 'danger' : 'success'"
+            tone="success"
             aria-live="polite"
           />
         </UiCard>
@@ -206,49 +119,13 @@ onMounted(() => {
           aria-labelledby="settings-cycle-title"
         >
           <template #header><h2 id="settings-cycle-title">Финансовый цикл</h2></template>
-          <UiStatus
-            v-if="cycleSummary"
-            :label="cycleSummary"
-            :tone="Object.keys(cycleFieldErrors).length ? 'danger' : 'success'"
-            aria-live="polite"
-          />
-          <div v-if="isModelV2" class="settings-page__cycle-form">
+          <div class="settings-page__cycle-form">
             <p class="settings-page__cycle-note">
               Изменение цикла вступает в силу только с будущего периода: сначала покажем, с какой
               даты, а прошлые периоды останутся без изменений.
             </p>
             <UiButton variant="secondary" to="/app/settings/general">Изменить цикл</UiButton>
           </div>
-          <form v-else class="settings-page__cycle-form" @submit.prevent="saveCycle">
-            <UiInput
-              v-model="cycleForm.cycleStartDay"
-              name="cycleStartDay"
-              label="Начало первого периода"
-              tooltip="Финансовый месяц — это ваш период планирования денег между двумя поступлениями. Не обязательно начинается 1-го числа: укажите день, который соответствует вашему графику доходов."
-              inputmode="numeric"
-              :error="getCycleFieldError('cycleStartDay')"
-              required
-            />
-            <UiInput
-              v-model="cycleForm.periodBoundaryOffset"
-              name="periodBoundaryOffset"
-              label="Граница второго периода (дней от начала первого)"
-              tooltip="Финансовый месяц делится на два периода — например, от аванса до зарплаты и от зарплаты до аванса. Здесь указывается, через сколько дней после начала первого периода начинается второй."
-              inputmode="numeric"
-              :error="getCycleFieldError('periodBoundaryOffset')"
-              required
-            />
-            <CyclePreview
-              v-if="previewCycleStartDay && previewPeriodBoundaryOffset"
-              :cycle-start-day="previewCycleStartDay"
-              :period-boundary-offset="previewPeriodBoundaryOffset"
-            />
-            <p class="settings-page__cycle-note">
-              Изменение цикла не меняет даты операций, но пересчитывает их принадлежность к периодам
-              и циклам.
-            </p>
-            <UiButton type="submit" :loading="cycleSaving">Сохранить</UiButton>
-          </form>
         </UiCard>
 
         <UiCard

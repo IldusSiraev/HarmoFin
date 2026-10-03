@@ -8,7 +8,7 @@ describe('ReportFilters', () => {
   it('emits normalized URL-compatible filters', async () => {
     const wrapper = mount(ReportFilters, {
       props: {
-        modelValue: { from: '', to: '', accountId: '', categoryId: '', envelopeId: '', type: '' },
+        modelValue: { from: '', to: '', accountId: '', categoryId: '', envelopeId: '' },
       },
     });
 
@@ -21,6 +21,7 @@ describe('ReportFilters', () => {
       .find((picker) => picker.props('name') === 'from');
     await fromPicker!.vm.$emit('update:modelValue', '2026-08-10');
 
+    expect(wrapper.find('select[name="type"]').exists()).toBe(false);
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([
       expect.objectContaining({ from: '2026-08-10' }),
     ]);
