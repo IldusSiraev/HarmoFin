@@ -4,6 +4,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 
 import { FinancialBalanceRepository } from '../../common/finance/financial-balance.repository.js';
 import { todayInTimezone } from '../../cycles/cycle-period.domain.js';
+import { legacyEnvelopeBalance } from './legacy-envelope-balance.js';
 
 export type PreflightBlocker =
   'ARCHIVED_ACCOUNT_HAS_CASH' | 'FUTURE_CONFIRMED_FACT' | 'INCONSISTENT_REFERENCES';
@@ -86,7 +87,7 @@ export async function preflight(
   });
   const legacyEnvelopeSummary: PreflightReport['legacyEnvelopeSummary'] = [];
   for (const envelope of envelopes) {
-    const balance = await balances.envelopeBalance(tx, budgetId, envelope.id);
+    const balance = await legacyEnvelopeBalance(tx, budgetId, envelope.id);
     legacyEnvelopeSummary.push({
       envelopeId: envelope.id,
       archived: envelope.archivedAt !== null,

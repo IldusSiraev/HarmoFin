@@ -7,6 +7,7 @@ import { Client } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { FinancialBalanceRepository } from '../src/common/finance/financial-balance.repository.js';
+import { legacyEnvelopeBalance } from '../src/migrations/envelope-v2/legacy-envelope-balance.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ?? 'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin';
@@ -142,8 +143,8 @@ async function currentBalances() {
   return prisma.$transaction(async (tx) => ({
     sourceAccount: await balances.accountBalance(tx, budgetId, sourceAccountId),
     destinationAccount: await balances.accountBalance(tx, budgetId, destinationAccountId),
-    sourceEnvelope: await balances.envelopeBalance(tx, budgetId, sourceEnvelopeId),
-    destinationEnvelope: await balances.envelopeBalance(tx, budgetId, destinationEnvelopeId),
+    sourceEnvelope: await legacyEnvelopeBalance(tx, budgetId, sourceEnvelopeId),
+    destinationEnvelope: await legacyEnvelopeBalance(tx, budgetId, destinationEnvelopeId),
   }));
 }
 

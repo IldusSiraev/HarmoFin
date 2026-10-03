@@ -35,7 +35,6 @@ export interface TransactionRecord {
   createdAt: Date;
   accountingModelVersion?: number;
   accountCurrentBalanceMinor: bigint;
-  envelopeCurrentBalanceMinor: bigint | null;
 }
 
 export interface TransactionCreateData {
@@ -201,15 +200,6 @@ export class TransactionRepository {
     });
   }
 
-  async listForExport(userId: string, budgetId: string, query: TransactionListQuery, take: number) {
-    return this.prisma.transaction.findMany({
-      where: journalWhere(userId, budgetId, query, null),
-      select: transactionExportSelect,
-      orderBy: journalOrderBy(query.sortBy, query.sortDirection),
-      take,
-    });
-  }
-
   async find(
     userId: string,
     budgetId: string,
@@ -268,32 +258,6 @@ export class TransactionRepository {
       select: transactionSelect,
     });
     return row ? this.withBalance(tx, row) : null;
-  }
-
-  async findActiveReferences(
-    tx: Prisma.TransactionClient,
-    budgetId: string,
-    accountId: string,
-    categoryId: string,
-    envelopeId: string | null,
-  ) {
-    const [account, category, envelope] = await Promise.all([
-      tx.account.findFirst({
-        where: { id: accountId, budgetId, archivedAt: null },
-        select: { id: true, budgetId: true, archivedAt: true, currency: true, scale: true },
-      }),
-      tx.category.findFirst({
-        where: { id: categoryId, budgetId, archivedAt: null },
-        select: { id: true, budgetId: true, archivedAt: true, categoryType: true },
-      }),
-      envelopeId
-        ? tx.envelope.findFirst({
-            where: { id: envelopeId, budgetId, archivedAt: null },
-            select: { id: true, budgetId: true, archivedAt: true, currency: true, scale: true },
-          })
-        : Promise.resolve(null),
-    ]);
-    return { account, category, envelope };
   }
 
   // --- v2 helpers (locks follow roadmap order: budget -> idempotency -> accounts) ---
@@ -425,46 +389,6 @@ export class TransactionRepository {
     accountId: string,
   ): Promise<bigint> {
     return this.balances.accountBalance(tx, budgetId, accountId);
-  }
-
-  async assertConfirmedExpenseCapacity(
-    tx: Prisma.TransactionClient,
-    budgetId: string,
-    accountId: string,
-    envelopeId: string,
-    amountMinor: bigint,
-    replacing?: TransactionRecord,
-  ): Promise<boolean> {
-    await tx.$queryRaw`
-      SELECT "id" FROM "accounts"
-      WHERE "id" = ${accountId}::uuid AND "budget_id" = ${budgetId}::uuid
-      FOR UPDATE
-    `;
-    await tx.$queryRaw`
-      SELECT "id" FROM "envelopes"
-      WHERE "id" = ${envelopeId}::uuid AND "budget_id" = ${budgetId}::uuid
-      FOR UPDATE
-    `;
-    const [accountBalance, envelopeBalance] = await Promise.all([
-      this.balances.accountBalance(tx, budgetId, accountId),
-      this.balances.envelopeBalance(tx, budgetId, envelopeId),
-    ]);
-    const restoresAccount =
-      replacing?.status === 'CONFIRMED' &&
-      replacing.transactionType === 'EXPENSE' &&
-      replacing.accountId === accountId
-        ? replacing.amountMinor
-        : 0n;
-    const restoresEnvelope =
-      replacing?.status === 'CONFIRMED' &&
-      replacing.transactionType === 'EXPENSE' &&
-      replacing.envelopeId === envelopeId
-        ? replacing.amountMinor
-        : 0n;
-    return (
-      accountBalance + restoresAccount >= amountMinor &&
-      envelopeBalance + restoresEnvelope >= amountMinor
-    );
   }
 
   async create(
@@ -626,22 +550,21 @@ export class TransactionRepository {
 
   private async withBalances(
     tx: Prisma.TransactionClient,
-    rows: Array<
-      Omit<TransactionRecord, 'accountCurrentBalanceMinor' | 'envelopeCurrentBalanceMinor'>
-    >,
+    rows: Array<Omit<TransactionRecord, 'accountCurrentBalanceMinor'>>,
   ): Promise<TransactionRecord[]> {
     return Promise.all(rows.map((row) => this.withBalance(tx, row)));
   }
 
   private async withBalance(
     tx: Prisma.TransactionClient,
-    row: Omit<TransactionRecord, 'accountCurrentBalanceMinor' | 'envelopeCurrentBalanceMinor'>,
+    row: Omit<TransactionRecord, 'accountCurrentBalanceMinor'>,
   ): Promise<TransactionRecord> {
-    const [accountCurrentBalanceMinor, envelopeCurrentBalanceMinor] = await Promise.all([
-      this.balances.accountBalance(tx, row.budgetId, row.accountId),
-      row.envelopeId ? this.balances.envelopeBalance(tx, row.budgetId, row.envelopeId) : null,
-    ]);
-    return { ...row, accountCurrentBalanceMinor, envelopeCurrentBalanceMinor };
+    const accountCurrentBalanceMinor = await this.balances.accountBalance(
+      tx,
+      row.budgetId,
+      row.accountId,
+    );
+    return { ...row, accountCurrentBalanceMinor };
   }
 }
 
@@ -656,12 +579,7 @@ function activeBudgetWhere(userId: string, budgetId: string) {
   };
 }
 
-function auditValues(
-  transaction: Omit<
-    TransactionRecord,
-    'accountCurrentBalanceMinor' | 'envelopeCurrentBalanceMinor'
-  >,
-) {
+function auditValues(transaction: Omit<TransactionRecord, 'accountCurrentBalanceMinor'>) {
   return {
     transactionType: transaction.transactionType,
     status: transaction.status,
@@ -822,26 +740,6 @@ function isValidCursorValue(value: string, sortBy: JournalSortBy): boolean {
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
-
-const transactionExportSelect = {
-  id: true,
-  transactionType: true,
-  status: true,
-  amountMinor: true,
-  currency: true,
-  occurredOn: true,
-  sourceDescription: true,
-  merchantName: true,
-  isPlanned: true,
-  comment: true,
-  createdAt: true,
-  confirmedAt: true,
-  cancelledAt: true,
-  deletedAt: true,
-  account: { select: { name: true } },
-  category: { select: { name: true } },
-  envelope: { select: { name: true } },
-} as const;
 
 const transactionSelect = {
   id: true,
