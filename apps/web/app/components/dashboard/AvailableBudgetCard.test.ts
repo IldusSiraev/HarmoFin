@@ -49,6 +49,66 @@ describe('AvailableBudgetCard', () => {
     expect(wrapper.get('a[href="/app/plans"]')).toBeTruthy();
   });
 
+  it('explains a zero period balance and points to accounts when there are none', () => {
+    const dashboard = {
+      ...v2Base,
+      spendable: { state: 'READY' as const, amountMinor: '0' },
+      currentBalanceMinor: '0',
+      cashMinor: '0',
+      mandatoryGapMinor: '0',
+      onboarding: { ...v2Base.onboarding, hasAccounts: false },
+    };
+    const wrapper = mount(AvailableBudgetCard, { props: { dashboard }, global: { stubs } });
+    const hint = wrapper.get('[data-testid="available-budget-empty-hint"]');
+
+    expect(hint.text()).toContain('Деньги в конверте периода закончились или ещё не назначены');
+    expect(hint.text()).toContain('Добавьте счёт и назначьте деньги конверту периода');
+    expect(hint.get('a').attributes('href')).toBe('/app/accounts');
+  });
+
+  it('asks only to assign money when accounts already exist', () => {
+    const dashboard = {
+      ...v2Base,
+      spendable: { state: 'READY' as const, amountMinor: '0' },
+      currentBalanceMinor: '0',
+      mandatoryGapMinor: '0',
+    };
+    const wrapper = mount(AvailableBudgetCard, { props: { dashboard }, global: { stubs } });
+    const hint = wrapper.get('[data-testid="available-budget-empty-hint"]');
+
+    expect(hint.text()).toContain('Назначьте деньги конверту периода');
+    expect(hint.text()).not.toContain('Добавьте счёт');
+  });
+
+  it('does not show the empty hint when the period envelope has money or while setup is open', () => {
+    const funded = mount(AvailableBudgetCard, { props: { dashboard: v2Base }, global: { stubs } });
+    expect(funded.find('[data-testid="available-budget-empty-hint"]').exists()).toBe(false);
+
+    const setup = mount(AvailableBudgetCard, {
+      props: {
+        dashboard: {
+          ...v2Base,
+          spendable: { state: 'NEEDS_PERIOD_SETUP' as const, amountMinor: null },
+          currentBalanceMinor: '0',
+        },
+      },
+      global: { stubs },
+    });
+    expect(setup.find('[data-testid="available-budget-empty-hint"]').exists()).toBe(false);
+
+    const overrun = mount(AvailableBudgetCard, {
+      props: {
+        dashboard: {
+          ...v2Base,
+          spendable: { state: 'READY' as const, amountMinor: '0' },
+          currentBalanceMinor: '-100',
+        },
+      },
+      global: { stubs },
+    });
+    expect(overrun.find('[data-testid="available-budget-empty-hint"]').exists()).toBe(false);
+  });
+
   it('invites to set up the period limit instead of showing zero', () => {
     const wrapper = mount(AvailableBudgetCard, {
       props: {

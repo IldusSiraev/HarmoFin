@@ -24,6 +24,10 @@ function formatUntil(iso: string): string {
 const needsSetup = computed(() => props.dashboard.spendable.state === 'NEEDS_PERIOD_SETUP');
 const overrun = computed(() => props.dashboard.currentBalanceMinor.startsWith('-'));
 const overrunMinor = computed(() => props.dashboard.currentBalanceMinor.replace('-', ''));
+// A confirmed but unfunded period reads as a bare zero: say why and what next.
+const emptyPeriod = computed(
+  () => !needsSetup.value && props.dashboard.currentBalanceMinor === '0',
+);
 const hasGap = computed(() => {
   const gap = props.dashboard.mandatoryGapMinor;
   return gap !== '0' && !gap.startsWith('-');
@@ -56,6 +60,21 @@ const breakdownOpen = ref(false);
         <FinanceMoney :minor-units="dashboard.currentBalanceMinor" currency="RUB" :scale="2" />
       </p>
     </template>
+
+    <p
+      v-if="emptyPeriod"
+      class="available-budget__caption"
+      data-testid="available-budget-empty-hint"
+    >
+      Деньги в конверте периода закончились или ещё не назначены, поэтому «Можно потратить» равно
+      нулю.
+      {{
+        dashboard.onboarding.hasAccounts
+          ? 'Назначьте деньги конверту периода.'
+          : 'Добавьте счёт и назначьте деньги конверту периода.'
+      }}
+      <NuxtLink to="/app/accounts" class="available-budget__link">Перейти к счетам</NuxtLink>
+    </p>
 
     <p v-if="overrun" class="available-budget__flag available-budget__flag--danger">
       <TriangleAlert :size="16" aria-hidden="true" />

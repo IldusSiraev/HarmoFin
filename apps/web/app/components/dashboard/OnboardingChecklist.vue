@@ -81,6 +81,20 @@ function periodStep(status: V2Onboarding): Step {
       done,
     };
   }
+  if (done) {
+    return {
+      key: 'periodSetup',
+      title: 'Лимит на текущий период',
+      description:
+        status.needsOpeningAssignment || !status.hasAccounts
+          ? 'План периода подтверждён. Деньги появятся в нём, когда вы назначите их конвертам: это шаг «Назначить имеющиеся деньги».'
+          : 'План периода подтверждён.',
+      href: '/app/envelopes',
+      linkLabel: 'Открыть конверты',
+      action: 'link',
+      done,
+    };
+  }
   return {
     key: 'periodSetup',
     title: 'Лимит на текущий период',

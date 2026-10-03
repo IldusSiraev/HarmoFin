@@ -389,6 +389,33 @@ describe('OnboardingChecklist', () => {
       expect(wrapper.emitted('hostsTarget')?.at(-1)).toEqual([false]);
     });
 
+    it('does not offer to set the limit again once the plan is confirmed', async () => {
+      mocks.v2.getDashboard.mockResolvedValue(
+        dashboard({ ...v2Onboarding, needsPeriodSetup: false }),
+      );
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+
+      const step = wrapper.get('[data-step="periodSetup"]');
+      expect(step.text()).toContain('План периода подтверждён');
+      expect(step.text()).toContain('назначите их конвертам');
+      expect(step.text()).not.toContain('Задать лимит');
+      expect(step.get('a').text()).toBe('Открыть конверты');
+      expect(step.get('a').attributes('href')).toBe('/app/envelopes');
+    });
+
+    it('drops the assignment hint from the confirmed step once money is assigned', async () => {
+      mocks.v2.getDashboard.mockResolvedValue(
+        dashboard({ ...v2Onboarding, needsPeriodSetup: false, needsOpeningAssignment: false }),
+      );
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+
+      const step = wrapper.get('[data-step="periodSetup"]');
+      expect(step.text()).toContain('План периода подтверждён');
+      expect(step.text()).not.toContain('назначите их конвертам');
+    });
+
     it('falls back to a link to the envelopes when there is no proposal', async () => {
       mocks.v2.getDashboard.mockResolvedValue(dashboard());
       const { wrapper } = mountChecklist();
