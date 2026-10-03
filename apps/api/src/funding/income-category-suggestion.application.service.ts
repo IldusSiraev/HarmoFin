@@ -42,7 +42,7 @@ function unprocessable(code: string, detail: string): UnprocessableEntityExcepti
 /**
  * Stores the "category of income -> envelope" suggestion setting for model-2 budgets in the
  * existing Budget columns. It is only a setting: it never creates assignments or allocations and
- * never calls the v1 auto-allocation. R03b preview reads it to propose (not write) money.
+ * never writes legacy income allocations. R03b preview reads it to propose (not write) money.
  */
 @Injectable()
 export class IncomeCategorySuggestionApplicationService {

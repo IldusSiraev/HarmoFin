@@ -294,7 +294,7 @@ export class LegacyCorrectionApplicationService {
 
     let allocations: LegacyAllocationRow[] = [];
     if (isIncome) {
-      // Lock then read: same ordering as the v1 lifecycle (transaction row -> allocation rows).
+      // Lock then read: transaction row first, then its allocation rows.
       await this.transactions.findConfirmedAllocationsForIncome(tx, budgetId, current.id);
       allocations = await this.corrections.listConfirmedAllocations(tx, budgetId, current.id);
     }

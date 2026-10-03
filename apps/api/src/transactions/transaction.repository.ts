@@ -53,7 +53,7 @@ export interface TransactionCreateData {
   confirmedAt: Date | null;
   createdByUserId: string;
   updatedByUserId: string;
-  /** Defaults to 1 (v1 behavior); v2 callers pass 2. */
+  /** The column default 1 marks history of the old model; every v2 writer passes 2 explicitly. */
   accountingModelVersion?: 1 | 2;
 }
 
