@@ -33,12 +33,25 @@ const MESSAGES: Record<string, string> = {
   CYCLE_SETTINGS_UNCHANGED: 'Эти границы цикла уже действуют. Измените день или смещение.',
   TIMEZONE_CHANGE_REQUIRES_RECONCILIATION:
     'Часовой пояс нельзя менять после подтверждённых операций: календарные даты пришлось бы перекладывать.',
+  LEGACY_CORRECTION_REQUIRED:
+    'Операция сделана до перехода на модель 2 и здесь не меняется: её можно только смотреть.',
+  TRANSACTION_NOT_EDITABLE: 'Удалённую или отменённую операцию нельзя изменить.',
+  TRANSACTION_ALREADY_DELETED: 'Операция уже удалена. Обновите журнал.',
+  TRANSACTION_NOT_DELETED: 'Восстановить можно только удалённую операцию. Обновите журнал.',
+  PERIOD_AMBIGUOUS: 'Для этой даты найдено несколько периодов конверта. Выберите другую дату.',
+  RESOURCE_NOT_FOUND: 'Не найдено. Обновите страницу.',
   VALIDATION_FAILED: 'Проверьте введённые данные.',
 };
 
-export function v2ErrorMessage(error: unknown, fallback: string): string {
+// `overrides` lets one screen word a shared code for its own context (an income
+// delete blocked by assignments is not the funding "source exhausted" case).
+export function v2ErrorMessage(
+  error: unknown,
+  fallback: string,
+  overrides: Record<string, string> = {},
+): string {
   if (!(error instanceof ApiRequestError)) return fallback;
-  const mapped = MESSAGES[error.problem.code];
+  const mapped = overrides[error.problem.code] ?? MESSAGES[error.problem.code];
   if (mapped) return mapped;
   if (error.status === 403) return 'Недостаточно прав для этого действия.';
   if (error.status === 422 || error.status === 400) return MESSAGES.VALIDATION_FAILED!;

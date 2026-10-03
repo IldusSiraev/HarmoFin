@@ -130,27 +130,6 @@ describe('reports API client', () => {
   });
 });
 
-describe('CSV export API client', () => {
-  it('downloads CSV with journal filters but without pagination', async () => {
-    const request = vi.fn();
-    const requestBlob = vi.fn().mockResolvedValue(new Blob(['csv']));
-    const data = createBudgetReferenceData({ request, requestBlob });
-
-    await data.downloadTransactionsCsv('budget-id', {
-      search: 'магазин',
-      limit: 25,
-      cursor: 'cursor-value',
-      status: 'CONFIRMED',
-      sortBy: 'amount',
-      sortDirection: 'asc',
-    });
-
-    expect(requestBlob).toHaveBeenCalledWith(
-      '/api/v1/budgets/budget-id/exports/transactions.csv?search=%D0%BC%D0%B0%D0%B3%D0%B0%D0%B7%D0%B8%D0%BD&status=CONFIRMED&sortBy=amount&sortDirection=asc',
-    );
-  });
-});
-
 describe('plans API client', () => {
   it('creates an occurrence draft with an idempotency key', async () => {
     const request = vi.fn().mockResolvedValue(transaction);

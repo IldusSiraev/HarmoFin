@@ -305,6 +305,85 @@ export interface TransactionV2Response {
   warnings: Array<{ code: string; detail: string }>;
 }
 
+export type TransactionV2Status = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED';
+
+// One journal row. accountingModelVersion 1 marks a fact made before the move to
+// model 2: the API refuses to edit it (409 LEGACY_CORRECTION_REQUIRED).
+export interface TransactionJournalV2Item {
+  id: string;
+  budgetId: string;
+  accountingModelVersion: 1 | 2;
+  transactionType: 'INCOME' | 'EXPENSE';
+  status: TransactionV2Status;
+  amountMinor: string;
+  currency: string;
+  occurredOn: string;
+  accountId: string;
+  categoryId: string;
+  envelopeId: string | null;
+  sourceDescription: string | null;
+  merchantName: string | null;
+  comment: string | null;
+  planOccurrenceIds: string[];
+  confirmedAt: string | null;
+  cancelledAt: string | null;
+  deletedAt: string | null;
+  createdAt: string;
+}
+
+export interface TransactionJournalV2Response {
+  items: TransactionJournalV2Item[];
+  nextCursor: string | null;
+}
+
+// The journal order is fixed by the server; there is no search or sort filter.
+export interface TransactionJournalV2Query {
+  limit?: number;
+  cursor?: string;
+  type?: 'INCOME' | 'EXPENSE';
+  /** DELETED is OWNER-only (403 otherwise); by default deleted rows are hidden. */
+  status?: TransactionV2Status;
+  from?: string;
+  to?: string;
+  accountId?: string;
+  categoryId?: string;
+  envelopeId?: string;
+}
+
+// Only the fields that change. Status moves through delete/restore, never here.
+export interface UpdateTransactionV2Request {
+  /** Decimal rubles, e.g. "1250.00". */
+  amount?: string;
+  occurredOn?: string;
+  accountId?: string;
+  categoryId?: string;
+  envelopeId?: string | null;
+  comment?: string | null;
+}
+
+export interface TransactionV2LifecycleResponse {
+  id: string;
+  budgetId: string;
+  transactionType: 'INCOME' | 'EXPENSE';
+  status: TransactionV2Status;
+  amountMinor: string;
+  currency: string;
+  occurredOn: string;
+  accountId: string;
+  categoryId: string;
+  envelopeId: string | null;
+  comment: string | null;
+  accountBalanceMinor: string;
+  warnings: Array<{ code: string; detail: string }>;
+  occurrences: Array<{
+    id: string;
+    status: string;
+    expectedMinor: string;
+    paidMinor: string;
+    unpaidMinor: string;
+  }>;
+}
+
 export interface CreateDirectTransferRequest {
   sourceAccountId: string;
   destinationAccountId: string;
@@ -856,6 +935,39 @@ export function useEnvelopePlanV2() {
       input: CreateTransactionV2Request,
       idempotencyKey: string,
     ) => postKeyed<TransactionV2Response>(`${base(budgetId)}/transactions`, input, idempotencyKey),
+    listTransactions: (budgetId: string, filter: TransactionJournalV2Query = {}) =>
+      get<TransactionJournalV2Response>(
+        `${base(budgetId)}/transactions${query({
+          ...filter,
+          limit: filter.limit === undefined ? undefined : String(filter.limit),
+        })}`,
+      ),
+    getTransaction: (budgetId: string, transactionId: string) =>
+      get<TransactionJournalV2Item>(
+        `${base(budgetId)}/transactions/${encodeURIComponent(transactionId)}`,
+      ),
+    updateTransaction: (
+      budgetId: string,
+      transactionId: string,
+      input: UpdateTransactionV2Request,
+      idempotencyKey: string,
+    ) =>
+      patchKeyed<TransactionV2LifecycleResponse>(
+        `${base(budgetId)}/transactions/${encodeURIComponent(transactionId)}`,
+        input,
+        idempotencyKey,
+      ),
+    deleteTransaction: (budgetId: string, transactionId: string, idempotencyKey: string) =>
+      api.request<TransactionV2LifecycleResponse>(
+        `${base(budgetId)}/transactions/${encodeURIComponent(transactionId)}`,
+        { method: 'DELETE', headers: { 'Idempotency-Key': idempotencyKey } },
+      ),
+    restoreTransaction: (budgetId: string, transactionId: string, idempotencyKey: string) =>
+      postKeyed<TransactionV2LifecycleResponse>(
+        `${base(budgetId)}/transactions/${encodeURIComponent(transactionId)}/restore`,
+        {},
+        idempotencyKey,
+      ),
     createTransfer: (
       budgetId: string,
       input: CreateDirectTransferRequest,

@@ -17,3 +17,24 @@ describe('v2ErrorMessage cycle codes', () => {
     expect(v2ErrorMessage(problem(status, code), 'fallback')).toContain(text);
   });
 });
+
+describe('v2ErrorMessage journal codes', () => {
+  it.each([
+    [409, 'LEGACY_CORRECTION_REQUIRED', 'до перехода на модель 2'],
+    [409, 'TRANSACTION_NOT_EDITABLE', 'нельзя изменить'],
+    [409, 'TRANSACTION_ALREADY_DELETED', 'уже удалена'],
+    [409, 'TRANSACTION_NOT_DELETED', 'только удалённую'],
+    [409, 'PERIOD_AMBIGUOUS', 'несколько периодов'],
+    [404, 'RESOURCE_NOT_FOUND', 'Не найдено'],
+  ])('maps %i %s to Russian text', (status, code, text) => {
+    expect(v2ErrorMessage(problem(status, code), 'fallback')).toContain(text);
+  });
+
+  it('lets the caller override one code without touching the shared table', () => {
+    const error = problem(409, 'SOURCE_EXHAUSTED');
+    expect(v2ErrorMessage(error, 'fallback', { SOURCE_EXHAUSTED: 'свой текст' })).toBe(
+      'свой текст',
+    );
+    expect(v2ErrorMessage(error, 'fallback')).toContain('Источник уже полностью назначен');
+  });
+});

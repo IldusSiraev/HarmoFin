@@ -5,12 +5,12 @@ import { categoryIcon as categoryIconComponent } from './category-icon.js';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiListRow from '../ui/ListRow.vue';
 import UiStatus from '../ui/Status.vue';
-import type { TransactionDto } from '../../composables/useBudgetReferenceData.js';
+import type { TransactionJournalV2Item } from '../../composables/useEnvelopePlanV2.js';
 
 defineOptions({ name: 'OperationRow' });
 
 const props = defineProps<{
-  transaction: TransactionDto;
+  transaction: TransactionJournalV2Item;
   categoryName: string;
   categoryIcon: string | null;
   accountName: string;
@@ -46,11 +46,11 @@ const statusTone = computed(() => {
   return 'neutral' as const;
 });
 
-const unallocatedMinor = computed(() =>
-  isIncome.value && props.transaction.unallocatedMinor !== '0'
-    ? props.transaction.unallocatedMinor
-    : null,
-);
+// The journal money scale is fixed: the API serves RUB in minor units.
+const SCALE = 2;
+
+const isLegacy = computed(() => props.transaction.accountingModelVersion === 1);
+const isPlanPayment = computed(() => props.transaction.planOccurrenceIds.length > 0);
 
 const rowLabel = computed(
   () => `Открыть операцию «${props.categoryName}» от ${props.transaction.occurredOn}`,
@@ -63,29 +63,20 @@ const rowLabel = computed(
 
     <span class="operation-row__title">{{ categoryName }}</span>
     <span v-if="counterparty" class="operation-row__subtitle">{{ counterparty }}</span>
-    <span
-      v-if="statusLabel || transaction.isPlanned || unallocatedMinor"
-      class="operation-row__meta"
-    >
+    <span v-if="statusLabel || isLegacy || isPlanPayment" class="operation-row__meta">
       <UiStatus
         v-if="statusLabel"
         data-testid="operation-row-status"
         :label="statusLabel"
         :tone="statusTone"
       />
-      <UiStatus v-if="transaction.isPlanned" label="Запланирована" tone="info" />
-      <span
-        v-if="unallocatedMinor"
-        class="operation-row__unallocated"
-        data-testid="operation-row-unallocated"
-      >
-        Не распределено
-        <FinanceMoney
-          :minor-units="unallocatedMinor"
-          :currency="transaction.currency"
-          :scale="transaction.scale"
-        />
-      </span>
+      <UiStatus
+        v-if="isLegacy"
+        data-testid="operation-row-legacy"
+        label="До модели 2"
+        tone="info"
+      />
+      <UiStatus v-if="isPlanPayment" label="По плану" tone="info" />
     </span>
 
     <template #trailing>
@@ -94,7 +85,7 @@ const rowLabel = computed(
         :class="isIncome ? 'operation-row__amount--income' : 'operation-row__amount--expense'"
         :minor-units="signedMinor"
         :currency="transaction.currency"
-        :scale="transaction.scale"
+        :scale="SCALE"
       />
       <span class="operation-row__subtitle operation-row__placement">{{ accountName }}</span>
       <span v-if="envelopeName" class="operation-row__subtitle operation-row__placement">
@@ -129,15 +120,6 @@ const rowLabel = computed(
   flex-wrap: wrap;
   gap: var(--hf-space-1);
   align-items: center;
-}
-
-.operation-row__unallocated {
-  display: inline-flex;
-  gap: 0.25rem;
-  align-items: baseline;
-  color: var(--hf-color-status-warning);
-  font-size: var(--hf-font-size-caption);
-  line-height: var(--hf-line-height-caption);
 }
 
 .operation-row__amount {

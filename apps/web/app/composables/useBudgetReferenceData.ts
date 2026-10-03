@@ -330,31 +330,6 @@ export interface TransactionDto {
   allocationProposal: AllocationProposal | null;
 }
 
-export interface TransactionListInput {
-  limit?: number | undefined;
-  cursor?: string | undefined;
-  search?: string | undefined;
-  type?: TransactionType | undefined;
-  status?: TransactionStatus | 'all' | undefined;
-  from?: string | undefined;
-  to?: string | undefined;
-  cycleStart?: string | undefined;
-  periodStart?: string | undefined;
-  accountId?: string | undefined;
-  categoryId?: string | undefined;
-  envelopeId?: string | undefined;
-  planId?: string | undefined;
-  sortBy?: 'occurredOn' | 'amount' | undefined;
-  sortDirection?: 'asc' | 'desc' | undefined;
-}
-
-export interface TransactionListResult {
-  items: TransactionDto[];
-  nextCursor: string | null;
-}
-
-export type TransactionExportInput = Omit<TransactionListInput, 'limit' | 'cursor'>;
-
 export type TransferStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED';
 
 export interface TransferPartDto {
@@ -460,40 +435,6 @@ export interface CreateTransactionInput {
   comment?: string | null | undefined;
 }
 
-export interface UpdateTransactionInput {
-  amount?: string | undefined;
-  occurredOn?: string | undefined;
-  accountId?: string | undefined;
-  categoryId?: string | undefined;
-  envelopeId?: string | null | undefined;
-  sourceDescription?: string | null | undefined;
-  merchantName?: string | null | undefined;
-  isPlanned?: boolean | undefined;
-  comment?: string | null | undefined;
-  confirm?: true | undefined;
-}
-
-export interface ResolveIncomeDeletionInput {
-  allocationResolution: 'CANCEL' | 'DELETE';
-}
-
-export interface IncomeAllocationDto {
-  id: string;
-  budgetId: string;
-  incomeTransactionId: string;
-  status: 'CONFIRMED' | 'CANCELLED' | 'DELETED';
-  amountMinor: string;
-  currency: 'RUB';
-  scale: 2;
-  occurredOn: string;
-  accountId: string;
-  envelopeId: string;
-  comment: string | null;
-  deletedAt: string | null;
-  remainingUnallocatedMinor: string;
-  envelopeCurrentBalanceMinor: string;
-}
-
 export interface AuditEventDto {
   id: string;
   createdAt: string;
@@ -504,14 +445,6 @@ export interface AuditEventDto {
   source: string;
   oldValues: Record<string, unknown> | null;
   newValues: Record<string, unknown> | null;
-}
-
-export interface CreateIncomeAllocationInput {
-  amount: string;
-  occurredOn: string;
-  accountId: string;
-  envelopeId: string;
-  comment?: string | null | undefined;
 }
 
 export type ReportKey =
@@ -745,50 +678,11 @@ export interface BudgetReferenceDataApi {
     occurrenceId: string,
     idempotencyKey: string,
   ): Promise<TransactionDto>;
-  listTransactions(budgetId: string, input?: TransactionListInput): Promise<TransactionListResult>;
-  downloadTransactionsCsv(budgetId: string, input?: TransactionListInput): Promise<Blob>;
-  getTransaction(budgetId: string, transactionId: string): Promise<TransactionDto>;
   createTransaction(
     budgetId: string,
     input: CreateTransactionInput,
     idempotencyKey: string,
   ): Promise<TransactionDto>;
-  updateTransaction(
-    budgetId: string,
-    transactionId: string,
-    input: UpdateTransactionInput,
-    idempotencyKey: string,
-  ): Promise<TransactionDto>;
-  confirmTransaction(
-    budgetId: string,
-    transactionId: string,
-    idempotencyKey: string,
-  ): Promise<TransactionDto>;
-  cancelTransaction(
-    budgetId: string,
-    transactionId: string,
-    idempotencyKey: string,
-  ): Promise<TransactionDto>;
-  deleteTransaction(
-    budgetId: string,
-    transactionId: string,
-    idempotencyKey: string,
-  ): Promise<TransactionDto>;
-  restoreTransaction(
-    budgetId: string,
-    transactionId: string,
-    idempotencyKey: string,
-  ): Promise<TransactionDto>;
-  deleteTransactionWithAllocations(
-    budgetId: string,
-    transactionId: string,
-    input: ResolveIncomeDeletionInput,
-    idempotencyKey: string,
-  ): Promise<TransactionDto>;
-  listTransactionAllocations(
-    budgetId: string,
-    transactionId: string,
-  ): Promise<IncomeAllocationDto[]>;
   listTransactionAudit(budgetId: string, transactionId: string): Promise<AuditEventDto[]>;
   listTransfers(budgetId: string, input?: TransferListInput): Promise<TransferListResult>;
   getTransfer(budgetId: string, transferId: string): Promise<TransferDto>;
@@ -817,17 +711,6 @@ export interface BudgetReferenceDataApi {
     input: CreateEnvelopeReallocationInput,
     idempotencyKey: string,
   ): Promise<EnvelopeReallocationDto>;
-  createIncomeAllocation(
-    budgetId: string,
-    transactionId: string,
-    input: CreateIncomeAllocationInput,
-    idempotencyKey: string,
-  ): Promise<IncomeAllocationDto>;
-  restoreIncomeAllocation(
-    budgetId: string,
-    allocationId: string,
-    idempotencyKey: string,
-  ): Promise<IncomeAllocationDto>;
 }
 
 export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDataApi {
@@ -880,10 +763,6 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
 
   function envelopeReallocationPath(budgetId: string) {
     return `${budgetPath(budgetId)}/envelope-reallocations`;
-  }
-
-  function allocationPath(budgetId: string, transactionId: string) {
-    return `${transactionPath(budgetId, transactionId)}/allocations`;
   }
 
   function idempotent(idempotencyKey: string): HeadersInit {
@@ -1032,79 +911,12 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
         method: 'POST',
         headers: idempotent(idempotencyKey),
       }),
-    listTransactions: (budgetId, input = {}) =>
-      api.request<TransactionListResult>(
-        withQuery(
-          transactionPath(budgetId),
-          Object.fromEntries(
-            Object.entries(input).map(([name, value]) => [
-              name,
-              value === undefined ? undefined : String(value),
-            ]),
-          ),
-        ),
-      ),
-    downloadTransactionsCsv: (budgetId, input = {}) => {
-      const filters = { ...input };
-      delete filters.limit;
-      delete filters.cursor;
-      return api.requestBlob(
-        withQuery(
-          `${budgetPath(budgetId)}/exports/transactions.csv`,
-          Object.fromEntries(
-            Object.entries(filters).map(([name, value]) => [
-              name,
-              value === undefined ? undefined : String(value),
-            ]),
-          ),
-        ),
-      );
-    },
-    getTransaction: (budgetId, transactionId) =>
-      api.request<TransactionDto>(transactionPath(budgetId, transactionId)),
     createTransaction: (budgetId, input, idempotencyKey) =>
       api.request<TransactionDto>(transactionPath(budgetId), {
         method: 'POST',
         headers: idempotent(idempotencyKey),
         body: JSON.stringify(input),
       }),
-    updateTransaction: (budgetId, transactionId, input, idempotencyKey) =>
-      api.request<TransactionDto>(transactionPath(budgetId, transactionId), {
-        method: 'PATCH',
-        headers: idempotent(idempotencyKey),
-        body: JSON.stringify(input),
-      }),
-    confirmTransaction: (budgetId, transactionId, idempotencyKey) =>
-      api.request<TransactionDto>(`${transactionPath(budgetId, transactionId)}/confirm`, {
-        method: 'POST',
-        headers: idempotent(idempotencyKey),
-      }),
-    cancelTransaction: (budgetId, transactionId, idempotencyKey) =>
-      api.request<TransactionDto>(`${transactionPath(budgetId, transactionId)}/cancel`, {
-        method: 'POST',
-        headers: idempotent(idempotencyKey),
-      }),
-    deleteTransaction: (budgetId, transactionId, idempotencyKey) =>
-      api.request<TransactionDto>(transactionPath(budgetId, transactionId), {
-        method: 'DELETE',
-        headers: idempotent(idempotencyKey),
-      }),
-    restoreTransaction: (budgetId, transactionId, idempotencyKey) =>
-      api.request<TransactionDto>(`${transactionPath(budgetId, transactionId)}/restore`, {
-        method: 'POST',
-        headers: idempotent(idempotencyKey),
-      }),
-    deleteTransactionWithAllocations: (budgetId, transactionId, input, idempotencyKey) =>
-      api.request<TransactionDto>(
-        `${transactionPath(budgetId, transactionId)}/delete-with-allocations`,
-        {
-          method: 'POST',
-          headers: idempotent(idempotencyKey),
-          body: JSON.stringify(input),
-        },
-      ),
-    listTransactionAllocations: (budgetId, transactionId) =>
-      api.request<IncomeAllocationDto[]>(allocationPath(budgetId, transactionId)),
     listTransactionAudit: (budgetId, transactionId) =>
       api
         .request<{ items: AuditEventDto[] }>(`${transactionPath(budgetId, transactionId)}/audit`)
@@ -1150,17 +962,6 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
         headers: idempotent(idempotencyKey),
         body: JSON.stringify(input),
       }),
-    createIncomeAllocation: (budgetId, transactionId, input, idempotencyKey) =>
-      api.request<IncomeAllocationDto>(allocationPath(budgetId, transactionId), {
-        method: 'POST',
-        headers: idempotent(idempotencyKey),
-        body: JSON.stringify(input),
-      }),
-    restoreIncomeAllocation: (budgetId, allocationId, idempotencyKey) =>
-      api.request<IncomeAllocationDto>(
-        `${budgetPath(budgetId)}/allocations/${encodeURIComponent(allocationId)}/restore`,
-        { method: 'POST', headers: idempotent(idempotencyKey) },
-      ),
   };
 }
 

@@ -7,7 +7,6 @@ enableAutoUnmount(afterEach);
 
 const api = {
   getDashboardSummary: vi.fn(),
-  listTransactions: vi.fn(),
   getAccountsSummary: vi.fn(),
   getEnvelopesSummary: vi.fn(),
   listAccounts: vi.fn(),
@@ -33,6 +32,7 @@ vi.mock('#imports', () => ({ definePageMeta: vi.fn(), navigateTo: vi.fn() }));
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => auth }));
 const v2Api = vi.hoisted(() => ({
   getDashboard: vi.fn(),
+  listTransactions: vi.fn(),
   move: vi.fn(),
   listEnvelopes: vi.fn(),
   confirmPeriodTarget: vi.fn(),
@@ -96,26 +96,23 @@ const summary = {
 const recentTransaction = {
   id: 'transaction-id',
   budgetId: 'budget-id',
+  accountingModelVersion: 2,
   transactionType: 'EXPENSE',
   status: 'CONFIRMED',
   amountMinor: '150000',
   currency: 'RUB',
-  scale: 2,
   occurredOn: '2026-09-14',
   accountId: 'account-id',
   categoryId: 'category-id',
   envelopeId: null,
   sourceDescription: null,
   merchantName: 'Супермаркет',
-  isPlanned: false,
   comment: null,
+  planOccurrenceIds: [],
   confirmedAt: null,
   cancelledAt: null,
   deletedAt: null,
-  accountCurrentBalanceMinor: '0',
-  envelopeCurrentBalanceMinor: null,
-  unallocatedMinor: '0',
-  allocationProposal: null,
+  createdAt: '2026-09-14T10:00:00.000Z',
 };
 
 describe('dashboard page', () => {
@@ -123,7 +120,6 @@ describe('dashboard page', () => {
     vi.clearAllMocks();
     useOperationReferenceData().invalidate();
     api.getDashboardSummary.mockResolvedValue(summary);
-    api.listTransactions.mockResolvedValue({ items: [recentTransaction], nextCursor: null });
     api.getAccountsSummary.mockResolvedValue({
       currency: 'RUB',
       scale: 2,
@@ -229,7 +225,7 @@ describe('dashboard page', () => {
     // First heading is the onboarding checklist (shown because not all steps are done)
     expect(headings[0]).toBe('Начало работы: 0/5');
     expect(headings.slice(1, 5)).toEqual(['Можно потратить', 'Обязательства', 'Счета', 'Конверты']);
-    expect(headings[5]).toBe('Последние операции');
+    expect(headings).toHaveLength(5);
   });
 
   it('shows skeletons while the summary is loading', async () => {
@@ -268,18 +264,12 @@ describe('dashboard page', () => {
     expect(api.getDashboardSummary).toHaveBeenCalledTimes(2);
   });
 
-  it('shows the latest operations and the balance totals', async () => {
+  it('shows the balance totals', async () => {
     const wrapper = mount(DashboardPage, {
       global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } },
     });
     await flushPromises();
 
-    expect(api.listTransactions).toHaveBeenCalledWith('budget-id', {
-      limit: 5,
-      sortBy: 'occurredOn',
-      sortDirection: 'desc',
-    });
-    expect(wrapper.text()).toContain('Последние операции');
     expect(normalize(wrapper.text())).toContain('1 000,00 ₽');
     expect(normalize(wrapper.text())).toContain('75,00 ₽');
   });
@@ -295,18 +285,6 @@ describe('dashboard page', () => {
     expect(wrapper.text()).not.toContain('Не удалось загрузить сводку');
   });
 
-  it('keeps the rest of the dashboard usable when recent operations fail to load', async () => {
-    api.listTransactions.mockRejectedValue(new Error('network'));
-    const wrapper = mount(DashboardPage, {
-      global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } },
-    });
-    await flushPromises();
-
-    expect(wrapper.text()).toContain('Можно потратить');
-    expect(wrapper.text()).toContain('Операций пока нет.');
-    expect(wrapper.text()).not.toContain('Не удалось загрузить сводку');
-  });
-
   it('shows the period leftover prompt when the summary reports one', async () => {
     api.getDashboardSummary.mockResolvedValue({
       ...summary,
@@ -318,7 +296,6 @@ describe('dashboard page', () => {
         currentPeriodEnvelopeName: 'Текущие 25–9',
       },
     });
-    api.listTransactions.mockResolvedValue({ items: [], nextCursor: null });
     api.getAccountsSummary.mockResolvedValue({ totalMinor: '0' });
     api.getEnvelopesSummary.mockResolvedValue({ totalMinor: '0' });
 
@@ -377,7 +354,7 @@ describe('dashboard page, plan model 2', () => {
     vi.clearAllMocks();
     useOperationReferenceData().invalidate();
     useOperationDialogs().close();
-    api.listTransactions.mockResolvedValue({ items: [], nextCursor: null });
+    v2Api.listTransactions.mockReset().mockResolvedValue({ items: [], nextCursor: null });
     api.listAccounts.mockResolvedValue([]);
     api.listCategories.mockResolvedValue([]);
     api.listEnvelopes.mockResolvedValue([]);
@@ -404,6 +381,27 @@ describe('dashboard page, plan model 2', () => {
     expect(api.getDashboardSummary).not.toHaveBeenCalled();
     expect(api.getEnvelopesSummary).not.toHaveBeenCalled();
     expect(api.getAccountsSummary).not.toHaveBeenCalled();
+  });
+
+  it('reads the latest operations from the v2 journal, not from v1', async () => {
+    v2Api.listTransactions.mockResolvedValue({ items: [recentTransaction], nextCursor: null });
+    const wrapper = mount(DashboardPage, { global: { stubs } });
+    await flushPromises();
+
+    expect(v2Api.listTransactions).toHaveBeenCalledWith('budget-id', { limit: 5 });
+    expect(wrapper.text()).toContain('Последние операции');
+    expect(normalize(wrapper.text())).toContain('1 500,00 ₽');
+    expect(wrapper.text()).toContain('Супермаркет');
+  });
+
+  it('keeps the rest of the dashboard usable when recent operations fail to load', async () => {
+    v2Api.listTransactions.mockRejectedValue(new Error('network'));
+    const wrapper = mount(DashboardPage, { global: { stubs } });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Можно потратить');
+    expect(wrapper.text()).toContain('Операций пока нет.');
+    expect(wrapper.text()).not.toContain('Не удалось загрузить сводку');
   });
 
   it('invites to set up the period limit instead of showing zero', async () => {

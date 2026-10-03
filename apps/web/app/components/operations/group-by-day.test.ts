@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { groupByDay } from './group-by-day.js';
-import type { TransactionDto } from '../../composables/useBudgetReferenceData.js';
+import type { TransactionJournalV2Item } from '../../composables/useEnvelopePlanV2.js';
 
-const at = (id: string, occurredOn: string): TransactionDto =>
-  ({ id, occurredOn }) as unknown as TransactionDto;
+const at = (id: string, occurredOn: string): TransactionJournalV2Item =>
+  ({ id, occurredOn }) as unknown as TransactionJournalV2Item;
 
 describe('groupByDay', () => {
   it('names today and yesterday, then plain dates', () => {

@@ -458,4 +458,68 @@ describe('useEnvelopePlanV2', () => {
     expect(JSON.parse(call.init.body as string)).toEqual({ timezone: 'Asia/Tokyo' });
     expect(call.headers.get('Idempotency-Key')).toBe('k-s');
   });
+
+  it('reads the v2 journal with only the API filters and no mutation headers', async () => {
+    const api = useEnvelopePlanV2();
+    await api.listTransactions(budgetId, {
+      limit: 25,
+      cursor: 'abc',
+      type: 'EXPENSE',
+      status: 'DELETED',
+      from: '2026-09-01',
+      to: '2026-09-30',
+      accountId: 'a-1',
+      categoryId: 'c-1',
+      envelopeId: 'e-1',
+    });
+
+    let call = lastCall();
+    const url = new URL(call.url);
+    expect(url.pathname).toBe(`${base}/transactions`);
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      limit: '25',
+      cursor: 'abc',
+      type: 'EXPENSE',
+      status: 'DELETED',
+      from: '2026-09-01',
+      to: '2026-09-30',
+      accountId: 'a-1',
+      categoryId: 'c-1',
+      envelopeId: 'e-1',
+    });
+    expect(call.init.method ?? 'GET').toBe('GET');
+    expect(call.headers.has('Idempotency-Key')).toBe(false);
+
+    await api.listTransactions(budgetId);
+    expect(lastCall().url).toBe(`${apiUrl}${base}/transactions`);
+
+    await api.getTransaction(budgetId, 'tx/1');
+    call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/transactions/tx%2F1`);
+  });
+
+  it('edits, deletes and restores a transaction with CSRF and one Idempotency-Key each', async () => {
+    const api = useEnvelopePlanV2();
+
+    await api.updateTransaction(budgetId, 'tx-1', { amount: '10.50', comment: null }, 'k-u');
+    let call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/transactions/tx-1`);
+    expect(call.init.method).toBe('PATCH');
+    expect(JSON.parse(call.init.body as string)).toEqual({ amount: '10.50', comment: null });
+    expect(call.headers.get('Idempotency-Key')).toBe('k-u');
+    expect(call.headers.get('X-CSRF-Token')).toBe('csrf-1');
+
+    await api.deleteTransaction(budgetId, 'tx-1', 'k-d');
+    call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/transactions/tx-1`);
+    expect(call.init.method).toBe('DELETE');
+    expect(call.init.body).toBeUndefined();
+    expect(call.headers.get('Idempotency-Key')).toBe('k-d');
+
+    await api.restoreTransaction(budgetId, 'tx-1', 'k-r');
+    call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/transactions/tx-1/restore`);
+    expect(call.init.method).toBe('POST');
+    expect(call.headers.get('Idempotency-Key')).toBe('k-r');
+  });
 });

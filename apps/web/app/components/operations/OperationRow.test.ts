@@ -2,34 +2,31 @@ import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 
 import OperationRow from './OperationRow.vue';
-import type { TransactionDto } from '../../composables/useBudgetReferenceData.js';
+import type { TransactionJournalV2Item } from '../../composables/useEnvelopePlanV2.js';
 
-const expense: TransactionDto = {
+const expense: TransactionJournalV2Item = {
   id: 'transaction-id',
   budgetId: 'budget-id',
+  accountingModelVersion: 2,
   transactionType: 'EXPENSE',
   status: 'CONFIRMED',
   amountMinor: '245000',
   currency: 'RUB',
-  scale: 2,
   occurredOn: '2026-09-14',
   accountId: 'account-id',
   categoryId: 'category-id',
   envelopeId: 'envelope-id',
   sourceDescription: null,
   merchantName: 'Супермаркет',
-  isPlanned: false,
   comment: null,
+  planOccurrenceIds: [],
   confirmedAt: '2026-09-14T10:00:00.000Z',
   cancelledAt: null,
   deletedAt: null,
-  accountCurrentBalanceMinor: '1000000',
-  envelopeCurrentBalanceMinor: '500000',
-  unallocatedMinor: '0',
-  allocationProposal: null,
+  createdAt: '2026-09-14T10:00:00.000Z',
 };
 
-const mountRow = (overrides: Partial<TransactionDto> = {}) =>
+const mountRow = (overrides: Partial<TransactionJournalV2Item> = {}) =>
   mount(OperationRow, {
     props: {
       transaction: { ...expense, ...overrides },
@@ -75,17 +72,20 @@ describe('OperationRow', () => {
     );
   });
 
-  it('flags income that still has money to allocate', () => {
-    const wrapper = mountRow({
-      transactionType: 'INCOME',
-      merchantName: null,
-      sourceDescription: 'Зарплата',
-      unallocatedMinor: '120000',
-    });
+  it('marks an operation made before model 2 with text, not only colour', () => {
+    const legacy = mountRow({ accountingModelVersion: 1 });
 
-    expect(normalize(wrapper.get('[data-testid="operation-row-unallocated"]').text())).toContain(
-      '1 200,00 ₽',
-    );
+    expect(legacy.get('[data-testid="operation-row-legacy"]').text()).toBe('До модели 2');
+    expect(mountRow().find('[data-testid="operation-row-legacy"]').exists()).toBe(false);
+  });
+
+  it('marks a payment made against a plan', () => {
+    expect(mountRow({ planOccurrenceIds: ['occurrence-id'] }).text()).toContain('По плану');
+    expect(mountRow().text()).not.toContain('По плану');
+  });
+
+  it('shows no allocation leftovers of the old model', () => {
+    expect(mountRow({ transactionType: 'INCOME' }).text()).not.toContain('Не распределено');
   });
 
   it('selects the operation when the row is pressed', async () => {

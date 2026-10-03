@@ -25,13 +25,13 @@ import UiStatus from '../../components/ui/Status.vue';
 import { useAuth } from '../../composables/useAuth.js';
 import {
   type DashboardV2Response,
+  type TransactionJournalV2Item,
   useEnvelopePlanV2,
 } from '../../composables/useEnvelopePlanV2.js';
 import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import {
   type DashboardSummaryDto,
-  type TransactionDto,
   useBudgetReferenceData,
 } from '../../composables/useBudgetReferenceData.js';
 
@@ -43,7 +43,7 @@ const loading = ref(true);
 const error = ref('');
 const summary = ref<DashboardSummaryDto | null>(null);
 const dashboardV2 = ref<DashboardV2Response | null>(null);
-const recent = ref<TransactionDto[]>([]);
+const recent = ref<TransactionJournalV2Item[]>([]);
 const accountsTotal = ref<string | null>(null);
 const envelopesTotal = ref<string | null>(null);
 const {
@@ -154,8 +154,8 @@ async function safeTotal(read: Promise<{ totalMinor: string }>): Promise<string 
 // Same reasoning as safeTotal: recent operations are a nice-to-have next to
 // the summary cards, not something worth failing the whole page over.
 async function safeTransactions(
-  read: Promise<{ items: TransactionDto[]; nextCursor: string | null }>,
-): Promise<{ items: TransactionDto[]; nextCursor: string | null }> {
+  read: Promise<{ items: TransactionJournalV2Item[]; nextCursor: string | null }>,
+): Promise<{ items: TransactionJournalV2Item[]; nextCursor: string | null }> {
   return read.catch(() => ({ items: [], nextCursor: null }));
 }
 
@@ -171,13 +171,8 @@ async function loadDashboard() {
       // reads only the v2 dashboard (accounts included).
       const [dashboardResult, recentResult] = await Promise.all([
         (planV2 ?? useEnvelopePlanV2()).getDashboard(budget.id),
-        safeTransactions(
-          api.listTransactions(budget.id, {
-            limit: 5,
-            sortBy: 'occurredOn',
-            sortDirection: 'desc',
-          }),
-        ),
+        // The journal is newest first by contract: the first page is "recent".
+        safeTransactions((planV2 ?? useEnvelopePlanV2()).listTransactions(budget.id, { limit: 5 })),
         loadReferenceData().catch(() => undefined),
       ]);
       dashboardV2.value = dashboardResult;
@@ -186,26 +181,14 @@ async function loadDashboard() {
       return;
     }
     dashboardV2.value = null;
-    const [summaryResult, recentResult, accountsTotalResult, envelopesTotalResult] =
-      await Promise.all([
-        api.getDashboardSummary(budget.id),
-        safeTransactions(
-          api.listTransactions(budget.id, {
-            limit: 5,
-            sortBy: 'occurredOn',
-            sortDirection: 'desc',
-          }),
-        ),
-        safeTotal(api.getAccountsSummary(budget.id)),
-        safeTotal(api.getEnvelopesSummary(budget.id)),
-        // The account/category/envelope names behind recent operations are
-        // also a nice-to-have: if they fail to load, RecentOperations still
-        // renders with whatever fallback it has, instead of taking down the
-        // whole dashboard.
-        loadReferenceData().catch(() => undefined),
-      ]);
+    const [summaryResult, accountsTotalResult, envelopesTotalResult] = await Promise.all([
+      api.getDashboardSummary(budget.id),
+      safeTotal(api.getAccountsSummary(budget.id)),
+      safeTotal(api.getEnvelopesSummary(budget.id)),
+      loadReferenceData().catch(() => undefined),
+    ]);
     summary.value = summaryResult;
-    recent.value = recentResult.items;
+    recent.value = [];
     accountsTotal.value = accountsTotalResult;
     envelopesTotal.value = envelopesTotalResult;
   } catch {
@@ -443,13 +426,6 @@ async function loadDashboard() {
             </template>
           </BalanceList>
         </div>
-
-        <RecentOperations
-          :transactions="recent"
-          :categories="categories"
-          :accounts="accounts"
-          :envelopes="envelopes"
-        />
       </div>
     </template>
   </div>

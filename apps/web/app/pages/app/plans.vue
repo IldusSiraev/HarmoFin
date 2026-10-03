@@ -28,6 +28,7 @@ import { useAuth } from '../../composables/useAuth.js';
 import {
   type IncomeOccurrenceItem,
   type ObligationOccurrenceItem,
+  type TransactionJournalV2Item,
   useEnvelopePlanV2,
 } from '../../composables/useEnvelopePlanV2.js';
 import { useFundingEntry } from '../../composables/useFundingEntry.js';
@@ -38,7 +39,6 @@ import {
   type EnvelopeType,
   type PlanOccurrenceDto,
   type RegularPlanDto,
-  type TransactionDto,
   type UpdateRegularPlanInput,
   useBudgetReferenceData,
 } from '../../composables/useBudgetReferenceData.js';
@@ -57,7 +57,7 @@ const today = format(new Date(), 'yyyy-MM-dd');
 const plans = ref<RegularPlanDto[]>([]);
 const rangeOccurrences = ref<PlanOccurrenceDto[]>([]);
 const upcomingOccurrences = ref<PlanOccurrenceDto[]>([]);
-const rangeTransactions = ref<TransactionDto[]>([]);
+const rangeTransactions = ref<TransactionJournalV2Item[]>([]);
 const accounts = ref<Array<{ value: string; label: string }>>([]);
 const categories = ref<CategoryDto[]>([]);
 const envelopes = ref<Array<{ value: string; label: string; envelopeType?: EnvelopeType }>>([]);
@@ -204,7 +204,7 @@ const selectedDayOperations = computed<DayOperationView[]>(() =>
       transactionType: transaction.transactionType,
       amountMinor: transaction.amountMinor,
       currency: transaction.currency,
-      scale: transaction.scale,
+      scale: 2,
     })),
 );
 const selectedDayOccurrences = computed(() =>
@@ -483,16 +483,16 @@ async function loadAllTransactions(
   budgetId: string,
   from: string,
   to: string,
-): Promise<TransactionDto[]> {
-  const items: TransactionDto[] = [];
+): Promise<TransactionJournalV2Item[]> {
+  const items: TransactionJournalV2Item[] = [];
   let cursor: string | undefined;
   for (;;) {
-    const page = await api.listTransactions(budgetId, {
+    const page = await v2.listTransactions(budgetId, {
       from,
       to,
       status: 'CONFIRMED',
       limit: 100,
-      cursor,
+      ...(cursor === undefined ? {} : { cursor }),
     });
     items.push(...page.items);
     if (!page.nextCursor || page.nextCursor === cursor) break;

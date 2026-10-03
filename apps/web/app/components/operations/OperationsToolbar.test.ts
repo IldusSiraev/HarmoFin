@@ -5,19 +5,13 @@ import OperationsToolbar from './OperationsToolbar.vue';
 import type { OperationFilters } from '../../composables/useOperationFilters.js';
 
 const filters: OperationFilters = {
-  search: '',
   type: '',
   status: '',
   from: '',
   to: '',
-  cycleStart: '',
-  periodStart: '',
   accountId: '',
   categoryId: '',
   envelopeId: '',
-  planId: '',
-  sortBy: 'occurredOn',
-  sortDirection: 'desc',
 };
 
 const options = [
@@ -25,7 +19,11 @@ const options = [
   { value: 'second-account-id', label: 'Наличные' },
 ];
 
-const mountToolbar = (overrides: Partial<OperationFilters> = {}, activeCount = 0) =>
+const mountToolbar = (
+  overrides: Partial<OperationFilters> = {},
+  activeCount = 0,
+  canViewDeleted = true,
+) =>
   mount(OperationsToolbar, {
     attachTo: document.body,
     props: {
@@ -34,7 +32,7 @@ const mountToolbar = (overrides: Partial<OperationFilters> = {}, activeCount = 0
       accounts: options,
       categories: [{ value: 'category-id', label: 'Продукты' }],
       envelopes: [{ value: 'envelope-id', label: 'Текущие' }],
-      periods: [{ value: '2026-09-10', label: '10.09 – 24.09' }],
+      canViewDeleted,
     },
   });
 
@@ -47,15 +45,29 @@ afterEach(() => {
 });
 
 describe('OperationsToolbar', () => {
-  it('debounces the search', async () => {
+  it('offers only the controls the v2 journal API understands', () => {
     const wrapper = mountToolbar();
 
-    await wrapper.get('[data-testid="operations-search"] input').setValue('кафе');
-    expect(wrapper.emitted('search')).toBeUndefined();
+    expect(wrapper.find('[data-testid="operations-search"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="chip-periodStart"]').exists()).toBe(false);
+    expect(wrapper.find('[name="sortBy"]').exists()).toBe(false);
+    expect(wrapper.find('[name="cycleStart"]').exists()).toBe(false);
+  });
 
-    vi.advanceTimersByTime(300);
+  it('offers deleted operations to the owner only', async () => {
+    const statusOptions = async (canViewDeleted: boolean) => {
+      const wrapper = mountToolbar({}, 0, canViewDeleted);
+      await wrapper.get('[data-testid="more-filters"]').trigger('click');
+      const values = wrapper
+        .findComponent({ name: 'UiSelect' })
+        .props('options')
+        .map((option: { value: string }) => option.value);
+      wrapper.unmount();
+      return values;
+    };
 
-    expect(wrapper.emitted('search')).toEqual([['кафе']]);
+    expect(await statusOptions(true)).toEqual(['', 'DRAFT', 'CONFIRMED', 'CANCELLED', 'DELETED']);
+    expect(await statusOptions(false)).toEqual(['', 'DRAFT', 'CONFIRMED', 'CANCELLED']);
   });
 
   it('selects a transaction type from the tabs', async () => {
@@ -67,15 +79,13 @@ describe('OperationsToolbar', () => {
   });
 
   it('marks the tab matching the active type filter, defaulting to "Все"', () => {
-    expect(mountToolbar().get('[data-testid="type-tab-all"]').attributes('aria-selected')).toBe(
+    expect(mountToolbar().get('[data-testid="type-tab-all"]').attributes('aria-pressed')).toBe(
       'true',
     );
 
     const wrapper = mountToolbar({ type: 'EXPENSE' });
-    expect(wrapper.get('[data-testid="type-tab-EXPENSE"]').attributes('aria-selected')).toBe(
-      'true',
-    );
-    expect(wrapper.get('[data-testid="type-tab-all"]').attributes('aria-selected')).toBe('false');
+    expect(wrapper.get('[data-testid="type-tab-EXPENSE"]').attributes('aria-pressed')).toBe('true');
+    expect(wrapper.get('[data-testid="type-tab-all"]').attributes('aria-pressed')).toBe('false');
   });
 
   it('shows the chosen account inside its chip', () => {

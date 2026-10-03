@@ -4,14 +4,15 @@ import { navigateTo } from '#imports';
 
 import OperationRow from '../operations/OperationRow.vue';
 import UiMoreLink from '../ui/MoreLink.vue';
-import type { CategoryDto, TransactionDto } from '../../composables/useBudgetReferenceData.js';
+import type { CategoryDto } from '../../composables/useBudgetReferenceData.js';
+import type { TransactionJournalV2Item } from '../../composables/useEnvelopePlanV2.js';
 
 defineOptions({ name: 'RecentOperations' });
 
 type Option = { value: string; label: string };
 
 const props = defineProps<{
-  transactions: ReadonlyArray<TransactionDto>;
+  transactions: ReadonlyArray<TransactionJournalV2Item>;
   categories: ReadonlyArray<CategoryDto>;
   accounts: ReadonlyArray<Option>;
   envelopes: ReadonlyArray<Option>;
@@ -27,19 +28,19 @@ const envelopeNameById = computed(
   () => new Map(props.envelopes.map((envelope) => [envelope.value, envelope.label])),
 );
 
-function categoryName(transaction: TransactionDto): string {
+function categoryName(transaction: TransactionJournalV2Item): string {
   return categoryById.value.get(transaction.categoryId)?.name ?? 'Без категории';
 }
 
-function categoryIcon(transaction: TransactionDto): string | null {
+function categoryIcon(transaction: TransactionJournalV2Item): string | null {
   return categoryById.value.get(transaction.categoryId)?.icon ?? null;
 }
 
-function accountName(transaction: TransactionDto): string {
+function accountName(transaction: TransactionJournalV2Item): string {
   return accountNameById.value.get(transaction.accountId) ?? 'Счёт';
 }
 
-function envelopeName(transaction: TransactionDto): string | null {
+function envelopeName(transaction: TransactionJournalV2Item): string | null {
   return transaction.envelopeId === null
     ? null
     : (envelopeNameById.value.get(transaction.envelopeId) ?? 'Конверт');

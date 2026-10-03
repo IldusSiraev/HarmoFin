@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue';
 
 import { auditActionLabel, auditActorName, formatAuditMoment } from './audit-event.js';
-import IncomeAllocationForm from './IncomeAllocationForm.vue';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiButton from '../ui/Button.vue';
 import UiDrawer from '../ui/Drawer.vue';
@@ -10,36 +9,40 @@ import UiStatus from '../ui/Status.vue';
 import {
   useBudgetReferenceData,
   type AuditEventDto,
-  type IncomeAllocationDto,
-  type TransactionDto,
 } from '../../composables/useBudgetReferenceData.js';
-import { useOperationMutations } from '../../composables/useOperationMutations.js';
+import type { TransactionJournalV2Item } from '../../composables/useEnvelopePlanV2.js';
+import {
+  availableActions,
+  canEditTransaction,
+  isLegacyTransaction,
+} from '../../composables/useOperationMutations.js';
 
 defineOptions({ name: 'OperationDrawer' });
 
-type Option = { value: string; label: string };
-
 const props = defineProps<{
-  transaction: TransactionDto | null;
+  transaction: TransactionJournalV2Item | null;
   budgetId: string;
   accountName: string;
   categoryName: string;
   envelopeName: string | null;
-  accounts: ReadonlyArray<Option>;
-  envelopes: ReadonlyArray<Option>;
+  // The page runs the mutations; while one is in flight the actions stay off.
+  busy: boolean;
 }>();
 
 const emit = defineEmits<{
   close: [];
-  changed: [transaction: TransactionDto];
-  edit: [transaction: TransactionDto];
-  'request-delete': [transaction: TransactionDto];
+  edit: [transaction: TransactionJournalV2Item];
+  'request-delete': [transaction: TransactionJournalV2Item];
+  'request-restore': [transaction: TransactionJournalV2Item];
 }>();
 
+// The audit route is not bound to the accounting model, so it still lives on the
+// shared reference client; everything else here is the v2 journal row.
 const api = useBudgetReferenceData();
-const mutations = useOperationMutations();
 
-const allocations = ref<IncomeAllocationDto[]>([]);
+// The journal money scale is fixed: the API serves RUB in minor units.
+const SCALE = 2;
+
 const auditEvents = ref<AuditEventDto[]>([]);
 const detailsError = ref('');
 
@@ -51,75 +54,28 @@ const statusLabel = computed(() => {
   return 'Подтверждена';
 });
 
-const actions = computed(() =>
-  props.transaction ? mutations.availableActions(props.transaction.status) : [],
+const actions = computed(() => (props.transaction ? availableActions(props.transaction) : []));
+const editable = computed(() =>
+  props.transaction ? canEditTransaction(props.transaction) : false,
 );
-
-const isIncome = computed(() => props.transaction?.transactionType === 'INCOME');
-
-// Rejecting the server's proposal only hides it for this viewing — the rule
-// that a proposal never creates an allocation by itself does not change.
-const proposalRejected = ref(false);
-
-const showAllocationForm = computed(
-  () =>
-    isIncome.value &&
-    !proposalRejected.value &&
-    props.transaction?.status === 'CONFIRMED' &&
-    props.transaction.unallocatedMinor !== '0',
-);
+const legacy = computed(() => (props.transaction ? isLegacyTransaction(props.transaction) : false));
+const planPayment = computed(() => (props.transaction?.planOccurrenceIds.length ?? 0) > 0);
 
 watch(
   () => props.transaction?.id,
   async (id) => {
-    allocations.value = [];
     auditEvents.value = [];
     detailsError.value = '';
-    proposalRejected.value = false;
     if (id === undefined) return;
     try {
-      const [allocationList, auditList] = await Promise.all([
-        api.listTransactionAllocations(props.budgetId, id),
-        api.listTransactionAudit(props.budgetId, id),
-      ]);
-      allocations.value = allocationList;
-      auditEvents.value = auditList;
+      auditEvents.value = await api.listTransactionAudit(props.budgetId, id);
     } catch {
-      detailsError.value = 'Не удалось загрузить детали операции.';
+      if (props.transaction?.id === id)
+        detailsError.value = 'Не удалось загрузить историю изменений.';
     }
   },
   { immediate: true },
 );
-
-async function runAction(action: 'confirm' | 'cancel' | 'restore'): Promise<void> {
-  const current = props.transaction;
-  if (!current) return;
-  const updated =
-    action === 'confirm'
-      ? await mutations.confirm(props.budgetId, current)
-      : action === 'cancel'
-        ? await mutations.cancel(props.budgetId, current)
-        : await mutations.restore(props.budgetId, current);
-  if (updated) emit('changed', updated);
-}
-
-async function saveAllocation(input: {
-  amount: string;
-  occurredOn: string;
-  accountId: string;
-  envelopeId: string;
-}): Promise<void> {
-  const current = props.transaction;
-  if (!current) return;
-  try {
-    await api.createIncomeAllocation(props.budgetId, current.id, input, crypto.randomUUID());
-    const refreshed = await api.getTransaction(props.budgetId, current.id);
-    allocations.value = await api.listTransactionAllocations(props.budgetId, current.id);
-    emit('changed', refreshed);
-  } catch {
-    detailsError.value = 'Не удалось сохранить распределение.';
-  }
-}
 </script>
 
 <template>
@@ -129,10 +85,19 @@ async function saveAllocation(input: {
         <FinanceMoney
           :minor-units="transaction.amountMinor"
           :currency="transaction.currency"
-          :scale="transaction.scale"
+          :scale="SCALE"
         />
       </p>
-      <UiStatus :label="statusLabel" tone="neutral" />
+      <p class="operation-drawer__badges">
+        <UiStatus :label="statusLabel" tone="neutral" />
+        <UiStatus v-if="legacy" label="До модели 2" tone="info" />
+        <UiStatus v-if="planPayment" label="По плану" tone="info" />
+      </p>
+
+      <p v-if="legacy" class="operation-drawer__notice" data-testid="drawer-legacy-notice">
+        Это операция до перехода на модель 2. Её можно только смотреть: сумма, счёт и категория
+        здесь не меняются.
+      </p>
 
       <dl class="operation-drawer__rows">
         <div>
@@ -163,40 +128,9 @@ async function saveAllocation(input: {
           <dt>Комментарий</dt>
           <dd>{{ transaction.comment }}</dd>
         </div>
-        <div v-if="transaction.isPlanned">
-          <dt>План</dt>
-          <dd>Запланирована</dd>
-        </div>
       </dl>
 
       <p v-if="detailsError" class="operation-drawer__error" role="alert">{{ detailsError }}</p>
-
-      <section v-if="isIncome" aria-labelledby="operation-drawer-allocations">
-        <h3 id="operation-drawer-allocations">Распределения дохода</h3>
-        <ul v-if="allocations.length > 0" class="operation-drawer__list">
-          <li v-for="allocation in allocations" :key="allocation.id">
-            <FinanceMoney
-              :minor-units="allocation.amountMinor"
-              :currency="allocation.currency"
-              :scale="allocation.scale"
-            />
-          </li>
-        </ul>
-        <p v-else>Распределений пока нет.</p>
-
-        <IncomeAllocationForm
-          v-if="showAllocationForm"
-          :proposal="transaction.allocationProposal"
-          :remaining-minor="transaction.unallocatedMinor"
-          :currency="transaction.currency"
-          :scale="transaction.scale"
-          :accounts="accounts"
-          :envelopes="envelopes"
-          :pending="mutations.pending.value"
-          @submit="saveAllocation"
-          @reject="proposalRejected = true"
-        />
-      </section>
 
       <section aria-labelledby="operation-drawer-audit">
         <h3 id="operation-drawer-audit">История изменений</h3>
@@ -216,34 +150,19 @@ async function saveAllocation(input: {
 
     <template v-if="transaction" #footer>
       <UiButton
-        v-if="actions.includes('confirm')"
-        data-testid="drawer-confirm"
-        :disabled="mutations.pending.value"
-        @click="runAction('confirm')"
-      >
-        Подтвердить
-      </UiButton>
-      <UiButton
-        v-if="transaction.status !== 'DELETED'"
+        v-if="editable"
         variant="secondary"
         data-testid="drawer-edit"
+        :disabled="busy"
         @click="emit('edit', transaction)"
       >
         Изменить
       </UiButton>
       <UiButton
-        v-if="actions.includes('cancel')"
-        variant="tertiary"
-        data-testid="drawer-cancel"
-        :disabled="mutations.pending.value"
-        @click="runAction('cancel')"
-      >
-        Отменить
-      </UiButton>
-      <UiButton
         v-if="actions.includes('delete')"
         variant="tertiary"
         data-testid="drawer-delete"
+        :disabled="busy"
         @click="emit('request-delete', transaction)"
       >
         Удалить
@@ -252,8 +171,8 @@ async function saveAllocation(input: {
         v-if="actions.includes('restore')"
         variant="secondary"
         data-testid="drawer-restore"
-        :disabled="mutations.pending.value"
-        @click="runAction('restore')"
+        :disabled="busy"
+        @click="emit('request-restore', transaction)"
       >
         Восстановить
       </UiButton>
@@ -295,11 +214,19 @@ async function saveAllocation(input: {
   text-align: right;
 }
 
-.operation-drawer__list {
-  display: grid;
-  gap: var(--hf-space-1);
+.operation-drawer__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hf-space-2);
   margin: 0;
-  padding-left: var(--hf-space-5);
+}
+
+.operation-drawer__notice {
+  margin: 0;
+  padding: var(--hf-space-3);
+  border: 1px solid var(--hf-color-border);
+  border-radius: var(--hf-radius-md);
+  background: var(--hf-color-surface-subtle);
 }
 
 .operation-drawer__history {

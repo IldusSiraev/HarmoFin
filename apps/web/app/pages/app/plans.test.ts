@@ -6,7 +6,6 @@ import { ApiRequestError } from '../../composables/useApiClient.js';
 const api = {
   listRegularPlans: vi.fn(),
   listPlanOccurrences: vi.fn(),
-  listTransactions: vi.fn(),
   listAccounts: vi.fn(),
   listCategories: vi.fn(),
   listEnvelopes: vi.fn(),
@@ -18,6 +17,7 @@ const api = {
   createPlanOccurrenceDraft: vi.fn(),
 };
 const v2 = {
+  listTransactions: vi.fn(),
   listObligationOccurrences: vi.fn(),
   payObligation: vi.fn(),
   skipObligationOccurrence: vi.fn(),
@@ -83,26 +83,23 @@ const occurrence = {
 const transaction = {
   id: 'transaction-id',
   budgetId: 'budget-id',
+  accountingModelVersion: 2 as const,
   transactionType: 'EXPENSE' as const,
   status: 'CONFIRMED' as const,
   amountMinor: '85000',
-  currency: 'RUB' as const,
-  scale: 2 as const,
+  currency: 'RUB',
   occurredOn: '2026-09-13',
   accountId: 'account-id',
   categoryId: 'category-id',
   envelopeId: 'envelope-id',
   sourceDescription: null,
   merchantName: null,
-  isPlanned: false,
   comment: null,
+  planOccurrenceIds: [],
   confirmedAt: '2026-09-13T00:00:00.000Z',
   cancelledAt: null,
   deletedAt: null,
-  accountCurrentBalanceMinor: '0',
-  envelopeCurrentBalanceMinor: '0',
-  unallocatedMinor: '0',
-  allocationProposal: null,
+  createdAt: '2026-09-13T00:00:00.000Z',
 };
 
 describe('plans page', () => {
@@ -122,7 +119,7 @@ describe('plans page', () => {
     route.query = {};
     api.listRegularPlans.mockResolvedValue([]);
     api.listPlanOccurrences.mockResolvedValue([occurrence]);
-    api.listTransactions.mockResolvedValue({ items: [transaction], nextCursor: null });
+    v2.listTransactions.mockResolvedValue({ items: [transaction], nextCursor: null });
     api.listAccounts.mockResolvedValue([{ id: 'account-id', name: 'Счёт планов' }]);
     api.listCategories.mockResolvedValue([
       { id: 'category-id', name: 'Расходы планов', categoryType: 'EXPENSE', icon: null },
@@ -149,7 +146,7 @@ describe('plans page', () => {
 
     expect(wrapper.get('[data-hydrated]').attributes('data-hydrated')).toBe('true');
     expect(api.listPlanOccurrences).toHaveBeenCalled();
-    expect(api.listTransactions).toHaveBeenCalled();
+    expect(v2.listTransactions).toHaveBeenCalled();
   });
 
   it('selects a day and opens the create-draft flow for its occurrence', async () => {
@@ -252,7 +249,7 @@ describe('plans page', () => {
     api.listCategories.mockClear();
     api.listEnvelopes.mockClear();
     api.listPlanOccurrences.mockClear();
-    api.listTransactions.mockClear();
+    v2.listTransactions.mockClear();
 
     // The old `load()` flipped the page-wide `loading` flag synchronously, which
     // unmounted the whole calendar/day-panel/list block (and dropped keyboard
@@ -266,7 +263,7 @@ describe('plans page', () => {
 
     expect(wrapper.find('.plans-page__main').exists()).toBe(true);
     expect(api.listPlanOccurrences).toHaveBeenCalled();
-    expect(api.listTransactions).toHaveBeenCalled();
+    expect(v2.listTransactions).toHaveBeenCalled();
     expect(api.listRegularPlans).not.toHaveBeenCalled();
     expect(api.listAccounts).not.toHaveBeenCalled();
     expect(api.listCategories).not.toHaveBeenCalled();
@@ -369,7 +366,7 @@ describe('plans page: v2 obligations', () => {
     budgetRow.planModelVersion = 2;
     api.listRegularPlans.mockResolvedValue([]);
     api.listPlanOccurrences.mockResolvedValue([]);
-    api.listTransactions.mockResolvedValue({ items: [], nextCursor: null });
+    v2.listTransactions.mockResolvedValue({ items: [], nextCursor: null });
     api.listEnvelopes.mockResolvedValue([]);
     v2.listObligationOccurrences.mockResolvedValue({ items: [daycare, rent] });
     v2.payObligation.mockResolvedValue({ transaction: null, occurrence: daycare, warnings: [] });
