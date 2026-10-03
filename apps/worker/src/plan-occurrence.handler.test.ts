@@ -5,7 +5,7 @@ import { PlanOccurrenceHandler } from './plan-occurrence.handler.js';
 type Row = { scheduledOn: Date; status?: string; planId: string };
 
 function setup(options: {
-  budget: { planModelVersion: number; planModelActivatedOn: Date | null };
+  budget: { planModelActivatedOn: Date | null };
   plans: Array<Record<string, unknown>>;
   existing?: Row[];
 }) {
@@ -77,33 +77,25 @@ describe('PlanOccurrenceHandler', () => {
     await handler.execute(new Date('2026-02-28T12:00:00.000Z'));
 
     expect(prisma.budget.findMany).toHaveBeenCalledWith({
-      where: { status: 'ACTIVE', workspace: { status: 'ACTIVE' } },
+      where: {
+        status: 'ACTIVE',
+        planModelVersion: 2,
+        planModelActivatedOn: { not: null },
+        workspace: { status: 'ACTIVE' },
+      },
       select: {
         id: true,
         workspaceId: true,
         timezone: true,
-        planModelVersion: true,
         planModelActivatedOn: true,
       },
     });
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('keeps the v1 window today-7..today+60 for model 1 budgets', async () => {
-    const { handler, tx, created } = setup({
-      budget: { planModelVersion: 1, planModelActivatedOn: null },
-      plans: [plan({ anchorOn: d('2026-05-15'), startOn: d('2026-05-01') })],
-    });
-
-    await handler.execute(new Date('2026-10-01T12:00:00.000Z'));
-
-    expect(created.map((row) => iso(row.scheduledOn))).toEqual(['2026-10-15', '2026-11-15']);
-    expect(tx.regularPlan.findMany.mock.calls[0]?.[0].where.planType).toBeUndefined();
-  });
-
   it('after long downtime creates missing past-due v2 occurrences from activation, none before cutover', async () => {
     const { handler, tx, created } = setup({
-      budget: { planModelVersion: 2, planModelActivatedOn: d('2026-08-01') },
+      budget: { planModelActivatedOn: d('2026-08-01') },
       plans: [plan()],
     });
 
@@ -133,7 +125,7 @@ describe('PlanOccurrenceHandler', () => {
 
   it('does not duplicate or overwrite occurrences that already exist', async () => {
     const { handler, tx, created } = setup({
-      budget: { planModelVersion: 2, planModelActivatedOn: d('2026-08-01') },
+      budget: { planModelActivatedOn: d('2026-08-01') },
       plans: [plan()],
       existing: [
         { planId: 'p1', scheduledOn: d('2026-08-15'), status: 'COMPLETED' },

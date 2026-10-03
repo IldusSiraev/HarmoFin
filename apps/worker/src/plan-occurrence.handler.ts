@@ -11,6 +11,9 @@ export class PlanOccurrenceHandler {
     const budgets = await this.prisma.budget.findMany({
       where: {
         status: 'ACTIVE',
+        // Only plan model 2 budgets with a recorded activation date are processed; others are skipped.
+        planModelVersion: 2,
+        planModelActivatedOn: { not: null },
         workspace: { status: 'ACTIVE' },
         ...(budgetId ? { id: budgetId } : {}),
       },
@@ -18,7 +21,6 @@ export class PlanOccurrenceHandler {
         id: true,
         workspaceId: true,
         timezone: true,
-        planModelVersion: true,
         planModelActivatedOn: true,
       },
     });
@@ -26,17 +28,14 @@ export class PlanOccurrenceHandler {
       const today = localDate(now, budget.timezone);
       await this.prisma.$transaction(async (tx) => {
         await transitionDueOccurrences(tx, budget.workspaceId, budget.id, today);
-        if (budget.planModelVersion === 2 && budget.planModelActivatedOn) {
-          await materializeV2Occurrences(
-            tx,
-            budget.workspaceId,
-            budget.id,
-            today,
-            isoDate(budget.planModelActivatedOn),
-          );
-        } else {
-          await materializeOccurrences(tx, budget.workspaceId, budget.id, today);
-        }
+        if (!budget.planModelActivatedOn) return;
+        await materializeV2Occurrences(
+          tx,
+          budget.workspaceId,
+          budget.id,
+          today,
+          isoDate(budget.planModelActivatedOn),
+        );
       });
     }
   }
@@ -207,102 +206,6 @@ const planSelect = {
   envelopeId: true,
   comment: true,
 } as const;
-
-async function materializeOccurrences(
-  tx: Prisma.TransactionClient,
-  workspaceId: string,
-  budgetId: string,
-  today: string,
-): Promise<void> {
-  const from = addDays(today, -7);
-  const to = addDays(today, 60);
-  const plans = await tx.regularPlan.findMany({
-    where: {
-      budgetId,
-      isActive: true,
-      deletedAt: null,
-      startOn: { lte: dateValue(to) },
-      OR: [{ endOn: null }, { endOn: { gte: dateValue(from) } }],
-    },
-    select: {
-      id: true,
-      name: true,
-      planType: true,
-      amountMinor: true,
-      currency: true,
-      scale: true,
-      anchorOn: true,
-      startOn: true,
-      endOn: true,
-      recurrence: true,
-      intervalMonths: true,
-      accountId: true,
-      categoryId: true,
-      envelopeId: true,
-      comment: true,
-    },
-  });
-
-  for (const plan of plans) {
-    for (const scheduledOn of datesForPlanInWindow(
-      {
-        anchorOn: isoDate(plan.anchorOn),
-        startOn: isoDate(plan.startOn),
-        endOn: plan.endOn ? isoDate(plan.endOn) : null,
-        recurrence: plan.recurrence,
-        intervalMonths: plan.intervalMonths,
-      },
-      { from, to },
-    )) {
-      const occurrenceId = randomUUID();
-      const date = dateValue(scheduledOn);
-      const result = await tx.planOccurrence.createMany({
-        data: {
-          id: occurrenceId,
-          workspaceId,
-          budgetId,
-          planId: plan.id,
-          scheduledOn: date,
-          planName: plan.name,
-          planType: plan.planType,
-          amountMinor: plan.amountMinor,
-          currency: plan.currency,
-          scale: plan.scale,
-          accountId: plan.accountId,
-          categoryId: plan.categoryId,
-          envelopeId: plan.envelopeId,
-          comment: plan.comment,
-        },
-        skipDuplicates: true,
-      });
-      if (result.count === 0) continue;
-      await tx.auditEvent.create({
-        data: {
-          id: randomUUID(),
-          actorUserId: null,
-          workspaceId,
-          budgetId,
-          entityType: 'plan_occurrence',
-          entityId: occurrenceId,
-          action: 'CREATED',
-          source: 'WORKER',
-          newValues: occurrenceAuditValues(
-            {
-              planId: plan.id,
-              scheduledOn: date,
-              planType: plan.planType,
-              amountMinor: plan.amountMinor,
-              status: 'PENDING',
-              transactionId: null,
-              cancellationReason: null,
-            },
-            'PENDING',
-          ),
-        },
-      });
-    }
-  }
-}
 
 const occurrenceAuditSelect = {
   id: true,

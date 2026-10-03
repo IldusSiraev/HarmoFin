@@ -127,30 +127,18 @@ describe('v2 notifications', () => {
     expect(JSON.stringify(v2Notifications)).not.toMatch(/\b100\b|1\.00/);
   });
 
-  it('keeps the v1 rule set for a model 1 budget and isolates budgets', async () => {
+  it('skips a model 1 budget without notifications and isolates budgets', async () => {
     const handler = new NotificationRuleHandler(prisma);
     await handler.execute(now, v1.budgetId);
     await handler.execute(now, v2.budgetId);
 
-    const types = new Set((await notifications(v1)).map((item) => item.notificationType));
-    expect(types).toEqual(
-      new Set([
-        'PLAN_UPCOMING',
-        'PLAN_TODAY',
-        'PLAN_OVERDUE',
-        'UNALLOCATED_INCOME',
-        'NEGATIVE_ACCOUNT',
-        'NEGATIVE_ENVELOPE',
-        'INSUFFICIENT_MANDATORY_OBLIGATIONS',
-      ]),
-    );
+    expect(await notifications(v1)).toEqual([]);
     const v2Notifications = await notifications(v2);
     expect(
       v2Notifications.every((item) =>
         ['PLAN_TODAY', 'PLAN_OVERDUE'].includes(item.notificationType),
       ),
     ).toBe(true);
-    expect((await notifications(v1)).every((item) => item.occurrenceId !== v2.todayId)).toBe(true);
   });
 
   it('keeps a partially paid occurrence and resolves after full payment', async () => {
@@ -184,6 +172,19 @@ describe('v2 notifications', () => {
   });
 
   it('resolves legacy v1-only notifications after a budget moves to model 2', async () => {
+    await prisma.notification.createMany({
+      data: legacyTypes.map((type) => ({
+        id: randomUUID(),
+        workspaceId: v1.workspaceId,
+        budgetId: v1.budgetId,
+        userId: v1.userId,
+        notificationType: type as 'UNALLOCATED_INCOME',
+        title: 'Старое уведомление',
+        body: 'Создано до перехода на модель 2.',
+        actionPath: '/app/plans',
+        notificationKey: `legacy:${type}:${randomUUID()}`,
+      })),
+    });
     await prisma.budget.update({
       where: { id: v1.budgetId },
       data: { planModelVersion: 2, planModelActivatedOn: day('2026-08-01') },

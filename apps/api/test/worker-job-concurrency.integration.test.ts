@@ -17,6 +17,7 @@ const userId = randomUUID();
 const workspaceId = randomUUID();
 const budgetId = randomUUID();
 const categoryId = randomUUID();
+const envelopeId = randomUUID();
 const planId = randomUUID();
 const jobId = randomUUID();
 const jobKey = `worker-concurrency:${randomUUID()}`;
@@ -45,15 +46,26 @@ describe('worker job concurrency', () => {
         workspaceId,
         name: 'Бюджет concurrency',
         timezone: 'Europe/Moscow',
-        planModelVersion: 1,
+        planModelVersion: 2,
+        planModelActivatedOn: new Date('2026-09-01T00:00:00.000Z'),
       },
     });
     await prisma.category.create({
       data: {
         id: categoryId,
         budgetId,
-        name: 'Доход concurrency',
-        categoryType: 'INCOME',
+        name: 'Расход concurrency',
+        categoryType: 'EXPENSE',
+        displayOrder: 0,
+      },
+    });
+    await prisma.envelope.create({
+      data: {
+        id: envelopeId,
+        budgetId,
+        name: 'Обязательные concurrency',
+        envelopeType: 'MANDATORY_EXPENSES',
+        startingBalanceMinor: 0n,
         displayOrder: 0,
       },
     });
@@ -63,12 +75,13 @@ describe('worker job concurrency', () => {
         workspaceId,
         budgetId,
         name: 'Одно возникновение',
-        planType: 'INCOME',
+        planType: 'EXPENSE',
         amountMinor: 10_000n,
         anchorOn: new Date('2026-09-10T00:00:00.000Z'),
         startOn: new Date('2026-09-10T00:00:00.000Z'),
         recurrence: 'ONE_TIME',
         categoryId,
+        envelopeId,
         createdByUserId: userId,
         updatedByUserId: userId,
       },
@@ -91,6 +104,7 @@ describe('worker job concurrency', () => {
     await prisma.regularPlan.deleteMany({ where: { budgetId } });
     await prisma.workerJob.deleteMany({ where: { id: jobId } });
     await prisma.category.deleteMany({ where: { budgetId } });
+    await prisma.envelope.deleteMany({ where: { budgetId } });
     await prisma.budget.deleteMany({ where: { id: budgetId } });
     await prisma.workspace.deleteMany({ where: { id: workspaceId } });
     await prisma.user.deleteMany({ where: { id: userId } });

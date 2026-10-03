@@ -6,16 +6,14 @@ const budgetSelect = {
   id: true,
   workspaceId: true,
   timezone: true,
-  planModelVersion: true,
   workspace: { select: { ownerId: true } },
 };
 
-function budget(planModelVersion: number) {
+function budget() {
   return {
     id: 'budget-1',
     workspaceId: 'workspace-1',
     timezone: 'UTC',
-    planModelVersion,
     workspace: { ownerId: 'owner-1' },
   };
 }
@@ -72,24 +70,16 @@ describe('NotificationRuleHandler', () => {
     await handler.execute(now);
 
     expect(prisma.budget.findMany).toHaveBeenCalledWith({
-      where: { status: 'ACTIVE', workspace: { status: 'ACTIVE' } },
+      where: { status: 'ACTIVE', planModelVersion: 2, workspace: { status: 'ACTIVE' } },
       select: budgetSelect,
     });
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('keeps the v1 rule set for plan model 1 budgets', async () => {
-    const tx = makeTx();
-    await new NotificationRuleHandler(makePrisma([budget(1)], tx) as never).execute(now);
-
-    expect(tx.$queryRaw).toHaveBeenCalled();
-    expect(tx.planOccurrence.aggregate).not.toHaveBeenCalled();
-  });
-
-  it('never runs balance SQL or old state rules for plan model 2 budgets', async () => {
+  it('never runs balance SQL or old state rules', async () => {
     const tx = makeTx();
     tx.planOccurrence.findMany.mockResolvedValue([occurrence('occ-today', '2026-09-10', 100n)]);
-    await new NotificationRuleHandler(makePrisma([budget(2)], tx) as never).execute(now);
+    await new NotificationRuleHandler(makePrisma([budget()], tx) as never).execute(now);
 
     expect(tx.$queryRaw).not.toHaveBeenCalled();
     expect(tx.account.findMany).not.toHaveBeenCalled();
@@ -99,6 +89,27 @@ describe('NotificationRuleHandler', () => {
       ([args]) => (args as { data: { notificationType: string } }).data.notificationType,
     );
     expect(created).toEqual(['PLAN_TODAY']);
+    expect(created).not.toContain('INSUFFICIENT_MANDATORY_OBLIGATIONS');
+  });
+
+  it('creates exactly one overdue notification per occurrence and relies on the key for reruns', async () => {
+    const tx = makeTx();
+    tx.planOccurrence.findMany.mockResolvedValue([occurrence('occ-late', '2026-09-09', 100n)]);
+    const handler = new NotificationRuleHandler(makePrisma([budget()], tx) as never);
+    await handler.execute(now);
+    tx.notification.createMany.mockResolvedValue({ count: 0 });
+    await handler.execute(now);
+
+    const calls = tx.notification.createMany.mock.calls.map(
+      ([args]) => args as { data: { notificationKey: string }; skipDuplicates: boolean },
+    );
+    expect(calls).toHaveLength(2);
+    expect(new Set(calls.map((call) => call.data.notificationKey))).toEqual(
+      new Set(['occurrence:occ-late:PLAN_OVERDUE']),
+    );
+    expect(calls.every((call) => call.skipDuplicates)).toBe(true);
+    // the audit event is written only for the insert that actually created a row
+    expect(tx.auditEvent.create).toHaveBeenCalledTimes(1);
   });
 
   it('creates due and overdue notifications once per occurrence with a stable key', async () => {
@@ -107,7 +118,7 @@ describe('NotificationRuleHandler', () => {
       occurrence('occ-today', '2026-09-10', 100n),
       occurrence('occ-late', '2026-09-09', 100n),
     ]);
-    await new NotificationRuleHandler(makePrisma([budget(2)], tx) as never).execute(now);
+    await new NotificationRuleHandler(makePrisma([budget()], tx) as never).execute(now);
 
     expect(tx.planOccurrence.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -137,7 +148,7 @@ describe('NotificationRuleHandler', () => {
       occurrence('occ-paid', '2026-09-09', 100n, [60n, 40n]),
       occurrence('occ-partial', '2026-09-09', 100n, [60n]),
     ]);
-    await new NotificationRuleHandler(makePrisma([budget(2)], tx) as never).execute(now);
+    await new NotificationRuleHandler(makePrisma([budget()], tx) as never).execute(now);
 
     const keys = tx.notification.createMany.mock.calls.map(
       ([args]) => (args as { data: { notificationKey: string } }).data.notificationKey,
@@ -153,7 +164,7 @@ describe('NotificationRuleHandler', () => {
       { id: 'n-stale', notificationType: 'PLAN_TODAY', occurrenceId: 'occ-late', actionPath: 'x' },
       { id: 'n-keep', notificationType: 'PLAN_OVERDUE', occurrenceId: 'occ-late', actionPath: 'x' },
     ]);
-    await new NotificationRuleHandler(makePrisma([budget(2)], tx) as never).execute(now);
+    await new NotificationRuleHandler(makePrisma([budget()], tx) as never).execute(now);
 
     const resolvedIds = tx.notification.updateMany.mock.calls.map(
       ([args]) => (args as { where: { id: string } }).where.id,
