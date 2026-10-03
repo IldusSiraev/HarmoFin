@@ -976,18 +976,7 @@ describe('v2 envelopes: HTTP-контракт', () => {
     expect(missing.statusCode).toBe(404);
   });
 
-  it('v1 GET не изменился; OpenAPI содержит v2-пути', async () => {
-    await createEnvelope(ctx.viewer!.budgetId, 'CUSTOM', 'V1 legacy');
-    const v1 = await server.inject({
-      method: 'GET',
-      url: `/api/v1/budgets/${ctx.viewer!.budgetId}/envelopes`,
-      headers: authHeaders(ctx.viewer),
-    });
-    expect(v1.statusCode).toBe(200);
-    const v1Body = v1.json<Array<Record<string, unknown>>>();
-    expect(v1Body.length).toBeGreaterThan(0);
-    expect('startingBalanceMinor' in v1Body[0]!).toBe(true);
-
+  it('OpenAPI содержит v2-пути', async () => {
     const openApi = await server.inject({ method: 'GET', url: '/openapi.json' });
     expect(openApi.statusCode).toBe(200);
     const document = openApi.json<{ paths: Record<string, unknown> }>();

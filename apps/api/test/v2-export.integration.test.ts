@@ -355,11 +355,6 @@ describe('экспорт CSV модели 2 (P04)', () => {
       'assignments.csv': 'назначения и движения модели 2',
       'legacy-assignments.csv': 'исторические назначения модели 1',
     };
-    const v1 = document.paths['/api/v1/budgets/{budgetId}/exports/transactions.csv']!.get!;
-    expect(v1.responses['200']).toEqual({
-      description: 'CSV-файл операций в кодировке UTF-8.',
-      content: { 'text/csv': { schema: { type: 'string', format: 'binary' } } },
-    });
     for (const file of ['transactions.csv', 'assignments.csv', 'legacy-assignments.csv']) {
       const path = document.paths[`/api/v2/budgets/{budgetId}/exports/${file}`]!;
       expect(path.get).toBeDefined();

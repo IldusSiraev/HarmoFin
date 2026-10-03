@@ -1,6 +1,6 @@
 import type { CategoryType, EnvelopeType, FundingRuleType, PeriodSlot } from '@prisma/client';
 
-import { DEFAULT_CATEGORIES } from '../budgets/budget.repository.js';
+import { DEFAULT_CATEGORIES } from './default-categories.js';
 
 export type TemplateRole = 'FIRST' | 'SECOND' | 'MANDATORY' | 'SAVINGS';
 export type TemplateStatus = 'EXISTING' | 'MISSING' | 'ARCHIVED' | 'COLLISION';

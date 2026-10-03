@@ -285,6 +285,28 @@ describe('v2: исторические чтения эпохи v1 (C01)', () => 
     );
     expect(foreign.statusCode).toBe(404);
   });
+
+  it('audit v1: EDITOR получает 403, посторонний не участник получает 404', async () => {
+    const w = await world();
+    const outsider = await world();
+    const url = `/api/v1/budgets/${w.budgetId}/transactions/${w.oldExpenseId}/audit`;
+    await prisma.workspaceMembership.updateMany({
+      where: { userId: w.userId, workspaceId: w.workspaceId },
+      data: { role: 'EDITOR' },
+    });
+    try {
+      const editor = await getAs(w.cookie, url);
+      expect(editor.statusCode, editor.body).toBe(403);
+      expect(editor.json()).toMatchObject({ code: 'FORBIDDEN' });
+    } finally {
+      await prisma.workspaceMembership.updateMany({
+        where: { userId: w.userId, workspaceId: w.workspaceId },
+        data: { role: 'OWNER' },
+      });
+    }
+    const foreign = await getAs(outsider.cookie, url);
+    expect(foreign.statusCode, foreign.body).toBe(404);
+  });
 });
 
 async function world(): Promise<World> {

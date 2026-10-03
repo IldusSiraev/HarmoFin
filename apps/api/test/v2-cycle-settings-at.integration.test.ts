@@ -7,15 +7,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
-import { DashboardApplicationService } from '../src/dashboard/dashboard.application.service.js';
-import { DashboardRepository } from '../src/dashboard/dashboard.repository.js';
-import { PrismaService } from '../src/database/prisma.service.js';
 import {
   addIsoDays,
   cycleAndPeriodFor,
   todayInTimezone,
   type CycleSettings,
 } from '../src/cycles/cycle-period.domain.js';
+import { cycleAndPeriodAt } from '../src/cycles/cycle-settings-at.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -42,6 +40,15 @@ let app: NestFastifyApplication;
 let server: FastifyInstance;
 const ctx: Partial<Record<Name, RegisteredUser>> = {};
 const user = (name: Name) => ctx[name]!;
+
+/** Cycle and period at a date under the settings in force then (the removed v1 cycles route used the same domain call). */
+async function cycleAt(name: Name, date: string) {
+  const budget = await prisma.budget.findUniqueOrThrow({
+    where: { id: user(name).budgetId },
+    select: { cycleStartDay: true, periodBoundaryOffset: true, timezone: true },
+  });
+  return prisma.$transaction((tx) => cycleAndPeriodAt(tx, user(name).budgetId, date, budget));
+}
 
 const OLD: CycleSettings = { cycleStartDay: 1, periodBoundaryOffset: 14, timezone: 'UTC' };
 const today = todayInTimezone(new Date(), 'UTC');
@@ -276,23 +283,12 @@ describe('v2: границы периода по версионной настр
     expect(periods[1]).toEqual({ start: newFirst.start, end: newFirst.end });
   });
 
-  it('GET cycles?date: старый период усечён до effectiveOn-1, с effectiveOn новые границы', async () => {
+  it('cycle at date: старый период усечён до effectiveOn-1, с effectiveOn новые границы', async () => {
     const effectiveOn = state.spendEffectiveOn!;
     const before = addIsoDays(effectiveOn, -1);
     const oldFull = cycleAndPeriodFor(OLD, before);
     const newFull = cycleAndPeriodFor(SPEND_NEW, effectiveOn);
-    const at = async (date: string) =>
-      (
-        await server.inject({
-          method: 'GET',
-          url: `/api/v1/budgets/${user('bound').budgetId}/cycles?date=${date}`,
-          headers: headers('bound'),
-        })
-      ).json<{
-        cycle: { start: string; end: string };
-        period: { start: string; end: string };
-        daysUntilNextBoundary: number;
-      }>();
+    const at = (date: string) => cycleAt('bound', date);
     const crossing = await at(addIsoDays(effectiveOn, -5));
     expect(crossing.period).toMatchObject({ start: oldFull.period.start, end: before });
     expect(crossing.cycle).toEqual({ start: oldFull.cycle.start, end: before });
@@ -305,38 +301,11 @@ describe('v2: границы периода по версионной настр
     expect(first.cycle).toEqual(newFull.cycle);
   });
 
-  it('dashboard asOf: период по настройке на дату и усечение на ревизии', async () => {
-    const effectiveOn = state.spendEffectiveOn!;
-    const before = addIsoDays(effectiveOn, -1);
-    const service = new DashboardApplicationService(
-      new DashboardRepository(app.get(PrismaService)),
-    );
-    const bound = user('bound');
-    const old = await service.summary(bound.userId, bound.budgetId, before);
-    expect(old.period.end).toBe(before);
-    expect(old.cycle.end).toBe(before);
-    const fresh = await service.summary(bound.userId, bound.budgetId, effectiveOn);
-    const expected = cycleAndPeriodFor(SPEND_NEW, effectiveOn);
-    expect(fresh.period).toMatchObject({ start: expected.period.start, end: expected.period.end });
-    expect(fresh.cycle).toEqual(expected.cycle);
-  });
-
   it('без ревизий (v1 и v2): границы берутся из полей Budget, ничего не усечено', async () => {
     const date = addIsoDays(today, -5);
     const expected = cycleAndPeriodFor(RAW, date);
-    const service = new DashboardApplicationService(
-      new DashboardRepository(app.get(PrismaService)),
-    );
     for (const name of ['legacy', 'plain'] as const) {
-      const response = await server.inject({
-        method: 'GET',
-        url: `/api/v1/budgets/${user(name).budgetId}/cycles?date=${date}`,
-        headers: headers(name),
-      });
-      expect(response.json(), name).toEqual(expected);
-      const summary = await service.summary(user(name).userId, user(name).budgetId, date);
-      expect(summary.period, name).toEqual(expected.period);
-      expect(summary.cycle, name).toEqual(expected.cycle);
+      expect(await cycleAt(name, date), name).toEqual(expected);
     }
     const period = expected.period;
     const envelopeId = await createSlotEnvelope(user('plain').budgetId, period.id);

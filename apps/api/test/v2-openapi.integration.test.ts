@@ -112,23 +112,42 @@ const PREVIEW_ONLY = new Set([
 ]);
 
 const PROBLEM_REF = '#/components/schemas/ProblemDetailsResponse';
-const V1_ENVELOPE_KEYS = [
-  'archivedAt',
-  'budgetId',
-  'comment',
-  'currency',
-  'currentBalanceMinor',
-  'displayOrder',
-  'envelopeType',
-  'id',
-  'monthlyPlannedAmountMinor',
-  'name',
-  'periodSlot',
-  'scale',
-  'startingBalanceMinor',
-  'targetAmountMinor',
-  'targetDate',
-  'templateKey',
+const REMOVED_V1_PATHS: Array<[Method, string]> = [
+  ['get', '/api/v1/budgets/{budgetId}/envelope-reallocations'],
+  ['post', '/api/v1/budgets/{budgetId}/envelope-reallocations'],
+  ['get', '/api/v1/budgets/{budgetId}/envelope-reallocations/{reallocationId}'],
+  ['delete', '/api/v1/budgets/{budgetId}/envelope-reallocations/{reallocationId}'],
+  ['get', '/api/v1/budgets/{budgetId}/transactions/{transactionId}/allocations'],
+  ['post', '/api/v1/budgets/{budgetId}/transactions/{transactionId}/allocations'],
+  ['get', '/api/v1/budgets/{budgetId}/transfers'],
+  ['post', '/api/v1/budgets/{budgetId}/transfers'],
+  ['get', '/api/v1/budgets/{budgetId}/transactions'],
+  ['post', '/api/v1/budgets/{budgetId}/transactions'],
+  ['get', '/api/v1/budgets/{budgetId}/transactions/{transactionId}'],
+  ['get', '/api/v1/budgets/{budgetId}/plans'],
+  ['post', '/api/v1/budgets/{budgetId}/plans'],
+  ['get', '/api/v1/budgets/{budgetId}/envelopes'],
+  ['post', '/api/v1/budgets/{budgetId}/envelopes'],
+  ['get', '/api/v1/budgets/{budgetId}/envelopes/balance-summary'],
+  ['post', '/api/v1/budgets/{budgetId}/reference-template'],
+  ['patch', '/api/v1/budgets/{budgetId}'],
+  ['get', '/api/v1/budgets/{budgetId}/summary'],
+  ['get', '/api/v1/budgets/{budgetId}/reports/{reportKey}'],
+  ['get', '/api/v1/budgets/{budgetId}/exports/transactions.csv'],
+  ['get', '/api/v1/budgets/{budgetId}/cycles/current'],
+];
+const REMOVED_V1_PREFIXES = [
+  '/api/v1/budgets/{budgetId}/envelope-reallocations',
+  '/api/v1/budgets/{budgetId}/income-allocations',
+  '/api/v1/budgets/{budgetId}/allocations',
+  '/api/v1/budgets/{budgetId}/transfers',
+  '/api/v1/budgets/{budgetId}/plans',
+  '/api/v1/budgets/{budgetId}/envelopes',
+  '/api/v1/budgets/{budgetId}/reference-template',
+  '/api/v1/budgets/{budgetId}/summary',
+  '/api/v1/budgets/{budgetId}/reports',
+  '/api/v1/budgets/{budgetId}/exports',
+  '/api/v1/budgets/{budgetId}/cycles',
 ];
 
 let app: NestFastifyApplication;
@@ -147,12 +166,10 @@ type World = {
 };
 let a: World;
 let b: World;
-let v1World: World;
 let bEnvelopeId: string;
 let bPlanId: string;
 let bAssignmentId: string;
 let bOccurrenceId: string;
-let v1EnvelopeId: string;
 
 function collect(prefix: string): Op[] {
   const out: Op[] = [];
@@ -225,7 +242,6 @@ beforeAll(async () => {
 
   a = await v2World();
   b = await v2World();
-  v1World = await register(`v2-openapi-v1-${randomUUID()}@harmofin.test`);
   await createEnvelope(a.budgetId, 'A envelope');
   bEnvelopeId = await createEnvelope(b.budgetId, 'B envelope', 1_000_000n);
   bAssignmentId = randomUUID();
@@ -273,7 +289,6 @@ beforeAll(async () => {
       status: 'DUE',
     },
   });
-  v1EnvelopeId = await createEnvelope(v1World.budgetId, 'V1 envelope');
 });
 
 afterAll(async () => {
@@ -283,12 +298,63 @@ afterAll(async () => {
 });
 
 describe('v2 OpenAPI contract (P06)', () => {
-  it('публикует v1 и v2 одновременно, пути плана существуют', () => {
+  it('публикует v2 и стабильные v1 пути, удалённых v1 путей записи и чтения нет', () => {
     expect(document.paths['/api/v2/budgets/{budgetId}/dashboard']?.get).toBeDefined();
-    expect(document.paths['/api/v1/budgets/{budgetId}/reference-template']?.post).toBeDefined();
-    expect(document.paths['/api/v1/budgets/{budgetId}/envelopes']?.get).toBeDefined();
+    expect(
+      document.paths['/api/v1/budgets/{budgetId}/transactions/{transactionId}/audit']?.get,
+    ).toBeDefined();
+    expect(document.paths['/api/v1/budgets/{budgetId}']?.get).toBeDefined();
+    expect(document.paths['/api/v1/workspaces/{workspaceId}/budgets']?.post).toBeDefined();
     expect(v1Ops.length).toBeGreaterThan(20);
     expect(v2Ops.length).toBeGreaterThan(40);
+    for (const [method, path] of REMOVED_V1_PATHS) {
+      expect(document.paths[path]?.[method], `${method} ${path}`).toBeUndefined();
+    }
+    const leftovers = Object.keys(document.paths).filter((path) =>
+      REMOVED_V1_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`)),
+    );
+    expect(leftovers).toEqual([]);
+    const tx = Object.keys(document.paths).filter((path) =>
+      path.startsWith('/api/v1/budgets/{budgetId}/transactions'),
+    );
+    expect(tx).toEqual(['/api/v1/budgets/{budgetId}/transactions/{transactionId}/audit']);
+  });
+
+  it('удалённые v1 маршруты отвечают 404', async () => {
+    const budgetId = a.budgetId;
+    const id = randomUUID();
+    const calls: Array<[string, string]> = [
+      ['GET', `/api/v1/budgets/${budgetId}/envelope-reallocations`],
+      ['POST', `/api/v1/budgets/${budgetId}/envelope-reallocations`],
+      ['POST', `/api/v1/budgets/${budgetId}/transactions/${id}/allocations`],
+      ['PATCH', `/api/v1/budgets/${budgetId}/allocations/${id}`],
+      ['POST', `/api/v1/budgets/${budgetId}/transfers`],
+      ['GET', `/api/v1/budgets/${budgetId}/transfers`],
+      ['GET', `/api/v1/budgets/${budgetId}/transactions`],
+      ['POST', `/api/v1/budgets/${budgetId}/transactions`],
+      ['GET', `/api/v1/budgets/${budgetId}/transactions/${id}`],
+      ['GET', `/api/v1/budgets/${budgetId}/plans`],
+      ['POST', `/api/v1/budgets/${budgetId}/plans`],
+      ['GET', `/api/v1/budgets/${budgetId}/envelopes`],
+      ['POST', `/api/v1/budgets/${budgetId}/envelopes`],
+      ['GET', `/api/v1/budgets/${budgetId}/envelopes/balance-summary`],
+      ['POST', `/api/v1/budgets/${budgetId}/reference-template`],
+      ['PATCH', `/api/v1/budgets/${budgetId}`],
+      ['GET', `/api/v1/budgets/${budgetId}/summary`],
+      ['GET', `/api/v1/budgets/${budgetId}/reports/expenses-by-category`],
+      ['GET', `/api/v1/budgets/${budgetId}/exports/transactions.csv`],
+      ['GET', `/api/v1/budgets/${budgetId}/cycles/current`],
+    ];
+    for (const [method, url] of calls) {
+      const response = await server.inject({
+        method: method as 'GET',
+        url,
+        headers: { origin, 'x-csrf-token': a.csrfToken },
+        cookies: { harmofin_session: a.cookie },
+        ...(method === 'GET' ? {} : { payload: {} }),
+      });
+      expect(response.statusCode, `${method} ${url}: ${response.body}`).toBe(404);
+    }
   });
 
   it('все ожидаемые v2 операции опубликованы и нет неучтённых', () => {
@@ -598,20 +664,6 @@ describe('v2 OpenAPI contract (P06)', () => {
     const allowed = new Set(['ProblemDetailsResponse', 'FieldErrorResponse']);
     const shared = [...v2Names].filter((name) => v1Names.has(name) && !allowed.has(name));
     expect(shared).toEqual([]);
-  });
-
-  it('v1 GET envelopes остаётся для бюджета model1 с прежним набором полей', async () => {
-    const response = await server.inject({
-      method: 'GET',
-      url: `/api/v1/budgets/${v1World.budgetId}/envelopes`,
-      cookies: { harmofin_session: v1World.cookie },
-    });
-    expect(response.statusCode, response.body).toBe(200);
-    const items = response.json<Array<Record<string, unknown>>>();
-    expect(Array.isArray(items)).toBe(true);
-    const item = items.find((entry) => entry.id === v1EnvelopeId);
-    expect(item).toBeDefined();
-    expect(Object.keys(item!).sort()).toEqual(V1_ENVELOPE_KEYS);
   });
 
   it('v2 budgetA не видит plan и assignment budgetB', async () => {

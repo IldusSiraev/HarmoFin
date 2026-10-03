@@ -18,7 +18,7 @@ import type { RequestContext } from '../common/request-context/request-context.j
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import { uuidParamSchema } from '../cycles/cycle-revision.schemas.js';
 import { CsvExportV2ApplicationService } from './csv-export-v2.application.service.js';
-import type { CsvExportResult } from './csv-export.application.service.js';
+import type { CsvExportResult } from './csv-encode.js';
 
 type AuthenticatedRequest = FastifyRequest & { authContext?: RequestContext };
 

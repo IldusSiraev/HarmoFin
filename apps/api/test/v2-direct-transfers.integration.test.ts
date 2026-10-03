@@ -796,35 +796,6 @@ describe('v2 прямого перевод — HTTP-контракт', () => {
     await prisma.account.deleteMany({ where: { id: outsiderAccountId } });
   });
 
-  it('#6 POST на v1-бюджет для v2-budget → 409 MODEL_VERSION_MISMATCH', async () => {
-    const res = await server.inject({
-      method: 'POST',
-      url: `/api/v1/budgets/${fCtx.fixtureOwner!.budgetId}/transfers`,
-      headers: {
-        ...authCookieHeaders(fCtx.fixtureOwner),
-        'x-csrf-token': fCtx.fixtureOwner?.csrfToken ?? '',
-        origin,
-        'idempotency-key': 'http-v1-mismatch',
-      },
-      payload: {
-        total: '5.00',
-        sourceAccountId: fixtureSrcAccount,
-        destinationAccountId: fixtureDestAccount,
-        parts: [
-          {
-            sourceEnvelopeId: fixtureEnvelope,
-            destinationEnvelopeId: fixtureEnvelopeB,
-            amount: '5.00',
-          },
-        ],
-        occurredOn: todayInTimezone(new Date(), 'UTC'),
-      },
-    });
-    expect(res.statusCode).toBe(409);
-    const body = res.json<Record<string, unknown>>();
-    expect(body.code).toBe('MODEL_VERSION_MISMATCH');
-  });
-
   it('#7 GET list → 200 ACCOUNT_ONLY + LEGACY', async () => {
     const res = await server.inject({
       method: 'GET',

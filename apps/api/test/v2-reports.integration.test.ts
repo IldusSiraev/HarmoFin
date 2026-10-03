@@ -374,7 +374,7 @@ describe('v2 reports (P03)', () => {
     expect(names.length).toBeGreaterThan(8);
     const text = JSON.stringify(names.map((name) => document.components.schemas[name]));
     expect(text).not.toContain('envelope-balances');
-    expect(document.paths['/api/v1/budgets/{budgetId}/reports/{reportKey}']?.get).toBeDefined();
+    expect(document.paths['/api/v1/budgets/{budgetId}/reports/{reportKey}']).toBeUndefined();
   });
 });
 

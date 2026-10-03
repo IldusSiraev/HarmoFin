@@ -351,47 +351,6 @@ describe('v2 журнал операций (GET /api/v2/budgets/:budgetId/transa
     expect((await get(ctx.owner, '/not-a-uuid')).statusCode).toBe(400);
     expect((await get(ctx.owner, '', 'not-a-uuid')).statusCode).toBe(400);
   });
-
-  it('v1 список: бюджеты model 2 и model 1 читаются без v2-полей', async () => {
-    const v1 = (user: User) =>
-      server.inject({
-        method: 'GET',
-        url: `/api/v1/budgets/${user.budgetId}/transactions`,
-        headers: { origin, cookie: `harmofin_session=${user.cookie}` },
-      });
-    // v1 reads are not model-gated: a model-2 budget still lists, without v2-only fields.
-    const model2 = await v1(ctx.owner!);
-    expect(model2.statusCode).toBe(200);
-    const model2Items = model2.json<{ items: Array<Record<string, unknown>> }>().items;
-    expect(model2Items.length).toBeGreaterThan(0);
-    for (const item of model2Items) {
-      expect(item).not.toHaveProperty('accountingModelVersion');
-      expect(item).not.toHaveProperty('planOccurrenceIds');
-    }
-
-    const legacyBudget = ctx.editor!.budgetId;
-    await prisma.transaction.create({
-      data: {
-        id: randomUUID(),
-        budgetId: legacyBudget,
-        transactionType: 'INCOME',
-        status: 'CONFIRMED',
-        amountMinor: 1_000n,
-        occurredOn: new Date('2026-09-10T00:00:00Z'),
-        accountId: await createAccount(legacyBudget),
-        categoryId: await createCategory(legacyBudget, 'INCOME'),
-        confirmedAt: new Date(),
-        createdByUserId: ctx.editor!.userId,
-        updatedByUserId: ctx.editor!.userId,
-      },
-    });
-    const ok = await v1(ctx.editor!);
-    expect(ok.statusCode).toBe(200);
-    const items = ok.json<{ items: Array<Record<string, unknown>> }>().items;
-    expect(items.length).toBe(1);
-    expect(items[0]).not.toHaveProperty('accountingModelVersion');
-    expect(items[0]).not.toHaveProperty('planOccurrenceIds');
-  });
 });
 
 async function insertTx(

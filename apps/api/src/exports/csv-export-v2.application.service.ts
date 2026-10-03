@@ -7,7 +7,7 @@ import { forbidden, resourceNotFound } from '../common/reference-data/reference-
 import { PrismaService } from '../database/prisma.service.js';
 import { MetricsRegistry } from '../observability/observability.js';
 import { LegacyAssignmentHistoryRepository } from '../reports/legacy-assignment-history.repository.js';
-import { encodeCsv, type CsvExportResult } from './csv-export.application.service.js';
+import { encodeCsv, type CsvExportResult } from './csv-encode.js';
 import { CsvExportV2Repository } from './csv-export-v2.repository.js';
 
 export const exportV2Limit = 10_000;

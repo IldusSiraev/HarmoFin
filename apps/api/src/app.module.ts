@@ -1,6 +1,5 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 
-import { IncomeAllocationModule } from './allocations/income-allocation.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AccountModule } from './accounts/account.module.js';
@@ -10,7 +9,6 @@ import { PlanModelModule } from './common/plan-model/plan-model.module.js';
 import { API_CONFIG } from './common/security/security.constants.js';
 import type { ApiConfig } from './config/env.js';
 import { CycleModule } from './cycles/cycle.module.js';
-import { DashboardModule } from './dashboard/dashboard.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { DashboardV2Module } from './v2-dashboard/dashboard-v2.module.js';
 import { DirectTransferModule } from './v2-transfers/direct-transfer.module.js';
@@ -19,16 +17,12 @@ import { ObligationModule } from './obligations/obligation.module.js';
 import { FundingModule } from './funding/funding.module.js';
 import { TemplateModule } from './v2-template/template.module.js';
 import { EnvelopePlanModule } from './envelope-plans/envelope-plan.module.js';
-import { EnvelopeModule } from './envelopes/envelope.module.js';
 import { ExportsModule } from './exports/exports.module.js';
 import { HealthModule } from './health/health.module.js';
-import { TransactionModule } from './transactions/transaction.module.js';
 import { ReportModule } from './reports/report.module.js';
 import { PlansModule } from './plans/plans.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
-import { TransferModule } from './transfers/transfer.module.js';
-import { EnvelopeReallocationModule } from './envelope-reallocations/envelope-reallocation.module.js';
 import { WorkspaceModule } from './workspaces/workspace.module.js';
 
 @Module({})
@@ -45,14 +39,8 @@ export class AppModule {
         WorkspaceModule.register(),
         BudgetModule.register(),
         CycleModule.register(),
-        DashboardModule.register(),
         AccountModule.register(),
         CategoryModule.register(),
-        EnvelopeModule.register(),
-        TransactionModule.register(),
-        IncomeAllocationModule.register(),
-        TransferModule.register(),
-        EnvelopeReallocationModule.register(),
         EnvelopePlanModule.register(),
         DirectTransferModule.register(),
         DashboardV2Module.register(),

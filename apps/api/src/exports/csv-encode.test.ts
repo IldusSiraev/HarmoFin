@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { encodeCsv } from './csv-export.application.service.js';
+import { encodeCsv } from './csv-encode.js';
 
 const byteOrderMark = String.fromCharCode(0xfeff);
 

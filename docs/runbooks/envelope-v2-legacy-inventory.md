@@ -181,3 +181,11 @@
 Cutover должен быть фактически выполнен до удаления всего, что помечено «migration-only until cutover executed».
 
 **Решение по audit-маршруту `GET /api/v1/budgets/:id/transactions/:id/audit`**: рекомендация. Оставить маршрут (он не привязан к модели и обслуживает v2), вынести `AuditController` и его регистрацию из удаляемых контроллеров транзакций (он уже в отдельном модуле `audit/`, поэтому C03c не должна его затрагивать). Перенос на `/api/v2` отложить, это breaking только для web `OperationDrawer`, и делать его стоит отдельно после C02c.
+
+## Статус выполнения C03 и C03c (2026-10-03)
+
+- **Удалено (API)**: контроллеры, сервисы, DTO, схемы и тесты `allocations` (кроме репозитория), `transfers`, `envelope-reallocations`, `envelopes`, `dashboard`, `transactions` (кроме репозитория), `plans` (`plans.controller`, `regular-plan.application.service`), v1 `reports/report.*`, v1 `exports` (контроллер, `csv-export.*`), v1 `cycles` (контроллер, сервис, репозиторий). `BudgetController` оставляет list/get/create, а PATCH и `reference-template` удалены.
+- **Вынесено**: `encodeCsv` и `CsvExportResult` в `exports/csv-encode.ts`; `DEFAULT_CATEGORIES` в `v2-template/default-categories.ts`. `TransactionRepository`, `IncomeAllocationRepository`, `PlanOccurrenceRepository`, `RegularPlanRepository`, `V2OccurrenceMaterializer` остались на месте, так как их импортируют v2-модули.
+- **Сознательно сохранено**: `GET/POST /api/v1/workspaces` (`workspaces/workspace.controller.ts`), стабильный v1 CRUD рабочих пространств. Потребителей в web нет, маршрут оставлен под будущие роли рабочих пространств. Удалять его нужно отдельной задачей по решению владельца.
+- **Audit**: `GET /api/v1/budgets/:id/transactions/:id/audit` сохранён; тесты в `v2-historical-reads` проверяют OWNER 200, EDITOR 403, посторонний 404.
+- **Контракт**: `v2-openapi.integration.test.ts` проверяет отсутствие удалённых v1 путей и HTTP 404 на них.
