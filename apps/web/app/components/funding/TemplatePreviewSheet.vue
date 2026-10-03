@@ -11,7 +11,8 @@ import {
 } from '../../composables/useEnvelopePlanV2.js';
 import { useFundingEntry } from '../../composables/useFundingEntry.js';
 import UiButton from '../ui/Button.vue';
-import UiDrawer from '../ui/Drawer.vue';
+import UiInfoTooltip from '../ui/InfoTooltip.vue';
+import UiModal from '../ui/Modal.vue';
 
 defineOptions({ name: 'TemplatePreviewSheet' });
 
@@ -20,8 +21,12 @@ defineOptions({ name: 'TemplatePreviewSheet' });
 // targets and optional savings, and applies exactly what the preview describes.
 // Amounts are typed decimal text passed through as strings: the browser checks
 // their shape only and never adds, compares or converts money. The server
-// recomputes everything from previewHash. The cycle is shown read-only: changing
-// it on a used budget is a separate, confirmed flow.
+// recomputes everything from previewHash. The cycle boundaries are two small
+// integers (start day 1-28, first-period length 1-27 days, same limits as the
+// API); they are sent with apply only when they differ from the budget's current
+// ones and do not affect previewHash. On a used budget the server answers
+// CYCLE_CHANGE_REQUIRES_FLOW and the fields turn read-only: that change is a
+// separate, confirmed flow in settings.
 
 type PreviewEnvelope = TemplatePreviewResponse['envelopes'][number];
 type PeriodRole = 'FIRST' | 'SECOND';
@@ -39,6 +44,7 @@ const PERIOD_ROLES: PeriodRole[] = ['FIRST', 'SECOND'];
 
 const preview = ref<TemplatePreviewResponse | null>(null);
 const loading = ref(false);
+const noticeEl = ref<HTMLElement | null>(null);
 const loadFailed = ref(false);
 const pending = ref(false);
 const applyError = ref<{ code: string; detail: string } | null>(null);
@@ -46,6 +52,8 @@ const fieldErrors = reactive<Record<string, string>>({});
 
 const later = reactive<Record<PeriodRole, boolean>>({ FIRST: true, SECOND: true });
 const targets = reactive<Record<PeriodRole, string>>({ FIRST: '', SECOND: '' });
+const cycleForm = reactive({ startDay: '', length: '' });
+const cycleLocked = ref(false);
 const consent = reactive<Record<string, boolean>>({});
 const savingsSelected = reactive<Record<string, boolean>>({});
 const contributions = reactive<Record<string, string>>({});
@@ -57,7 +65,7 @@ let idempotencyKey = '';
 const ERROR_TEXT: Record<string, string> = {
   PREVIEW_STALE: 'Данные изменились после предпросмотра. Обновите его, чтобы продолжить.',
   CYCLE_CHANGE_REQUIRES_FLOW:
-    'В бюджете уже есть операции или назначения. Границы цикла меняются отдельно.',
+    'В бюджете уже есть операции или назначения, поэтому границы цикла здесь не меняются. Остальной шаблон можно применить.',
   TEMPLATE_SAVINGS_UNKNOWN: 'Такого накопления нет в шаблоне. Обновите предпросмотр.',
   IDEMPOTENCY_CONFLICT: 'Это действие уже обрабатывается. Обновите предпросмотр.',
   MODEL_VERSION_MISMATCH: 'Для этого бюджета базовый шаблон недоступен.',
@@ -81,7 +89,15 @@ function resetForm(): void {
   >) {
     for (const key of Object.keys(record)) delete record[key];
   }
+  cycleLocked.value = false;
   applyError.value = null;
+}
+
+function syncCycleForm(): void {
+  const cycle = preview.value?.cycle;
+  if (!cycle) return;
+  cycleForm.startDay = String(cycle.cycleStartDay);
+  cycleForm.length = String(cycle.periodBoundaryOffset);
 }
 
 function dropIneligibleSavings(): void {
@@ -102,6 +118,7 @@ async function loadPreview(keepInput = false): Promise<void> {
     if (mine !== generation) return;
     if (!keepInput) resetForm();
     preview.value = body;
+    if (!keepInput) syncCycleForm();
     dropIneligibleSavings();
   } catch {
     if (mine !== generation) return;
@@ -177,6 +194,31 @@ function onLaterChange(role: PeriodRole, checked: boolean): void {
   delete fieldErrors[role];
 }
 
+const CYCLE_DAY_ERROR = 'Укажите день месяца от 1 до 28.';
+const CYCLE_LENGTH_ERROR = 'Укажите число дней от 1 до 27.';
+
+function parseCycleNumber(text: string, max: number): number | null {
+  const trimmed = text.trim();
+  if (!/^\d{1,2}$/.test(trimmed)) return null;
+  const value = Number(trimmed);
+  return value >= 1 && value <= max ? value : null;
+}
+
+function onCycleInput(field: 'cycleStartDay' | 'cycleLength'): void {
+  delete fieldErrors[field];
+}
+
+// Human hint derived from the two inputs; days only, no money.
+const secondPeriodHint = computed(() => {
+  const start = parseCycleNumber(cycleForm.startDay, 28);
+  const length = parseCycleNumber(cycleForm.length, 27);
+  if (start === null || length === null) return null;
+  const second = start + length;
+  return second <= 28
+    ? `Второй период начнётся ${second}-го числа.`
+    : 'Второй период начнётся в следующем календарном месяце: дата зависит от длины месяца.';
+});
+
 function validAmount(text: string): boolean {
   return AMOUNT_PATTERN.test(text) && !ZERO_AMOUNT.test(text);
 }
@@ -219,9 +261,23 @@ function buildRequest(): TemplateApplyRequest | null {
     chosen.push(row);
   }
 
+  let cycle: TemplateApplyRequest['cycle'];
+  const startDay = parseCycleNumber(cycleForm.startDay, 28);
+  const length = parseCycleNumber(cycleForm.length, 27);
+  if (startDay === null) fieldErrors['cycleStartDay'] = CYCLE_DAY_ERROR;
+  if (length === null) fieldErrors['cycleLength'] = CYCLE_LENGTH_ERROR;
+  if (
+    startDay !== null &&
+    length !== null &&
+    (startDay !== current.cycle.cycleStartDay || length !== current.cycle.periodBoundaryOffset)
+  ) {
+    cycle = { startDay, boundaryOffset: length };
+  }
+
   if (hasFieldErrors.value) return null;
   return {
     previewHash: current.previewHash,
+    ...(cycle ? { cycle } : {}),
     periods,
     mandatory: { action: actionFor('MANDATORY') },
     savings: chosen,
@@ -232,9 +288,19 @@ async function focusFirstInvalid(): Promise<void> {
   await nextTick();
   document
     .querySelector<HTMLElement>(
-      '[data-testid^="template-target-"][aria-invalid="true"], [data-testid^="template-contribution-"][aria-invalid="true"]',
+      '[data-testid^="template-cycle-"][aria-invalid="true"], [data-testid^="template-target-"][aria-invalid="true"], [data-testid^="template-contribution-"][aria-invalid="true"]',
     )
     ?.focus();
+}
+
+// The banner sits at the top of the scrolling body while the apply button is
+// at the bottom: bring the message into view and give it the focus.
+async function revealNotice(): Promise<void> {
+  await nextTick();
+  const el = noticeEl.value;
+  if (!el) return;
+  el.scrollIntoView?.({ block: 'nearest' });
+  el.focus({ preventScroll: true });
 }
 
 async function apply(): Promise<void> {
@@ -243,9 +309,9 @@ async function apply(): Promise<void> {
   if (!body) {
     applyError.value = {
       code: 'FIELDS_INVALID',
-      detail: 'Проверьте введённые суммы: исправьте поля, отмеченные ошибкой.',
+      detail: 'Проверьте введённые данные: исправьте поля, отмеченные ошибкой.',
     };
-    void focusFirstInvalid();
+    void revealNotice().then(focusFirstInvalid);
     return;
   }
   applyError.value = null;
@@ -267,9 +333,15 @@ async function apply(): Promise<void> {
     if (cause instanceof ApiRequestError && cause.status < 500) {
       const code = cause.problem.code;
       applyError.value = { code, detail: ERROR_TEXT[code] ?? GENERIC_ERROR };
+      if (code === 'CYCLE_CHANGE_REQUIRES_FLOW') {
+        cycleLocked.value = true;
+        syncCycleForm();
+        for (const key of ['cycleStartDay', 'cycleLength']) delete fieldErrors[key];
+      }
     } else {
       applyError.value = { code: 'NETWORK', detail: GENERIC_ERROR };
     }
+    void revealNotice();
   } finally {
     pending.value = false;
   }
@@ -282,7 +354,7 @@ function requestClose(): void {
 </script>
 
 <template>
-  <UiDrawer :open="open" title="Базовый шаблон бюджета" @close="requestClose">
+  <UiModal :open="open" title="Базовый шаблон бюджета" @close="requestClose">
     <div class="template-sheet">
       <p v-if="loading && !preview" class="template-sheet__muted" role="status">
         Загружаем шаблон…
@@ -299,8 +371,10 @@ function requestClose(): void {
       <template v-else-if="preview">
         <div
           v-if="applyError"
+          ref="noticeEl"
           class="template-sheet__notice"
           role="alert"
+          tabindex="-1"
           data-testid="template-summary"
         >
           <AlertTriangle :size="18" aria-hidden="true" />
@@ -318,19 +392,104 @@ function requestClose(): void {
           </UiButton>
         </div>
 
-        <section class="template-sheet__block" aria-label="Цикл">
-          <h3 class="template-sheet__heading">Цикл</h3>
-          <p class="template-sheet__text">
-            Цикл: начало с {{ preview.cycle.cycleStartDay }}-го числа, второй период через
-            {{ preview.cycle.periodBoundaryOffset }} дн.
+        <section class="template-sheet__block" aria-label="Цикл" data-testid="template-cycle">
+          <div class="template-sheet__heading-row">
+            <h3 class="template-sheet__heading">Цикл</h3>
+            <UiInfoTooltip
+              label="Что такое финансовый цикл"
+              placement="bottom"
+              align="start"
+              text="Финансовый цикл — период между поступлениями денег, «от зарплаты до зарплаты». Он делится на два периода: аванс и зарплата. Пример: если цикл начинается 10-го числа, то аванс приходит 10-го, а второй период с зарплатой начинается 25-го."
+            />
+          </div>
+          <label class="template-sheet__field">
+            <span>Первый период начинается: числа месяца (1–28)</span>
+            <input
+              v-model="cycleForm.startDay"
+              type="text"
+              class="template-sheet__input"
+              inputmode="numeric"
+              autocomplete="off"
+              :disabled="cycleLocked"
+              data-testid="template-cycle-start"
+              :aria-invalid="fieldErrors['cycleStartDay'] ? 'true' : undefined"
+              :aria-describedby="
+                cycleLocked
+                  ? 'template-cycle-locked-note'
+                  : fieldErrors['cycleStartDay']
+                    ? 'template-err-cycleStartDay'
+                    : undefined
+              "
+              @input="onCycleInput('cycleStartDay')"
+            />
+          </label>
+          <p
+            v-if="fieldErrors['cycleStartDay']"
+            id="template-err-cycleStartDay"
+            class="template-sheet__field-error"
+            data-testid="template-error-cycle-start"
+          >
+            <AlertTriangle :size="14" aria-hidden="true" />
+            {{ fieldErrors['cycleStartDay'] }}
           </p>
-          <p class="template-sheet__muted">
-            Границы цикла меняются отдельно: в настройках, в разделе «Финансовый цикл».
+          <label class="template-sheet__field">
+            <span>Первый период длится, дней (1–27)</span>
+            <input
+              v-model="cycleForm.length"
+              type="text"
+              class="template-sheet__input"
+              inputmode="numeric"
+              autocomplete="off"
+              :disabled="cycleLocked"
+              data-testid="template-cycle-length"
+              :aria-invalid="fieldErrors['cycleLength'] ? 'true' : undefined"
+              :aria-describedby="
+                cycleLocked
+                  ? 'template-cycle-locked-note'
+                  : fieldErrors['cycleLength']
+                    ? 'template-err-cycleLength'
+                    : undefined
+              "
+              @input="onCycleInput('cycleLength')"
+            />
+          </label>
+          <p
+            v-if="fieldErrors['cycleLength']"
+            id="template-err-cycleLength"
+            class="template-sheet__field-error"
+            data-testid="template-error-cycle-length"
+          >
+            <AlertTriangle :size="14" aria-hidden="true" />
+            {{ fieldErrors['cycleLength'] }}
+          </p>
+          <p class="template-sheet__muted" aria-live="polite" data-testid="template-cycle-hint">
+            {{ secondPeriodHint ?? '' }}
+          </p>
+          <p
+            v-if="cycleLocked"
+            id="template-cycle-locked-note"
+            class="template-sheet__muted"
+            role="note"
+            data-testid="template-cycle-locked"
+          >
+            Границы цикла уже закреплены операциями и назначениями. Изменить их можно отдельно: в
+            настройках, в разделе «Финансовый цикл».
+          </p>
+          <p v-else class="template-sheet__muted">
+            По умолчанию взяты текущие настройки бюджета. Позже их можно изменить в настройках.
           </p>
         </section>
 
         <section class="template-sheet__block" aria-label="Категории">
-          <h3 class="template-sheet__heading">Категории</h3>
+          <div class="template-sheet__heading-row">
+            <h3 class="template-sheet__heading">Категории</h3>
+            <UiInfoTooltip
+              label="Что такое категории"
+              placement="bottom"
+              align="start"
+              text="Категории — это «подписи» для доходов и расходов: например, продукты, транспорт, зарплата. По ним потом видно, на что уходят деньги."
+            />
+          </div>
           <p class="template-sheet__muted" data-testid="template-categories-summary">
             Будет создано: {{ categoryCount('MISSING') }}. Уже есть:
             {{ categoryCount('EXISTING') }}.
@@ -357,7 +516,15 @@ function requestClose(): void {
         </section>
 
         <section class="template-sheet__block" aria-label="Конверты периодов">
-          <h3 class="template-sheet__heading">Конверты периодов</h3>
+          <div class="template-sheet__heading-row">
+            <h3 class="template-sheet__heading">Конверты периодов</h3>
+            <UiInfoTooltip
+              label="Что такое конверты периодов"
+              placement="bottom"
+              align="start"
+              text="Конверт периода — деньги на обычные траты внутри периода: еда, транспорт, мелкие покупки. На каждый из двух периодов цикла — свой конверт."
+            />
+          </div>
           <ul class="template-sheet__list">
             <li
               v-for="role in PERIOD_ROLES"
@@ -387,9 +554,19 @@ function requestClose(): void {
                   Создать новый вместо архивного
                 </label>
                 <template v-if="showsTarget(role)">
-                  <label class="template-sheet__field">
-                    <span>Целевая сумма на период (необязательно)</span>
+                  <div class="template-sheet__field">
+                    <div class="template-sheet__label-row">
+                      <label :for="`template-target-field-${role}`">
+                        Целевая сумма на период (необязательно)
+                      </label>
+                      <UiInfoTooltip
+                        label="Что такое целевая сумма на период"
+                        align="start"
+                        text="Сколько вы планируете потратить на обычные расходы в этом периоде. Это ориентир: его можно не указывать сейчас и задать позже."
+                      />
+                    </div>
                     <input
+                      :id="`template-target-field-${role}`"
                       v-model="targets[role]"
                       type="text"
                       class="template-sheet__input"
@@ -401,17 +578,24 @@ function requestClose(): void {
                       :aria-describedby="fieldErrors[role] ? `template-err-${role}` : undefined"
                       @input="onTargetInput(role)"
                     />
-                  </label>
-                  <label class="template-sheet__check-row">
-                    <input
-                      type="checkbox"
-                      class="template-sheet__check"
-                      :checked="later[role]"
-                      :data-testid="`template-later-${role}`"
-                      @change="onLaterChange(role, ($event.target as HTMLInputElement).checked)"
+                  </div>
+                  <div class="template-sheet__label-row">
+                    <label class="template-sheet__check-row">
+                      <input
+                        type="checkbox"
+                        class="template-sheet__check"
+                        :checked="later[role]"
+                        :data-testid="`template-later-${role}`"
+                        @change="onLaterChange(role, ($event.target as HTMLInputElement).checked)"
+                      />
+                      Укажу позже
+                    </label>
+                    <UiInfoTooltip
+                      label="Что значит «Укажу позже»"
+                      align="start"
+                      text="Конверт создастся без суммы. Целевую сумму можно задать в любой момент позже."
                     />
-                    Укажу позже
-                  </label>
+                  </div>
                   <p
                     v-if="fieldErrors[role]"
                     :id="`template-err-${role}`"
@@ -431,7 +615,15 @@ function requestClose(): void {
         </section>
 
         <section v-if="byRole('MANDATORY')" class="template-sheet__block" aria-label="Обязательные">
-          <h3 class="template-sheet__heading">Обязательные расходы</h3>
+          <div class="template-sheet__heading-row">
+            <h3 class="template-sheet__heading">Обязательные расходы</h3>
+            <UiInfoTooltip
+              label="Что такое обязательные расходы"
+              placement="bottom"
+              align="start"
+              text="Обязательные расходы — платежи, которые нельзя пропустить: аренда, коммунальные услуги, кредиты."
+            />
+          </div>
           <div class="template-sheet__row" data-testid="template-row-MANDATORY">
             <span class="template-sheet__name">{{ byRole('MANDATORY')?.name }}</span>
             <span class="template-sheet__status">
@@ -458,7 +650,15 @@ function requestClose(): void {
         </section>
 
         <section v-if="savings.length > 0" class="template-sheet__block" aria-label="Накопления">
-          <h3 class="template-sheet__heading">Накопления по желанию</h3>
+          <div class="template-sheet__heading-row">
+            <h3 class="template-sheet__heading">Накопления по желанию</h3>
+            <UiInfoTooltip
+              label="Что такое накопления по желанию"
+              placement="bottom"
+              align="start"
+              text="Накопления — цели, на которые вы откладываете деньги: отпуск, автомобиль. Ничего не создаётся, пока вы не отметите нужное."
+            />
+          </div>
           <p class="template-sheet__muted">
             Ничего не создаётся, пока вы не отметите. Взнос необязателен и деньги не назначает.
           </p>
@@ -534,7 +734,7 @@ function requestClose(): void {
         </UiButton>
       </div>
     </template>
-  </UiDrawer>
+  </UiModal>
 </template>
 
 <style scoped>
@@ -551,8 +751,16 @@ function requestClose(): void {
 
 .template-sheet__heading {
   margin: 0;
-  font-size: var(--hf-font-size-h3);
-  line-height: var(--hf-line-height-h3);
+  font-size: var(--hf-font-size-body);
+  line-height: var(--hf-line-height-body);
+  font-weight: 600;
+}
+
+.template-sheet__heading-row,
+.template-sheet__label-row {
+  display: flex;
+  align-items: center;
+  gap: var(--hf-space-2);
 }
 
 .template-sheet__text,

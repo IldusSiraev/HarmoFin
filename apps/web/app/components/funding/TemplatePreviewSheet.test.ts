@@ -158,7 +158,7 @@ describe('TemplatePreviewSheet', () => {
     expect(text()).not.toMatch(/65\s?000|20\s?000/);
     expect(text()).not.toContain('Свободные');
     expect(text()).toContain('Цикл');
-    expect(text()).toContain('отдельно');
+    expect(text()).toContain('текущие настройки бюджета');
   });
 
   it('never selects savings by default', async () => {
@@ -253,6 +253,7 @@ describe('TemplatePreviewSheet', () => {
       mandatory: { action: 'CREATE' },
       savings: [{ name: 'Автомобиль', requestedContribution: '5000' }],
     });
+    expect(applyBody()).not.toHaveProperty('cycle');
     expect(applyKey()).toMatch(/\S+/);
     expect(wrapper.emitted('applied')).toHaveLength(1);
   });
@@ -271,7 +272,7 @@ describe('TemplatePreviewSheet', () => {
     await click('[data-testid="template-apply"]');
 
     expect(mocks.v2.applyTemplate).not.toHaveBeenCalled();
-    expect(text()).toContain('Проверьте введённые суммы');
+    expect(text()).toContain('Проверьте введённые данные');
     expect(q('[data-testid="template-target-FIRST"]')?.getAttribute('aria-invalid')).toBe('true');
     expect(q('[data-testid="template-error-FIRST"]')).not.toBeNull();
   });
@@ -481,5 +482,202 @@ describe('TemplatePreviewSheet review fixes', () => {
     expect(text()).not.toContain('raw english');
     expect(text()).toContain('Имя элемента');
     expect(text()).not.toContain('Не удалось применить шаблон');
+  });
+});
+
+describe('TemplatePreviewSheet dialog', () => {
+  it('renders a modal dialog, closes on Escape and never mentions a drawer', async () => {
+    const wrapper = await mountSheet();
+    const dialog = q('[role="dialog"]');
+
+    expect(dialog?.getAttribute('aria-modal')).toBe('true');
+    expect(dialog?.getAttribute('aria-label')).toBe('Базовый шаблон бюджета');
+    expect(q('.drawer')).toBeNull();
+    expect(document.activeElement).toBe(dialog);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(wrapper.emitted('close')).toHaveLength(1);
+  });
+
+  it('keeps Escape for an open tooltip instead of closing the dialog', async () => {
+    const wrapper = await mountSheet();
+    const trigger = q<HTMLButtonElement>('button[aria-label="Что такое финансовый цикл"]');
+    trigger?.focus();
+    trigger?.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    await flushPromises();
+    expect(q('[role="tooltip"]')).not.toBeNull();
+
+    trigger?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
+    );
+    await flushPromises();
+    expect(q('[role="tooltip"]')).toBeNull();
+    expect(wrapper.emitted('close')).toBeUndefined();
+  });
+});
+
+describe('TemplatePreviewSheet tooltips', () => {
+  it.each([
+    ['Что такое финансовый цикл', 'от зарплаты до зарплаты'],
+    ['Что такое категории', 'продукты'],
+    ['Что такое конверты периодов', 'еда, транспорт'],
+    ['Что такое целевая сумма на период', 'ориентир'],
+    ['Что значит «Укажу позже»', 'без суммы'],
+    ['Что такое обязательные расходы', 'аренда'],
+    ['Что такое накопления по желанию', 'отпуск'],
+  ])('opens "%s" by click and links it with aria-describedby', async (label, fragment) => {
+    await mountSheet();
+    const trigger = q<HTMLButtonElement>(`button[aria-label="${label}"]`);
+    expect(trigger).not.toBeNull();
+    trigger?.click();
+    await flushPromises();
+
+    const bubble = q('[role="tooltip"]');
+    expect(bubble?.textContent?.toLowerCase()).toContain(fragment);
+    expect(trigger?.getAttribute('aria-describedby')).toBe(bubble?.id);
+  });
+});
+
+describe('TemplatePreviewSheet cycle', () => {
+  const startInput = '[data-testid="template-cycle-start"]';
+  const lengthInput = '[data-testid="template-cycle-length"]';
+
+  it('defaults the fields to the budget cycle and explains the second period', async () => {
+    mocks.v2.getTemplatePreview.mockResolvedValue(
+      previewBody({
+        cycle: { ...previewBody().cycle, cycleStartDay: 10, periodBoundaryOffset: 15 },
+      }),
+    );
+    await mountSheet();
+
+    expect(q<HTMLInputElement>(startInput)?.value).toBe('10');
+    expect(q<HTMLInputElement>(lengthInput)?.value).toBe('15');
+    expect(q('[data-testid="template-cycle-hint"]')?.textContent).toContain('25-го числа');
+  });
+
+  it('sends the cycle only when changed, with the unchanged previewHash', async () => {
+    await mountSheet();
+    await type(startInput, '10');
+    await type(lengthInput, '15');
+    await click('[data-testid="template-apply"]');
+
+    expect(applyBody()['cycle']).toEqual({ startDay: 10, boundaryOffset: 15 });
+    expect(applyBody()['previewHash']).toBe('a'.repeat(64));
+    expect(mocks.v2.getTemplatePreview).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['0', '14', 'template-error-cycle-start', 'день месяца от 1 до 28'],
+    ['29', '14', 'template-error-cycle-start', 'день месяца от 1 до 28'],
+    ['abc', '14', 'template-error-cycle-start', 'день месяца от 1 до 28'],
+    ['1', '0', 'template-error-cycle-length', 'от 1 до 27'],
+    ['1', '28', 'template-error-cycle-length', 'от 1 до 27'],
+    ['1', '', 'template-error-cycle-length', 'от 1 до 27'],
+  ])(
+    'rejects start "%s" / length "%s" in Russian and focuses the field',
+    async (start, length, id, message) => {
+      await mountSheet();
+      await type(startInput, start);
+      await type(lengthInput, length);
+      await click('[data-testid="template-apply"]');
+
+      expect(mocks.v2.applyTemplate).not.toHaveBeenCalled();
+      expect(q(`[data-testid="${id}"]`)?.textContent).toContain(message);
+      const invalid = q('[aria-invalid="true"]');
+      expect(invalid?.getAttribute('data-testid')).toMatch(/^template-cycle-/);
+      expect(document.activeElement).toBe(invalid);
+    },
+  );
+
+  it('turns the cycle read-only with a settings hint after CYCLE_CHANGE_REQUIRES_FLOW', async () => {
+    mocks.v2.applyTemplate.mockRejectedValueOnce(
+      new ApiRequestError(409, { code: 'CYCLE_CHANGE_REQUIRES_FLOW', detail: 'raw english' }),
+    );
+    await mountSheet();
+    await type(startInput, '5');
+    await click('[data-testid="template-apply"]');
+
+    expect(text()).not.toContain('raw english');
+    expect(q<HTMLInputElement>(startInput)?.disabled).toBe(true);
+    expect(q<HTMLInputElement>(lengthInput)?.disabled).toBe(true);
+    expect(q<HTMLInputElement>(startInput)?.value).toBe('1');
+    expect(q('[data-testid="template-cycle-locked"]')?.textContent).toContain('Финансовый цикл');
+
+    await click('[data-testid="template-apply"]');
+    expect(applyBody()).not.toHaveProperty('cycle');
+  });
+
+  it('keeps the double-submit guard when the cycle changed', async () => {
+    let finish: (() => void) | undefined;
+    mocks.v2.applyTemplate.mockImplementation(
+      () => new Promise((resolve) => (finish = () => resolve({}))),
+    );
+    await mountSheet();
+    await type(startInput, '12');
+    await click('[data-testid="template-apply"]');
+    await click('[data-testid="template-apply"]');
+
+    expect(mocks.v2.applyTemplate).toHaveBeenCalledTimes(1);
+    finish?.();
+    await flushPromises();
+  });
+});
+
+describe('TemplatePreviewSheet review fixes 2', () => {
+  const startInput = '[data-testid="template-cycle-start"]';
+
+  it('sends the current length when only the start day changed', async () => {
+    await mountSheet();
+    await type(startInput, '7');
+    await click('[data-testid="template-apply"]');
+
+    expect(applyBody()['cycle']).toEqual({ startDay: 7, boundaryOffset: 14 });
+  });
+
+  it('keeps the typed cycle after PREVIEW_STALE and a refresh', async () => {
+    mocks.v2.applyTemplate.mockRejectedValueOnce(
+      new ApiRequestError(409, { code: 'PREVIEW_STALE', detail: 'raw' }),
+    );
+    await mountSheet();
+    await type(startInput, '9');
+    await click('[data-testid="template-apply"]');
+    await click('[data-testid="template-refresh"]');
+
+    expect(q<HTMLInputElement>(startInput)?.value).toBe('9');
+    await click('[data-testid="template-apply"]');
+    expect(applyBody()['cycle']).toEqual({ startDay: 9, boundaryOffset: 14 });
+  });
+
+  it('moves focus to the error banner and scrolls it into view', async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    mocks.v2.applyTemplate.mockRejectedValueOnce(new TypeError('network'));
+    await mountSheet();
+    await click('[data-testid="template-apply"]');
+
+    const banner = q('[data-testid="template-summary"]');
+    expect(banner?.getAttribute('role')).toBe('alert');
+    expect(document.activeElement).toBe(banner);
+    expect(scroll).toHaveBeenCalled();
+  });
+
+  it('keeps info tooltips out of labels', async () => {
+    await mountSheet();
+    const triggers = document.querySelectorAll('button[aria-label^="Что "]');
+    expect(triggers.length).toBeGreaterThan(5);
+    triggers.forEach((button) => expect(button.closest('label')).toBeNull());
+  });
+
+  it('points locked cycle fields at the lock note', async () => {
+    mocks.v2.applyTemplate.mockRejectedValueOnce(
+      new ApiRequestError(409, { code: 'CYCLE_CHANGE_REQUIRES_FLOW', detail: 'x' }),
+    );
+    await mountSheet();
+    await type(startInput, '5');
+    await click('[data-testid="template-apply"]');
+
+    expect(q(startInput)?.getAttribute('aria-describedby')).toBe('template-cycle-locked-note');
+    expect(q('#template-cycle-locked-note')).not.toBeNull();
+    expect(q('[data-testid="template-cycle-hint"]')?.getAttribute('aria-live')).toBe('polite');
   });
 });

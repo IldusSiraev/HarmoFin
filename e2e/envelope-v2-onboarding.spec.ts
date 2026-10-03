@@ -32,6 +32,7 @@ interface MeResponse {
 }
 interface TemplatePreview {
   previewHash: string;
+  cycle: { cycleStartDay: number; periodBoundaryOffset: number };
   categories: Array<{ templateKey: string; status: string }>;
   envelopes: Array<{ role: string; name: string; status: string }>;
 }
@@ -82,6 +83,19 @@ for (const [label, viewport] of [
       const fromSettings = await openTemplateSheet(page, '[data-action="initialize-template"]');
       const dialog = templateDialog(page);
       await expect(dialog.getByText('Укажу позже').first()).toBeVisible();
+      // Cycle fields default to the budget's current settings; hints open by click and Esc
+      // closes only the hint, not the dialog.
+      await expect(dialog.getByTestId('template-cycle-start')).toHaveValue(
+        String(fromSettings.cycle.cycleStartDay),
+      );
+      await expect(dialog.getByTestId('template-cycle-length')).toHaveValue(
+        String(fromSettings.cycle.periodBoundaryOffset),
+      );
+      await dialog.getByRole('button', { name: 'Что такое финансовый цикл' }).click();
+      await expect(dialog.getByRole('tooltip')).toContainText('от зарплаты до зарплаты');
+      await page.keyboard.press('Escape');
+      await expect(dialog.getByRole('tooltip')).toHaveCount(0);
+      await expect(dialog).toBeVisible();
       const settingsView = await previewText(dialog);
       await dialog.getByTestId('template-cancel').click();
       await expect(dialog).toBeHidden();
