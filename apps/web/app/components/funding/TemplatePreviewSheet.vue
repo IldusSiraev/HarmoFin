@@ -908,7 +908,7 @@ function requestClose(): void {
   min-width: 0;
   min-height: 44px;
   padding: 0 var(--hf-space-3);
-  border: 1px solid var(--hf-color-border);
+  border: 1px solid var(--hf-color-border-strong);
   border-radius: var(--hf-control-radius);
   background: var(--hf-color-surface);
   color: var(--hf-color-text);
