@@ -96,10 +96,6 @@ const EXPECTED_V2: Array<[Method, string]> = [
   ['get', '/api/v2/budgets/{budgetId}/reports/{key}'],
   ['get', '/api/v2/budgets/{budgetId}/exports/transactions.csv'],
   ['get', '/api/v2/budgets/{budgetId}/exports/assignments.csv'],
-  ['get', '/api/v2/budgets/{budgetId}/exports/legacy-assignments.csv'],
-  ['get', '/api/v2/budgets/{budgetId}/history/legacy-assignments'],
-  ['post', '/api/v2/budgets/{budgetId}/history/{transactionId}/correction-preview'],
-  ['post', '/api/v2/budgets/{budgetId}/history/{transactionId}/correct'],
 ];
 
 // Мутирующие методы без записи (предпросмотр и подтверждение текущей модели): ключ не нужен.
@@ -107,7 +103,6 @@ const PREVIEW_ONLY = new Set([
   'patch /api/v2/budgets/{budgetId}/model',
   'post /api/v2/budgets/{budgetId}/cycle-change/preview',
   'post /api/v2/budgets/{budgetId}/funding/preview',
-  'post /api/v2/budgets/{budgetId}/history/{transactionId}/correction-preview',
 ]);
 
 const PROBLEM_REF = '#/components/schemas/ProblemDetailsResponse';
@@ -134,6 +129,13 @@ const REMOVED_V1_PATHS: Array<[Method, string]> = [
   ['get', '/api/v1/budgets/{budgetId}/reports/{reportKey}'],
   ['get', '/api/v1/budgets/{budgetId}/exports/transactions.csv'],
   ['get', '/api/v1/budgets/{budgetId}/cycles/current'],
+];
+// Чтение и исправление истории модели 1 удалены: бюджеты начинают учёт с чистого листа.
+const REMOVED_V2_PATHS: Array<[Method, string]> = [
+  ['get', '/api/v2/budgets/{budgetId}/exports/legacy-assignments.csv'],
+  ['get', '/api/v2/budgets/{budgetId}/history/legacy-assignments'],
+  ['post', '/api/v2/budgets/{budgetId}/history/{transactionId}/correction-preview'],
+  ['post', '/api/v2/budgets/{budgetId}/history/{transactionId}/correct'],
 ];
 const REMOVED_V1_PREFIXES = [
   '/api/v1/budgets/{budgetId}/envelope-reallocations',
@@ -309,6 +311,14 @@ describe('v2 OpenAPI contract (P06)', () => {
     for (const [method, path] of REMOVED_V1_PATHS) {
       expect(document.paths[path]?.[method], `${method} ${path}`).toBeUndefined();
     }
+    for (const [method, path] of REMOVED_V2_PATHS) {
+      expect(document.paths[path]?.[method], `${method} ${path}`).toBeUndefined();
+    }
+    expect(
+      Object.keys(document.paths).filter((path) =>
+        path.startsWith('/api/v2/budgets/{budgetId}/history'),
+      ),
+    ).toEqual([]);
     const leftovers = Object.keys(document.paths).filter((path) =>
       REMOVED_V1_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`)),
     );

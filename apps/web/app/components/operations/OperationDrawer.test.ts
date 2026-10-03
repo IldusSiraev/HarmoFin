@@ -152,19 +152,6 @@ describe('OperationDrawer', () => {
     wrapper.unmount();
   });
 
-  it('shows an operation from before model 2 read-only and explains why', async () => {
-    const wrapper = mountDrawer({ accountingModelVersion: 1 });
-    await flushPromises();
-
-    expect(wrapper.get('[data-testid="drawer-legacy-notice"]').text()).toContain(
-      'до перехода на модель 2',
-    );
-    expect(wrapper.find('[data-testid="drawer-edit"]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="drawer-delete"]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="drawer-restore"]').exists()).toBe(false);
-    wrapper.unmount();
-  });
-
   it('disables the actions while a request is running', async () => {
     const wrapper = mountDrawer({}, true);
     await flushPromises();

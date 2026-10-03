@@ -48,6 +48,35 @@ const dateText = (value: Date | undefined | null) =>
  * chain) inside the caller's snapshot transaction; nothing is written.
  */
 export class CsvExportV2Repository {
+  /** Active membership role of the user in the workspace, or null. */
+  async findActiveRole(
+    tx: Prisma.TransactionClient,
+    workspaceId: string,
+    userId: string,
+  ): Promise<string | null> {
+    const membership = await tx.workspaceMembership.findFirst({
+      where: { workspaceId, userId, isActive: true },
+      select: { role: true },
+    });
+    return membership?.role ?? null;
+  }
+
+  /** Active budget of an active workspace the user is an active member of. */
+  async findAccessibleBudget(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    budgetId: string,
+  ): Promise<{ id: string; workspaceId: string } | null> {
+    return tx.budget.findFirst({
+      where: {
+        id: budgetId,
+        status: 'ACTIVE',
+        workspace: { status: 'ACTIVE', memberships: { some: { userId, isActive: true } } },
+      },
+      select: { id: true, workspaceId: true },
+    });
+  }
+
   /** Real transactions of both epochs, every status, oldest first. */
   async transactions(
     tx: Prisma.TransactionClient,

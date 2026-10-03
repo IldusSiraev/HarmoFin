@@ -8,7 +8,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
 import { NotificationRuleHandler } from '../../worker/src/notification.handler.js';
-import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ?? 'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin';
@@ -33,18 +32,10 @@ type Session = {
   upcomingId: string;
 };
 
-const legacyTypes = [
-  'UNALLOCATED_INCOME',
-  'NEGATIVE_ACCOUNT',
-  'NEGATIVE_ENVELOPE',
-  'INSUFFICIENT_MANDATORY_OBLIGATIONS',
-  'PLAN_UPCOMING',
-];
-
 let app: NestFastifyApplication;
 let server: FastifyInstance;
 let v2: Session;
-let v1: Session;
+let other: Session;
 
 const notifications = (session: Session) =>
   prisma.notification.findMany({
@@ -85,9 +76,9 @@ describe('v2 notifications', () => {
     server = app.getHttpAdapter().getInstance() as FastifyInstance;
     await server.ready();
     v2 = await register(`v2-notif-${randomUUID()}@harmofin.test`);
-    v1 = await register(`v1-notif-${randomUUID()}@harmofin.test`);
+    other = await register(`other-notif-${randomUUID()}@harmofin.test`);
     await seed(v2);
-    await seed(v1);
+    await seed(other);
     await prisma.budget.update({
       where: { id: v2.budgetId },
       data: { planModelVersion: 2, planModelActivatedOn: day('2026-08-01'), timezone: 'UTC' },
@@ -96,7 +87,7 @@ describe('v2 notifications', () => {
 
   afterAll(async () => {
     await cleanup(v2);
-    await cleanup(v1);
+    await cleanup(other);
     await app.close();
     await prisma.$disconnect();
   });
@@ -125,20 +116,6 @@ describe('v2 notifications', () => {
       occurrenceId: v2.overdueId,
     });
     expect(JSON.stringify(v2Notifications)).not.toMatch(/\b100\b|1\.00/);
-  });
-
-  it('skips a model 1 budget without notifications and isolates budgets', async () => {
-    const handler = new NotificationRuleHandler(prisma);
-    await handler.execute(now, v1.budgetId);
-    await handler.execute(now, v2.budgetId);
-
-    expect(await notifications(v1)).toEqual([]);
-    const v2Notifications = await notifications(v2);
-    expect(
-      v2Notifications.every((item) =>
-        ['PLAN_TODAY', 'PLAN_OVERDUE'].includes(item.notificationType),
-      ),
-    ).toBe(true);
   });
 
   it('keeps a partially paid occurrence and resolves after full payment', async () => {
@@ -171,31 +148,6 @@ describe('v2 notifications', () => {
     expect(await open(v2, 'PLAN_OVERDUE')).toHaveLength(0);
   });
 
-  it('resolves legacy v1-only notifications after a budget moves to model 2', async () => {
-    await prisma.notification.createMany({
-      data: legacyTypes.map((type) => ({
-        id: randomUUID(),
-        workspaceId: v1.workspaceId,
-        budgetId: v1.budgetId,
-        userId: v1.userId,
-        notificationType: type as 'UNALLOCATED_INCOME',
-        title: 'Старое уведомление',
-        body: 'Создано до перехода на модель 2.',
-        actionPath: '/app/plans',
-        notificationKey: `legacy:${type}:${randomUUID()}`,
-      })),
-    });
-    await prisma.budget.update({
-      where: { id: v1.budgetId },
-      data: { planModelVersion: 2, planModelActivatedOn: day('2026-08-01') },
-    });
-    await new NotificationRuleHandler(prisma).execute(now, v1.budgetId);
-    const openOld = (await notifications(v1)).filter(
-      (item) => item.resolvedAt === null && legacyTypes.includes(item.notificationType),
-    );
-    expect(openOld).toEqual([]);
-  });
-
   it('shows the inbox only to the budget member', async () => {
     const own = await server.inject({
       method: 'GET',
@@ -205,7 +157,7 @@ describe('v2 notifications', () => {
     const foreign = await server.inject({
       method: 'GET',
       url: `/api/v1/budgets/${v2.budgetId}/notifications`,
-      cookies: { harmofin_session: v1.cookie },
+      cookies: { harmofin_session: other.cookie },
     });
     expect(own.statusCode).toBe(200);
     expect(foreign.statusCode).toBe(404);
@@ -350,7 +302,6 @@ describe('v2 notifications', () => {
     }>();
     const cookie = response.cookies.find((item) => item.name === 'harmofin_session')?.value;
     if (!cookie) throw new Error('Missing session cookie');
-    await forceBudgetV1(prisma, body.budget.id);
     return {
       userId: body.user.id,
       workspaceId: body.workspace.id,

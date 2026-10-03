@@ -10,8 +10,6 @@ const v2 = {
   listEnvelopes: vi.fn(),
   exportTransactions: vi.fn(),
   exportAssignments: vi.fn(),
-  exportLegacyAssignments: vi.fn(),
-  getLegacyAssignmentHistory: vi.fn(),
 };
 const route = { query: {} as Record<string, string> };
 const budgetRow = {
@@ -55,11 +53,6 @@ describe('analytics page', () => {
     workspaceRow.role = 'OWNER';
     v2.getReport.mockResolvedValue({ key: 'expenses-by-category', rows: [] });
     v2.listEnvelopes.mockResolvedValue({ items: [] });
-    v2.getLegacyAssignmentHistory.mockResolvedValue({
-      items: [],
-      nextCursor: null,
-      hasMore: false,
-    });
     api.listAccounts.mockResolvedValue([]);
     api.listCategories.mockResolvedValue([]);
   });
@@ -131,7 +124,6 @@ describe('analytics page', () => {
     await flushPromises();
 
     expect(wrapper.find('[data-action="export-transactions"]').exists()).toBe(false);
-    expect(wrapper.find('[data-action="export-legacy-assignments"]').exists()).toBe(false);
     expect(wrapper.text()).toContain('Экспорт доступен только владельцу бюджета');
   });
 
@@ -146,47 +138,6 @@ describe('analytics page', () => {
     await flushPromises();
 
     expect(flat(wrapper.get('[data-testid="export-error"]').text())).toContain('10 000');
-  });
-
-  it('shows the legacy archive as historical data with a cursor and its own CSV', async () => {
-    v2.getLegacyAssignmentHistory
-      .mockResolvedValueOnce({
-        items: [
-          {
-            sourceKind: 'LEGACY_ALLOCATION',
-            id: 'legacy-1',
-            occurredOn: '2026-01-10',
-            amountMinor: '100000',
-            status: 'CONFIRMED',
-            isDeleted: false,
-            isEnvelopeArchived: false,
-            envelopeId: null,
-            sourceEnvelopeId: null,
-            destinationEnvelopeId: null,
-            incomeTransactionId: null,
-            categoryId: null,
-            accountId: null,
-          },
-        ],
-        nextCursor: 'cursor-2',
-        hasMore: true,
-      })
-      .mockResolvedValueOnce({ items: [], nextCursor: null, hasMore: false });
-    v2.exportLegacyAssignments.mockResolvedValue(new Blob(['c']));
-    const wrapper = mount(AnalyticsPage, { global });
-    await flushPromises();
-
-    expect(wrapper.text()).toContain('Исторические назначения (до модели v2)');
-    expect(wrapper.text()).toContain('исторические данные, не средства модели v2');
-    expect(flat(wrapper.text())).toContain('1 000,00');
-    await wrapper.get('[data-action="legacy-more"]').trigger('click');
-    await flushPromises();
-    expect(v2.getLegacyAssignmentHistory).toHaveBeenLastCalledWith('budget-id', {
-      cursor: 'cursor-2',
-    });
-    await wrapper.get('[data-action="export-legacy-assignments"]').trigger('click');
-    await flushPromises();
-    expect(v2.exportLegacyAssignments).toHaveBeenCalledWith('budget-id');
   });
 
   it('offers exactly the nine v2 report keys', async () => {
@@ -207,7 +158,7 @@ describe('analytics page', () => {
     ]);
   });
 
-  it('does not call exports or the archive for a non-owner', async () => {
+  it('does not call exports for a non-owner', async () => {
     workspaceRow.role = 'VIEWER';
     const wrapper = mount(AnalyticsPage, { global });
     await flushPromises();
@@ -215,9 +166,6 @@ describe('analytics page', () => {
     expect(wrapper.find('[data-action="export-assignments"]').exists()).toBe(false);
     expect(v2.exportTransactions).not.toHaveBeenCalled();
     expect(v2.exportAssignments).not.toHaveBeenCalled();
-    expect(v2.exportLegacyAssignments).not.toHaveBeenCalled();
-    expect(v2.getLegacyAssignmentHistory).not.toHaveBeenCalled();
-    expect(wrapper.text()).not.toContain('Исторические назначения');
   });
 
   it('falls back from an unknown report key', async () => {
@@ -226,43 +174,5 @@ describe('analytics page', () => {
     await flushPromises();
 
     expect(v2.getReport).toHaveBeenCalledWith('budget-id', 'expenses-by-category', {});
-  });
-
-  it('keeps rows, hides More at the end and retries after a failed page', async () => {
-    const row = (id: string) => ({
-      sourceKind: 'LEGACY_ALLOCATION',
-      id,
-      occurredOn: '2026-01-10',
-      amountMinor: id === 'a' ? '100000' : '250000',
-      status: 'CONFIRMED',
-      isDeleted: false,
-      isEnvelopeArchived: false,
-      envelopeId: null,
-      sourceEnvelopeId: null,
-      destinationEnvelopeId: null,
-      incomeTransactionId: null,
-      categoryId: null,
-      accountId: null,
-    });
-    v2.getLegacyAssignmentHistory
-      .mockResolvedValueOnce({ items: [row('a')], nextCursor: 'c2', hasMore: true })
-      .mockRejectedValueOnce(new Error('net'))
-      .mockResolvedValueOnce({ items: [row('b')], nextCursor: null, hasMore: false });
-    const wrapper = mount(AnalyticsPage, { global });
-    await flushPromises();
-
-    await wrapper.get('[data-action="legacy-more"]').trigger('click');
-    await flushPromises();
-    expect(flat(wrapper.text())).toContain('1 000,00');
-    expect(wrapper.text()).toContain('Не удалось загрузить исторические назначения.');
-
-    await wrapper.get('[data-action="legacy-retry"]').trigger('click');
-    await flushPromises();
-    expect(v2.getLegacyAssignmentHistory).toHaveBeenLastCalledWith('budget-id', {
-      cursor: 'c2',
-    });
-    expect(flat(wrapper.text())).toContain('1 000,00');
-    expect(flat(wrapper.text())).toContain('2 500,00');
-    expect(wrapper.find('[data-action="legacy-more"]').exists()).toBe(false);
   });
 });

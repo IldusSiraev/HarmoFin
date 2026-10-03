@@ -13,7 +13,6 @@ import {
   todayInTimezone,
 } from '../src/cycles/cycle-period.domain.js';
 import { CycleRevisionRepository } from '../src/cycles/cycle-revision.repository.js';
-import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -22,7 +21,7 @@ const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
 const origin = 'http://localhost:3000';
 const password = 'correct-password-10';
 
-const names = ['owner', 'stale', 'outsider', 'viewer', 'editor', 'legacy'] as const;
+const names = ['owner', 'stale', 'outsider', 'viewer', 'editor'] as const;
 type Name = (typeof names)[number];
 const emails = Object.fromEntries(
   names.map((name) => [name, `v2-cycle-${name}-${randomUUID()}@harmofin.test`]),
@@ -397,7 +396,7 @@ describe('v2 cycle change preview and confirm (T02)', () => {
     expect(await prisma.budgetCycleRevision.count({ where: { budgetId } })).toBe(0);
   });
 
-  it('доступ: 401, CSRF, VIEWER/EDITOR 403, чужой бюджет 404, v1 409', async () => {
+  it('доступ: 401, CSRF, VIEWER/EDITOR 403, чужой бюджет 404', async () => {
     const url = `/api/v2/budgets/${user('owner').budgetId}/cycle-change/preview`;
     const unauth = await server.inject({
       method: 'POST',
@@ -432,9 +431,6 @@ describe('v2 cycle change preview and confirm (T02)', () => {
       user('outsider'),
     );
     expect(foreignConfirm.statusCode).toBe(404);
-    const legacy = await preview('legacy', NEW_INPUT);
-    expect(legacy.statusCode).toBe(409);
-    expect(legacy.json<{ code: string }>().code).toBe('MODEL_VERSION_MISMATCH');
     const noKey = await server.inject({
       method: 'POST',
       url: `/api/v2/budgets/${user('stale').budgetId}/cycle-change/confirm`,
@@ -542,7 +538,6 @@ async function register(email: string): Promise<RegisteredUser> {
   const match = /harmofin_session=([^;]+)/.exec(setCookie);
   const cookie = match ? decodeURIComponent(match[1]!) : '';
   expect(cookie).not.toHaveLength(0);
-  await forceBudgetV1(prisma, body.budget.id);
   return {
     userId: body.user.id,
     workspaceId: body.workspace.id,

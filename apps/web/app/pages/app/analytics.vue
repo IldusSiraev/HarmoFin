@@ -4,7 +4,6 @@ import { definePageMeta, navigateTo, useRoute } from '#imports';
 
 import ExportPanelV2 from '../../components/analytics/ExportPanelV2.vue';
 import GoalProgressReport from '../../components/analytics/GoalProgressReport.vue';
-import LegacyAssignmentsArchive from '../../components/analytics/LegacyAssignmentsArchive.vue';
 import PlanVsActualReport from '../../components/analytics/PlanVsActualReport.vue';
 import ReportChart from '../../components/analytics/ReportChart.vue';
 import ReportFilters, { type AnalyticsFilters } from '../../components/analytics/ReportFilters.vue';
@@ -214,10 +213,7 @@ function activeFilterCount() {
           hide-journal
         />
         <ReportChart v-else-if="isGenericReport(report)" :report="report" />
-        <template v-if="budget">
-          <ExportPanelV2 :budget-id="budget.id" :is-owner="isOwner" />
-          <LegacyAssignmentsArchive :budget-id="budget.id" :is-owner="isOwner" />
-        </template>
+        <ExportPanelV2 v-if="budget" :budget-id="budget.id" :is-owner="isOwner" />
       </template>
     </ReferencePageLayout>
   </div>

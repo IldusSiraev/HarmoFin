@@ -11,7 +11,6 @@ export interface V2EnvelopeTemplate {
   role: TemplateRole;
   templateKey: string;
   /** Keys of earlier template revisions that the same logical element may carry. */
-  legacyKeys: readonly string[];
   name: string;
   envelopeType: EnvelopeType;
   periodSlot: PeriodSlot | null;
@@ -31,7 +30,6 @@ export const V2_ENVELOPE_TEMPLATES: readonly V2EnvelopeTemplate[] = [
   {
     role: 'FIRST',
     templateKey: 'v2-period-first',
-    legacyKeys: ['envelope-current-10-24'],
     name: 'Первый период',
     envelopeType: 'CURRENT_EXPENSES',
     periodSlot: 'FIRST',
@@ -43,7 +41,6 @@ export const V2_ENVELOPE_TEMPLATES: readonly V2EnvelopeTemplate[] = [
   {
     role: 'SECOND',
     templateKey: 'v2-period-second',
-    legacyKeys: ['envelope-current-25-9'],
     name: 'Второй период',
     envelopeType: 'CURRENT_EXPENSES',
     periodSlot: 'SECOND',
@@ -55,7 +52,6 @@ export const V2_ENVELOPE_TEMPLATES: readonly V2EnvelopeTemplate[] = [
   {
     role: 'MANDATORY',
     templateKey: 'v2-mandatory',
-    legacyKeys: ['envelope-mandatory'],
     name: 'Обязательные',
     envelopeType: 'MANDATORY_EXPENSES',
     periodSlot: null,
@@ -67,7 +63,6 @@ export const V2_ENVELOPE_TEMPLATES: readonly V2EnvelopeTemplate[] = [
   {
     role: 'SAVINGS',
     templateKey: 'v2-savings-car',
-    legacyKeys: ['envelope-car'],
     name: 'Автомобиль',
     envelopeType: 'SAVINGS_GOAL',
     periodSlot: null,
@@ -79,7 +74,6 @@ export const V2_ENVELOPE_TEMPLATES: readonly V2EnvelopeTemplate[] = [
   {
     role: 'SAVINGS',
     templateKey: 'v2-savings-vacation',
-    legacyKeys: ['envelope-vacation'],
     name: 'Отпуск',
     envelopeType: 'SAVINGS_GOAL',
     periodSlot: null,
@@ -146,7 +140,7 @@ export function matchEnvelope(
   definition: V2EnvelopeTemplate,
   rows: readonly TemplateEnvelopeRow[],
 ): EnvelopeMatch {
-  const keys = new Set([definition.templateKey, ...definition.legacyKeys]);
+  const keys = new Set([definition.templateKey]);
   const active = rows.filter((row) => row.archivedAt === null);
   const archivedKeyed = rows.find(
     (row) => row.archivedAt !== null && keys.has(row.templateKey ?? ''),

@@ -108,27 +108,6 @@ export class ExportsV2Controller {
     return this.send(reply, request, (userId) => this.service.exportAssignments(userId, budgetId));
   }
 
-  @Get('legacy-assignments.csv')
-  @ApiOperation({
-    summary: 'CSV архива назначений модели 1',
-    description:
-      'Только владелец (OWNER). Исторические распределения доходов, перераспределения и стартовые остатки конвертов модели 1 с пометкой устаревшей семантики в каждой строке. Суммы не входят ни в какой остаток, funded или «Свободно» модели 2. Не более 10000 строк.',
-  })
-  @ApiParam({ name: 'budgetId', type: String, format: 'uuid' })
-  @ApiOkResponse(
-    csvResponse('harmofin-legacy-assignments-v1.csv', 'исторические назначения модели 1'),
-  )
-  @ExportErrors()
-  legacyAssignments(
-    @Param('budgetId', new ZodValidationPipe(uuidParamSchema)) budgetId: string,
-    @Req() request: AuthenticatedRequest,
-    @Res() reply: FastifyReply,
-  ): Promise<void> {
-    return this.send(reply, request, (userId) =>
-      this.service.exportLegacyAssignments(userId, budgetId),
-    );
-  }
-
   private async send(
     reply: FastifyReply,
     request: AuthenticatedRequest,

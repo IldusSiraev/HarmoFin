@@ -13,7 +13,6 @@ import { PlanModelPolicy } from '../src/common/plan-model/plan-model.policy.js';
 import { PrismaService } from '../src/database/prisma.service.js';
 import { FundingRuleRepository } from '../src/envelope-plans/funding-rule.repository.js';
 import { IncomeCategorySuggestionApplicationService } from '../src/funding/income-category-suggestion.application.service.js';
-import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -899,7 +898,7 @@ describe('v2 funding rules and period target snapshots', () => {
       expect(await suggestionAudit(budgetId)).toBe(auditBefore);
     });
 
-    it('VIEWER/EDITOR 403, не участник 404, v1 бюджет 409 и не тронут', async () => {
+    it('VIEWER/EDITOR 403, не участник 404 и не тронут', async () => {
       const budgetId = ctx.owner!.budgetId;
       const income = await makeCategory(budgetId, 'Премия', 'INCOME');
       const before = await settingOf(budgetId);
@@ -913,18 +912,6 @@ describe('v2 funding rules and period target snapshots', () => {
       }
       await expect(put(ctx.outsider, budgetId, body)).rejects.toMatchObject({ status: 404 });
       expect(await settingOf(budgetId)).toEqual(before);
-
-      const v1Budget = ctx.viewer!.budgetId;
-      const v1Category = await makeCategory(v1Budget, 'Доход v1', 'INCOME');
-      const v1Before = await settingOf(v1Budget);
-      await expect(
-        put(ctx.viewer, v1Budget, {
-          enabled: true,
-          sourceCategoryId: v1Category.id,
-          targetEnvelopeId: savingsEnvelope,
-        }),
-      ).rejects.toMatchObject({ response: { code: 'MODEL_VERSION_MISMATCH' } });
-      expect(await settingOf(v1Budget)).toEqual(v1Before);
     });
   });
 
@@ -1197,7 +1184,6 @@ async function register(email: string): Promise<RegisteredUser> {
   const match = /harmofin_session=([^;]+)/.exec(setCookie);
   const cookie = match ? decodeURIComponent(match[1]!) : '';
   expect(cookie).not.toHaveLength(0);
-  await forceBudgetV1(prisma, body.budget.id);
   return {
     userId: body.user.id,
     workspaceId: body.workspace.id,

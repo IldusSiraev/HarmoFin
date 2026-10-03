@@ -8,7 +8,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
 import { cycleAndPeriodFor, todayInTimezone } from '../src/cycles/cycle-period.domain.js';
-import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -34,8 +33,6 @@ type World = User & {
   v2ExpenseId: string;
   assignmentId: string;
   movementId: string;
-  allocationId: string;
-  reallocationId: string;
 };
 type Res = {
   statusCode: number;
@@ -112,7 +109,6 @@ describe('экспорт CSV модели 2 (P04)', () => {
     // назначение v2 (ledger) здесь не появляется, только факты
     expect(csv).not.toContain(w.assignmentId);
     expect(csv).not.toContain(w.movementId);
-    expect(csv).not.toContain(w.allocationId);
   });
 
   it('transactions.csv: DRAFT, CANCELLED и удалённые видны со своим статусом', async () => {
@@ -167,35 +163,7 @@ describe('экспорт CSV модели 2 (P04)', () => {
     expect(csv).not.toContain('77777');
     expect(csv).not.toContain(w.v1IncomeId);
     expect(csv).not.toContain(w.v2ExpenseId);
-    expect(csv).not.toContain(w.allocationId);
-    expect(csv).not.toContain(w.reallocationId);
     expect(lines).toHaveLength(3);
-  });
-
-  it('legacy-assignments.csv: v1 allocations/reallocations/старты с меткой устаревшей семантики', async () => {
-    const w = await world();
-    const res = await get(w, 'legacy-assignments.csv');
-    expect(res.statusCode).toBe(200);
-    const csv = res.body;
-    expect(csv).not.toContain('Баланс конверта');
-    const lines = rows(csv);
-    expect(lines[0]!.split(';')).toEqual(
-      expect.arrayContaining(['Вид источника', 'Дата', 'Статус', 'Сумма (коп.)', 'Семантика']),
-    );
-    const allocation = lines.find((line) => line.startsWith(w.allocationId))!;
-    expect(allocation).toContain('LEGACY_ALLOCATION');
-    expect(allocation).toContain('80000');
-    expect(allocation).toContain('Устаревшая семантика v1');
-    expect(lines.find((line) => line.startsWith(w.reallocationId))).toContain(
-      'LEGACY_REALLOCATION',
-    );
-    expect(lines.find((line) => line.startsWith(w.goalEnvelopeId))).toContain(
-      'LEGACY_ENVELOPE_START',
-    );
-    for (const line of lines.slice(1)) expect(line).toContain('Устаревшая семантика v1');
-    // ничего из v2-назначений
-    expect(csv).not.toContain(w.assignmentId);
-    expect(csv).not.toContain(w.movementId);
   });
 
   it('чтение не меняет данные и не затрагивает аудит', async () => {
@@ -206,7 +174,7 @@ describe('экспорт CSV модели 2 (P04)', () => {
       audit: await prisma.auditEvent.count({ where: { workspaceId: w.workspaceId } }),
     });
     const before = await count();
-    for (const file of ['transactions.csv', 'assignments.csv', 'legacy-assignments.csv']) {
+    for (const file of ['transactions.csv', 'assignments.csv']) {
       expect((await get(w, file)).statusCode).toBe(200);
     }
     expect(await count()).toEqual(before);
@@ -241,7 +209,6 @@ describe('экспорт CSV модели 2 (P04)', () => {
     for (const [file, name] of [
       ['transactions.csv', 'harmofin-transactions-v2.csv'],
       ['assignments.csv', 'harmofin-assignments-v2.csv'],
-      ['legacy-assignments.csv', 'harmofin-legacy-assignments-v1.csv'],
     ] as const) {
       const res = await get(w, file);
       expect(res.headers['content-type']).toBe('text/csv; charset=utf-8');
@@ -279,9 +246,9 @@ describe('экспорт CSV модели 2 (P04)', () => {
     expect(over.json()).toMatchObject({ code: 'EXPORT_LIMIT_EXCEEDED' });
   });
 
-  it('401 без сессии, 403 не владельцу, 404 чужой бюджет, 409 модель v1', async () => {
+  it('401 без сессии, 403 не владельцу, 404 чужой бюджет', async () => {
     const w = await world();
-    const files = ['transactions.csv', 'assignments.csv', 'legacy-assignments.csv'];
+    const files = ['transactions.csv', 'assignments.csv'];
     for (const file of files) {
       const anon = await server.inject({
         method: 'GET',
@@ -302,7 +269,6 @@ describe('экспорт CSV модели 2 (P04)', () => {
       }
     }
     const outsider = await register();
-    const v1 = await register();
     for (const file of files) {
       expect((await get(w, file, outsider)).statusCode).toBe(404);
       const unknown = await server.inject({
@@ -311,9 +277,6 @@ describe('экспорт CSV модели 2 (P04)', () => {
         headers: { origin, cookie: `harmofin_session=${w.cookie}` },
       });
       expect(unknown.statusCode).toBe(404);
-      const mismatch = await get(v1, file);
-      expect(mismatch.statusCode).toBe(409);
-      expect(mismatch.json().code).toBe('MODEL_VERSION_MISMATCH');
     }
   });
 
@@ -330,32 +293,29 @@ describe('экспорт CSV модели 2 (P04)', () => {
       where: { id: b.expenseCategoryId },
       data: { name: `Кат-${marker}` },
     });
-    for (const file of ['transactions.csv', 'assignments.csv', 'legacy-assignments.csv']) {
+    for (const file of ['transactions.csv', 'assignments.csv']) {
       const csv = (await get(a, file)).body;
-      for (const id of [b.v1IncomeId, b.v2ExpenseId, b.assignmentId, b.allocationId]) {
+      for (const id of [b.v1IncomeId, b.v2ExpenseId, b.assignmentId]) {
         expect(csv).not.toContain(id);
       }
       expect(csv).not.toContain(marker);
-      const own = file === 'legacy-assignments.csv' ? b.allocationId : marker;
-      expect((await get(b, file)).body).toContain(own);
+      expect((await get(b, file)).body).toContain(marker);
     }
   });
 
-  it('OpenAPI описывает три GET с text/csv и ошибками', async () => {
+  it('OpenAPI описывает два GET с text/csv и ошибками', async () => {
     const document = (await server.inject({ method: 'GET', url: '/openapi.json' })).json<{
       paths: Record<string, Record<string, Operation>>;
     }>();
     const filenames: Record<string, string> = {
       'transactions.csv': 'harmofin-transactions-v2.csv',
       'assignments.csv': 'harmofin-assignments-v2.csv',
-      'legacy-assignments.csv': 'harmofin-legacy-assignments-v1.csv',
     };
     const descriptions: Record<string, string> = {
       'transactions.csv': 'транзакции',
       'assignments.csv': 'назначения и движения модели 2',
-      'legacy-assignments.csv': 'исторические назначения модели 1',
     };
-    for (const file of ['transactions.csv', 'assignments.csv', 'legacy-assignments.csv']) {
+    for (const file of ['transactions.csv', 'assignments.csv']) {
       const path = document.paths[`/api/v2/budgets/{budgetId}/exports/${file}`]!;
       expect(path.get).toBeDefined();
       for (const method of ['post', 'patch', 'put', 'delete']) expect(path[method]).toBeUndefined();
@@ -397,7 +357,6 @@ async function register(): Promise<User> {
   const raw = response.headers['set-cookie'];
   const setCookie = Array.isArray(raw) ? raw.join('; ') : (raw ?? '');
   const match = /harmofin_session=([^;]+)/.exec(setCookie);
-  await forceBudgetV1(prisma, body.budget.id);
   return {
     userId: body.user.id,
     workspaceId: body.workspace.id,
@@ -470,8 +429,6 @@ async function world(options: { facts?: boolean } = {}): Promise<World> {
       v2ExpenseId: '',
       assignmentId: '',
       movementId: '',
-      allocationId: '',
-      reallocationId: '',
     };
   }
   const period = await prisma.envelopePeriod.create({
@@ -552,33 +509,6 @@ async function world(options: { facts?: boolean } = {}): Promise<World> {
   const v1Income = await tx('INCOME', 1, 100_000n, null);
   const v1Expense = await tx('EXPENSE', 1, 25_000n, goal.id);
   const v2Expense = await tx('EXPENSE', 2, 30_000n, goal.id);
-  const allocation = await prisma.incomeAllocation.create({
-    data: {
-      id: randomUUID(),
-      budgetId: b,
-      incomeTransactionId: v1Income.id,
-      status: 'CONFIRMED',
-      amountMinor: 80_000n,
-      occurredOn: day('2025-12-01'),
-      accountId: account.id,
-      envelopeId: goal.id,
-      createdByUserId: user.userId,
-      updatedByUserId: user.userId,
-    },
-  });
-  const reallocation = await prisma.envelopeReallocation.create({
-    data: {
-      id: randomUUID(),
-      budgetId: b,
-      status: 'CONFIRMED',
-      sourceEnvelopeId: goal.id,
-      destinationEnvelopeId: main.id,
-      amountMinor: 5_000n,
-      occurredOn: day('2025-12-01'),
-      createdByUserId: user.userId,
-      updatedByUserId: user.userId,
-    },
-  });
   return {
     ...base,
     v1IncomeId: v1Income.id,
@@ -586,8 +516,6 @@ async function world(options: { facts?: boolean } = {}): Promise<World> {
     v2ExpenseId: v2Expense.id,
     assignmentId: assignment.id,
     movementId: confirmedMovement.id,
-    allocationId: allocation.id,
-    reallocationId: reallocation.id,
   };
 }
 

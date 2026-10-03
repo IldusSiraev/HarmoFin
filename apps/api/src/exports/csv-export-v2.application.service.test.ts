@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import type { PrismaService } from '../database/prisma.service.js';
 import type { MetricsRegistry } from '../observability/observability.js';
-import type { LegacyAssignmentHistoryRepository } from '../reports/legacy-assignment-history.repository.js';
 import { CsvExportV2ApplicationService } from './csv-export-v2.application.service.js';
 import type {
   CsvExportV2Repository,
@@ -54,29 +53,9 @@ const assignment = (
   destinationPeriodEnd: null,
   sourceIncomeTransactionId: null,
 });
-const legacy = (index: number) => ({
-  sourceKind: 'LEGACY_ALLOCATION' as const,
-  id: `l${index}`,
-  occurredOn: '2025-12-01',
-  amountMinor: 1n,
-  status: 'CONFIRMED' as const,
-  isDeleted: false,
-  isEnvelopeArchived: false,
-  envelopeId: null,
-  sourceEnvelopeId: null,
-  destinationEnvelopeId: null,
-  incomeTransactionId: null,
-  categoryId: null,
-  accountId: null,
-});
 
 /** Repositories honour `take` like the real SQL: they never return more rows than requested. */
-function build(counts: {
-  transactions?: number;
-  assignments?: number;
-  movements?: number;
-  legacy?: number;
-}) {
+function build(counts: { transactions?: number; assignments?: number; movements?: number }) {
   const tx = { $executeRaw: vi.fn() };
   const prisma = { $transaction: vi.fn((fn: (client: unknown) => unknown) => fn(tx)) };
   const mixed = [
@@ -90,20 +69,14 @@ function build(counts: {
     // Real repository takes `take` from each source, then merges: assignments + movements may sum
     // to more than `take`, so no slicing here.
     assignments: vi.fn(async () => mixed),
-  };
-  const legacyRepository = {
     findAccessibleBudget: vi.fn(async () => ({ id: 'b', workspaceId: 'w' })),
     findActiveRole: vi.fn(async () => 'OWNER'),
-    page: vi.fn(async (_tx: unknown, _b: string, _c: unknown, take: number) =>
-      Array.from({ length: counts.legacy ?? 0 }, (_, i) => legacy(i)).slice(0, take),
-    ),
   };
   const metrics = { increment: vi.fn() };
   const policy = { requireModel: vi.fn(async () => ({})) };
   const service = new CsvExportV2ApplicationService(
     prisma as unknown as PrismaService,
     repository as unknown as CsvExportV2Repository,
-    legacyRepository as unknown as LegacyAssignmentHistoryRepository,
     metrics as unknown as MetricsRegistry,
     policy as unknown as PlanModelPolicy,
     LIMIT,
@@ -139,15 +112,5 @@ describe('CsvExportV2ApplicationService: лимит строк', () => {
         response: { code: 'EXPORT_LIMIT_EXCEEDED' },
       });
     }
-  });
-
-  it('legacy-assignments: N проходит, N+1 даёт 422', async () => {
-    const ok = build({ legacy: LIMIT });
-    expect(dataRows((await ok.service.exportLegacyAssignments('u', 'b')).content)).toBe(LIMIT);
-    const over = build({ legacy: LIMIT + 5 });
-    await expect(over.service.exportLegacyAssignments('u', 'b')).rejects.toMatchObject({
-      status: 422,
-      response: { code: 'EXPORT_LIMIT_EXCEEDED' },
-    });
   });
 });

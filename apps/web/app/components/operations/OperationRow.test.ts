@@ -72,13 +72,6 @@ describe('OperationRow', () => {
     );
   });
 
-  it('marks an operation made before model 2 with text, not only colour', () => {
-    const legacy = mountRow({ accountingModelVersion: 1 });
-
-    expect(legacy.get('[data-testid="operation-row-legacy"]').text()).toBe('До модели 2');
-    expect(mountRow().find('[data-testid="operation-row-legacy"]').exists()).toBe(false);
-  });
-
   it('marks a payment made against a plan', () => {
     expect(mountRow({ planOccurrenceIds: ['occurrence-id'] }).text()).toContain('По плану');
     expect(mountRow().text()).not.toContain('По плану');

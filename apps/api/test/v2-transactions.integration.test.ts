@@ -10,7 +10,6 @@ import { loadApiConfig } from '../src/config/env.js';
 import { FinancialBalanceRepository } from '../src/common/finance/financial-balance.repository.js';
 import { todayInTimezone } from '../src/cycles/cycle-period.domain.js';
 import { AssignmentBalanceRepository } from '../src/envelope-plans/assignment-balance.repository.js';
-import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -33,7 +32,6 @@ const emails = {
   owner: `v2-tx-owner-${randomUUID()}@harmofin.test`,
   viewer: `v2-tx-viewer-${randomUUID()}@harmofin.test`,
   outsider: `v2-tx-outsider-${randomUUID()}@harmofin.test`,
-  legacy: `v2-tx-legacy-${randomUUID()}@harmofin.test`,
 };
 const ctx: Partial<Record<keyof typeof emails, User>> = {};
 
@@ -366,16 +364,12 @@ describe('v2 доход и обычный расход (POST /api/v2/budgets/:bu
     expect(await cash(accountId)).toBe(before - 100n);
   });
 
-  it('VIEWER — 403, посторонний — 404, v1-бюджет — 409 MODEL_VERSION_MISMATCH', async () => {
+  it('VIEWER — 403, посторонний — 404', async () => {
     const viewer = await post(ctx.viewer, 'v-1', expense(), ctx.owner!.budgetId);
     expect(viewer.statusCode).toBe(403);
 
     const outsider = await post(ctx.outsider, 'o-1', expense(), ctx.owner!.budgetId);
     expect(outsider.statusCode).toBe(404);
-
-    const legacy = await post(ctx.legacy, 'l-1', expense());
-    expect(legacy.statusCode).toBe(409);
-    expect(legacy.json<{ code: string }>().code).toBe('MODEL_VERSION_MISMATCH');
   });
 
   it('изоляция бюджетов: чужие счёт, категория и конверт — 404, без записи', async () => {
@@ -472,7 +466,6 @@ async function register(email: string): Promise<User> {
   const setCookieRaw = response.headers['set-cookie'];
   const setCookie = Array.isArray(setCookieRaw) ? setCookieRaw.join('; ') : (setCookieRaw ?? '');
   const match = /harmofin_session=([^;]+)/.exec(setCookie);
-  await forceBudgetV1(prisma, body.budget.id);
   return {
     userId: body.user.id,
     workspaceId: body.workspace.id,

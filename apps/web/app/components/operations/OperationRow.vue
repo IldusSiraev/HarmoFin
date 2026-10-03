@@ -49,7 +49,6 @@ const statusTone = computed(() => {
 // The journal money scale is fixed: the API serves RUB in minor units.
 const SCALE = 2;
 
-const isLegacy = computed(() => props.transaction.accountingModelVersion === 1);
 const isPlanPayment = computed(() => props.transaction.planOccurrenceIds.length > 0);
 
 const rowLabel = computed(
@@ -63,18 +62,12 @@ const rowLabel = computed(
 
     <span class="operation-row__title">{{ categoryName }}</span>
     <span v-if="counterparty" class="operation-row__subtitle">{{ counterparty }}</span>
-    <span v-if="statusLabel || isLegacy || isPlanPayment" class="operation-row__meta">
+    <span v-if="statusLabel || isPlanPayment" class="operation-row__meta">
       <UiStatus
         v-if="statusLabel"
         data-testid="operation-row-status"
         :label="statusLabel"
         :tone="statusTone"
-      />
-      <UiStatus
-        v-if="isLegacy"
-        data-testid="operation-row-legacy"
-        label="До модели 2"
-        tone="info"
       />
       <UiStatus v-if="isPlanPayment" label="По плану" tone="info" />
     </span>

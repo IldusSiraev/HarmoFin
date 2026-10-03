@@ -17,7 +17,6 @@ import { RegularPlanRepository } from '../src/plans/regular-plan.repository.js';
 import { V2OccurrenceMaterializer } from '../src/plans/v2-occurrence-materializer.js';
 import { ObligationApplicationService } from '../src/obligations/obligation.application.service.js';
 import { MandatoryDueRepository } from '../src/obligations/mandatory-due.repository.js';
-import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -33,7 +32,6 @@ type User = { userId: string; workspaceId: string; budgetId: string };
 const emails = {
   owner: `v2-md-owner-${randomUUID()}@harmofin.test`,
   other: `v2-md-other-${randomUUID()}@harmofin.test`,
-  legacy: `v2-md-legacy-${randomUUID()}@harmofin.test`,
 };
 const ctx: Partial<Record<keyof typeof emails, User>> = {};
 const owner = () => ctx.owner!;
@@ -49,7 +47,6 @@ let expenseCategoryId: string;
 let mandatoryEnvelopeId: string;
 let customEnvelopeId: string;
 let otherEnvelopeId: string;
-let legacyEnvelopeId: string;
 
 const due = (asOf: string, end: string, budgetId = owner().budgetId) =>
   prisma.$transaction((tx) => repo.mandatoryDue(tx, budgetId, asOf, end));
@@ -167,7 +164,6 @@ describe('v2 потребность обязательных (R02)', () => {
         workspace: { id: string };
         budget: { id: string };
       }>();
-      await forceBudgetV1(prisma, body.budget.id);
       ctx[key] = {
         userId: body.user.id,
         workspaceId: body.workspace.id,
@@ -219,11 +215,10 @@ describe('v2 потребность обязательных (R02)', () => {
     mandatoryEnvelopeId = await envelope(owner().budgetId, 'MANDATORY_EXPENSES');
     customEnvelopeId = await envelope(owner().budgetId, 'CUSTOM');
     otherEnvelopeId = await envelope(ctx.other!.budgetId, 'MANDATORY_EXPENSES');
-    legacyEnvelopeId = await envelope(ctx.legacy!.budgetId, 'MANDATORY_EXPENSES');
   });
 
   beforeEach(async () => {
-    const budgetId = { in: [owner().budgetId, ctx.other!.budgetId, ctx.legacy!.budgetId] };
+    const budgetId = { in: [owner().budgetId, ctx.other!.budgetId] };
     await prisma.planPayment.deleteMany({ where: { budgetId } });
     await prisma.planOccurrence.deleteMany({ where: { budgetId } });
     await prisma.regularPlan.deleteMany({ where: { budgetId } });
@@ -358,12 +353,6 @@ describe('v2 потребность обязательных (R02)', () => {
     expect(await due('2026-10-01', '2026-10-09')).toBe(100_000n);
     expect(await due('2026-10-01', '2026-10-09', ctx.other!.budgetId)).toBe(777_000n);
     expect(await planTotal('2026-10-01', '2026-10-31', ctx.other!.budgetId)).toBe(0n);
-  });
-
-  it('бюджет модели 1 не поддерживается и даёт 0', async () => {
-    await occurrence('2026-10-02', 100_000n, { user: ctx.legacy!, envelopeId: legacyEnvelopeId });
-    expect(await due('2026-10-01', '2026-10-09', ctx.legacy!.budgetId)).toBe(0n);
-    expect(await planTotal('2026-10-01', '2026-10-31', ctx.legacy!.budgetId)).toBe(0n);
   });
 
   it('отклоняет невалидные даты', async () => {

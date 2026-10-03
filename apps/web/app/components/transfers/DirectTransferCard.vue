@@ -45,12 +45,6 @@ const STATUS: Record<
       {{ accountNames.get(transfer.destinationAccountId) ?? 'Счёт' }}
     </p>
     <p v-if="transfer.comment" class="direct-transfer-card__meta">{{ transfer.comment }}</p>
-    <p v-if="transfer.mode === 'LEGACY_PARTS'" class="direct-transfer-card__meta">
-      Исторический перевод с распределением по конвертам
-      <template v-if="transfer.parts && transfer.parts.length > 1"
-        >({{ transfer.parts.length }})</template
-      >
-    </p>
   </UiCard>
 </template>
 

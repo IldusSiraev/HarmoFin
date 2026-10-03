@@ -50,7 +50,7 @@ describe('useAuth session and password management', () => {
     await revokeAllSessions();
     expect(mocks.request).toHaveBeenCalledWith('/api/v1/auth/sessions', { method: 'DELETE' });
   });
-  it('loadMe keeps planModelVersion 2 and 1 per budget and stores no token in localStorage', async () => {
+  it('loadMe keeps planModelVersion per budget and stores no token in localStorage', async () => {
     const setItem = vi.spyOn(Storage.prototype, 'setItem');
     mocks.request.mockResolvedValue({
       user: { id: 'u1', email: 'a@b.test', displayName: null },
@@ -59,10 +59,7 @@ describe('useAuth session and password management', () => {
           id: 'w1',
           name: 'W',
           role: 'OWNER',
-          budgets: [
-            { id: 'b2', name: 'New', primaryCurrency: 'RUB', planModelVersion: 2 },
-            { id: 'b1', name: 'Old', primaryCurrency: 'RUB', planModelVersion: 1 },
-          ],
+          budgets: [{ id: 'b2', name: 'New', primaryCurrency: 'RUB', planModelVersion: 2 }],
         },
       ],
     });
@@ -70,7 +67,7 @@ describe('useAuth session and password management', () => {
     const data = await loadMe();
     const budgets = data.workspaces[0]?.budgets ?? [];
     const versions: number[] = budgets.map((budget) => budget.planModelVersion);
-    expect(versions).toEqual([2, 1]);
+    expect(versions).toEqual([2]);
     expect(currentData.value?.workspaces[0]?.budgets[0]?.planModelVersion).toBe(2);
     expect(mocks.request).toHaveBeenCalledWith('/api/v1/me');
     expect(setItem).not.toHaveBeenCalled();

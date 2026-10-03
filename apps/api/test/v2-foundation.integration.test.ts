@@ -7,7 +7,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
-import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -85,7 +84,7 @@ describe('v2 foundation: URI versioning and budget model version', () => {
     expect(modelOperation?.get?.security).toEqual([{ session: [] }]);
   });
 
-  it('answers 401 without a session, 404 for a foreign budget and 409 for a v1 budget', async () => {
+  it('answers 401 without a session, and 404 for a foreign budget', async () => {
     const anonymous = await server.inject({
       method: 'GET',
       url: `/api/v2/budgets/${otherBudgetId}/model`,
@@ -98,30 +97,10 @@ describe('v2 foundation: URI versioning and budget model version', () => {
       cookies: { harmofin_session: ownerCookie },
     });
     expect(foreign.statusCode).toBe(404);
-
-    const ownV1 = await getOwnV1BudgetId(ownerId);
-    const mismatch = await server.inject({
-      method: 'GET',
-      url: `/api/v2/budgets/${ownV1}/model`,
-      cookies: { harmofin_session: ownerCookie },
-    });
-    expect(mismatch.statusCode).toBe(409);
-    expect(mismatch.json()).toMatchObject({ code: 'MODEL_VERSION_MISMATCH' });
-    expect(typeof mismatch.json()?.detail).toBe('string');
-    expect((mismatch.json()?.detail as string).length).toBeGreaterThan(0);
-  });
-
-  it('keeps a legacy budget on model version 1 without an activation date', async () => {
-    const row = (await prisma.budget.findUniqueOrThrow({
-      where: { id: await getOwnV1BudgetId(ownerId) },
-    })) as unknown as Record<string, unknown>;
-
-    expect(row['planModelVersion']).toBe(1);
-    expect(row['planModelActivatedOn']).toBeNull();
   });
 
   it('cannot persist a v2 budget without planModelActivatedOn (database CHECK, M04)', async () => {
-    const budgetId = await getOwnV1BudgetId(ownerId);
+    const budgetId = await getOwnBudgetId(ownerId);
     await expect(
       prisma.budget.update({
         where: { id: budgetId },
@@ -131,7 +110,7 @@ describe('v2 foundation: URI versioning and budget model version', () => {
   });
 
   it('returns the current model for an activated v2 budget', async () => {
-    const budgetId = await getOwnV1BudgetId(ownerId);
+    const budgetId = await getOwnBudgetId(ownerId);
     await prisma.budget.update({
       where: { id: budgetId },
       data: { planModelVersion: 2, planModelActivatedOn: new Date('2026-09-29T00:00:00Z') },
@@ -187,11 +166,6 @@ describe('v2 foundation: URI versioning and budget model version', () => {
     ).rejects.toThrow();
   });
 
-  it('keeps an untouched v1 budget on planModelVersion=1 after the additive migration', async () => {
-    const budget = await prisma.budget.findUniqueOrThrow({ where: { id: otherBudgetId } });
-    expect(budget.planModelVersion).toBe(1);
-  });
-
   it('creates an envelope_funding_rule and a budget_cycle_revision for the budget', async () => {
     const rule = await prisma.envelopeFundingRule.create({
       data: {
@@ -219,7 +193,7 @@ describe('v2 foundation: URI versioning and budget model version', () => {
   });
 });
 
-async function getOwnV1BudgetId(userId: string): Promise<string> {
+async function getOwnBudgetId(userId: string): Promise<string> {
   const membership = await prisma.workspaceMembership.findFirstOrThrow({
     where: { userId, isActive: true },
     select: { workspaceId: true },
@@ -283,7 +257,6 @@ async function register(email: string) {
   }>();
   const cookie = response.cookies.find((item) => item.name === 'harmofin_session')?.value;
   if (!cookie) throw new Error('Missing session cookie');
-  await forceBudgetV1(prisma, body.budget.id);
   return { ...body, cookie };
 }
 

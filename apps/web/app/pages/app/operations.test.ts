@@ -374,24 +374,6 @@ describe('operations page (v2 journal)', () => {
     expect(useToast().toasts.value.at(-1)?.title).toBe('Операция восстановлена');
   });
 
-  it('shows an operation from before model 2 read-only with an explanation', async () => {
-    withItems({ ...expense, accountingModelVersion: 1 });
-    mountPage();
-    await flushPromises();
-
-    expect(wrapper!.get('[data-testid="operation-row-legacy"]').text()).toBe('До модели 2');
-    expect(wrapper!.find('[data-testid="action-menu-trigger"]').exists()).toBe(false);
-
-    await wrapper!.get('[data-testid="list-row-select"]').trigger('click');
-    await flushPromises();
-
-    expect(wrapper!.get('[data-testid="drawer-legacy-notice"]').text()).toContain(
-      'до перехода на модель 2',
-    );
-    expect(wrapper!.find('[data-testid="drawer-edit"]').exists()).toBe(false);
-    expect(wrapper!.find('[data-testid="drawer-delete"]').exists()).toBe(false);
-  });
-
   it('shows no leftovers of the old model: no unallocated banner, no confirm or cancel', async () => {
     withItems({ ...expense, transactionType: 'INCOME', envelopeId: null, status: 'DRAFT' });
     mountPage();

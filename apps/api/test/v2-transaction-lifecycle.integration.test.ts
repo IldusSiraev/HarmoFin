@@ -10,7 +10,6 @@ import { loadApiConfig } from '../src/config/env.js';
 import { FinancialBalanceRepository } from '../src/common/finance/financial-balance.repository.js';
 import { todayInTimezone } from '../src/cycles/cycle-period.domain.js';
 import { AssignmentBalanceRepository } from '../src/envelope-plans/assignment-balance.repository.js';
-import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -34,7 +33,6 @@ const emails = {
   editor: `v2-lc-editor-${randomUUID()}@harmofin.test`,
   viewer: `v2-lc-viewer-${randomUUID()}@harmofin.test`,
   outsider: `v2-lc-outsider-${randomUUID()}@harmofin.test`,
-  legacy: `v2-lc-legacy-${randomUUID()}@harmofin.test`,
 };
 const ctx: Partial<Record<keyof typeof emails, User>> = {};
 
@@ -456,38 +454,6 @@ describe('v2 расход: изменение, удаление и восста�
     expect(await prisma.planPayment.count({ where: { occurrenceId: occId } })).toBe(1);
   });
 
-  it('старый факт модели 1: PATCH/DELETE/restore - 409 LEGACY_CORRECTION_REQUIRED', async () => {
-    const legacyRow = await prisma.transaction.create({
-      data: {
-        id: randomUUID(),
-        budgetId: owner().budgetId,
-        transactionType: 'EXPENSE',
-        status: 'CONFIRMED',
-        amountMinor: 1_000n,
-        occurredOn: d(-2),
-        accountId,
-        categoryId: expenseCategoryId,
-        envelopeId: customEnvelopeId,
-        isPlanned: false,
-        confirmedAt: new Date(),
-        createdByUserId: owner().userId,
-        updatedByUserId: owner().userId,
-        accountingModelVersion: 1,
-      },
-    });
-    const cashBefore = await cash(accountId);
-    for (const res of [
-      await patch(legacyRow.id, 'lg-1', { amount: '5.00' }),
-      await del(legacyRow.id, 'lg-2'),
-      await restore(legacyRow.id, 'lg-3'),
-    ]) {
-      expect(res.statusCode).toBe(409);
-      expect(res.json().code).toBe('LEGACY_CORRECTION_REQUIRED');
-    }
-    expect((await dbTx(legacyRow.id)).status).toBe('CONFIRMED');
-    expect(await cash(accountId)).toBe(cashBefore);
-  });
-
   it('доход без назначений изменяется и удаляется (полный сценарий - v2-income-lifecycle)', async () => {
     const income = await call('POST', owner(), '/transactions', 'inc-mk', {
       transactionType: 'INCOME',
@@ -540,15 +506,6 @@ describe('v2 расход: изменение, удаление и восста�
     expect((await dbTx(outsiderTransactionId)).status).toBe('CONFIRMED');
     const noKey = await call('DELETE', owner(), `/transactions/${created.id}`, undefined);
     expect(noKey.statusCode).toBe(400);
-    const legacyBudget = await call(
-      'DELETE',
-      ctx.legacy!,
-      `/transactions/${created.id}`,
-      'rl-l1',
-      undefined,
-      ctx.legacy!,
-    );
-    expect(legacyBudget.statusCode).toBe(409);
     const byEditor = await del(created.id, 'rl-e1', ctx.editor!);
     expect(byEditor.statusCode).toBe(200);
     expect((await restore(created.id, 'rl-e2', ctx.editor!)).statusCode).toBe(200);
@@ -604,7 +561,6 @@ async function register(email: string): Promise<User> {
   const setCookieRaw = response.headers['set-cookie'];
   const setCookie = Array.isArray(setCookieRaw) ? setCookieRaw.join('; ') : (setCookieRaw ?? '');
   const match = /harmofin_session=([^;]+)/.exec(setCookie);
-  await forceBudgetV1(prisma, body.budget.id);
   return {
     userId: body.user.id,
     workspaceId: body.workspace.id,

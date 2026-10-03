@@ -1,19 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-export class DirectTransferPartResponse {
-  @ApiProperty({ type: String, example: '0195f3c3-aaaa-bbbb-cccc-000000000001' })
-  id!: string;
-
-  @ApiProperty({ type: String, example: '10000' })
-  amountMinor!: string;
-
-  @ApiProperty({ type: String, example: '0195f3c3-aaaa-bbbb-cccc-000000000002' })
-  sourceEnvelopeId!: string;
-
-  @ApiProperty({ type: String, nullable: true })
-  destinationEnvelopeId!: string | null;
-}
-
 export class DirectTransferResponse {
   @ApiProperty({ type: String, example: '0195f3c3-aaaa-bbbb-cccc-000000000001' })
   id!: string;
@@ -24,8 +10,8 @@ export class DirectTransferResponse {
   @ApiProperty({ type: String, example: 'CONFIRMED' })
   status!: 'CONFIRMED' | 'DRAFT' | 'CANCELLED' | 'DELETED';
 
-  @ApiProperty({ type: String, enum: ['LEGACY_PARTS', 'ACCOUNT_ONLY'], example: 'ACCOUNT_ONLY' })
-  mode!: 'LEGACY_PARTS' | 'ACCOUNT_ONLY';
+  @ApiProperty({ type: String, enum: ['ACCOUNT_ONLY'], example: 'ACCOUNT_ONLY' })
+  mode!: 'ACCOUNT_ONLY';
 
   @ApiProperty({ type: String, example: '5000000' })
   totalMinor!: string;
@@ -51,13 +37,6 @@ export class DirectTransferResponse {
     example: '0195f3c3-aaaa-bbbb-cccc-000000000004',
   })
   destinationAccountId!: string | null;
-
-  @ApiProperty({
-    description: 'Для LEGACY_PARTS — части перевода; отсутствует для прямых переводов',
-    type: [DirectTransferPartResponse],
-    nullable: true,
-  })
-  parts!: DirectTransferPartResponse[] | undefined;
 }
 
 export class CreateDirectTransferInput {

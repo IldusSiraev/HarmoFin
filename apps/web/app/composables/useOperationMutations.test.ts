@@ -12,11 +12,7 @@ vi.mock('./useEnvelopePlanV2.js', async (importOriginal) => ({
 
 import { ApiRequestError } from './useApiClient.js';
 import type { TransactionJournalV2Item } from './useEnvelopePlanV2.js';
-import {
-  canEditTransaction,
-  isLegacyTransaction,
-  useOperationMutations,
-} from './useOperationMutations.js';
+import { canEditTransaction, useOperationMutations } from './useOperationMutations.js';
 import { useToast } from './useToast.js';
 
 const transaction = {
@@ -115,7 +111,7 @@ describe('useOperationMutations (v2)', () => {
 
   it('announces a failure in Russian instead of throwing and keeps the rejection', async () => {
     const failure = new ApiRequestError(409, {
-      code: 'LEGACY_CORRECTION_REQUIRED',
+      code: 'TRANSACTION_NOT_EDITABLE',
       detail: 'technical',
     });
     api.deleteTransaction.mockRejectedValue(failure);
@@ -128,7 +124,7 @@ describe('useOperationMutations (v2)', () => {
     expect(lastError.value).toBe(failure);
     expect(toast?.tone).toBe('error');
     expect(toast?.title).toBe('Не удалось удалить операцию');
-    expect(toast?.description).toContain('до перехода на модель 2');
+    expect(toast?.description).toContain('нельзя изменить');
     expect(toast?.description).not.toContain('technical');
   });
 
@@ -164,19 +160,12 @@ describe('useOperationMutations (v2)', () => {
     expect(availableActions(transaction)).toEqual(['delete']);
     expect(availableActions({ ...transaction, status: 'DRAFT' })).toEqual(['delete']);
     expect(availableActions({ ...transaction, status: 'DELETED' })).toEqual(['restore']);
-    expect(availableActions({ ...transaction, accountingModelVersion: 1 })).toEqual([]);
-    expect(
-      availableActions({ ...transaction, accountingModelVersion: 1, status: 'DELETED' }),
-    ).toEqual([]);
   });
 
-  it('allows editing only model 2 drafts and confirmed operations', () => {
+  it('allows editing only drafts and confirmed operations', () => {
     expect(canEditTransaction(transaction)).toBe(true);
     expect(canEditTransaction({ ...transaction, status: 'DRAFT' })).toBe(true);
     expect(canEditTransaction({ ...transaction, status: 'CANCELLED' })).toBe(false);
     expect(canEditTransaction({ ...transaction, status: 'DELETED' })).toBe(false);
-    expect(canEditTransaction({ ...transaction, accountingModelVersion: 1 })).toBe(false);
-    expect(isLegacyTransaction({ ...transaction, accountingModelVersion: 1 })).toBe(true);
-    expect(isLegacyTransaction(transaction)).toBe(false);
   });
 });

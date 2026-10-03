@@ -28,25 +28,13 @@ const OVERRIDES: Record<string, string> = {
     'На этот доход назначены средства. Сначала уменьшите или отмените назначения этого дохода.',
 };
 
-type RowState = Pick<TransactionJournalV2Item, 'status' | 'accountingModelVersion'>;
-
-// A fact made before the move to model 2: the server answers every edit with
-// 409 LEGACY_CORRECTION_REQUIRED, so the screen only shows it.
-export function isLegacyTransaction(
-  transaction: Pick<RowState, 'accountingModelVersion'>,
-): boolean {
-  return transaction.accountingModelVersion === 1;
-}
+type RowState = Pick<TransactionJournalV2Item, 'status'>;
 
 export function canEditTransaction(transaction: RowState): boolean {
-  return (
-    !isLegacyTransaction(transaction) &&
-    (transaction.status === 'CONFIRMED' || transaction.status === 'DRAFT')
-  );
+  return transaction.status === 'CONFIRMED' || transaction.status === 'DRAFT';
 }
 
 export function availableActions(transaction: RowState): OperationAction[] {
-  if (isLegacyTransaction(transaction)) return [];
   return transaction.status === 'DELETED' ? ['restore'] : ['delete'];
 }
 

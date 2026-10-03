@@ -345,22 +345,17 @@ describe('useEnvelopePlanV2', () => {
     expect(call.headers.get('x-csrf-token')).toBe('csrf-1');
   });
 
-  it('reads v2 reports and the legacy history with GET and no mutation headers', async () => {
+  it('reads v2 reports with GET and no mutation headers', async () => {
     const api = useEnvelopePlanV2();
 
     await api.getReport(budgetId, 'savings-goals', { to: '2026-09-30', envelopeId: 'e-1' });
-    let call = lastCall();
+    const call = lastCall();
     expect(call.url).toBe(`${apiUrl}${base}/reports/savings-goals?to=2026-09-30&envelopeId=e-1`);
     expect(call.init.method ?? 'GET').toBe('GET');
     expect(call.headers.get('Idempotency-Key')).toBeNull();
 
     await api.getReport(budgetId, 'account-balances');
     expect(lastCall().url).toBe(`${apiUrl}${base}/reports/account-balances`);
-
-    await api.getLegacyAssignmentHistory(budgetId, { cursor: 'c 1', limit: '50' });
-    call = lastCall();
-    expect(call.url).toBe(`${apiUrl}${base}/history/legacy-assignments?cursor=c+1&limit=50`);
-    expect(call.init.method ?? 'GET').toBe('GET');
   });
 
   it('lists exactly the nine API report keys', () => {
@@ -388,9 +383,8 @@ describe('useEnvelopePlanV2', () => {
     expect(lastCall().url).toBe(`${apiUrl}${base}/exports/transactions.csv`);
     await api.exportAssignments(budgetId);
     expect(lastCall().url).toBe(`${apiUrl}${base}/exports/assignments.csv`);
-    await api.exportLegacyAssignments(budgetId);
     const call = lastCall();
-    expect(call.url).toBe(`${apiUrl}${base}/exports/legacy-assignments.csv`);
+    expect(call.url).toBe(`${apiUrl}${base}/exports/assignments.csv`);
     expect(call.init.method ?? 'GET').toBe('GET');
     expect(call.headers.get('x-csrf-token')).toBeNull();
     expect(call.init.credentials).toBe('include');

@@ -502,7 +502,7 @@ export class TemplateApplyApplicationService {
     }
     usedNames.add(name.toLowerCase());
 
-    const keys = new Set([definition.templateKey, ...definition.legacyKeys]);
+    const keys = new Set([definition.templateKey]);
     let templateKey = definition.templateKey;
     if (row.status === 'ARCHIVED' && row.replacementTemplateKey) {
       templateKey = row.replacementTemplateKey;

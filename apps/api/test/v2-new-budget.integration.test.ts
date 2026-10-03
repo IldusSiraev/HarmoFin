@@ -24,7 +24,6 @@ let workspaceId = '';
 let budgetId = '';
 let cookie = '';
 let csrfToken = '';
-let legacyBudgetId = '';
 let createdBudgetId = '';
 
 describe('M04: new budgets are created in plan model 2', () => {
@@ -128,22 +127,6 @@ describe('M04: new budgets are created in plan model 2', () => {
     );
     expect(await prisma.category.count({ where: { budgetId: createdBudgetId } })).toBe(0);
     expect(await prisma.envelope.count({ where: { budgetId: createdBudgetId } })).toBe(0);
-  });
-
-  it('does not rewrite a pre-existing model 1 budget', async () => {
-    const legacy = await prisma.budget.create({
-      data: { id: randomUUID(), workspaceId, name: 'Legacy v1', planModelVersion: 1 },
-    });
-    legacyBudgetId = legacy.id;
-    await server.inject({
-      method: 'GET',
-      url: '/api/v1/me',
-      headers: { origin },
-      cookies: { harmofin_session: cookie },
-    });
-    const row = await prisma.budget.findUniqueOrThrow({ where: { id: legacyBudgetId } });
-    expect(row.planModelVersion).toBe(1);
-    expect(row.planModelActivatedOn).toBeNull();
   });
 
   it('rejects model 2 without an activation date at the database level', async () => {

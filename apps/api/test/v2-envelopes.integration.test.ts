@@ -14,7 +14,6 @@ import { AssignmentApplicationService } from '../src/envelope-plans/assignment.a
 import { EnvelopePlanApplicationService } from '../src/envelope-plans/envelope-plan.application.service.js';
 import { createEnvelopeSchema } from '../src/envelope-plans/envelope-plan.schemas.js';
 import { MovementApplicationService } from '../src/envelope-plans/movement.application.service.js';
-import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -27,7 +26,6 @@ const emails = {
   owner: `v2-env-owner-${randomUUID()}@harmofin.test`,
   outsider: `v2-env-outsider-${randomUUID()}@harmofin.test`,
   viewer: `v2-env-viewer-${randomUUID()}@harmofin.test`,
-  legacy: `v2-env-legacy-${randomUUID()}@harmofin.test`,
 };
 
 type RegisteredUser = {
@@ -279,7 +277,7 @@ describe('v2 envelopes: create, read, safe archive', () => {
     expect(again.status).toBe(400);
   });
 
-  it('чужой конверт 404, VIEWER 403, бюджет v1 не принимает v2-действия', async () => {
+  it('чужой конверт 404, VIEWER 403', async () => {
     const foreign = await expectError(
       service!.get(ctx.owner!.userId, ctx.owner!.budgetId, outsiderEnvelope),
     );
@@ -315,17 +313,6 @@ describe('v2 envelopes: create, read, safe archive', () => {
       ),
     );
     expect(viewerArchive.status).toBe(403);
-
-    const legacy = await expectError(
-      service!.create(
-        ctx.legacy!.userId,
-        ctx.legacy!.budgetId,
-        { name: 'Наследие', envelopeType: 'CUSTOM' },
-        'env-create-legacy',
-      ),
-    );
-    expect(legacy.status).toBe(409);
-    expect(legacy.code).toBe('MODEL_VERSION_MISMATCH');
   });
 
   it('изменение области действия отклоняется при истории назначений', async () => {
@@ -426,7 +413,7 @@ describe('v2 envelopes: HTTP-контракт', () => {
     expect(outsider.statusCode).toBe(404);
   });
 
-  it('POST конверт: 201, idempotent replay, конфликт ключа, unknown field, CSRF, legacy', async () => {
+  it('POST конверт: 201, idempotent replay, конфликт ключа, unknown field, CSRF', async () => {
     const url = budgetUrl('/envelopes');
     const key = `http-env-create-${randomUUID()}`;
     const payload = { name: 'HTTP резерв', envelopeType: 'RESERVE' };
@@ -494,15 +481,6 @@ describe('v2 envelopes: HTTP-контракт', () => {
     });
     expect(noKey.statusCode).toBe(400);
     expect(noKey.json<Record<string, unknown>>().code).toBe('VALIDATION_FAILED');
-
-    const legacy = await server.inject({
-      method: 'POST',
-      url: `/api/v2/budgets/${ctx.legacy?.budgetId ?? 'missing'}/envelopes`,
-      headers: mutationHeaders(ctx.legacy, `http-env-legacy-${randomUUID()}`),
-      payload: { name: 'Наследие через HTTP', envelopeType: 'CUSTOM' },
-    });
-    expect(legacy.statusCode).toBe(409);
-    expect(legacy.json<Record<string, unknown>>().code).toBe('MODEL_VERSION_MISMATCH');
   });
 
   it('PATCH: переименование 200, чужой конверт 404, VIEWER 403, без сессии 401', async () => {
@@ -1043,7 +1021,6 @@ async function register(email: string): Promise<RegisteredUser> {
   const match = /harmofin_session=([^;]+)/.exec(setCookie);
   const cookie = match ? decodeURIComponent(match[1]!) : '';
   expect(cookie).not.toHaveLength(0);
-  await forceBudgetV1(prisma, body.budget.id);
   return {
     userId: body.user.id,
     workspaceId: body.workspace.id,

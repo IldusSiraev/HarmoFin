@@ -184,21 +184,4 @@ describe('plan occurrence worker handler', () => {
       await prisma.auditEvent.count({ where: { budgetId, entityType: 'plan_occurrence' } }),
     ).toBe(2);
   });
-
-  it('skips a budget that is not on plan model 2', async () => {
-    await prisma.planOccurrence.deleteMany({ where: { budgetId } });
-    await prisma.budget.update({
-      where: { id: budgetId },
-      data: { planModelVersion: 1, planModelActivatedOn: null },
-    });
-    try {
-      await handler.execute(new Date('2026-02-28T12:00:00.000Z'), budgetId);
-      expect(await prisma.planOccurrence.count({ where: { budgetId } })).toBe(0);
-    } finally {
-      await prisma.budget.update({
-        where: { id: budgetId },
-        data: { planModelVersion: 2, planModelActivatedOn: new Date('2026-02-01T00:00:00.000Z') },
-      });
-    }
-  });
 });

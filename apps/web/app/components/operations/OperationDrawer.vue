@@ -11,11 +11,7 @@ import {
   type AuditEventDto,
 } from '../../composables/useBudgetReferenceData.js';
 import type { TransactionJournalV2Item } from '../../composables/useEnvelopePlanV2.js';
-import {
-  availableActions,
-  canEditTransaction,
-  isLegacyTransaction,
-} from '../../composables/useOperationMutations.js';
+import { availableActions, canEditTransaction } from '../../composables/useOperationMutations.js';
 
 defineOptions({ name: 'OperationDrawer' });
 
@@ -58,7 +54,6 @@ const actions = computed(() => (props.transaction ? availableActions(props.trans
 const editable = computed(() =>
   props.transaction ? canEditTransaction(props.transaction) : false,
 );
-const legacy = computed(() => (props.transaction ? isLegacyTransaction(props.transaction) : false));
 const planPayment = computed(() => (props.transaction?.planOccurrenceIds.length ?? 0) > 0);
 
 watch(
@@ -90,13 +85,7 @@ watch(
       </p>
       <p class="operation-drawer__badges">
         <UiStatus :label="statusLabel" tone="neutral" />
-        <UiStatus v-if="legacy" label="До модели 2" tone="info" />
         <UiStatus v-if="planPayment" label="По плану" tone="info" />
-      </p>
-
-      <p v-if="legacy" class="operation-drawer__notice" data-testid="drawer-legacy-notice">
-        Это операция до перехода на модель 2. Её можно только смотреть: сумма, счёт и категория
-        здесь не меняются.
       </p>
 
       <dl class="operation-drawer__rows">

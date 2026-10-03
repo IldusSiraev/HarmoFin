@@ -430,12 +430,6 @@ describe('v2 dashboard summary (P01)', () => {
       },
     });
     expect(await service.summary(viewer.userId, a.budgetId, ASOF)).toEqual(own);
-
-    const v1 = await world(10_000_000n, { planModelVersion: 1 });
-    await expect(service.summary(v1.userId, v1.budgetId, ASOF)).rejects.toMatchObject({
-      status: 409,
-      response: { code: 'MODEL_VERSION_MISMATCH' },
-    });
   });
 
   it('некорректная дата asOf отклоняется до чтения', async () => {
@@ -702,10 +696,6 @@ describe('v2 dashboard HTTP contract (P02)', () => {
     expect((await getDashboard(a, `?asOf=${ASOF}`, { cookie: null })).statusCode).toBe(401);
     const foreign = await getDashboard(b, `?asOf=${ASOF}`, { budgetId: a.budgetId });
     expect(foreign.statusCode).toBe(404);
-    const v1 = await world(1_000_000n, { planModelVersion: 1 });
-    const mismatch = await getDashboard(v1);
-    expect(mismatch.statusCode).toBe(409);
-    expect(mismatch.json()).toMatchObject({ code: 'MODEL_VERSION_MISMATCH' });
   });
 
   it('OpenAPI описывает GET, параметры, ответ и ошибки; схемы без полей v1', async () => {

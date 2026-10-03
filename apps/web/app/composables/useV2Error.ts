@@ -33,8 +33,6 @@ const MESSAGES: Record<string, string> = {
   CYCLE_SETTINGS_UNCHANGED: 'Эти границы цикла уже действуют. Измените день или смещение.',
   TIMEZONE_CHANGE_REQUIRES_RECONCILIATION:
     'Часовой пояс нельзя менять после подтверждённых операций: календарные даты пришлось бы перекладывать.',
-  LEGACY_CORRECTION_REQUIRED:
-    'Операция сделана до перехода на модель 2 и здесь не меняется: её можно только смотреть.',
   TRANSACTION_NOT_EDITABLE: 'Удалённую или отменённую операцию нельзя изменить.',
   TRANSACTION_ALREADY_DELETED: 'Операция уже удалена. Обновите журнал.',
   TRANSACTION_NOT_DELETED: 'Восстановить можно только удалённую операцию. Обновите журнал.',

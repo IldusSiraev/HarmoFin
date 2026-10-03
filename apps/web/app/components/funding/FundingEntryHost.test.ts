@@ -43,7 +43,7 @@ function previewBody(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function setBudgetVersion(version: 1 | 2): void {
+function setBudgetVersion(version: 2): void {
   mocks.auth.currentData.value = {
     user: { id: 'u', email: 'o@example.test', displayName: null },
     workspaces: [

@@ -2,12 +2,12 @@ import { useState } from '#imports';
 import { ApiRequestError, useApiClient } from './useApiClient.js';
 
 type User = { id: string; email: string; displayName: string | null };
-// planModelVersion is chosen by the server per budget (1 = legacy model, 2 = Envelope Plan v2.2).
+// planModelVersion is chosen by the server per budget; every budget runs Envelope Plan v2.2 (2).
 export type BudgetSummary = {
   id: string;
   name: string;
   primaryCurrency: string;
-  planModelVersion: 1 | 2;
+  planModelVersion: 2;
 };
 type MeResponse = {
   user: User;

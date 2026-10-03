@@ -20,7 +20,6 @@ describe('v2ErrorMessage cycle codes', () => {
 
 describe('v2ErrorMessage journal codes', () => {
   it.each([
-    [409, 'LEGACY_CORRECTION_REQUIRED', 'до перехода на модель 2'],
     [409, 'TRANSACTION_NOT_EDITABLE', 'нельзя изменить'],
     [409, 'TRANSACTION_ALREADY_DELETED', 'уже удалена'],
     [409, 'TRANSACTION_NOT_DELETED', 'только удалённую'],

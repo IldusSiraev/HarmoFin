@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { Prisma, PrismaClient, type NotificationType } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 export class NotificationRuleHandler {
   constructor(private readonly prisma: PrismaClient) {}
@@ -35,14 +35,6 @@ type ActiveBudget = {
   timezone: string;
   workspace: { ownerId: string };
 };
-
-const LEGACY_STATE_TYPES: NotificationType[] = [
-  'PLAN_UPCOMING',
-  'UNALLOCATED_INCOME',
-  'NEGATIVE_ACCOUNT',
-  'NEGATIVE_ENVELOPE',
-  'INSUFFICIENT_MANDATORY_OBLIGATIONS',
-];
 
 /**
  * Plan model 2: only occurrence-level due/overdue notifications. No balance SQL, no deficit or
@@ -93,10 +85,8 @@ async function evaluateBudget(
       budgetId: budget.id,
       userId: ownerId,
       resolvedAt: null,
-      OR: [
-        { notificationType: { in: ['PLAN_TODAY', 'PLAN_OVERDUE'] }, occurrenceId: { not: null } },
-        { notificationType: { in: LEGACY_STATE_TYPES } },
-      ],
+      notificationType: { in: ['PLAN_TODAY', 'PLAN_OVERDUE'] },
+      occurrenceId: { not: null },
     },
     select: { id: true, notificationType: true, occurrenceId: true, actionPath: true },
   });

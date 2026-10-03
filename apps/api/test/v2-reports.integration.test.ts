@@ -324,11 +324,6 @@ describe('v2 reports (P03)', () => {
     const foreign = await get(w, 'savings-goals', '', { cookie: stranger.cookie });
     expect(foreign.statusCode).toBe(404);
 
-    const v1 = await world({ planModelVersion: 1 });
-    const mismatch = await get(v1, 'savings-goals');
-    expect(mismatch.statusCode).toBe(409);
-    expect(mismatch.json()).toMatchObject({ code: 'MODEL_VERSION_MISMATCH' });
-
     for (const key of ['envelope-balances', 'savings-reallocation-by-cycle', 'nope']) {
       const response = await get(w, key);
       expect(response.statusCode, key).toBe(400);

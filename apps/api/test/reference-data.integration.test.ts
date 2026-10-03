@@ -8,7 +8,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
 import { DEFAULT_CATEGORIES } from '../src/v2-template/default-categories.js';
-import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ?? 'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin';
@@ -220,11 +219,11 @@ describe('reference data API', () => {
       data: { allowNegativeBalance: true },
     });
 
-    const updated = await updateAccount(account.id, { startingBalance: '-1.00' });
+    const updated = await updateAccount(account.id, { startingBalance: '1.00' });
     expect(updated.statusCode).toBe(200);
     expect(updated.json()).toMatchObject({
-      startingBalanceMinor: '-100',
-      currentBalanceMinor: '-100',
+      startingBalanceMinor: '100',
+      currentBalanceMinor: '100',
     });
 
     const editorRole = await prisma.workspaceMembership.updateMany({
@@ -253,6 +252,8 @@ describe('reference data API', () => {
     expect(foreign.statusCode).toBe(404);
     expect(foreignList.statusCode).toBe(404);
 
+    // Archiving a non-zero account is refused for model 2 budgets, so empty it first.
+    await prisma.account.update({ where: { id: account.id }, data: { startingBalanceMinor: 0n } });
     const archived = await archiveAccount(account.id);
     const archivedAgain = await archiveAccount(account.id);
     expect(archived.statusCode).toBe(200);
@@ -825,7 +826,6 @@ async function register(email: string) {
   }>();
   const cookie = response.cookies.find((item) => item.name === 'harmofin_session')?.value;
   if (!cookie) throw new Error('Missing session cookie');
-  await forceBudgetV1(prisma, body.budget.id);
   return { ...body, cookie };
 }
 

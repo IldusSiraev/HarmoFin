@@ -21,7 +21,6 @@ import {
   ObligationApplicationService,
   type ObligationPayInput,
 } from '../src/obligations/obligation.application.service.js';
-import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -44,7 +43,6 @@ const emails = {
   owner: `v2-ob-owner-${randomUUID()}@harmofin.test`,
   viewer: `v2-ob-viewer-${randomUUID()}@harmofin.test`,
   outsider: `v2-ob-outsider-${randomUUID()}@harmofin.test`,
-  legacy: `v2-ob-legacy-${randomUUID()}@harmofin.test`,
 };
 const ctx: Partial<Record<keyof typeof emails, User>> = {};
 
@@ -411,16 +409,11 @@ describe('v2 обязательства: оплата occurrence несколь�
     );
   });
 
-  it('VIEWER 403, посторонний 404, v1-бюджет 409, чужой occurrence 404', async () => {
+  it('VIEWER 403, посторонний 404, чужой occurrence 404', async () => {
     const id = await occurrence(100_000n);
     await rejects(service.pay(ctx.viewer!.userId, owner().budgetId, id, input(), 'v-1'), 403);
     await rejects(service.skip(ctx.viewer!.userId, owner().budgetId, id, 'v-2'), 403);
     await rejects(service.pay(ctx.outsider!.userId, owner().budgetId, id, input(), 'o-1'), 404);
-    await rejects(
-      service.pay(ctx.legacy!.userId, ctx.legacy!.budgetId, id, input(), 'l-1'),
-      409,
-      'MODEL_VERSION_MISMATCH',
-    );
     await rejects(
       service.pay(
         ctx.outsider!.userId,
@@ -815,22 +808,11 @@ describe('v2 обязательства: оплата occurrence несколь�
       for (const r of others) expect(iso(r.scheduledOn) >= cutover).toBe(true);
     });
 
-    it('пропускает бюджет v1, неактивные, не-расходные и не-обязательные планы', async () => {
-      const legacy = ctx.legacy!;
-      const legacyEnvelope = await createEnvelope(legacy.budgetId, 'MANDATORY_EXPENSES', null);
-      const legacyPlan = await plan({
-        budgetId: legacy.budgetId,
-        workspaceId: legacy.workspaceId,
-        userId: legacy.userId,
-        envelopeId: legacyEnvelope,
-        startOn: tomorrow,
-      });
+    it('пропускает неактивные, не-расходные и не-обязательные планы', async () => {
       const inactive = await plan({ startOn: tomorrow, isActive: false });
       const income = await plan({ startOn: tomorrow, planType: 'INCOME', envelopeId: null });
       const custom = await plan({ startOn: tomorrow, envelopeId: customEnvelopeId });
-      await ensure(legacy.budgetId, activation(), ds(30));
       await ensure(owner().budgetId, today, ds(30));
-      expect(await rows(legacyPlan)).toHaveLength(0);
       expect(await rows(inactive)).toHaveLength(0);
       expect(await rows(income)).toHaveLength(0);
       expect(await rows(custom)).toHaveLength(0);
@@ -871,7 +853,6 @@ async function register(email: string): Promise<User> {
   const setCookieRaw = response.headers['set-cookie'];
   const setCookie = Array.isArray(setCookieRaw) ? setCookieRaw.join('; ') : (setCookieRaw ?? '');
   const match = /harmofin_session=([^;]+)/.exec(setCookie);
-  await forceBudgetV1(prisma, body.budget.id);
   return {
     userId: body.user.id,
     workspaceId: body.workspace.id,

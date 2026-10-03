@@ -131,13 +131,6 @@ function ambiguousPeriod(): ConflictException {
   });
 }
 
-function legacyCorrectionRequired(): ConflictException {
-  return new ConflictException({
-    code: 'LEGACY_CORRECTION_REQUIRED',
-    detail: 'Факт старой модели исправляется только через коррекцию, а не этим запросом.',
-  });
-}
-
 function sourceExhausted(assignmentIds: string[]): ConflictException {
   return new ConflictException({
     code: 'SOURCE_EXHAUSTED',
@@ -909,7 +902,6 @@ export class TransactionV2ApplicationService {
             transactionId,
           );
           if (!current) throw resourceNotFound();
-          if (current.accountingModelVersion !== 2) throw legacyCorrectionRequired();
           return {
             status: 200,
             body: await body(tx, current, {

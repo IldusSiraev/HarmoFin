@@ -8,7 +8,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
 import { addIsoDays, todayInTimezone } from '../src/cycles/cycle-period.domain.js';
-import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -17,7 +16,7 @@ const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
 const origin = 'http://localhost:3000';
 const password = 'correct-password-10';
 
-const names = ['owner', 'fact', 'target', 'outsider', 'viewer', 'editor', 'legacy'] as const;
+const names = ['owner', 'fact', 'target', 'outsider', 'viewer', 'editor'] as const;
 type Name = (typeof names)[number];
 const emails = Object.fromEntries(
   names.map((name) => [name, `v2-settings-${name}-${randomUUID()}@harmofin.test`]),
@@ -198,11 +197,8 @@ describe('v2 budget settings (T02b)', () => {
     );
   });
 
-  it('404: чужой бюджет; 409 MODEL_VERSION_MISMATCH для v1; 401 без сессии', async () => {
+  it('404: чужой бюджет; 401 без сессии', async () => {
     expect((await patch('owner', { name: 'X' }, randomUUID(), ctx.outsider)).statusCode).toBe(404);
-    const legacy = await patch('legacy', { name: 'X' });
-    expect(legacy.statusCode).toBe(409);
-    expect(legacy.json<{ code: string }>().code).toBe('MODEL_VERSION_MISMATCH');
     const anonymous = await server.inject({
       method: 'PATCH',
       url: `/api/v2/budgets/${user('owner').budgetId}/settings`,
@@ -415,7 +411,6 @@ async function register(email: string): Promise<RegisteredUser> {
   const match = /harmofin_session=([^;]+)/.exec(setCookie);
   const cookie = match ? decodeURIComponent(match[1]!) : '';
   expect(cookie).not.toHaveLength(0);
-  await forceBudgetV1(prisma, body.budget.id);
   return {
     userId: body.user.id,
     workspaceId: body.workspace.id,

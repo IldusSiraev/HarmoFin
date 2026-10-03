@@ -144,7 +144,7 @@ pnpm test:e2e
 - Mailpit для local/CI recovery mail;
 - production deploy: Docker images, Caddy reverse proxy, staging/production Compose (`infra/compose/`), деплой/rollback/smoke-скрипты (`infra/scripts/`) и CI/CD workflows (`.github/workflows/`).
 
-Модель 1 (физические конверты, распределения доходов, переводы по частям) не поддерживается: в образе нет её API, web и worker-веток. Бюджет, ещё не переведённый на модель 2, показывает сообщение вместо интерфейса; релиз выкатывается по `docs/runbooks/envelope-v2-cutover.md`. Данные эпохи модели 1 хранятся только как история, см. `docs/runbooks/envelope-v2-legacy-inventory.md`.
+Модель 1 (физические конверты, распределения доходов, переводы по частям) не поддерживается: в образе нет её API, web и worker-веток, а бюджеты начинают учёт с чистого листа. Остатки её таблиц и колонок в схеме описаны в `docs/runbooks/legacy-schema.md`. Очистка бюджета: `docs/runbooks/budget-reset.md`.
 
 Роли `OWNER`, `EDITOR` и `VIEWER` существуют в schema и policy layer. Registration создаёт `OWNER`; приглашения участников и совместный доступ в интерфейсе не входят в v1.
 

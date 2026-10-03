@@ -7,7 +7,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
-import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -24,7 +23,6 @@ const names = [
   'outsider',
   'viewer',
   'editor',
-  'legacy',
   'applyClean',
   'applySkip',
   'applyOther',
@@ -365,7 +363,7 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
     expect(missing.statusCode).toBe(404);
   });
 
-  it('доступ: VIEWER/EDITOR 403 (OWNER-only), без сессии 401, не uuid 400, v1 бюджет 409', async () => {
+  it('доступ: VIEWER/EDITOR 403 (OWNER-only), без сессии 401, не uuid 400', async () => {
     expect((await preview('empty', user('viewer'))).statusCode).toBe(403);
     expect((await preview('empty', user('editor'))).statusCode).toBe(403);
     const url = `/api/v2/budgets/${user('empty').budgetId}/reference-template/preview`;
@@ -376,13 +374,6 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
       headers: authHeaders(user('empty')),
     });
     expect(bad.statusCode).toBe(400);
-    const legacy = await server.inject({
-      method: 'GET',
-      url: `/api/v2/budgets/${user('legacy').budgetId}/reference-template/preview`,
-      headers: authHeaders(user('legacy')),
-    });
-    expect(legacy.statusCode).toBe(409);
-    expect(legacy.json<{ code: string }>().code).toBe('MODEL_VERSION_MISMATCH');
   });
 
   it('apply без конфликтов: категории, 2 периода, обязательные, правила; без денег и FREE_MONEY', async () => {
@@ -807,7 +798,7 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
     expect(same.statusCode).toBe(200);
   });
 
-  it('apply: устаревший hash 409, EDITOR/VIEWER 403, CSRF, ключ, валидация, v1 бюджет 409', async () => {
+  it('apply: устаревший hash 409, EDITOR/VIEWER 403, CSRF, ключ, валидация', async () => {
     const body = await previewOf('empty');
     const payload = defaultApply(body);
     const stale = await apply('empty', { ...payload, previewHash: 'a'.repeat(64) });
@@ -845,9 +836,6 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
     expect(twoFirst.statusCode).toBe(400);
     const unauth = await server.inject({ method: 'POST', url, headers: { origin }, payload });
     expect(unauth.statusCode).toBe(401);
-    const legacy = await apply('legacy', payload);
-    expect(legacy.statusCode).toBe(409);
-    expect(legacy.json<{ code: string }>().code).toBe('MODEL_VERSION_MISMATCH');
     expect(await prisma.envelope.count({ where: { budgetId: user('empty').budgetId } })).toBe(1);
   });
 
@@ -1001,7 +989,6 @@ async function register(email: string): Promise<RegisteredUser> {
   const match = /harmofin_session=([^;]+)/.exec(setCookie);
   const cookie = match ? decodeURIComponent(match[1]!) : '';
   expect(cookie).not.toHaveLength(0);
-  await forceBudgetV1(prisma, body.budget.id);
   return {
     userId: body.user.id,
     workspaceId: body.workspace.id,

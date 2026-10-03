@@ -13,7 +13,6 @@ import { cycleAndPeriodFor, todayInTimezone } from '../src/cycles/cycle-period.d
 import { PrismaService } from '../src/database/prisma.service.js';
 import { AssignmentRepository } from '../src/envelope-plans/assignment.repository.js';
 import { AssignmentApplicationService } from '../src/envelope-plans/assignment.application.service.js';
-import { forceBudgetV1 } from './helpers/plan-model.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -33,7 +32,6 @@ const emails = {
   outsider: `v2-conf-outsider-${randomUUID()}@harmofin.test`,
   viewer: `v2-conf-viewer-${randomUUID()}@harmofin.test`,
   editor: `v2-conf-editor-${randomUUID()}@harmofin.test`,
-  legacy: `v2-conf-legacy-${randomUUID()}@harmofin.test`,
 };
 
 type RegisteredUser = {
@@ -601,7 +599,7 @@ describe('v2 funding confirm (R04)', () => {
     expect(await snapshot()).toEqual(before);
   });
 
-  it('доступ: VIEWER/EDITOR 403, посторонний 404, v1 бюджет 409, 401, CSRF, uuid 400', async () => {
+  it('доступ: VIEWER/EDITOR 403, посторонний 404, 401, CSRF, uuid 400', async () => {
     const income = await createIncome(owner().budgetId, accountId, salaryCategory, 1_000_000n);
     const payload = {
       sourceKind: 'INCOME',
@@ -615,9 +613,6 @@ describe('v2 funding confirm (R04)', () => {
       expect((await confirm(payload, { user })).statusCode).toBe(403);
     }
     expect((await confirm(payload, { user: ctx.outsider })).statusCode).toBe(404);
-    expect(
-      (await confirm(payload, { user: ctx.legacy, budgetId: ctx.legacy!.budgetId })).statusCode,
-    ).toBe(409);
     const url = `/api/v2/budgets/${owner().budgetId}/funding/confirm`;
     expect(
       (await server.inject({ method: 'POST', url, headers: { origin }, payload })).statusCode,
@@ -853,7 +848,6 @@ async function register(email: string): Promise<RegisteredUser> {
   const match = /harmofin_session=([^;]+)/.exec(setCookie);
   const cookie = match ? decodeURIComponent(match[1]!) : '';
   expect(cookie).not.toHaveLength(0);
-  await forceBudgetV1(prisma, body.budget.id);
   return {
     userId: body.user.id,
     workspaceId: body.workspace.id,

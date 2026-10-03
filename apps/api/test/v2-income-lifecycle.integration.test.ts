@@ -377,7 +377,7 @@ describe('v2 доход: изменение, удаление и восстан�
     expect((await dbTx(id)).status).toBe('DELETED');
   });
 
-  it('роли и изоляция: EDITOR может, VIEWER 403, посторонний и чужой доход 404, модель 1 - LEGACY_CORRECTION_REQUIRED', async () => {
+  it('роли и изоляция: EDITOR может, VIEWER 403, посторонний и чужой доход 404', async () => {
     const id = await income('10.00');
     expect((await patch(id, 'rl-v1', { comment: 'x' }, ctx.viewer!)).statusCode).toBe(403);
     expect((await del(id, 'rl-v2', ctx.viewer!)).statusCode).toBe(403);
@@ -400,32 +400,6 @@ describe('v2 доход: изменение, удаление и восстан�
     const byEditor = await del(id, 'rl-e1', ctx.editor!);
     expect(byEditor.statusCode).toBe(200);
     expect((await restore(id, 'rl-e2', ctx.editor!)).statusCode).toBe(200);
-
-    const legacy = await prisma.transaction.create({
-      data: {
-        id: randomUUID(),
-        budgetId: owner().budgetId,
-        transactionType: 'INCOME',
-        status: 'CONFIRMED',
-        amountMinor: 1_000n,
-        occurredOn: d(-1),
-        accountId,
-        categoryId: incomeCategoryId,
-        isPlanned: false,
-        confirmedAt: new Date(),
-        createdByUserId: owner().userId,
-        updatedByUserId: owner().userId,
-        accountingModelVersion: 1,
-      },
-    });
-    for (const res of [
-      await patch(legacy.id, 'lg-1', { comment: 'x' }),
-      await del(legacy.id, 'lg-2'),
-      await restore(legacy.id, 'lg-3'),
-    ]) {
-      expect(res.statusCode).toBe(409);
-      expect(res.json().code).toBe('LEGACY_CORRECTION_REQUIRED');
-    }
   });
 
   it('OpenAPI описывает SOURCE_EXHAUSTED и assignmentIds в ошибке 409', async () => {

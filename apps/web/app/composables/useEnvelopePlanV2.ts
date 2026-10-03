@@ -307,8 +307,7 @@ export interface TransactionV2Response {
 
 export type TransactionV2Status = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED';
 
-// One journal row. accountingModelVersion 1 marks a fact made before the move to
-// model 2: the API refuses to edit it (409 LEGACY_CORRECTION_REQUIRED).
+// One journal row.
 export interface TransactionJournalV2Item {
   id: string;
   budgetId: string;
@@ -396,18 +395,12 @@ export interface DirectTransferResponse {
   id: string;
   budgetId: string;
   status: 'CONFIRMED' | 'DRAFT' | 'CANCELLED' | 'DELETED';
-  mode: 'LEGACY_PARTS' | 'ACCOUNT_ONLY';
+  mode: 'ACCOUNT_ONLY';
   totalMinor: string;
   comment: string | null;
   occurredOn: string;
   sourceAccountId: string | null;
   destinationAccountId: string | null;
-  parts?: Array<{
-    id: string;
-    amountMinor: string;
-    sourceEnvelopeId: string;
-    destinationEnvelopeId: string | null;
-  }>;
 }
 
 export interface DirectTransferListResponse {
@@ -652,29 +645,6 @@ export interface ReportV2Response {
   rows: Array<Record<string, unknown>>;
 }
 
-// Read-only archive of model 1 assignments (P03b). Not model v2 funds.
-export interface LegacyAssignmentItem {
-  sourceKind: 'LEGACY_ALLOCATION' | 'LEGACY_ENVELOPE_START' | 'LEGACY_REALLOCATION';
-  id: string;
-  occurredOn: string;
-  amountMinor: string;
-  status: 'CONFIRMED' | 'CANCELLED' | 'DELETED';
-  isDeleted: boolean;
-  isEnvelopeArchived: boolean;
-  envelopeId: string | null;
-  sourceEnvelopeId: string | null;
-  destinationEnvelopeId: string | null;
-  incomeTransactionId: string | null;
-  categoryId: string | null;
-  accountId: string | null;
-}
-
-export interface LegacyAssignmentHistoryResponse {
-  items: LegacyAssignmentItem[];
-  nextCursor: string | null;
-  hasMore: boolean;
-}
-
 function query(params: Record<string, string | undefined>): string {
   const search = new URLSearchParams();
   for (const [name, value] of Object.entries(params)) {
@@ -797,21 +767,12 @@ export function useEnvelopePlanV2() {
       get<ReportV2Response>(
         `${base(budgetId)}/reports/${encodeURIComponent(key)}${query({ ...filters })}`,
       ),
-    getLegacyAssignmentHistory: (
-      budgetId: string,
-      filter: { cursor?: string; limit?: string } = {},
-    ) =>
-      get<LegacyAssignmentHistoryResponse>(
-        `${base(budgetId)}/history/legacy-assignments${query({ ...filter })}`,
-      ),
     // CSV exports (OWNER only). The shared client sends the session cookie and
     // turns JSON problems (403, 409, 422 EXPORT_LIMIT_EXCEEDED) into ApiRequestError.
     exportTransactions: (budgetId: string) =>
       api.requestBlob(`${base(budgetId)}/exports/transactions.csv`),
     exportAssignments: (budgetId: string) =>
       api.requestBlob(`${base(budgetId)}/exports/assignments.csv`),
-    exportLegacyAssignments: (budgetId: string) =>
-      api.requestBlob(`${base(budgetId)}/exports/legacy-assignments.csv`),
     updateFundingRule: (
       budgetId: string,
       envelopeId: string,
