@@ -530,104 +530,113 @@ function requestClose(): void {
             денег и платежей в них нет.
           </p>
 
-          <div class="template-sheet__heading-row">
-            <h4 class="template-sheet__subheading">На обычные траты по периодам</h4>
-            <UiInfoTooltip
-              label="Что такое конверты периодов"
-              placement="bottom"
-              align="start"
-              text="Конверт периода — деньги на обычные траты внутри периода: еда, транспорт, мелкие покупки. На каждый из двух периодов цикла — свой конверт."
-            />
-          </div>
-          <ul class="template-sheet__list">
-            <li
-              v-for="role in PERIOD_ROLES"
-              :key="role"
-              class="template-sheet__item"
-              :data-testid="`template-row-${role}`"
-            >
-              <template v-if="byRole(role)">
-                <div class="template-sheet__row">
-                  <span class="template-sheet__name">{{ byRole(role)?.name }}</span>
-                  <span class="template-sheet__status">
-                    <component
-                      :is="statusView(byRole(role)?.status ?? '', true).icon"
-                      :size="16"
-                      aria-hidden="true"
+          <div class="template-sheet__group" data-testid="template-group-periods">
+            <div class="template-sheet__heading-row">
+              <h4 class="template-sheet__subheading">На обычные траты по периодам</h4>
+              <UiInfoTooltip
+                label="Что такое конверты периодов"
+                placement="bottom"
+                align="start"
+                text="Конверт периода — деньги на обычные траты внутри периода: еда, транспорт, мелкие покупки. На каждый из двух периодов цикла — свой конверт."
+              />
+            </div>
+            <ul class="template-sheet__list">
+              <li
+                v-for="role in PERIOD_ROLES"
+                :key="role"
+                class="template-sheet__item"
+                :data-testid="`template-row-${role}`"
+              >
+                <template v-if="byRole(role)">
+                  <div class="template-sheet__row">
+                    <span class="template-sheet__name">{{ byRole(role)?.name }}</span>
+                    <span class="template-sheet__status">
+                      <component
+                        :is="statusView(byRole(role)?.status ?? '', true).icon"
+                        :size="16"
+                        aria-hidden="true"
+                      />
+                      {{ statusView(byRole(role)?.status ?? '', true).label }}
+                    </span>
+                  </div>
+                  <label
+                    v-if="byRole(role)?.status === 'ARCHIVED'"
+                    class="template-sheet__check-row"
+                  >
+                    <input
+                      v-model="consent[role]"
+                      type="checkbox"
+                      class="template-sheet__check"
+                      :data-testid="`template-consent-${role}`"
                     />
-                    {{ statusView(byRole(role)?.status ?? '', true).label }}
-                  </span>
-                </div>
-                <label v-if="byRole(role)?.status === 'ARCHIVED'" class="template-sheet__check-row">
-                  <input
-                    v-model="consent[role]"
-                    type="checkbox"
-                    class="template-sheet__check"
-                    :data-testid="`template-consent-${role}`"
-                  />
-                  Создать новый вместо архивного
-                </label>
-                <template v-if="showsTarget(role)">
-                  <div class="template-sheet__field">
-                    <div class="template-sheet__label-row">
-                      <label :for="`template-target-field-${role}`">
-                        Целевая сумма на период (необязательно)
-                      </label>
-                      <UiInfoTooltip
-                        label="Что такое целевая сумма на период"
-                        align="start"
-                        text="Сколько вы планируете потратить на обычные расходы в этом периоде. Это ориентир: его можно не указывать сейчас и задать позже."
+                    Создать новый вместо архивного
+                  </label>
+                  <template v-if="showsTarget(role)">
+                    <div class="template-sheet__field">
+                      <div class="template-sheet__label-row">
+                        <label :for="`template-target-field-${role}`">
+                          Целевая сумма на период (необязательно)
+                        </label>
+                        <UiInfoTooltip
+                          label="Что такое целевая сумма на период"
+                          align="start"
+                          text="Сколько вы планируете потратить на обычные расходы в этом периоде. Это ориентир: его можно не указывать сейчас и задать позже."
+                        />
+                      </div>
+                      <input
+                        :id="`template-target-field-${role}`"
+                        v-model="targets[role]"
+                        type="text"
+                        class="template-sheet__input"
+                        inputmode="decimal"
+                        autocomplete="off"
+                        placeholder="Сумма, ₽"
+                        :data-testid="`template-target-${role}`"
+                        :aria-invalid="fieldErrors[role] ? 'true' : undefined"
+                        :aria-describedby="fieldErrors[role] ? `template-err-${role}` : undefined"
+                        @input="onTargetInput(role)"
                       />
                     </div>
-                    <input
-                      :id="`template-target-field-${role}`"
-                      v-model="targets[role]"
-                      type="text"
-                      class="template-sheet__input"
-                      inputmode="decimal"
-                      autocomplete="off"
-                      placeholder="Сумма, ₽"
-                      :data-testid="`template-target-${role}`"
-                      :aria-invalid="fieldErrors[role] ? 'true' : undefined"
-                      :aria-describedby="fieldErrors[role] ? `template-err-${role}` : undefined"
-                      @input="onTargetInput(role)"
-                    />
-                  </div>
-                  <div class="template-sheet__label-row">
-                    <label class="template-sheet__check-row">
-                      <input
-                        type="checkbox"
-                        class="template-sheet__check"
-                        :checked="later[role]"
-                        :data-testid="`template-later-${role}`"
-                        @change="onLaterChange(role, ($event.target as HTMLInputElement).checked)"
+                    <div class="template-sheet__label-row">
+                      <label class="template-sheet__check-row">
+                        <input
+                          type="checkbox"
+                          class="template-sheet__check"
+                          :checked="later[role]"
+                          :data-testid="`template-later-${role}`"
+                          @change="onLaterChange(role, ($event.target as HTMLInputElement).checked)"
+                        />
+                        Укажу позже
+                      </label>
+                      <UiInfoTooltip
+                        label="Что значит «Укажу позже»"
+                        align="start"
+                        text="Конверт создастся без суммы. Целевую сумму можно задать в любой момент позже."
                       />
-                      Укажу позже
-                    </label>
-                    <UiInfoTooltip
-                      label="Что значит «Укажу позже»"
-                      align="start"
-                      text="Конверт создастся без суммы. Целевую сумму можно задать в любой момент позже."
-                    />
-                  </div>
-                  <p
-                    v-if="fieldErrors[role]"
-                    :id="`template-err-${role}`"
-                    class="template-sheet__field-error"
-                    :data-testid="`template-error-${role}`"
-                  >
-                    <AlertTriangle :size="14" aria-hidden="true" />
-                    {{ fieldErrors[role] }}
+                    </div>
+                    <p
+                      v-if="fieldErrors[role]"
+                      :id="`template-err-${role}`"
+                      class="template-sheet__field-error"
+                      :data-testid="`template-error-${role}`"
+                    >
+                      <AlertTriangle :size="14" aria-hidden="true" />
+                      {{ fieldErrors[role] }}
+                    </p>
+                  </template>
+                  <p v-else-if="byRole(role)?.status === 'EXISTING'" class="template-sheet__muted">
+                    Цель и правило существующего конверта не меняются.
                   </p>
                 </template>
-                <p v-else-if="byRole(role)?.status === 'EXISTING'" class="template-sheet__muted">
-                  Цель и правило существующего конверта не меняются.
-                </p>
-              </template>
-            </li>
-          </ul>
+              </li>
+            </ul>
+          </div>
 
-          <template v-if="byRole('MANDATORY')">
+          <div
+            v-if="byRole('MANDATORY')"
+            class="template-sheet__group"
+            data-testid="template-group-mandatory"
+          >
             <div class="template-sheet__heading-row">
               <h4 class="template-sheet__subheading">Обязательные платежи</h4>
               <UiInfoTooltip
@@ -663,9 +672,13 @@ function requestClose(): void {
               />
               Создать новый вместо архивного
             </label>
-          </template>
+          </div>
 
-          <template v-if="savings.length > 0">
+          <div
+            v-if="savings.length > 0"
+            class="template-sheet__group"
+            data-testid="template-group-savings"
+          >
             <div class="template-sheet__heading-row">
               <h4 class="template-sheet__subheading">Накопления по желанию</h4>
               <UiInfoTooltip
@@ -676,7 +689,9 @@ function requestClose(): void {
               />
             </div>
             <p class="template-sheet__muted">
-              Ничего не создаётся, пока вы не отметите. Взнос необязателен и деньги не назначает.
+              Отметьте накопления, которые вам нужны: конверт создастся пустым. Если укажете сумму,
+              мы будем предлагать откладывать её при каждом новом доходе — решать, откладывать ли,
+              вы будете сами.
             </p>
             <ul class="template-sheet__list">
               <li v-for="item in savings" :key="item.templateKey" class="template-sheet__item">
@@ -702,7 +717,7 @@ function requestClose(): void {
                 </div>
                 <template v-if="savingsSelected[item.templateKey]">
                   <label class="template-sheet__field">
-                    <span>Желательный взнос (необязательно)</span>
+                    <span>Сколько предлагать откладывать (необязательно)</span>
                     <input
                       v-model="contributions[item.templateKey]"
                       type="text"
@@ -714,11 +729,14 @@ function requestClose(): void {
                       :aria-invalid="fieldErrors[item.templateKey] ? 'true' : undefined"
                       :aria-describedby="
                         fieldErrors[item.templateKey]
-                          ? `template-err-${item.templateKey}`
-                          : undefined
+                          ? `template-hint-${item.templateKey} template-err-${item.templateKey}`
+                          : `template-hint-${item.templateKey}`
                       "
                     />
                   </label>
+                  <p :id="`template-hint-${item.templateKey}`" class="template-sheet__muted">
+                    Это только предложение при поступлении дохода, деньги никуда не переводятся.
+                  </p>
                   <p
                     v-if="fieldErrors[item.templateKey]"
                     :id="`template-err-${item.templateKey}`"
@@ -731,7 +749,7 @@ function requestClose(): void {
                 </template>
               </li>
             </ul>
-          </template>
+          </div>
         </section>
       </template>
     </div>
@@ -833,6 +851,29 @@ function requestClose(): void {
   gap: var(--hf-space-2);
   padding: var(--hf-space-3) 0;
   border-bottom: 1px solid var(--hf-color-border);
+}
+
+.template-sheet__item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.template-sheet__block + .template-sheet__block {
+  padding-top: var(--hf-space-4);
+  border-top: 1px solid var(--hf-color-border);
+}
+
+.template-sheet__group {
+  display: grid;
+  gap: var(--hf-space-2);
+  padding: var(--hf-space-3) var(--hf-space-4);
+  border: 1px solid var(--hf-color-border);
+  border-radius: var(--hf-radius-md);
+  background: var(--hf-color-surface-subtle);
+}
+
+.template-sheet__group > .template-sheet__heading-row:first-child .template-sheet__subheading {
+  margin-top: 0;
 }
 
 .template-sheet__row {

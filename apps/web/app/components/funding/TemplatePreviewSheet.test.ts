@@ -570,6 +570,42 @@ describe('TemplatePreviewSheet envelopes section', () => {
   });
 });
 
+describe('TemplatePreviewSheet envelope groups', () => {
+  it('puts every envelope group into its own panel', async () => {
+    await mountSheet();
+
+    for (const [id, inside] of [
+      ['template-group-periods', 'template-row-FIRST'],
+      ['template-group-mandatory', 'template-row-MANDATORY'],
+      ['template-group-savings', 'template-savings-v2-savings-car'],
+    ] as const) {
+      const group = q(`[data-testid="${id}"]`);
+      expect(group, id).not.toBeNull();
+      expect(group?.querySelector('h4'), id).not.toBeNull();
+      expect(group?.querySelector(`[data-testid="${inside}"]`), id).not.toBeNull();
+    }
+    expect(document.querySelectorAll('[data-testid^="template-group-"]')).toHaveLength(3);
+  });
+
+  it('explains the savings contribution in plain words', async () => {
+    await mountSheet();
+
+    expect(text()).not.toContain('деньги не назначает');
+    expect(text()).toContain('конверт создастся пустым');
+    expect(text()).toContain('предлагать откладывать');
+
+    await click('[data-testid="template-savings-v2-savings-car"]');
+    const input = q<HTMLInputElement>('[data-testid="template-contribution-v2-savings-car"]');
+    expect(input?.closest('label')?.textContent).toContain(
+      'Сколько предлагать откладывать (необязательно)',
+    );
+    expect(text()).not.toContain('Желательный взнос');
+    const hint = q('#template-hint-v2-savings-car');
+    expect(hint?.textContent).toContain('деньги никуда не переводятся');
+    expect(input?.getAttribute('aria-describedby')).toContain('template-hint-v2-savings-car');
+  });
+});
+
 describe('TemplatePreviewSheet tooltips', () => {
   it.each([
     ['Что такое финансовый цикл', 'от зарплаты до зарплаты'],
