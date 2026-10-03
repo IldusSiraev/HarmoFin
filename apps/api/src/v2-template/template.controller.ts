@@ -108,7 +108,7 @@ export class TemplateController {
   @ApiOperation({
     summary: 'Применить настроенный шаблон v2 без дублей',
     description:
-      'Одна транзакция: блокировка бюджета, идемпотентность, пересчёт previewHash (расхождение даёт 409 PREVIEW_STALE без записи). Использует совместимые существующие строки, создаёт только недостающие с неконфликтующими ключами и нулевым legacy-стартом; правило и приоритет задаются только новым конвертам и принятым без правила, существующие правило, приоритет, цель и имя не меняются. Не создаёт счета, доходы, расходы, назначения и FREE_MONEY. Конфликт с SKIP не создаёт дубль и оставляет шаг незавершённым (isComplete=false). Повтор с тем же ключом возвращает тот же ответ; другой ключ после нового preview добавляет только недостающее. Смена цикла только без подтверждённых фактов, назначений и целей: UNSET/DRAFT периоды перестраиваются, иначе 409. Один audit без финансовых сумм. Только OWNER. Коды: 400 VALIDATION_FAILED, 403 FORBIDDEN|CSRF_INVALID, 404 бюджет, 409 PREVIEW_STALE|CYCLE_CHANGE_REQUIRES_FLOW|IDEMPOTENCY_CONFLICT|MODEL_VERSION_MISMATCH, 422 TEMPLATE_ADOPT_UNAVAILABLE|TEMPLATE_ELEMENT_EXISTS|TEMPLATE_NAME_REQUIRED|TEMPLATE_NAME_CONFLICT|TEMPLATE_SAVINGS_UNKNOWN.',
+      'Одна транзакция: блокировка бюджета, идемпотентность, пересчёт previewHash (расхождение даёт 409 PREVIEW_STALE без записи). Использует совместимые существующие строки, создаёт только недостающие с неконфликтующими ключами и нулевым legacy-стартом; правило и приоритет задаются только новым конвертам и принятым без правила, существующие правило, приоритет, цель и имя не меняются. Не создаёт счета, доходы, расходы, назначения и FREE_MONEY. Конфликт с SKIP не создаёт дубль и оставляет шаг незавершённым (isComplete=false). Повтор с тем же ключом возвращает тот же ответ; другой ключ после нового preview добавляет только недостающее. Смена цикла только без подтверждённых фактов, назначений и целей: UNSET/DRAFT периоды перестраиваются, иначе 409. Один audit без финансовых сумм. Только OWNER. Коды: 400 VALIDATION_FAILED, 403 FORBIDDEN|CSRF_INVALID, 404 бюджет, 409 PREVIEW_STALE|CYCLE_CHANGE_REQUIRES_FLOW|IDEMPOTENCY_CONFLICT|MODEL_VERSION_MISMATCH, 422 TEMPLATE_ADOPT_UNAVAILABLE|TEMPLATE_ELEMENT_EXISTS|TEMPLATE_NAME_REQUIRED|TEMPLATE_NAME_CONFLICT|TEMPLATE_SAVINGS_UNKNOWN|TEMPLATE_SLOT_OCCUPIED.',
   })
   @ApiHeader(idempotencyHeader)
   @ApiBody({ type: TemplateApplyRequest })
@@ -123,7 +123,12 @@ export class TemplateController {
     description:
       'PREVIEW_STALE, CYCLE_CHANGE_REQUIRES_FLOW, IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.',
   })
-  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 422,
+    type: ProblemDetailsResponse,
+    description:
+      'TEMPLATE_ADOPT_UNAVAILABLE, TEMPLATE_ELEMENT_EXISTS, TEMPLATE_NAME_REQUIRED, TEMPLATE_NAME_CONFLICT, TEMPLATE_SAVINGS_UNKNOWN, TEMPLATE_SLOT_OCCUPIED.',
+  })
   async apply(
     @Param('budgetId', new ZodValidationPipe(uuidParamSchema)) budgetId: string,
     @Body(new ZodValidationPipe(templateApplySchema)) input: TemplateApplyInput,

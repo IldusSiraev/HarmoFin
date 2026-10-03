@@ -350,6 +350,7 @@ export class TemplateApplyApplicationService {
       id: string;
       templateKey: string | null;
       name: string;
+      periodSlot: string | null;
       archivedAt: Date | null;
     }>,
   ): { entries: EnvelopePlanEntry[]; skipped: TemplateSkippedRow[] } {
@@ -425,7 +426,12 @@ export class TemplateApplyApplicationService {
     definition: V2EnvelopeTemplate,
     row: TemplateEnvelopePreview,
     choice: Choice,
-    envelopeRows: Array<{ id: string; templateKey: string | null; archivedAt: Date | null }>,
+    envelopeRows: Array<{
+      id: string;
+      templateKey: string | null;
+      periodSlot: string | null;
+      archivedAt: Date | null;
+    }>,
     usedNames: Set<string>,
     skipped: TemplateSkippedRow[],
   ): EnvelopePlanEntry | null {
@@ -467,6 +473,18 @@ export class TemplateApplyApplicationService {
       throw unprocessable(
         'TEMPLATE_ELEMENT_EXISTS',
         `«${label}» уже существует: выберите ADOPT или SKIP.`,
+      );
+    }
+    // A different name cannot resolve a slot conflict: the slot admits one active envelope.
+    if (
+      definition.periodSlot &&
+      envelopeRows.some(
+        (item) => item.archivedAt === null && item.periodSlot === definition.periodSlot,
+      )
+    ) {
+      throw unprocessable(
+        'TEMPLATE_SLOT_OCCUPIED',
+        `Слот периода «${label}» уже занят действующим конвертом: выберите SKIP.`,
       );
     }
     if (row.status === 'COLLISION' && !choice.name) {

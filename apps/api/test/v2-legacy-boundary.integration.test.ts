@@ -11,7 +11,7 @@ import { FinancialBalanceRepository } from '../src/common/finance/financial-bala
 import { todayInTimezone } from '../src/cycles/cycle-period.domain.js';
 import { assertDisposableDatabase } from './helpers/disposable-db.js';
 
-// C05 (этап 08): тест-граница legacy. Таблицы эпохи модели 1 (transfer_parts, income_allocations,
+// Тест-граница legacy (этап 08). Таблицы эпохи модели 1 (transfer_parts, income_allocations,
 // envelope_reallocations) и колонка envelopes.starting_balance_minor остаются «только история/backup».
 // Ни один v2-путь не должен писать в них, а старые строки обязаны продолжать читаться.
 const databaseUrl = assertDisposableDatabase(
@@ -86,6 +86,21 @@ const writeAs = (w: World, method: 'POST', url: string, payload: unknown) =>
 const cashOf = (w: World, accountId: string) =>
   prisma.$transaction((tx) => balances.accountBalance(tx, w.budgetId, accountId));
 
+/** Полные строки legacy-записей: после v2 действий они обязаны остаться побитово теми же. */
+async function legacyRows(w: World) {
+  return {
+    allocation: await prisma.incomeAllocation.findUniqueOrThrow({ where: { id: w.allocationId } }),
+    reallocation: await prisma.envelopeReallocation.findUniqueOrThrow({
+      where: { id: w.reallocationId },
+    }),
+    transferParts: await prisma.transferPart.findMany({
+      where: { transferId: w.legacyTransferId },
+      orderBy: { id: 'asc' },
+    }),
+    legacyTransfer: await prisma.transfer.findUniqueOrThrow({ where: { id: w.legacyTransferId } }),
+  };
+}
+
 async function legacyCounts(w: World) {
   const where = { budgetId: w.budgetId };
   return {
@@ -129,6 +144,7 @@ describe('v2: граница legacy-таблиц (C05)', () => {
   it('v2 действия (расход, доход, прямой перевод, шаблон, funding, assignment, movement) не пишут в legacy таблицы', async () => {
     const w = await world();
     const before = await legacyCounts(w);
+    const rowsBefore = await legacyRows(w);
     // Фикстура действительно содержит legacy-строки (защита от пустого теста).
     expect(before).toEqual({
       transferParts: 1,
@@ -234,6 +250,21 @@ describe('v2: граница legacy-таблиц (C05)', () => {
     expect(after.legacyReallocations).toBe(before.legacyReallocations);
     expect(after.freeMoneyEnvelopes).toBe(0);
     expect(after.legacyTransfers).toBe(before.legacyTransfers);
+    // Существующие legacy-строки не изменены (amountMinor, status, deletedAt, updatedAt и остальное).
+    const rowsAfter = await legacyRows(w);
+    expect(rowsAfter).toEqual(rowsBefore);
+    expect(rowsAfter.allocation).toMatchObject({
+      amountMinor: OLD_ALLOCATION,
+      status: 'CONFIRMED',
+      deletedAt: null,
+    });
+    expect(rowsAfter.reallocation).toMatchObject({
+      amountMinor: LEGACY_REALLOCATION,
+      status: 'CONFIRMED',
+      deletedAt: null,
+    });
+    expect(rowsAfter.transferParts.map((part) => part.amountMinor)).toEqual([LEGACY_PART]);
+    expect(rowsAfter.legacyTransfer).toMatchObject({ status: 'CONFIRMED', deletedAt: null });
     // Новые движения реально записаны в v2-таблицы (тест не вырожден).
     expect(
       await prisma.envelopeAssignment.count({ where: { budgetId: w.budgetId } }),
@@ -397,9 +428,10 @@ async function world(): Promise<World> {
     'CURRENT_EXPENSES',
     LEGACY_ENVELOPE_START,
     950,
-    // Слот периода у legacy-конверта не задаём: активный period_slot без template_key preview шаблона не видит,
-    // а apply падает на envelopes_active_period_slot_key (см. отчёт C05, к legacy-таблицам не относится).
-    null,
+    // Legacy-конверт без template_key занимает слот FIRST: preview шаблона показывает COLLISION/SKIP,
+    // apply не падает на envelopes_active_period_slot_key (см. v2-template.integration.test.ts,
+    // «слот периода занят активным конвертом без ключа»).
+    'FIRST',
   );
   const savings = await envelope('Накопление А', 'SAVINGS_GOAL', 0n, 951, null);
   const savingsTwo = await envelope('Накопление Б', 'SAVINGS_GOAL', 0n, 952, null);

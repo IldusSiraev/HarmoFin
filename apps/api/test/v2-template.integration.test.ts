@@ -33,6 +33,8 @@ const names = [
   'applyArchived',
   'applyCycle',
   'applyHistory',
+  'slotOtherName',
+  'slotSameName',
 ] as const;
 type Name = (typeof names)[number];
 const emails = Object.fromEntries(
@@ -119,6 +121,8 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
       'applyArchived',
       'applyCycle',
       'applyHistory',
+      'slotOtherName',
+      'slotSameName',
     ] as const) {
       await prisma.budget.update({
         where: { id: user(name).budgetId },
@@ -582,6 +586,67 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
       (await prisma.envelope.findUniqueOrThrow({ where: { id: clash.id } })).envelopeType,
     ).toBe('SAVINGS_GOAL');
     expect(await prisma.envelope.count({ where: { budgetId, periodSlot: 'FIRST' } })).toBe(0);
+  });
+
+  it('слот периода занят активным конвертом без ключа с другим именем: COLLISION, apply не падает 500', async () => {
+    // Регрессия бага C05: мигрированный v1-конверт CURRENT_EXPENSES в слоте FIRST без template_key
+    // показывался как MISSING/CREATE, а apply падал 500 на envelopes_active_period_slot_key.
+    const who = 'slotOtherName';
+    const budgetId = user(who).budgetId;
+    const holder = await prisma.envelope.create({
+      data: envelopeData(budgetId, 'Текущие 10-24', 'CURRENT_EXPENSES', 'FIRST', null),
+    });
+    const body = await previewOf(who);
+    expect(body.envelopes.find((item) => item.role === 'FIRST')).toMatchObject({
+      status: 'COLLISION',
+      collisionId: holder.id,
+      existingId: null,
+      suggestedAction: 'SKIP',
+    });
+    const base = defaultApply(body);
+    const withFirst = (period: Record<string, unknown>) => ({
+      ...base,
+      periods: [period, { role: 'SECOND', action: 'CREATE' }],
+    });
+    for (const period of [
+      { role: 'FIRST', action: 'CREATE' },
+      { role: 'FIRST', action: 'CREATE', name: 'Утренний' },
+      { role: 'FIRST', action: 'ADOPT' },
+    ]) {
+      const rejected = await apply(who, withFirst(period));
+      expect(rejected.statusCode).toBe(422);
+    }
+    expect(await prisma.envelope.count({ where: { budgetId, periodSlot: 'FIRST' } })).toBe(1);
+
+    const skipped = await apply(who, withFirst({ role: 'FIRST', action: 'SKIP' }));
+    expect(skipped.statusCode).toBe(200);
+    expect(skipped.json<ApplyBody>().skipped).toContainEqual(
+      expect.objectContaining({ kind: 'ENVELOPE', role: 'FIRST', reason: 'COLLISION' }),
+    );
+    const stored = await prisma.envelope.findUniqueOrThrow({ where: { id: holder.id } });
+    expect(stored).toMatchObject({ name: 'Текущие 10-24', templateKey: null, archivedAt: null });
+    expect(await prisma.envelope.count({ where: { budgetId, periodSlot: 'FIRST' } })).toBe(1);
+  });
+
+  it('слот периода занят конвертом без ключа с тем же именем: ADOPT, apply принимает без дубля', async () => {
+    const who = 'slotSameName';
+    const budgetId = user(who).budgetId;
+    const holder = await prisma.envelope.create({
+      data: envelopeData(budgetId, 'Первый период', 'CURRENT_EXPENSES', 'FIRST', null),
+    });
+    const body = await previewOf(who);
+    expect(body.envelopes.find((item) => item.role === 'FIRST')).toMatchObject({
+      status: 'EXISTING',
+      matchedBy: 'NAME',
+      existingId: holder.id,
+      suggestedAction: 'ADOPT',
+    });
+    const response = await apply(who, defaultApply(body));
+    expect(response.statusCode).toBe(200);
+    expect(response.json<ApplyBody>().adopted).toContainEqual(
+      expect.objectContaining({ id: holder.id, role: 'FIRST' }),
+    );
+    expect(await prisma.envelope.count({ where: { budgetId, periodSlot: 'FIRST' } })).toBe(1);
   });
 
   it('коллизия типа: CREATE с новым именем создаёт период с базовым ключом', async () => {

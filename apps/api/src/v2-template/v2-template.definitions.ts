@@ -191,6 +191,14 @@ export function matchEnvelope(
   if (clash) {
     return { ...base, status: 'COLLISION', collisionId: clash.id, suggestedAction: 'SKIP' };
   }
+  // A period slot admits one active envelope (envelopes_active_period_slot_key): an unmatched
+  // active holder (no key, different name) makes creating the template row impossible.
+  const slotHolder = definition.periodSlot
+    ? active.find((row) => row.periodSlot === definition.periodSlot)
+    : undefined;
+  if (slotHolder) {
+    return { ...base, status: 'COLLISION', collisionId: slotHolder.id, suggestedAction: 'SKIP' };
+  }
   if (archivedKeyed) {
     return {
       ...base,
