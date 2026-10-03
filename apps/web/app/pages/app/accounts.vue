@@ -16,6 +16,7 @@ import UiModal from '../../components/ui/Modal.vue';
 import UiSelect from '../../components/ui/Select.vue';
 import UiSkeleton from '../../components/ui/Skeleton.vue';
 import UiStatus from '../../components/ui/Status.vue';
+import { ApiRequestError } from '../../composables/useApiClient.js';
 import { useAuth } from '../../composables/useAuth.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import {
@@ -253,6 +254,13 @@ function cancelArchive() {
   if (!archiving.value) archiveTarget.value = null;
 }
 
+function archiveErrorMessage(error: unknown): string {
+  if (error instanceof ApiRequestError && error.problem.code === 'ACCOUNT_HAS_BALANCE') {
+    return 'Счёт нельзя архивировать: на нём есть остаток. Переведите остаток на другой счёт и повторите.';
+  }
+  return 'Не удалось выполнить действие. Повторите попытку.';
+}
+
 async function confirmArchive() {
   const id = budgetId.value;
   const target = archiveTarget.value;
@@ -265,8 +273,12 @@ async function confirmArchive() {
     await loadAccounts();
     statusMessage.value = 'Счёт перемещён в архив.';
     push({ tone: 'success', title: 'Счёт перемещён в архив' });
-  } catch {
-    statusMessage.value = 'Не удалось выполнить действие. Повторите попытку.';
+  } catch (error) {
+    // A refused archive must not leave the modal dialog covering the page.
+    archiveTarget.value = null;
+    const summary = archiveErrorMessage(error);
+    statusMessage.value = summary;
+    push({ tone: 'error', title: 'Не удалось архивировать счёт', description: summary });
   } finally {
     archiving.value = false;
   }

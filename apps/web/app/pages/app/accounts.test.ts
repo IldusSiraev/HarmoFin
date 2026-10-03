@@ -28,6 +28,7 @@ vi.mock('../../composables/useBudgetReferenceData.js', () => ({
 }));
 
 import AccountsPage from './accounts.vue';
+import { ApiRequestError } from '../../composables/useApiClient.js';
 import { useFundingEntry } from '../../composables/useFundingEntry.js';
 import { useToast } from '../../composables/useToast.js';
 
@@ -239,6 +240,28 @@ describe('accounts page', () => {
     await wrapper.get('[data-confirm="archive-account"]').trigger('click');
     await flushPromises();
     expect(mocks.api.archiveAccount).toHaveBeenCalledWith('budget-id', 'account-id');
+  });
+
+  it('closes the confirm dialog and explains a refused archive of an account with balance', async () => {
+    mocks.api.listAccounts.mockResolvedValue([account]);
+    mocks.api.archiveAccount.mockRejectedValue(
+      new ApiRequestError(409, {
+        code: 'ACCOUNT_HAS_BALANCE',
+        detail: 'Счёт нельзя архивировать: на нём есть остаток.',
+      }),
+    );
+    wrapper = mountPage();
+
+    await flushPromises();
+    await wrapper.get('[data-testid="account-card-select"]').trigger('click');
+    await wrapper.get('[data-testid="account-drawer-archive"]').trigger('click');
+    await wrapper.get('[data-confirm="archive-account"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('[data-confirm-dialog]').exists()).toBe(false);
+    const toast = useToast().toasts.value.at(-1);
+    expect(toast?.tone).toBe('error');
+    expect(toast?.description).toContain('есть остаток');
   });
 
   it('offers transfer with selected active account', async () => {
