@@ -360,7 +360,9 @@ describe('v2: границы периода по версионной настр
     });
     expect(response.statusCode, response.body).toBe(201);
     const current = cycleAndPeriodFor(RAW, today).period;
-    const to = cycleAndPeriodFor(RAW, addIsoDays(current.end, 1)).period.end;
+    const nextPeriodEnd = cycleAndPeriodFor(RAW, addIsoDays(current.end, 1)).period.end;
+    // Creation materializes up to the later of the next period end and today + 60 (worker horizon).
+    const to = nextPeriodEnd >= addIsoDays(today, 60) ? nextPeriodEnd : addIsoDays(today, 60);
     const dates: string[] = [];
     for (let k = 0; addMonthsIso(state.planStart!, k) <= to; k += 1) {
       dates.push(addMonthsIso(state.planStart!, k));

@@ -29,7 +29,7 @@ import type {
 } from './income-plan-v2.schemas.js';
 import { PlanOccurrenceRepository } from './plan-occurrence.repository.js';
 import { RegularPlanRepository } from './regular-plan.repository.js';
-import { V2OccurrenceMaterializer } from './v2-occurrence-materializer.js';
+import { V2OccurrenceMaterializer, creationHorizonEnd } from './v2-occurrence-materializer.js';
 
 const RUB_SCALE = 2;
 
@@ -210,7 +210,7 @@ export class IncomePlanApplicationService {
         );
 
         const today = todayInTimezone(new Date(), budget.timezone);
-        let to = await nextPeriodEndAt(tx, budgetId, today, budget);
+        let to = creationHorizonEnd(today, await nextPeriodEndAt(tx, budgetId, today, budget));
         if (input.recurrence === 'ONE_TIME' && input.scheduledOn > to) to = input.scheduledOn;
         const created = await this.materializer.ensureOccurrences(
           tx,

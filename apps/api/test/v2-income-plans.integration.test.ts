@@ -403,6 +403,12 @@ describe('v2 планы доходов: прогноз без фиктивных
     ).toBe(await incomeCount());
   });
 
+  it('ежемесячный доход с датой через 45 дней (дальше следующего периода): occurrence виден сразу, без worker', async () => {
+    const created = await createPlan({ scheduledOn: iso(45), recurrence: 'MONTHLY' });
+    expect(created.occurrenceId).not.toBeNull();
+    expect((await occ(created.occurrenceId!)).status).toBe('PENDING');
+  });
+
   it('SAVINGS планы материализатор не трогает', async () => {
     const savings = randomUUID();
     await prisma.regularPlan.create({

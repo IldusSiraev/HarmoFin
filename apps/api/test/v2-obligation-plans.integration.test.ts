@@ -267,6 +267,28 @@ describe('v2 обязательства: управление планами', (
     );
   });
 
+  it('ежемесячный платёж с датой через 45 дней (дальше следующего периода): occurrence виден сразу, без worker', async () => {
+    const scheduledOn = iso(45);
+    const res = await post(owner(), planBody({ name: 'Ипотека', scheduledOn }));
+    expect(res.statusCode).toBe(201);
+    const created = res.json<{ id: string; occurrenceId: string | null }>();
+    expect(created.occurrenceId).not.toBeNull();
+    expect(await countOccurrence(created.id, scheduledOn)).toBe(1);
+    const list = await get(owner(), `occurrences?planId=${created.id}`);
+    expect(
+      list.json<{ items: Array<{ scheduledOn: string }> }>().items.map((i) => i.scheduledOn),
+    ).toContain(scheduledOn);
+  });
+
+  it('платёж позже горизонта в 60 дней: occurrence не создаётся, план сохранён', async () => {
+    const scheduledOn = iso(90);
+    const res = await post(owner(), planBody({ name: 'Далёкий платёж', scheduledOn }));
+    expect(res.statusCode).toBe(201);
+    const created = res.json<{ id: string; occurrenceId: string | null }>();
+    expect(created.occurrenceId).toBeNull();
+    expect(await countOccurrence(created.id, scheduledOn)).toBe(0);
+  });
+
   it('PATCH суммы: будущие меняются, текущая открытая только по подтверждению, оплаченная не переписывается', async () => {
     const created = (
       await post(owner(), planBody({ scheduledOn: iso(-3), amount: '3000.00' }))

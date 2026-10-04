@@ -15,7 +15,10 @@ import { nextPeriodEndAt } from '../cycles/cycle-settings-at.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { PlanOccurrenceRepository } from '../plans/plan-occurrence.repository.js';
 import { RegularPlanRepository } from '../plans/regular-plan.repository.js';
-import { V2OccurrenceMaterializer } from '../plans/v2-occurrence-materializer.js';
+import {
+  V2OccurrenceMaterializer,
+  creationHorizonEnd,
+} from '../plans/v2-occurrence-materializer.js';
 import { TransactionRepository } from '../transactions/transaction.repository.js';
 import { ObligationPlanRepository } from './obligation-plan.repository.js';
 import {
@@ -310,7 +313,7 @@ export class ObligationPlanApplicationService {
     );
 
     const today = todayInTimezone(new Date(), budget.timezone);
-    let to = await nextPeriodEndAt(tx, budgetId, today, budget);
+    let to = creationHorizonEnd(today, await nextPeriodEndAt(tx, budgetId, today, budget));
     if (input.recurrence === 'ONE_TIME' && input.scheduledOn > to) to = input.scheduledOn;
     const created = await this.materializer.ensureOccurrences(tx, budgetId, input.scheduledOn, to, {
       actorUserId: userId,

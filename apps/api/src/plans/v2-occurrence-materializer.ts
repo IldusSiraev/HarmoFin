@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 
-import { todayInTimezone } from '../cycles/cycle-period.domain.js';
+import { addIsoDays, todayInTimezone } from '../cycles/cycle-period.domain.js';
 import {
   PlanOccurrenceRepository,
   type MaterializedOccurrence,
@@ -10,6 +10,17 @@ import { RegularPlanRepository } from './regular-plan.repository.js';
 
 const isoDate = (value: Date) => value.toISOString().slice(0, 10);
 const dateValue = (value: string) => new Date(`${value}T00:00:00.000Z`);
+
+/** Same horizon as the worker job (apps/worker plan-occurrence.handler.ts: today + 60). */
+const OCCURRENCE_HORIZON_DAYS = 60;
+
+/**
+ * Last day to materialize right after a plan is created: the later of the next period end and the
+ * worker horizon, so a new plan shows in lists immediately instead of after the next worker run.
+ */
+export function creationHorizonEnd(today: string, nextPeriodEnd: string): string {
+  return maxDate(nextPeriodEnd, addIsoDays(today, OCCURRENCE_HORIZON_DAYS));
+}
 
 /**
  * Idempotently materializes occurrences of active mandatory EXPENSE and INCOME plans (not SAVINGS) for a v2 budget inside
