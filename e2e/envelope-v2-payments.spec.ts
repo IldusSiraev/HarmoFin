@@ -192,6 +192,8 @@ test('v2: partial income assignment, rent in two parts and a smaller kindergarte
   await selectPill(page, 'Счёт списания', 'Основная карта');
   await paySheet.getByTestId('pay-submit').click();
   await expect(paySheet).toBeHidden();
+  // Completed rows leave the «Ближайшие» list; they stay visible in «Все».
+  await page.getByTestId('list-mode-all').click();
   await expect(rentRow).toContainText('Выполнено');
 
   // 5. Kindergarten: 3 000 planned, 2 000 paid and closed, no made-up top-up.

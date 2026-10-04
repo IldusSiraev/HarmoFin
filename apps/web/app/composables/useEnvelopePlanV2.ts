@@ -550,6 +550,47 @@ export interface IncomeOccurrenceItem {
   transactionId: string | null;
 }
 
+export type PlansCalendarDot = 'upcoming' | 'overdue';
+
+export interface PlansCalendarDay {
+  date: string;
+  incomeMinor: string;
+  expenseMinor: string;
+  dot: PlansCalendarDot | null;
+}
+
+export interface PlansCalendarItem {
+  kind: 'OBLIGATION' | 'INCOME_PLAN';
+  occurrenceId: string;
+  planId: string;
+  name: string;
+  scheduledOn: string;
+  status: string;
+  expectedMinor: string;
+  paidMinor: string;
+  unpaidMinor: string;
+  categoryId: string | null;
+  overdue: boolean;
+  transactionId: string | null;
+}
+
+export interface PlansCalendarTotals {
+  plannedIncomeMinor: string;
+  plannedExpenseMinor: string;
+  balanceMinor: string;
+  activePlanCount: number;
+}
+
+export interface PlansCalendarResponse {
+  month: string;
+  today: string;
+  days: PlansCalendarDay[];
+  items: PlansCalendarItem[];
+  overdue: PlansCalendarItem[];
+  overdueCount: number;
+  totals: PlansCalendarTotals;
+}
+
 export interface RecordIncomeOccurrenceRequest {
   accountId: string;
   amount: string;
@@ -917,6 +958,8 @@ export function useEnvelopePlanV2() {
           limit: filter.limit === undefined ? undefined : String(filter.limit),
         })}`,
       ),
+    getPlansCalendar: (budgetId: string, month: string) =>
+      get<PlansCalendarResponse>(`${base(budgetId)}/plans/calendar${query({ month })}`),
     getTransaction: (budgetId: string, transactionId: string) =>
       get<TransactionJournalV2Item>(
         `${base(budgetId)}/transactions/${encodeURIComponent(transactionId)}`,

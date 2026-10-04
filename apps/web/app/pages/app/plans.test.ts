@@ -8,10 +8,10 @@ const api = {
   listCategories: vi.fn(),
 };
 const v2 = {
-  listObligationOccurrences: vi.fn(),
+  getPlansCalendar: vi.fn(),
+  listTransactions: vi.fn(),
   payObligation: vi.fn(),
   skipObligationOccurrence: vi.fn(),
-  listIncomeOccurrences: vi.fn(),
   recordIncomeOccurrence: vi.fn(),
   createTransaction: vi.fn(),
   createObligationPlan: vi.fn(),
@@ -46,6 +46,60 @@ vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) =>
 }));
 
 import PlansPage from './plans.vue';
+
+const toCalendarItem = (
+  item: {
+    id: string;
+    planId: string;
+    name: string;
+    scheduledOn: string;
+    status: string;
+    expectedMinor: string;
+    categoryId: string | null;
+  },
+  kind: 'OBLIGATION' | 'INCOME_PLAN',
+  extra: {
+    paidMinor?: string;
+    unpaidMinor?: string;
+    overdue?: boolean;
+    transactionId?: string | null;
+  } = {},
+) => ({
+  kind,
+  occurrenceId: item.id,
+  planId: item.planId,
+  name: item.name,
+  scheduledOn: item.scheduledOn,
+  status: item.status,
+  expectedMinor: item.expectedMinor,
+  paidMinor: extra.paidMinor ?? '0',
+  unpaidMinor: extra.unpaidMinor ?? (kind === 'OBLIGATION' ? item.expectedMinor : '0'),
+  categoryId: item.categoryId,
+  overdue: extra.overdue ?? false,
+  transactionId: extra.transactionId ?? null,
+});
+
+function calendarOf(
+  items: ReturnType<typeof toCalendarItem>[],
+  overdue: ReturnType<typeof toCalendarItem>[] = [],
+  totals = {
+    plannedIncomeMinor: '0',
+    plannedExpenseMinor: '0',
+    balanceMinor: '0',
+    activePlanCount: items.length,
+  },
+  month = '2026-09',
+) {
+  return {
+    month,
+    today: '2026-09-24',
+    days: [],
+    items,
+    overdue,
+    overdueCount: overdue.length,
+    totals,
+  };
+}
 
 describe('plans page', () => {
   let wrapper: ReturnType<typeof mountV2> | null = null;
@@ -92,6 +146,31 @@ describe('plans page', () => {
     },
   };
 
+  const overdueDaycare = () => toCalendarItem(daycare, 'OBLIGATION', { overdue: true });
+  const defaultCalendar = () =>
+    calendarOf(
+      [toCalendarItem(rent, 'OBLIGATION'), toCalendarItem(salary, 'INCOME_PLAN')],
+      [overdueDaycare()],
+    );
+  // Totals count active plans, never occurrences; two plans here.
+  const withPlans = (
+    items: ReturnType<typeof toCalendarItem>[],
+    overdue: ReturnType<typeof toCalendarItem>[] = [],
+  ) =>
+    calendarOf(items, overdue, {
+      plannedIncomeMinor: '0',
+      plannedExpenseMinor: '0',
+      balanceMinor: '0',
+      activePlanCount: 2,
+    });
+  const emptyCalendar = () =>
+    calendarOf([], [], {
+      plannedIncomeMinor: '0',
+      plannedExpenseMinor: '0',
+      balanceMinor: '0',
+      activePlanCount: 0,
+    });
+
   function mountV2() {
     return mount(PlansPage, {
       attachTo: document.body,
@@ -122,10 +201,10 @@ describe('plans page', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-09-24T00:00:00.000Z'));
     route.query = {};
-    v2.listObligationOccurrences.mockResolvedValue({ items: [daycare, rent] });
+    v2.getPlansCalendar.mockResolvedValue(defaultCalendar());
+    v2.listTransactions.mockResolvedValue({ items: [], nextCursor: null });
     v2.payObligation.mockResolvedValue({ transaction: null, occurrence: daycare, warnings: [] });
     v2.skipObligationOccurrence.mockResolvedValue({ transaction: null, occurrence: daycare });
-    v2.listIncomeOccurrences.mockResolvedValue({ items: [salary] });
     v2.createObligationPlan.mockResolvedValue({ id: 'plan-new' });
     v2.createIncomePlan.mockResolvedValue({ id: 'plan-new' });
     v2.recordIncomeOccurrence.mockResolvedValue({
@@ -150,7 +229,7 @@ describe('plans page', () => {
     wrapper = mountV2();
     await flushPromises();
 
-    expect(v2.listObligationOccurrences).toHaveBeenCalledWith('budget-id', expect.anything());
+    expect(v2.getPlansCalendar).toHaveBeenCalledWith('budget-id', '2026-09');
     expect(wrapper.find('.plans-page__main').exists()).toBe(false);
     expect(wrapper.find('[data-action="create-plan"]').exists()).toBe(false);
     expect(wrapper.get('[data-testid="obligation-row-occ-daycare"]').text()).toContain(
@@ -181,6 +260,298 @@ describe('plans page', () => {
     expect(v2.skipObligationOccurrence).not.toHaveBeenCalled();
   });
 
+  it('highlights an overdue obligation named by ?occurrence=', async () => {
+    route.query = { occurrence: 'occ-daycare' };
+    wrapper = mountV2();
+    await flushPromises();
+
+    expect(
+      wrapper.get('[data-testid="obligation-row-occ-daycare"]').attributes('aria-current'),
+    ).toBe('true');
+    expect(wrapper.findAll('[data-testid="obligation-linked"]')).toHaveLength(1);
+  });
+
+  it('loads the calendar for the current month and renders the grid and four tiles', async () => {
+    wrapper = mountV2();
+    await flushPromises();
+
+    expect(v2.getPlansCalendar).toHaveBeenCalledTimes(1);
+    expect(v2.getPlansCalendar).toHaveBeenCalledWith('budget-id', '2026-09');
+    expect(wrapper.find('[data-testid="calendar-day-2026-09-24"]').exists()).toBe(true);
+    for (const tile of ['planned-income', 'planned-expense', 'balance', 'total-plans']) {
+      expect(wrapper.find(`[data-testid="kpi-${tile}"]`).exists()).toBe(true);
+    }
+  });
+
+  it('shows an overdue banner whose button switches the list to upcoming and focuses it', async () => {
+    wrapper = mountV2();
+    await flushPromises();
+
+    const banner = wrapper.get('[data-testid="overdue-banner"]');
+    expect(banner.text()).toContain('Просрочено: 1');
+    await wrapper.get('[data-testid="list-mode-all"]').trigger('click');
+    expect(wrapper.get('[data-testid="list-mode-all"]').attributes('aria-selected')).toBe('true');
+
+    const show = banner.findAll('button').find((button) => button.text() === 'Показать');
+    await show!.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="list-mode-upcoming"]').attributes('aria-selected')).toBe(
+      'true',
+    );
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="plans-list"]').element);
+  });
+
+  it('shows no overdue banner when nothing is overdue', async () => {
+    v2.getPlansCalendar.mockResolvedValue(withPlans([toCalendarItem(rent, 'OBLIGATION')]));
+    wrapper = mountV2();
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="overdue-banner"]').exists()).toBe(false);
+  });
+
+  it('reads the confirmed facts of the clicked day and shows them in the panel', async () => {
+    wrapper = mountV2();
+    await flushPromises();
+    v2.listTransactions.mockResolvedValue({
+      items: [
+        {
+          id: 'tx-fact',
+          budgetId: 'budget-id',
+          accountingModelVersion: 2,
+          transactionType: 'EXPENSE',
+          status: 'CONFIRMED',
+          amountMinor: '150000',
+          currency: 'RUB',
+          occurredOn: '2026-09-10',
+          accountId: 'account-id',
+          categoryId: 'category-id',
+          envelopeId: null,
+          sourceDescription: null,
+          merchantName: 'Садик',
+          comment: null,
+          planOccurrenceIds: [],
+          confirmedAt: null,
+          cancelledAt: null,
+          deletedAt: null,
+          createdAt: '2026-09-10T00:00:00.000Z',
+        },
+      ],
+      nextCursor: null,
+    });
+
+    await wrapper.get('[data-testid="calendar-day-2026-09-10"]').trigger('click');
+    await flushPromises();
+
+    expect(v2.listTransactions).toHaveBeenLastCalledWith('budget-id', {
+      from: '2026-09-10',
+      to: '2026-09-10',
+      status: 'CONFIRMED',
+      limit: 50,
+    });
+    expect(wrapper.get('[data-testid="day-fact-tx-fact"]').text()).toContain('Садик');
+  });
+
+  it('opens the plan dialog with the date of the selected day', async () => {
+    wrapper = mountV2();
+    await flushPromises();
+    await wrapper.get('[data-testid="calendar-day-2026-09-10"]').trigger('click');
+    await flushPromises();
+
+    await wrapper.get('[data-testid="plan-add-for-day"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="plan-tab-obligation"]').attributes('aria-selected')).toBe(
+      'true',
+    );
+    const field = wrapper
+      .get('[data-testid="plan-submit"]')
+      .element.closest('form, [role="dialog"]');
+    expect(field?.textContent).toContain('Ближайший платёж');
+    const values = Array.from(document.querySelectorAll('input')).map((input) => input.value);
+    expect(values).toContain('10.09.2026');
+  });
+
+  it('loads another month on navigation', async () => {
+    wrapper = mountV2();
+    await flushPromises();
+    v2.getPlansCalendar.mockResolvedValue({
+      ...calendarOf([], [], undefined, '2026-10'),
+      totals: {
+        plannedIncomeMinor: '0',
+        plannedExpenseMinor: '0',
+        balanceMinor: '0',
+        activePlanCount: 2,
+      },
+    });
+
+    await wrapper.get('[data-testid="calendar-next-month"]').trigger('click');
+    await flushPromises();
+
+    expect(v2.getPlansCalendar).toHaveBeenLastCalledWith('budget-id', '2026-10');
+    expect(wrapper.find('[data-testid="calendar-day-2026-10-01"]').exists()).toBe(true);
+  });
+
+  it('drops a stale month response after a quick double click', async () => {
+    wrapper = mountV2();
+    await flushPromises();
+    const totalsOf = (count: number) => ({
+      plannedIncomeMinor: '0',
+      plannedExpenseMinor: '0',
+      balanceMinor: '0',
+      activePlanCount: count,
+    });
+    let resolveStale: (value: unknown) => void = () => undefined;
+    v2.getPlansCalendar
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveStale = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(calendarOf([], [], totalsOf(222), '2026-11'));
+
+    await wrapper.get('[data-testid="calendar-next-month"]').trigger('click');
+    await wrapper.get('[data-testid="calendar-next-month"]').trigger('click');
+    await flushPromises();
+    resolveStale(calendarOf([], [], totalsOf(111), '2026-10'));
+    await flushPromises();
+
+    expect(v2.getPlansCalendar).toHaveBeenLastCalledWith('budget-id', '2026-11');
+    const tile = wrapper.get('[data-testid="kpi-total-plans"]').text();
+    expect(tile).toContain('222');
+    expect(tile).not.toContain('111');
+  });
+
+  it('shows a calendar read error with a retry that rereads', async () => {
+    v2.getPlansCalendar.mockRejectedValueOnce(new Error('boom'));
+    wrapper = mountV2();
+    await flushPromises();
+
+    const alert = wrapper
+      .findAll('[role="alert"]')
+      .find((node) => node.text().includes('Не удалось загрузить календарь.'));
+    expect(alert).toBeDefined();
+    expect(v2.getPlansCalendar).toHaveBeenCalledTimes(1);
+
+    await wrapper.get('[data-testid="calendar-retry"]').trigger('click');
+    await flushPromises();
+
+    expect(v2.getPlansCalendar).toHaveBeenCalledTimes(2);
+    expect(wrapper.text()).not.toContain('Не удалось загрузить календарь.');
+  });
+
+  it('restores the whole page when retry succeeds after a failed first read', async () => {
+    route.query = { occurrence: 'occ-rent' };
+    v2.getPlansCalendar.mockRejectedValueOnce(new Error('boom'));
+    wrapper = mountV2();
+    await flushPromises();
+
+    // Only the calendar alert is shown, not the generic one.
+    expect(wrapper.findAll('[role="alert"]')).toHaveLength(1);
+    expect(wrapper.text()).not.toContain('Не удалось загрузить планы');
+    const factsCalls = v2.listTransactions.mock.calls.length;
+
+    await wrapper.get('[data-testid="calendar-retry"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+    expect(v2.listTransactions.mock.calls.length).toBeGreaterThan(factsCalls);
+    expect(v2.listTransactions).toHaveBeenLastCalledWith('budget-id', {
+      from: '2026-09-24',
+      to: '2026-09-24',
+      status: 'CONFIRMED',
+      limit: 50,
+    });
+    expect(wrapper.get('[data-testid="obligation-row-occ-rent"]').attributes('aria-current')).toBe(
+      'true',
+    );
+    await openPay('occ-rent');
+    expect(wrapper.find('[data-testid="pill-accountId-account-id"]').exists()).toBe(true);
+  });
+
+  it('moves focus to the list after a confirmed skip', async () => {
+    wrapper = mountV2();
+    await flushPromises();
+    await wrapper.get('[data-testid="obligation-skip-occ-daycare"]').trigger('click');
+    await wrapper.get('[data-testid="confirm-yes"]').trigger('click');
+    await flushPromises();
+
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="plans-list"]').element);
+  });
+
+  it('shows the facts of the last selected day when an older response arrives late', async () => {
+    wrapper = mountV2();
+    await flushPromises();
+    const fact = (id: string, merchantName: string) => ({
+      id,
+      budgetId: 'budget-id',
+      accountingModelVersion: 2,
+      transactionType: 'EXPENSE',
+      status: 'CONFIRMED',
+      amountMinor: '100',
+      currency: 'RUB',
+      occurredOn: '2026-09-10',
+      accountId: 'account-id',
+      categoryId: 'category-id',
+      envelopeId: null,
+      sourceDescription: null,
+      merchantName,
+      comment: null,
+      planOccurrenceIds: [],
+      confirmedAt: null,
+      cancelledAt: null,
+      deletedAt: null,
+      createdAt: '2026-09-10T00:00:00.000Z',
+    });
+    let resolveA: (value: unknown) => void = () => undefined;
+    v2.listTransactions
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveA = resolve;
+          }),
+      )
+      .mockResolvedValueOnce({ items: [fact('tx-b', 'Б')], nextCursor: null });
+
+    await wrapper.get('[data-testid="calendar-day-2026-09-10"]').trigger('click');
+    await wrapper.get('[data-testid="calendar-day-2026-09-11"]').trigger('click');
+    await flushPromises();
+    resolveA({ items: [fact('tx-a', 'А')], nextCursor: null });
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="day-fact-tx-b"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="day-fact-tx-a"]').exists()).toBe(false);
+  });
+
+  it('pays from the day panel through the same sheet, then rereads calendar and facts', async () => {
+    wrapper = mountV2();
+    await flushPromises();
+    await wrapper.get('[data-testid="calendar-day-2026-09-30"]').trigger('click');
+    await flushPromises();
+
+    await wrapper.get('[data-testid="day-pay-occ-rent"]').trigger('click');
+    await flushPromises();
+    const factsCallsBeforePay = v2.listTransactions.mock.calls.length;
+    await fillAndSubmit('40000.00');
+    expect(v2.listTransactions.mock.calls.length).toBeGreaterThan(factsCallsBeforePay);
+
+    expect(v2.payObligation).toHaveBeenCalledTimes(1);
+    expect(v2.payObligation).toHaveBeenCalledWith(
+      'budget-id',
+      'occ-rent',
+      expect.objectContaining({ amount: '40000.00' }),
+      expect.any(String),
+    );
+    expect(v2.getPlansCalendar).toHaveBeenCalledTimes(2);
+    expect(v2.listTransactions).toHaveBeenLastCalledWith('budget-id', {
+      from: '2026-09-30',
+      to: '2026-09-30',
+      status: 'CONFIRMED',
+      limit: 50,
+    });
+  });
+
   it('ignores an unknown ?occurrence= id', async () => {
     route.query = { occurrence: 'no-such-id' };
     wrapper = mountV2();
@@ -192,12 +563,18 @@ describe('plans page', () => {
   it('pays the actual amount once, then rereads the server state', async () => {
     wrapper = mountV2();
     await flushPromises();
-    v2.listObligationOccurrences.mockResolvedValue({
-      items: [
-        { ...daycare, status: 'COMPLETED', paidMinor: '200000', unpaidMinor: '100000' },
-        rent,
-      ],
-    });
+    v2.getPlansCalendar.mockResolvedValue(
+      withPlans(
+        [toCalendarItem(rent, 'OBLIGATION')],
+        [
+          toCalendarItem({ ...daycare, status: 'COMPLETED' }, 'OBLIGATION', {
+            paidMinor: '200000',
+            unpaidMinor: '100000',
+            overdue: true,
+          }),
+        ],
+      ),
+    );
 
     await openPay('occ-daycare');
     await fillAndSubmit('2000.00');
@@ -214,7 +591,7 @@ describe('plans page', () => {
       }),
       expect.any(String),
     );
-    expect(v2.listObligationOccurrences).toHaveBeenCalledTimes(2);
+    expect(v2.getPlansCalendar).toHaveBeenCalledTimes(2);
     expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(false);
     expect(
       wrapper.get('[data-testid="obligation-row-occ-daycare"]').text().replace(/\s/g, ' '),
@@ -224,9 +601,12 @@ describe('plans page', () => {
   it('records a partial payment with willPayMore and leaves the occurrence open from the server', async () => {
     wrapper = mountV2();
     await flushPromises();
-    v2.listObligationOccurrences.mockResolvedValue({
-      items: [daycare, { ...rent, paidMinor: '3500000', unpaidMinor: '500000' }],
-    });
+    v2.getPlansCalendar.mockResolvedValue(
+      withPlans(
+        [toCalendarItem(rent, 'OBLIGATION', { paidMinor: '3500000', unpaidMinor: '500000' })],
+        [overdueDaycare()],
+      ),
+    );
 
     await openPay('occ-rent');
     await fillAndSubmit('35000.00', true);
@@ -342,7 +722,7 @@ describe('plans page', () => {
     await openPay('occ-daycare');
     await fillAndSubmit('3000.00');
 
-    expect(document.activeElement).toBe(wrapper.get('[data-testid="obligation-list"]').element);
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="plans-list"]').element);
   });
 
   it('sends one payment with a stable key and the date on a double submit', async () => {
@@ -369,7 +749,7 @@ describe('plans page', () => {
     await wrapper.get('[data-testid="obligation-skip-occ-daycare"]').trigger('click');
     await wrapper.get('[data-testid="confirm-yes"]').trigger('click');
     await flushPromises();
-    expect(v2.listObligationOccurrences).toHaveBeenCalledTimes(2);
+    expect(v2.getPlansCalendar).toHaveBeenCalledTimes(2);
 
     v2.skipObligationOccurrence.mockRejectedValueOnce(
       new ApiRequestError(409, { code: 'OCCURRENCE_HAS_PAYMENTS', detail: 'raw english detail' }),
@@ -395,10 +775,10 @@ describe('plans page', () => {
       const row = wrapper.get('[data-testid="income-row-inc-occ"]');
       expect(row.text().replace(/\s/g, ' ')).toContain('100 000,00');
       expect(row.text()).toContain('Прогноз — не входит в «На счетах»');
-      expect(wrapper.get('[data-testid="income-list"]').text()).toContain(
+      expect(wrapper.get('[data-testid="list-forecast"]').text()).toContain(
         'Это прогноз: пока деньги не пришли',
       );
-      expect(v2.listIncomeOccurrences).toHaveBeenCalledTimes(1);
+      expect(v2.getPlansCalendar).toHaveBeenCalledTimes(1);
       expect(v2.recordIncomeOccurrence).not.toHaveBeenCalled();
       expect(v2.createTransaction).not.toHaveBeenCalled();
       expect(funding.offer).not.toHaveBeenCalled();
@@ -407,9 +787,13 @@ describe('plans page', () => {
     it('records the actual amount once, then offers funding for that income', async () => {
       wrapper = mountV2();
       await flushPromises();
-      v2.listIncomeOccurrences.mockResolvedValue({
-        items: [{ ...salary, status: 'COMPLETED', transactionId: 'income-tx' }],
-      });
+      v2.getPlansCalendar.mockResolvedValue(
+        withPlans([
+          toCalendarItem({ ...salary, status: 'COMPLETED' }, 'INCOME_PLAN', {
+            transactionId: 'income-tx',
+          }),
+        ]),
+      );
 
       await openRecord();
       await wrapper.get('[data-testid="income-amount"]').setValue('87000.00');
@@ -438,18 +822,6 @@ describe('plans page', () => {
       expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(false);
     });
 
-    it('keeps obligations and shows an alert when the income forecast fails to load', async () => {
-      v2.listIncomeOccurrences.mockRejectedValue(new Error('boom'));
-      wrapper = mountV2();
-      await flushPromises();
-
-      expect(wrapper.find('[data-testid="obligation-row-occ-daycare"]').exists()).toBe(true);
-      const alert = wrapper.get('[data-testid="income-list"] [role="alert"]');
-      expect(alert.text()).toContain('Не удалось загрузить ожидаемые доходы');
-      expect(v2.recordIncomeOccurrence).not.toHaveBeenCalled();
-      expect(funding.offer).not.toHaveBeenCalled();
-    });
-
     it('leaves the recorded income untouched when the funding offer is dismissed', async () => {
       wrapper = mountV2();
       await flushPromises();
@@ -470,11 +842,16 @@ describe('plans page', () => {
     });
 
     it('disables recording for a completed occurrence', async () => {
-      v2.listIncomeOccurrences.mockResolvedValue({
-        items: [{ ...salary, status: 'COMPLETED', transactionId: 'income-tx' }],
-      });
+      v2.getPlansCalendar.mockResolvedValue(
+        withPlans([
+          toCalendarItem({ ...salary, status: 'COMPLETED' }, 'INCOME_PLAN', {
+            transactionId: 'income-tx',
+          }),
+        ]),
+      );
       wrapper = mountV2();
       await flushPromises();
+      await wrapper.get('[data-testid="list-mode-all"]').trigger('click');
 
       const row = wrapper.get('[data-testid="income-row-inc-occ"]');
       expect(row.text()).toContain('Записан');
@@ -577,11 +954,11 @@ describe('plans page', () => {
     });
 
     it('shows the empty payments state with an add button', async () => {
-      v2.listObligationOccurrences.mockResolvedValue({ items: [] });
+      v2.getPlansCalendar.mockResolvedValue(emptyCalendar());
       wrapper = mountV2();
       await flushPromises();
 
-      const list = wrapper.get('[data-testid="obligation-list"]');
+      const list = wrapper.get('[data-testid="plans-list"]');
       expect(list.text()).toContain('Обязательных платежей пока нет.');
       expect(list.text()).toContain('«Можно потратить» учтёт их заранее');
       await openDialog('plan-add-obligation-empty');
@@ -589,11 +966,11 @@ describe('plans page', () => {
     });
 
     it('shows the empty income state and opens the income tab', async () => {
-      v2.listIncomeOccurrences.mockResolvedValue({ items: [] });
+      v2.getPlansCalendar.mockResolvedValue(emptyCalendar());
       wrapper = mountV2();
       await flushPromises();
 
-      const income = wrapper.get('[data-testid="income-list"]');
+      const income = wrapper.get('[data-testid="plans-list"]');
       expect(income.text()).toContain('Здесь будут ожидаемые поступления.');
       expect(income.text()).not.toContain('Это прогноз');
       await openDialog('plan-add-income-empty');
@@ -606,7 +983,7 @@ describe('plans page', () => {
       wrapper = mountV2();
       await flushPromises();
 
-      expect(wrapper.get('[data-testid="income-list"]').text()).toContain(
+      expect(wrapper.get('[data-testid="list-forecast"]').text()).toContain(
         'Это прогноз: пока деньги не пришли и вы не записали их как доход, они не входят в «На счетах» и не увеличивают «Можно потратить»',
       );
       expect(wrapper.text()).not.toContain('не защищает текущие обязательства');
@@ -617,8 +994,7 @@ describe('plans page', () => {
       await flushPromises();
       await openDialog('plan-add-obligation');
       await fillPlan('Аренда', '45000,5', 'category-id');
-      v2.listObligationOccurrences.mockClear();
-      v2.listIncomeOccurrences.mockClear();
+      v2.getPlansCalendar.mockClear();
       await submitPlan();
 
       expect(v2.createObligationPlan).toHaveBeenCalledTimes(1);
@@ -632,15 +1008,15 @@ describe('plans page', () => {
       });
       expect(typeof key).toBe('string');
       expect(v2.createIncomePlan).not.toHaveBeenCalled();
-      expect(v2.listObligationOccurrences).toHaveBeenCalledTimes(1);
-      expect(v2.listIncomeOccurrences).toHaveBeenCalledTimes(1);
+      expect(v2.getPlansCalendar).toHaveBeenCalledTimes(1);
+      expect(v2.getPlansCalendar).toHaveBeenCalledWith('budget-id', '2026-09');
       expect(wrapper.find('[data-testid="plan-submit"]').exists()).toBe(false);
       expect(wrapper.get('[role="status"]').text()).toBe('Платёж «Аренда» добавлен.');
-      expect(document.activeElement).toBe(wrapper.get('[data-testid="obligation-list"]').element);
+      expect(document.activeElement).toBe(wrapper.get('[data-testid="plans-list"]').element);
     });
 
     it('creates an income plan through createIncomePlan', async () => {
-      v2.listIncomeOccurrences.mockResolvedValue({ items: [] });
+      v2.getPlansCalendar.mockResolvedValue(emptyCalendar());
       wrapper = mountV2();
       await flushPromises();
       await openDialog('plan-add-income-empty');
@@ -655,7 +1031,7 @@ describe('plans page', () => {
         categoryId: 'income-cat',
       });
       expect(wrapper.get('[role="status"]').text()).toBe('Доход «Зарплата» добавлен.');
-      expect(document.activeElement).toBe(wrapper.get('[data-testid="income-list"]').element);
+      expect(document.activeElement).toBe(wrapper.get('[data-testid="plans-list"]').element);
     });
 
     it('reuses the key for an unchanged retry and issues a new one after an edit', async () => {

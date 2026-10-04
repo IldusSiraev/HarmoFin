@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { format } from 'date-fns';
-import { AlertTriangle, Bell, Check, Plus, SkipForward, TrendingUp } from '@lucide/vue';
+import { AlertTriangle, Plus } from '@lucide/vue';
 import { definePageMeta, useRoute } from '#imports';
 
-import FinanceMoney from '../../components/finance/FinanceMoney.vue';
+import PlanDayPanel from '../../components/plans/PlanDayPanel.vue';
+import PlanItemList from '../../components/plans/PlanItemList.vue';
+import PlanKpiRow from '../../components/plans/PlanKpiRow.vue';
+import PlansCalendar from '../../components/plans/PlansCalendar.vue';
 import PlanCreateDialog, {
   type PlanCreateSubmit,
 } from '../../components/plans/PlanCreateDialog.vue';
@@ -19,7 +22,6 @@ import ObligationPaySheet, {
 import IncomeRecordSheet, {
   type IncomeRecordSubmit,
 } from '../../components/obligations/IncomeRecordSheet.vue';
-import { formatPlainDateShort } from '../../components/obligations/format-plain-date.js';
 import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
@@ -27,6 +29,9 @@ import { useAuth } from '../../composables/useAuth.js';
 import {
   type IncomeOccurrenceItem,
   type ObligationOccurrenceItem,
+  type PlansCalendarItem,
+  type PlansCalendarResponse,
+  type TransactionJournalV2Item,
   useEnvelopePlanV2,
 } from '../../composables/useEnvelopePlanV2.js';
 import { useFundingEntry } from '../../composables/useFundingEntry.js';
@@ -60,8 +65,35 @@ const confirmation = ref<null | { action: 'skip'; occurrenceId: string }>(null);
 const mutationKeys = new Map<string, string>();
 
 const budget = computed(() => auth.currentData.value?.workspaces[0]?.budgets[0] ?? null);
-// Obligations: every status and remainder comes from the server DTO.
-const obligations = ref<ObligationOccurrenceItem[]>([]);
+// Every status, remainder and total comes from the server calendar DTO.
+const monthKey = ref(format(new Date(), 'yyyy-MM'));
+const monthAnchor = computed(() => `${monthKey.value}-01`);
+const selectedDate = ref(today);
+const calendar = ref<PlansCalendarResponse | null>(null);
+const calendarLoading = ref(false);
+const calendarError = ref(false);
+const listMode = ref<'upcoming' | 'all'>('upcoming');
+const dayFacts = ref<TransactionJournalV2Item[]>([]);
+const factsLoading = ref(false);
+const factsError = ref(false);
+const planListEl = ref<InstanceType<typeof PlanItemList> | null>(null);
+let calendarRequest = 0;
+let factsRequest = 0;
+let referencesLoaded = false;
+
+const calendarDays = computed(() =>
+  calendar.value?.month === monthKey.value ? calendar.value.days : [],
+);
+const calendarItems = computed(() =>
+  calendar.value?.month === monthKey.value ? calendar.value.items : [],
+);
+const overdueItems = computed(() => calendar.value?.overdue ?? []);
+const dayItems = computed(() =>
+  calendarItems.value.filter((item) => item.scheduledOn === selectedDate.value),
+);
+const categoryNames = computed(() =>
+  Object.fromEntries(categories.value.map((category) => [category.id, category.name])),
+);
 const payTarget = ref<ObligationOccurrenceItem | null>(null);
 const payPending = ref(false);
 const payError = ref<string | null>(null);
@@ -76,22 +108,9 @@ const EMPTY_PAY_OCCURRENCE = {
   categoryId: null,
 };
 const payOccurrence = computed(() => payTarget.value ?? EMPTY_PAY_OCCURRENCE);
-const obligationListEl = ref<HTMLElement | null>(null);
 // `?occurrence=` from a notification: highlight that obligation once, no automatic action.
 const linkedOccurrenceId = ref<string | null>(null);
 let linkApplied = false;
-const isOpenObligation = (item: ObligationOccurrenceItem) =>
-  item.status === 'DUE' || item.status === 'PENDING';
-// Open obligations first (overdue stay visible until paid or skipped).
-const sortedObligations = computed(() => [
-  ...obligations.value.filter(isOpenObligation),
-  ...obligations.value.filter((item) => !isOpenObligation(item)),
-]);
-const obligationStatusLabel: Partial<Record<ObligationOccurrenceItem['status'], string>> = {
-  COMPLETED: 'Выполнено',
-  SKIPPED: 'Пропущено',
-  CANCELLED: 'Отменено',
-};
 const PAY_ERROR_TEXT: Record<string, string> = {
   OCCURRENCE_NOT_OPEN: 'Обязательство уже закрыто, пропущено или отменено. Обновите список.',
   OCCURRENCE_NOT_PAYABLE: 'Этот план нельзя оплатить: у него нет обязательного конверта.',
@@ -103,15 +122,12 @@ const PAY_ERROR_TEXT: Record<string, string> = {
 
 // v2 expected income: a forecast only. Loading or viewing never creates a
 // transaction; only the explicit "Записать доход" action does.
-const incomeOccurrences = ref<IncomeOccurrenceItem[]>([]);
-const incomeLoadFailed = ref(false);
 const incomeTarget = ref<IncomeOccurrenceItem | null>(null);
 const incomePending = ref(false);
 const incomeError = ref<string | null>(null);
 const incomeFieldErrors = ref<
   Partial<Record<'amount' | 'accountId' | 'occurredOn' | 'categoryId', string>>
 >({});
-const incomeListEl = ref<HTMLElement | null>(null);
 const EMPTY_INCOME_OCCURRENCE = {
   id: '',
   name: '',
@@ -120,12 +136,6 @@ const EMPTY_INCOME_OCCURRENCE = {
   categoryId: null,
 };
 const incomeOccurrence = computed(() => incomeTarget.value ?? EMPTY_INCOME_OCCURRENCE);
-const isOpenIncome = (item: IncomeOccurrenceItem) =>
-  item.status === 'DUE' || item.status === 'PENDING';
-const visibleIncome = computed(() => [
-  ...incomeOccurrences.value.filter(isOpenIncome),
-  ...incomeOccurrences.value.filter((item) => item.status === 'COMPLETED'),
-]);
 const INCOME_ERROR_TEXT: Record<string, string> = {
   OCCURRENCE_NOT_OPEN: 'Доход по этому плану уже записан или план отключён. Обновите список.',
   IDEMPOTENCY_CONFLICT: 'Данные дохода изменились. Проверьте форму и повторите.',
@@ -137,6 +147,7 @@ const INCOME_ERROR_TEXT: Record<string, string> = {
 // request, the Idempotency-Key and the status.
 const planDialogOpen = ref(false);
 const planDialogKind = ref<PlanKind>('obligation');
+const planDialogDate = ref(today);
 const planPending = ref(false);
 const planError = ref<string | null>(null);
 const planFieldErrors = ref<PlanFormErrors>({});
@@ -166,10 +177,11 @@ async function loadAll() {
   loading.value = true;
   error.value = '';
   try {
-    await loadObligations(true);
+    await loadPage(true);
     applyOccurrenceLink();
   } catch {
-    error.value = 'Не удалось загрузить планы. Повторите попытку.';
+    // A calendar failure has its own alert with a retry; the generic text is for references.
+    if (!calendarError.value) error.value = 'Не удалось загрузить планы. Повторите попытку.';
   } finally {
     loading.value = false;
   }
@@ -181,24 +193,139 @@ async function loadAll() {
   }
 }
 
-async function loadObligations(withReference = false): Promise<void> {
+async function loadPage(withReference = false): Promise<void> {
   if (!budget.value) return;
   const budgetId = budget.value.id;
-  const [list, accountData, categoryData, incomeList] = await Promise.all([
-    v2.listObligationOccurrences(budgetId, {}),
+  // References load independently: a calendar failure must not skip them.
+  const [calendarResult, accountResult, categoryResult] = await Promise.allSettled([
+    loadCalendar(),
     withReference ? api.listAccounts(budgetId, 'active') : Promise.resolve(null),
     withReference ? api.listCategories(budgetId, undefined, 'active') : Promise.resolve(null),
-    // A failed forecast read must not hide the obligations.
-    v2.listIncomeOccurrences(budgetId, {}).catch(() => null),
   ]);
-  obligations.value = list.items;
-  incomeLoadFailed.value = incomeList === null;
-  if (incomeList) incomeOccurrences.value = incomeList.items;
-  if (accountData) {
-    accounts.value = accountData.map((account) => ({ value: account.id, label: account.name }));
+  if (accountResult.status === 'fulfilled' && accountResult.value) {
+    accounts.value = accountResult.value.map((account) => ({
+      value: account.id,
+      label: account.name,
+    }));
   }
-  if (categoryData) categories.value = categoryData;
+  if (categoryResult.status === 'fulfilled' && categoryResult.value) {
+    categories.value = categoryResult.value;
+  }
+  referencesLoaded =
+    referencesLoaded ||
+    (accountResult.status === 'fulfilled' &&
+      categoryResult.status === 'fulfilled' &&
+      withReference);
+  await loadFacts();
+  for (const result of [calendarResult, accountResult, categoryResult]) {
+    if (result.status === 'rejected') throw result.reason;
+  }
 }
+
+async function loadCalendar(): Promise<void> {
+  if (!budget.value) return;
+  const request = ++calendarRequest;
+  calendarLoading.value = true;
+  calendarError.value = false;
+  try {
+    const result = await v2.getPlansCalendar(budget.value.id, monthKey.value);
+    if (request !== calendarRequest) return;
+    calendar.value = result;
+  } catch (exception) {
+    if (request === calendarRequest) calendarError.value = true;
+    throw exception;
+  } finally {
+    if (request === calendarRequest) calendarLoading.value = false;
+  }
+}
+
+// Facts of the selected day; a stale answer (day changed meanwhile) is dropped.
+async function loadFacts(): Promise<void> {
+  if (!budget.value) return;
+  const request = ++factsRequest;
+  factsLoading.value = true;
+  factsError.value = false;
+  try {
+    const result = await v2.listTransactions(budget.value.id, {
+      from: selectedDate.value,
+      to: selectedDate.value,
+      status: 'CONFIRMED',
+      limit: 50,
+    });
+    if (request !== factsRequest) return;
+    dayFacts.value = result.items;
+  } catch {
+    if (request === factsRequest) {
+      dayFacts.value = [];
+      factsError.value = true;
+    }
+  } finally {
+    if (request === factsRequest) factsLoading.value = false;
+  }
+}
+
+function changeMonth(anchor: string) {
+  monthKey.value = anchor.slice(0, 7);
+  const reference = calendar.value?.today ?? today;
+  selectedDate.value = reference.startsWith(monthKey.value) ? reference : `${monthKey.value}-01`;
+  void loadCalendar().catch(() => undefined);
+  void loadFacts();
+}
+
+function selectDay(date: string) {
+  selectedDate.value = date;
+  void loadFacts();
+}
+
+function retryCalendar() {
+  // The first read may have failed together with references and the ?occurrence= link.
+  if (!referencesLoaded || !linkApplied) {
+    void loadAll();
+    return;
+  }
+  void loadCalendar().catch(() => undefined);
+  void loadFacts();
+}
+
+async function showOverdue() {
+  listMode.value = 'upcoming';
+  await nextTick();
+  planListEl.value?.focus();
+}
+
+function toObligationOccurrence(item: PlansCalendarItem): ObligationOccurrenceItem {
+  return {
+    id: item.occurrenceId,
+    planId: item.planId,
+    name: item.name,
+    scheduledOn: item.scheduledOn,
+    status: item.status as ObligationOccurrenceItem['status'],
+    expectedMinor: item.expectedMinor,
+    paidMinor: item.paidMinor,
+    unpaidMinor: item.unpaidMinor,
+    categoryId: item.categoryId,
+    envelopeId: null,
+  };
+}
+
+function toIncomeOccurrence(item: PlansCalendarItem): IncomeOccurrenceItem {
+  return {
+    id: item.occurrenceId,
+    planId: item.planId,
+    name: item.name,
+    scheduledOn: item.scheduledOn,
+    status: item.status,
+    expectedMinor: item.expectedMinor,
+    categoryId: item.categoryId,
+    transactionId: item.transactionId,
+  };
+}
+
+const onPay = (item: PlansCalendarItem) => openPay(toObligationOccurrence(item));
+const onSkip = (item: PlansCalendarItem) => {
+  confirmation.value = { action: 'skip', occurrenceId: item.occurrenceId };
+};
+const onRecordIncome = (item: PlansCalendarItem) => openIncomeRecord(toIncomeOccurrence(item));
 
 function applyOccurrenceLink() {
   if (linkApplied) return;
@@ -206,12 +333,9 @@ function applyOccurrenceLink() {
   const wanted = route.query.occurrence;
   if (typeof wanted !== 'string') return;
   // Unknown or foreign ids are ignored: the highlight needs a row from the server list.
-  if (!obligations.value.some((item) => item.id === wanted)) return;
+  const known = [...calendarItems.value, ...overdueItems.value];
+  if (!known.some((item) => item.occurrenceId === wanted)) return;
   linkedOccurrenceId.value = wanted;
-}
-
-function isOverdue(item: ObligationOccurrenceItem): boolean {
-  return isOpenObligation(item) && item.scheduledOn < today;
 }
 
 function openPay(item: ObligationOccurrenceItem) {
@@ -257,13 +381,13 @@ async function submitPay(input: ObligationPaySubmit) {
     payTarget.value = null;
     statusText.value = 'Оплата записана. Данные обновлены на сервере.';
     try {
-      await loadObligations();
+      await loadPage();
     } catch {
       error.value = 'Оплата записана, но список не обновился. Обновите страницу.';
     }
     // The paid row may have moved or changed; park focus on the list.
     await nextTick();
-    obligationListEl.value?.focus();
+    planListEl.value?.focus();
   } catch (exception) {
     if (exception instanceof ApiRequestError && exception.problem.fieldErrors?.length) {
       const known = ['amount', 'accountId', 'occurredOn', 'categoryId'] as const;
@@ -278,7 +402,8 @@ async function submitPay(input: ObligationPaySubmit) {
   }
 }
 
-function openPlanDialog(kind: PlanKind) {
+function openPlanDialog(kind: PlanKind, date?: string) {
+  planDialogDate.value = date ?? today;
   planError.value = null;
   planFieldErrors.value = {};
   planDialogKind.value = kind;
@@ -319,12 +444,12 @@ async function submitPlan(payload: PlanCreateSubmit) {
         ? `Платёж «${payload.request.name}» добавлен.`
         : `Доход «${payload.request.name}» добавлен.`;
     try {
-      await loadObligations();
+      await loadPage();
     } catch {
       error.value = 'План добавлен, но список не обновился. Обновите страницу.';
     }
     await nextTick();
-    (payload.kind === 'obligation' ? obligationListEl : incomeListEl).value?.focus();
+    planListEl.value?.focus();
   } catch (exception) {
     if (exception instanceof ApiRequestError) {
       const mapped = fieldErrorsFromProblem(exception.problem);
@@ -378,12 +503,12 @@ async function submitIncomeRecord(input: IncomeRecordSubmit) {
     incomeTarget.value = null;
     statusText.value = 'Доход записан. Данные обновлены на сервере.';
     try {
-      await loadObligations();
+      await loadPage();
     } catch {
       error.value = 'Доход записан, но список не обновился. Обновите страницу.';
     }
     await nextTick();
-    incomeListEl.value?.focus();
+    planListEl.value?.focus();
     // Assignment stays an explicit step: the host only previews and the user
     // confirms. Closing it ("Позже") leaves the recorded income untouched.
     fundingEntry.offer({
@@ -415,7 +540,9 @@ async function runConfirmation() {
     await v2.skipObligationOccurrence(budget.value.id, current.occurrenceId, keyFor(operation));
     mutationKeys.delete(operation);
     statusText.value = 'Данные обновлены на сервере.';
-    await loadObligations();
+    await loadPage();
+    await nextTick();
+    planListEl.value?.focus();
   } catch (exception) {
     error.value =
       exception instanceof ApiRequestError
@@ -456,167 +583,68 @@ function errorMessage(exception: unknown) {
         <p v-if="statusText" class="plans-page__status" role="status">{{ statusText }}</p>
         <p v-if="error" class="plans-page__error" role="alert">{{ error }}</p>
         <p v-if="loading">Загрузка планов…</p>
-        <template v-else-if="budget">
-          <section
-            ref="obligationListEl"
-            class="obligation-list"
-            tabindex="-1"
-            data-testid="obligation-list"
-            aria-label="Обязательные платежи"
+        <div v-else-if="budget" class="plans-page__stack">
+          <p v-if="calendarError" class="plans-page__error" role="alert">
+            Не удалось загрузить календарь.
+            <UiButton
+              variant="tertiary"
+              size="sm"
+              data-testid="calendar-retry"
+              @click="retryCalendar"
+            >
+              Повторить
+            </UiButton>
+          </p>
+          <p
+            v-if="(calendar?.overdueCount ?? 0) > 0"
+            class="plans-page__overdue"
+            data-testid="overdue-banner"
           >
-            <div v-if="sortedObligations.length === 0" class="plans-page__empty">
-              <p class="obligation-list__empty">Обязательных платежей пока нет.</p>
-              <p class="obligation-list__empty">
-                Добавьте аренду, коммунальные платежи, кредиты — «Можно потратить» учтёт их заранее.
-              </p>
-              <UiButton
-                variant="secondary"
-                data-testid="plan-add-obligation-empty"
-                @click="openPlanDialog('obligation')"
-              >
-                Добавить платёж
-              </UiButton>
-            </div>
-            <ul v-else class="obligation-list__items">
-              <li
-                v-for="item in sortedObligations"
-                :id="`obligation-${item.id}`"
-                :key="item.id"
-                class="obligation-row"
-                :class="{ 'obligation-row--linked': linkedOccurrenceId === item.id }"
-                :aria-current="linkedOccurrenceId === item.id ? 'true' : undefined"
-                :data-testid="`obligation-row-${item.id}`"
-              >
-                <div class="obligation-row__main">
-                  <span class="obligation-row__name">{{ item.name }}</span>
-                  <span
-                    v-if="linkedOccurrenceId === item.id"
-                    class="obligation-row__linked"
-                    data-testid="obligation-linked"
-                  >
-                    <Bell :size="14" aria-hidden="true" />
-                    Из уведомления
-                  </span>
-                  <span class="obligation-row__meta">{{
-                    formatPlainDateShort(item.scheduledOn)
-                  }}</span>
-                  <span
-                    v-if="isOverdue(item)"
-                    class="obligation-row__badge"
-                    data-testid="obligation-overdue"
-                  >
-                    <AlertTriangle :size="14" aria-hidden="true" />
-                    Просрочено
-                  </span>
-                  <span v-if="obligationStatusLabel[item.status]" class="obligation-row__meta">
-                    {{ obligationStatusLabel[item.status] }}
-                  </span>
-                </div>
-                <div class="obligation-row__amounts">
-                  <FinanceMoney :minor-units="item.expectedMinor" currency="RUB" :scale="2" />
-                  <span v-if="item.unpaidMinor !== '0'" class="obligation-row__meta">
-                    Остаток
-                    <FinanceMoney :minor-units="item.unpaidMinor" currency="RUB" :scale="2" />
-                  </span>
-                </div>
-                <div v-if="isOpenObligation(item)" class="obligation-row__actions">
-                  <UiButton
-                    variant="tertiary"
-                    size="sm"
-                    class="obligation-row__icon-btn"
-                    :aria-label="`Оплатить ${item.name}`"
-                    :title="`Оплатить ${item.name}`"
-                    :data-testid="`obligation-pay-${item.id}`"
-                    :disabled="pending"
-                    @click="openPay(item)"
-                  >
-                    <Check :size="16" aria-hidden="true" />
-                  </UiButton>
-                  <UiButton
-                    v-if="item.paidMinor === '0'"
-                    size="sm"
-                    variant="tertiary"
-                    class="obligation-row__icon-btn"
-                    :aria-label="`Пропустить ${item.name}`"
-                    :title="`Пропустить ${item.name}`"
-                    :data-testid="`obligation-skip-${item.id}`"
-                    :disabled="pending"
-                    @click="confirmation = { action: 'skip', occurrenceId: item.id }"
-                  >
-                    <SkipForward :size="16" aria-hidden="true" />
-                  </UiButton>
-                </div>
-              </li>
-            </ul>
-          </section>
-          <section
-            ref="incomeListEl"
-            class="income-list"
-            tabindex="-1"
-            data-testid="income-list"
-            aria-label="Ожидаемые доходы"
-          >
-            <h2 class="income-list__title">Ожидаемые доходы</h2>
-            <p v-if="!incomeLoadFailed && visibleIncome.length > 0" class="income-list__warning">
-              <AlertTriangle :size="14" aria-hidden="true" />
-              Это прогноз: пока деньги не пришли и вы не записали их как доход, они не входят в «На
-              счетах» и не увеличивают «Можно потратить».
-            </p>
-            <p v-if="incomeLoadFailed" class="plans-page__error" role="alert">
-              Не удалось загрузить ожидаемые доходы.
-            </p>
-            <div v-else-if="visibleIncome.length === 0" class="plans-page__empty">
-              <p class="obligation-list__empty">Здесь будут ожидаемые поступления.</p>
-              <UiButton
-                variant="secondary"
-                data-testid="plan-add-income-empty"
-                @click="openPlanDialog('income')"
-              >
-                Добавить доход
-              </UiButton>
-            </div>
-            <ul v-else class="obligation-list__items">
-              <li
-                v-for="item in visibleIncome"
-                :key="item.id"
-                class="obligation-row"
-                :data-testid="`income-row-${item.id}`"
-              >
-                <div class="obligation-row__main">
-                  <span class="obligation-row__name">{{ item.name }}</span>
-                  <span class="obligation-row__meta">{{
-                    formatPlainDateShort(item.scheduledOn)
-                  }}</span>
-                  <span v-if="isOpenIncome(item)" class="income-row__forecast">
-                    <TrendingUp :size="14" aria-hidden="true" />
-                    Прогноз — не входит в «На счетах»
-                  </span>
-                  <span v-else class="obligation-row__meta">
-                    <Check :size="14" aria-hidden="true" />
-                    Записан
-                  </span>
-                </div>
-                <div class="obligation-row__amounts">
-                  <FinanceMoney :minor-units="item.expectedMinor" currency="RUB" :scale="2" />
-                </div>
-                <div v-if="isOpenIncome(item)" class="obligation-row__actions">
-                  <UiButton
-                    variant="tertiary"
-                    size="sm"
-                    class="obligation-row__icon-btn"
-                    :aria-label="`Записать доход ${item.name}`"
-                    :title="`Записать доход ${item.name}`"
-                    :data-testid="`income-record-${item.id}`"
-                    :disabled="incomePending"
-                    @click="openIncomeRecord(item)"
-                  >
-                    <Plus :size="16" aria-hidden="true" />
-                  </UiButton>
-                </div>
-              </li>
-            </ul>
-          </section>
-        </template>
+            <AlertTriangle :size="16" aria-hidden="true" />
+            Просрочено: {{ calendar?.overdueCount }}
+            <UiButton variant="tertiary" size="sm" @click="showOverdue">Показать</UiButton>
+          </p>
+          <PlanKpiRow v-if="calendar" :totals="calendar.totals" />
+          <div class="plans-page__board">
+            <PlansCalendar
+              :month-anchor="monthAnchor"
+              :selected-date="selectedDate"
+              :today="calendar?.today ?? today"
+              :days="calendarDays"
+              :loading="calendarLoading"
+              @select-day="selectDay"
+              @change-month="changeMonth"
+            />
+            <PlanDayPanel
+              :date="selectedDate"
+              :items="dayItems"
+              :facts="dayFacts"
+              :category-names="categoryNames"
+              :facts-loading="factsLoading"
+              :facts-error="factsError"
+              :busy="pending"
+              @add-plan="openPlanDialog('obligation', $event)"
+              @pay="onPay"
+              @skip="onSkip"
+              @record-income="onRecordIncome"
+              @retry-facts="loadFacts"
+            />
+          </div>
+          <PlanItemList
+            ref="planListEl"
+            v-model:mode="listMode"
+            :items="calendarItems"
+            :overdue="overdueItems"
+            :today="calendar?.today ?? today"
+            :has-any-plans="(calendar?.totals.activePlanCount ?? 0) > 0"
+            :busy="pending || payPending || incomePending"
+            :linked-id="linkedOccurrenceId"
+            @pay="onPay"
+            @skip="onSkip"
+            @record-income="onRecordIncome"
+            @add-plan="openPlanDialog($event)"
+          />
+        </div>
       </template>
     </ReferencePageLayout>
 
@@ -650,7 +678,7 @@ function errorMessage(exception: unknown) {
       :open="planDialogOpen"
       :categories="categories"
       :initial-kind="planDialogKind"
-      :initial-date="today"
+      :initial-date="planDialogDate"
       :pending="planPending"
       :error="planError"
       :field-errors="planFieldErrors"
@@ -683,106 +711,28 @@ function errorMessage(exception: unknown) {
 .plans-page__error {
   color: var(--hf-color-text-danger);
 }
-.plans-page__empty {
+.plans-page__stack {
   display: grid;
-  justify-items: start;
-  gap: var(--hf-space-2);
+  gap: var(--hf-space-4);
 }
-.obligation-list__empty {
-  margin: 0;
-  color: var(--hf-color-text-muted);
-}
-.obligation-list__items {
-  display: grid;
-  gap: var(--hf-space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.obligation-row {
+.plans-page__overdue {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--hf-space-3);
-  padding: var(--hf-space-3) var(--hf-space-4);
-  border: 1px solid var(--hf-color-border);
-  border-radius: var(--hf-radius-lg);
-  background: var(--hf-color-surface);
-}
-.obligation-row__linked {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--hf-space-1);
-  color: var(--hf-color-action-primary-hover);
-  font-size: var(--hf-font-size-small);
-  font-weight: var(--hf-font-weight-semibold);
-}
-.obligation-row--linked {
-  border-color: var(--hf-color-action-primary);
-  box-shadow: 0 0 0 2px var(--hf-color-action-primary);
-}
-.obligation-row__main,
-.obligation-row__amounts {
-  display: grid;
-  gap: var(--hf-space-1);
-  min-width: 0;
-}
-.obligation-row__name {
-  font-weight: var(--hf-font-weight-medium);
-  overflow-wrap: anywhere;
-}
-.obligation-row__meta {
-  color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-small);
-}
-.obligation-row__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--hf-space-1);
+  gap: var(--hf-space-2);
+  margin: 0;
   color: var(--hf-color-text-danger);
-  font-size: var(--hf-font-size-small);
   font-weight: var(--hf-font-weight-semibold);
 }
-.obligation-row__icon-btn {
-  min-width: 2.75rem;
-  min-height: 2.75rem;
-  padding-inline: 0;
-}
-.income-list {
+.plans-page__board {
   display: grid;
-  gap: var(--hf-space-2);
-  margin-top: var(--hf-space-6);
+  gap: var(--hf-space-4);
+  grid-template-columns: minmax(0, 1fr);
 }
-.income-list__title {
-  margin: 0;
-  font-size: var(--hf-font-size-body);
-  font-weight: var(--hf-font-weight-semibold);
-}
-.income-list__warning {
-  display: flex;
-  align-items: center;
-  gap: var(--hf-space-1);
-  margin: 0;
-  color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-small);
-}
-.income-row__forecast {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--hf-space-1);
-  color: var(--hf-color-status-info);
-  font-size: var(--hf-font-size-small);
-  font-weight: var(--hf-font-weight-medium);
-}
-.income-list:focus-visible,
-.obligation-list:focus-visible {
-  outline: 2px solid var(--hf-color-action-primary);
-  outline-offset: 2px;
-}
-.obligation-row__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--hf-space-2);
+@media (min-width: 64rem) {
+  .plans-page__board {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    align-items: start;
+  }
 }
 </style>

@@ -21,6 +21,12 @@ interface TemplatePreview {
 interface ItemList {
   items: Array<{ id: string; name: string }>;
 }
+interface TemplateApply {
+  created: { categories: Array<{ id: string; name: string }> };
+}
+interface PlanCreated {
+  occurrenceId: string | null;
+}
 interface Dashboard {
   cashMinor: string;
   onboarding: { hasMandatoryPlans: boolean };
@@ -59,10 +65,8 @@ for (const [label, viewport] of [
       // 1. Empty page: add a payment from the header button.
       await page.goto('/app/plans');
       await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
-      await expect(page.getByTestId('obligation-list')).toContainText(
-        'Обязательных платежей пока нет.',
-      );
-      await expect(page.getByTestId('income-list')).toContainText(
+      await expect(page.getByTestId('plans-list')).toContainText('Обязательных платежей пока нет.');
+      await expect(page.getByTestId('plans-list')).toContainText(
         'Здесь будут ожидаемые поступления.',
       );
       await page.getByRole('button', { name: 'Добавить платёж' }).first().click();
@@ -84,7 +88,7 @@ for (const [label, viewport] of [
       await dialog.getByRole('button', { name: 'Добавить платёж' }).click();
       await expect(dialog).toBeHidden();
       await expect(page.getByRole('status')).toContainText('Платёж «Аренда» добавлен.');
-      await expect(page.getByTestId('obligation-list')).toContainText('Аренда');
+      await expect(page.getByTestId('plans-list')).toContainText('Аренда');
 
       // 2. API: the plan exists, but no operation was created.
       const occurrences = await getJson<ItemList>(page, `${base}/obligations/occurrences`);
@@ -95,9 +99,11 @@ for (const [label, viewport] of [
       expect(afterPayment.onboarding.hasMandatoryPlans).toBe(true);
       expect(afterPayment.cashMinor).toBe(before.cashMinor);
 
-      // 3. Expected income from the empty state: it is a forecast only.
-      await page.getByRole('button', { name: 'Добавить доход' }).click();
+      // 3. Expected income through the same dialog (the list already holds a
+      // payment, so the empty-state button is absent): it is a forecast only.
+      await page.getByTestId('plan-add-obligation').click();
       await expect(dialog).toBeVisible();
+      await dialog.getByRole('tab', { name: 'Доход' }).click();
       await expect(dialog.getByRole('tab', { name: 'Доход' })).toHaveAttribute(
         'aria-selected',
         'true',
@@ -113,7 +119,7 @@ for (const [label, viewport] of [
       await dialog.getByRole('button', { name: 'Добавить доход' }).click();
       await expect(dialog).toBeHidden();
       await expect(page.getByRole('status')).toContainText('Доход «Зарплата» добавлен.');
-      const incomeList = page.getByTestId('income-list');
+      const incomeList = page.getByTestId('plans-list');
       await expect(incomeList).toContainText('Зарплата');
       await expect(incomeList).toContainText('Это прогноз');
 
@@ -122,6 +128,118 @@ for (const [label, viewport] of [
       const journalAfter = await getJson<ItemList>(page, `${base}/transactions?limit=100`);
       expect(journalAfter.items).toHaveLength(0);
     });
+
+    test('calendar: day panel adds a plan on the selected date', async ({ page }) => {
+      test.setTimeout(180_000);
+
+      await registerAndReachApp(page);
+      const budgetId = await budgetIdOf(page);
+      const base = `${API_V2}/budgets/${budgetId}`;
+
+      // SETUP (API): the base template gives expense categories.
+      const preview = await getJson<TemplatePreview>(page, `${base}/reference-template/preview`);
+      await apiMutate(page, `${base}/reference-template/apply`, {
+        previewHash: preview.previewHash,
+        periods: [
+          { role: 'FIRST', action: 'CREATE' },
+          { role: 'SECOND', action: 'CREATE' },
+        ],
+        mandatory: { action: 'CREATE' },
+        savings: [],
+      });
+
+      await page.goto('/app/plans');
+      await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
+
+      // Today in the budget's own time zone (YYYY-MM-DD and DD.MM.YYYY).
+      const iso = await budgetToday(page, budgetId);
+      const today = { iso, typed: `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` };
+
+      await page.getByTestId(`calendar-day-${today.iso}`).click();
+      const panel = page.getByTestId('day-panel');
+      await expect(panel).toBeVisible();
+      await expect(panel).toContainText('На этот день пока ничего нет');
+
+      await page.getByTestId('plan-add-for-day').click();
+      const dialog = page.getByRole('dialog', { name: 'Создать план' });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.locator('#planScheduledOn-input')).toHaveValue(today.typed);
+
+      await dialog.getByLabel('Сумма').fill('1500');
+      await dialog.getByLabel('Название').fill('Интернет');
+      await dialog
+        .getByRole('radiogroup', { name: 'Категория' })
+        .getByRole('radio')
+        .first()
+        .click();
+      await dialog.getByRole('button', { name: 'Добавить платёж' }).click();
+      await expect(dialog).toBeHidden();
+
+      await expect(page.getByTestId(`calendar-dot-${today.iso}`)).toHaveAttribute(
+        'data-dot',
+        'upcoming',
+      );
+    });
+
+    test('calendar: a month with a payment and an income shows them in dot, panel and KPI', async ({
+      page,
+    }) => {
+      test.setTimeout(180_000);
+
+      await registerAndReachApp(page);
+      const budgetId = await budgetIdOf(page);
+      const base = `${API_V2}/budgets/${budgetId}`;
+
+      // SETUP (API): template categories, one payment plan and one income plan today.
+      const preview = await getJson<TemplatePreview>(page, `${base}/reference-template/preview`);
+      const template = await apiMutate<TemplateApply>(page, `${base}/reference-template/apply`, {
+        previewHash: preview.previewHash,
+        periods: [
+          { role: 'FIRST', action: 'CREATE' },
+          { role: 'SECOND', action: 'CREATE' },
+        ],
+        mandatory: { action: 'CREATE' },
+        savings: [],
+      });
+      const categoryId = (name: string): string => {
+        const found = template.created.categories.find((item) => item.name === name);
+        if (!found) throw new Error(`Template category "${name}" is missing`);
+        return found.id;
+      };
+      const today = await budgetToday(page, budgetId);
+      const payment = await apiMutate<PlanCreated>(page, `${base}/obligations/plans`, {
+        name: 'Аренда',
+        amount: '45000.00',
+        scheduledOn: today,
+        categoryId: categoryId('Аренда'),
+        recurrence: 'ONE_TIME',
+      });
+      const income = await apiMutate<PlanCreated>(page, `${base}/income-plans`, {
+        name: 'Премия',
+        amount: '100000.00',
+        scheduledOn: today,
+        categoryId: categoryId('Премия'),
+        recurrence: 'ONE_TIME',
+      });
+      if (!payment.occurrenceId || !income.occurrenceId) {
+        throw new Error('Plans did not create an occurrence');
+      }
+
+      await page.goto('/app/plans');
+      await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
+
+      await expect(page.getByTestId(`calendar-dot-${today}`)).toHaveAttribute(
+        'data-dot',
+        'upcoming',
+      );
+      await page.getByTestId(`calendar-day-${today}`).click();
+      const panel = page.getByTestId('day-panel');
+      await expect(panel).toBeVisible();
+      await expect(panel.getByTestId(`day-item-${payment.occurrenceId}`)).toBeVisible();
+      await expect(panel.getByTestId(`day-item-${income.occurrenceId}`)).toBeVisible();
+      await expect(page.getByTestId('kpi-planned-income')).toContainText(/100\s000/);
+      await expect(page.getByTestId('kpi-planned-expense')).toContainText(/45\s000/);
+    });
   });
 }
 
@@ -129,6 +247,14 @@ async function getJson<T>(page: Page, url: string): Promise<T> {
   const response = await page.request.get(url);
   expect(response.ok(), `${url} -> ${response.status()}`).toBe(true);
   return (await response.json()) as T;
+}
+
+// Today's date in the budget's own time zone (en-CA formats as YYYY-MM-DD).
+async function budgetToday(page: Page, budgetId: string): Promise<string> {
+  const budget = await getJson<{ timezone?: string }>(page, `${apiV1}/budgets/${budgetId}`);
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: budget.timezone ?? 'Europe/Moscow',
+  }).format(new Date());
 }
 
 async function budgetIdOf(page: Page): Promise<string> {
