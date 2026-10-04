@@ -2,15 +2,8 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const api = {
-  listTransactionAllocations: vi.fn(),
   listTransactionAudit: vi.fn(),
-  confirmTransaction: vi.fn(),
-  cancelTransaction: vi.fn(),
-  deleteTransaction: vi.fn(),
-  restoreTransaction: vi.fn(),
-  deleteTransactionWithAllocations: vi.fn(),
-  createIncomeAllocation: vi.fn(),
-  getTransaction: vi.fn(),
+  listTransactionAllocations: vi.fn(),
 };
 
 vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) => ({
@@ -20,34 +13,31 @@ vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) =>
 
 import OperationDrawer from './OperationDrawer.vue';
 import { useToast } from '../../composables/useToast.js';
-import type { TransactionDto } from '../../composables/useBudgetReferenceData.js';
+import type { TransactionJournalV2Item } from '../../composables/useEnvelopePlanV2.js';
 
-const transaction = {
+const transaction: TransactionJournalV2Item = {
   id: 'transaction-id',
   budgetId: 'budget-id',
+  accountingModelVersion: 2,
   transactionType: 'EXPENSE',
-  status: 'DRAFT',
+  status: 'CONFIRMED',
   amountMinor: '245000',
   currency: 'RUB',
-  scale: 2,
   occurredOn: '2026-09-14',
   accountId: 'account-id',
   categoryId: 'category-id',
   envelopeId: 'envelope-id',
   sourceDescription: null,
   merchantName: 'Супермаркет',
-  isPlanned: false,
   comment: 'Еженедельная закупка',
-  confirmedAt: null,
+  planOccurrenceIds: [],
+  confirmedAt: '2026-09-14T10:00:00.000Z',
   cancelledAt: null,
   deletedAt: null,
-  accountCurrentBalanceMinor: '1000000',
-  envelopeCurrentBalanceMinor: '500000',
-  unallocatedMinor: '0',
-  allocationProposal: null,
-} as unknown as TransactionDto;
+  createdAt: '2026-09-14T10:00:00.000Z',
+};
 
-const mountDrawer = (overrides: Partial<TransactionDto> = {}) =>
+const mountDrawer = (overrides: Partial<TransactionJournalV2Item> = {}, busy = false) =>
   mount(OperationDrawer, {
     props: {
       transaction: { ...transaction, ...overrides },
@@ -55,8 +45,7 @@ const mountDrawer = (overrides: Partial<TransactionDto> = {}) =>
       accountName: 'Основная карта',
       categoryName: 'Продукты',
       envelopeName: 'Текущие',
-      accounts: [{ value: 'account-id', label: 'Основная карта' }],
-      envelopes: [{ value: 'envelope-id', label: 'Текущие' }],
+      busy,
     },
     attachTo: document.body,
   });
@@ -64,7 +53,6 @@ const mountDrawer = (overrides: Partial<TransactionDto> = {}) =>
 beforeEach(() => {
   vi.clearAllMocks();
   useToast().clear();
-  api.listTransactionAllocations.mockResolvedValue([]);
   api.listTransactionAudit.mockResolvedValue([]);
 });
 
@@ -81,12 +69,22 @@ describe('OperationDrawer', () => {
     wrapper.unmount();
   });
 
-  it('loads allocations and audit history when it opens', async () => {
+  it('loads only the audit history when it opens, no allocations', async () => {
     const wrapper = mountDrawer();
     await flushPromises();
 
-    expect(api.listTransactionAllocations).toHaveBeenCalledWith('budget-id', 'transaction-id');
     expect(api.listTransactionAudit).toHaveBeenCalledWith('budget-id', 'transaction-id');
+    expect(api.listTransactionAllocations).not.toHaveBeenCalled();
+    expect(wrapper.text()).not.toContain('Распределения дохода');
+    wrapper.unmount();
+  });
+
+  it('announces when the history cannot be loaded', async () => {
+    api.listTransactionAudit.mockRejectedValue(new Error('network'));
+    const wrapper = mountDrawer();
+    await flushPromises();
+
+    expect(wrapper.get('[role="alert"]').text()).toContain('Не удалось загрузить');
     wrapper.unmount();
   });
 
@@ -115,36 +113,59 @@ describe('OperationDrawer', () => {
     wrapper.unmount();
   });
 
-  it('confirms a draft and reports the new state', async () => {
-    api.confirmTransaction.mockResolvedValue({ ...transaction, status: 'CONFIRMED' });
-    const wrapper = mountDrawer();
+  it('has no confirm or cancel: a v2 fact is edited, deleted or restored', async () => {
+    const wrapper = mountDrawer({ status: 'DRAFT' });
     await flushPromises();
 
-    await wrapper.get('[data-testid="drawer-confirm"]').trigger('click');
-    await flushPromises();
-
-    expect(api.confirmTransaction).toHaveBeenCalled();
-    expect(wrapper.emitted('changed')?.[0]?.[0]).toMatchObject({ status: 'CONFIRMED' });
+    expect(wrapper.text()).toContain('Черновик');
+    expect(wrapper.find('[data-testid="drawer-confirm"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="drawer-cancel"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="drawer-edit"]').exists()).toBe(true);
     wrapper.unmount();
   });
 
-  it('asks the page to handle deletion instead of deleting itself', async () => {
+  it('asks the page to edit, delete or restore instead of doing it itself', async () => {
     const wrapper = mountDrawer();
     await flushPromises();
 
+    await wrapper.get('[data-testid="drawer-edit"]').trigger('click');
     await wrapper.get('[data-testid="drawer-delete"]').trigger('click');
 
-    expect(api.deleteTransaction).not.toHaveBeenCalled();
+    expect(wrapper.emitted('edit')).toHaveLength(1);
     expect(wrapper.emitted('request-delete')).toHaveLength(1);
     wrapper.unmount();
+
+    const deleted = mountDrawer({ status: 'DELETED' });
+    await flushPromises();
+    await deleted.get('[data-testid="drawer-restore"]').trigger('click');
+    expect(deleted.emitted('request-restore')).toHaveLength(1);
+    deleted.unmount();
   });
 
   it('offers restore for a deleted operation and nothing else', async () => {
     const wrapper = mountDrawer({ status: 'DELETED' });
     await flushPromises();
 
-    expect(wrapper.find('[data-testid="drawer-confirm"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="drawer-edit"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="drawer-delete"]').exists()).toBe(false);
     expect(wrapper.get('[data-testid="drawer-restore"]')).toBeTruthy();
+    wrapper.unmount();
+  });
+
+  it('disables the actions while a request is running', async () => {
+    const wrapper = mountDrawer({}, true);
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="drawer-delete"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.get('[data-testid="drawer-edit"]').attributes('disabled')).toBeDefined();
+    wrapper.unmount();
+  });
+
+  it('marks a payment made against a plan', async () => {
+    const wrapper = mountDrawer({ planOccurrenceIds: ['occurrence-id'] });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('По плану');
     wrapper.unmount();
   });
 });

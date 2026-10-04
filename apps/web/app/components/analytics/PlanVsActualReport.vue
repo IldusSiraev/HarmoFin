@@ -9,7 +9,7 @@ function planTypeLabel(type: PlanVsActualRowDto['planType']) {
 }
 
 function journalHref(row: PlanVsActualRowDto) {
-  const query = new URLSearchParams(row.journalFilters);
+  const query = new URLSearchParams(row.journalFilters ?? {});
   return `/app/operations?${query}`;
 }
 </script>
@@ -52,7 +52,9 @@ function journalHref(row: PlanVsActualRowDto) {
             <td><FinanceMoney :minor-units="row.varianceMinor" currency="RUB" :scale="2" /></td>
             <td>{{ row.confirmedOccurrenceCount }} из {{ row.plannedOccurrenceCount }}</td>
             <td>
-              <NuxtLink :to="journalHref(row)" data-journal-link>Открыть журнал</NuxtLink>
+              <NuxtLink v-if="row.journalFilters" :to="journalHref(row)" data-journal-link
+                >Открыть журнал</NuxtLink
+              >
             </td>
           </tr>
         </tbody>
@@ -86,7 +88,7 @@ function journalHref(row: PlanVsActualRowDto) {
   background: var(--hf-color-surface);
 }
 .plan-vs-actual__table-wrap:focus-visible {
-  outline: var(--hf-focus-indicator);
+  box-shadow: var(--hf-focus-indicator);
   outline-offset: 2px;
 }
 table {

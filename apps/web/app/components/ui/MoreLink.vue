@@ -19,6 +19,7 @@ defineProps<{ to: string }>();
   flex-shrink: 0;
   gap: var(--hf-space-1);
   align-items: center;
+  min-height: 2.75rem;
   color: var(--hf-color-action-primary-hover);
   font-size: var(--hf-font-size-small);
   font-weight: var(--hf-font-weight-semibold);

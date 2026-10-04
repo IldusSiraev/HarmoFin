@@ -18,7 +18,7 @@ export class BudgetModelVersionResponse {
   planModelActivatedOn!: string | null;
 }
 
-@ApiTags('budget model')
+@ApiTags('budget model (v2)')
 @Controller({ path: 'budgets/:budgetId/model', version: '2' })
 @UseGuards(SessionAuthGuard)
 @ApiCookieAuth('session')
@@ -30,6 +30,8 @@ export class V2BudgetModelController {
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   getModel(@Param('budgetId') budgetId: string, @Req() request: AuthenticatedRequest) {
     return this.describeModel(budgetId, contextOf(request).userId);
   }
@@ -41,6 +43,7 @@ export class V2BudgetModelController {
   @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   updateModel(@Param('budgetId') budgetId: string, @Req() request: AuthenticatedRequest) {
     return this.describeModel(budgetId, contextOf(request).userId);
   }

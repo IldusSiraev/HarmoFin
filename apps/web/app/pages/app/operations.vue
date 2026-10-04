@@ -9,8 +9,6 @@ import OperationGroup from '../../components/operations/OperationGroup.vue';
 import OperationRow from '../../components/operations/OperationRow.vue';
 import OperationsToolbar from '../../components/operations/OperationsToolbar.vue';
 import { groupByDay } from '../../components/operations/group-by-day.js';
-import { periodChipOptions } from '../../components/operations/period-options.js';
-import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import UiActionMenu from '../../components/ui/ActionMenu.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
@@ -18,42 +16,43 @@ import UiEmptyState from '../../components/ui/EmptyState.vue';
 import UiModal from '../../components/ui/Modal.vue';
 import UiReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiSkeleton from '../../components/ui/Skeleton.vue';
-import {
-  createOperationForm,
-  type OperationFormModel,
-} from '../../composables/useOperationForm.js';
-import {
-  type CreateTransactionInput,
-  type TransactionDto,
-  type UpdateTransactionInput,
-  useBudgetReferenceData,
-} from '../../composables/useBudgetReferenceData.js';
+import { ApiRequestError } from '../../composables/useApiClient.js';
 import { useAuth } from '../../composables/useAuth.js';
+import {
+  useEnvelopePlanV2,
+  type TransactionJournalV2Item,
+  type UpdateTransactionV2Request,
+} from '../../composables/useEnvelopePlanV2.js';
 import {
   useOperationFilters,
   type OperationFilters,
 } from '../../composables/useOperationFilters.js';
 import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
-import { useOperationMutations } from '../../composables/useOperationMutations.js';
+import {
+  availableActions,
+  canEditTransaction,
+  useOperationMutations,
+} from '../../composables/useOperationMutations.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import { useToast } from '../../composables/useToast.js';
-import { ApiRequestError } from '../../composables/useApiClient.js';
+import { v2ErrorMessage } from '../../composables/useV2Error.js';
 
 defineOptions({ name: 'OperationsJournalPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
 
-type ConfirmationAction = 'confirm' | 'cancel' | 'delete' | 'restore' | 'update';
+const JOURNAL_OVERRIDES = { RESOURCE_NOT_FOUND: 'Операция не найдена. Обновите журнал.' };
+
+type ConfirmationAction = 'delete' | 'restore' | 'update';
 
 const auth = useAuth();
 const route = useRoute();
-const api = useBudgetReferenceData();
+const planV2 = useEnvelopePlanV2();
 const { push } = useToast();
-const { filters, activeCount, isGrouped, toListInput, set, reset, syncQuery } =
-  useOperationFilters();
+const { filters, activeCount, toListInput, set, reset } = useOperationFilters();
 const mutations = useOperationMutations();
 const { openDialog: globalOperationDialog, openChoose } = useOperationDialogs();
 
-const transactions = ref<TransactionDto[]>([]);
+const transactions = ref<TransactionJournalV2Item[]>([]);
 const nextCursor = ref<string | null>(null);
 const loading = ref(true);
 const hydrated = ref(false);
@@ -62,20 +61,17 @@ const exportPending = ref(false);
 const exportStatus = ref('');
 const exportError = ref('');
 const error = ref('');
+const formError = ref('');
 const formErrors = ref<Partial<Record<string, string>>>({});
 const formOpen = ref(false);
-const form = ref<OperationFormModel>(createOperationForm());
-const selectedTransaction = ref<TransactionDto | null>(null);
-const preloadedDraftId = ref<string | null>(null);
+const selectedTransaction = ref<TransactionJournalV2Item | null>(null);
 const preloadedOperationId = ref<string | null>(null);
-const detailed = ref<TransactionDto | null>(null);
-const allocationChoice = ref<TransactionDto | null>(null);
+const detailed = ref<TransactionJournalV2Item | null>(null);
 const mutationKeys = new Map<string, string>();
 const confirmation = ref<null | {
   action: ConfirmationAction;
-  transaction: TransactionDto | null;
-  input?: CreateTransactionInput | UpdateTransactionInput;
-  allocationResolution?: 'CANCEL' | 'DELETE';
+  transaction: TransactionJournalV2Item;
+  input?: UpdateTransactionV2Request;
 }>(null);
 let requestVersion = 0;
 
@@ -85,7 +81,6 @@ const isOwner = computed(() => workspace.value?.role === 'OWNER');
 // Accounts, categories and envelopes come from the shared cache the global add
 // dialogs already use, so opening the journal does not re-read them every time.
 const { accounts, categories, envelopes, load: loadReferenceData } = useOperationReferenceData();
-const periods = ref<Array<{ value: string; label: string }>>([]);
 
 const categoryOptions = computed(() =>
   categories.value.map((category) => ({ value: category.id, label: category.name })),
@@ -102,22 +97,27 @@ const envelopeNameById = computed(
 
 const today = new Date().toISOString().slice(0, 10);
 
-// One list of sections drives both shapes: grouped by day, or one flat section
-// when the server sorted by amount and day headings would lie about the order.
-const sections = computed(() =>
-  isGrouped.value
-    ? groupByDay(transactions.value, today)
-    : [{ date: 'all', label: '', items: transactions.value }],
-);
+// The server fixes the order (newest first), so day headings never lie about it.
+const sections = computed(() => groupByDay(transactions.value, today));
 
-const unallocatedIncome = computed(() =>
-  transactions.value.find(
-    (item) =>
-      item.transactionType === 'INCOME' &&
-      item.status === 'CONFIRMED' &&
-      item.unallocatedMinor !== '0',
-  ),
-);
+const confirmationCopy = computed(() => {
+  if (confirmation.value?.action === 'delete') {
+    return {
+      title: 'Удалить операцию?',
+      description: 'Операция останется в истории, но перестанет влиять на балансы.',
+    };
+  }
+  if (confirmation.value?.action === 'restore') {
+    return {
+      title: 'Восстановить операцию?',
+      description: 'Операция снова начнёт влиять на балансы.',
+    };
+  }
+  return {
+    title: 'Сохранить изменения?',
+    description: 'Изменения сразу повлияют на операции и баланс.',
+  };
+});
 
 onMounted(() => {
   hydrated.value = true;
@@ -129,18 +129,6 @@ onMounted(() => {
 watch(globalOperationDialog, (value, previous) => {
   if (value === 'none' && previous !== 'none') void load();
 });
-
-// The cycle and the period are the server's arithmetic; the journal only asks
-// for them once to fill the period chip.
-async function loadPeriods() {
-  if (!budget.value) return;
-  try {
-    const summary = await api.getDashboardSummary(budget.value.id);
-    periods.value = periodChipOptions(summary.period);
-  } catch {
-    periods.value = [];
-  }
-}
 
 async function load(append = false) {
   if (!budget.value) {
@@ -159,7 +147,7 @@ async function load(append = false) {
   error.value = '';
   try {
     const [result] = await Promise.all([
-      api.listTransactions(budget.value.id, {
+      planV2.listTransactions(budget.value.id, {
         ...toListInput(),
         ...(append && nextCursor.value ? { cursor: nextCursor.value } : {}),
       }),
@@ -168,32 +156,17 @@ async function load(append = false) {
     if (version !== requestVersion) return;
     transactions.value = append ? [...transactions.value, ...result.items] : result.items;
     nextCursor.value = result.nextCursor;
-    if (periods.value.length === 0) void loadPeriods();
-    await preloadDraft();
     await preloadDetailed();
-  } catch {
-    if (version === requestVersion)
-      error.value = 'Не удалось загрузить операции. Повторите попытку.';
+  } catch (exception) {
+    if (version === requestVersion) {
+      error.value = v2ErrorMessage(
+        exception,
+        'Не удалось загрузить операции. Повторите попытку.',
+        JOURNAL_OVERRIDES,
+      );
+    }
   } finally {
     if (version === requestVersion) loading.value = false;
-  }
-}
-
-async function preloadDraft() {
-  if (!budget.value || selectedTransaction.value || formOpen.value) return;
-  const draftId = typeof route.query.draftId === 'string' ? route.query.draftId : null;
-  if (!draftId || !isUuid(draftId)) return;
-  // The draftId query param stays in the URL for deep-linking, but we only want to
-  // auto-open the edit modal for it once per visit — otherwise closing the modal
-  // (e.g. after saving changes, which reloads the list) would immediately reopen it.
-  if (preloadedDraftId.value === draftId) return;
-  preloadedDraftId.value = draftId;
-  try {
-    const draft = await api.getTransaction(budget.value.id, draftId);
-    if (draft.status !== 'DRAFT') return;
-    openEdit(draft);
-  } catch {
-    error.value = 'Не удалось открыть черновик операции.';
   }
 }
 
@@ -206,7 +179,7 @@ async function preloadDetailed(): Promise<void> {
   if (preloadedOperationId.value === operationId) return;
   preloadedOperationId.value = operationId;
   try {
-    detailed.value = await api.getTransaction(budget.value.id, operationId);
+    detailed.value = await planV2.getTransaction(budget.value.id, operationId);
   } catch {
     error.value = 'Не удалось открыть операцию.';
   }
@@ -216,32 +189,32 @@ function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function categoryName(transaction: TransactionDto): string {
+function categoryName(transaction: TransactionJournalV2Item): string {
   return categoryById.value.get(transaction.categoryId)?.name ?? 'Без категории';
 }
 
-function categoryIcon(transaction: TransactionDto): string | null {
+function categoryIcon(transaction: TransactionJournalV2Item): string | null {
   return categoryById.value.get(transaction.categoryId)?.icon ?? null;
 }
 
-function accountName(transaction: TransactionDto): string {
+function accountName(transaction: TransactionJournalV2Item): string {
   return accountNameById.value.get(transaction.accountId) ?? 'Счёт';
 }
 
-function envelopeName(transaction: TransactionDto): string | null {
+function envelopeName(transaction: TransactionJournalV2Item): string | null {
   return transaction.envelopeId === null
     ? null
     : (envelopeNameById.value.get(transaction.envelopeId) ?? 'Конверт');
 }
 
-function onFilterChange(key: keyof OperationFilters, value: string): void {
-  set(key, value as never);
-  void load();
+// An operation from before model 2 has no actions at all: an empty menu would
+// only be a dead control.
+function hasRowActions(transaction: TransactionJournalV2Item): boolean {
+  return canEditTransaction(transaction) || availableActions(transaction).length > 0;
 }
 
-function onSearch(value: string): void {
-  filters.value.search = value;
-  void syncQuery();
+function onFilterChange(key: keyof OperationFilters, value: string): void {
+  set(key, value as never);
   void load();
 }
 
@@ -250,46 +223,43 @@ function onReset(): void {
   void load();
 }
 
-// A closed drawer must not cost a full reload: replace the one row that changed.
-// A deleted transaction has nothing left to view, so its drawer closes instead
-// of lingering over the list and blocking the controls behind it.
-function applyChanged(updated: TransactionDto): void {
-  transactions.value = transactions.value.map((item) => (item.id === updated.id ? updated : item));
-  if (detailed.value?.id === updated.id) {
-    detailed.value = updated.status === 'DELETED' ? null : updated;
-  }
-}
-
-function openEdit(transaction: TransactionDto) {
+function openEdit(transaction: TransactionJournalV2Item) {
   detailed.value = null;
-  form.value = createOperationForm(transaction);
   formErrors.value = {};
+  formError.value = '';
   selectedTransaction.value = transaction;
   formOpen.value = true;
 }
 
-function mapFormError(exception: unknown): string {
-  if (!(exception instanceof ApiRequestError))
-    return 'Не удалось сохранить операцию. Повторите попытку.';
-  const fieldErrors = Object.fromEntries(
+function closeForm() {
+  formOpen.value = false;
+  selectedTransaction.value = null;
+}
+
+// Field errors go next to their fields; anything else is one Russian sentence.
+// A validation problem without fields still carries a user-facing server detail
+// (for example a future date), which names the field better than generic text.
+function mapFormError(exception: unknown): void {
+  const fallback = 'Не удалось сохранить операцию. Повторите попытку.';
+  if (!(exception instanceof ApiRequestError)) {
+    formErrors.value = {};
+    formError.value = fallback;
+    return;
+  }
+  const fieldErrors: Partial<Record<string, string>> = Object.fromEntries(
     (exception.problem.fieldErrors ?? []).map((field) => [field.field, field.message]),
   );
+  const detail = exception.problem.detail;
   if (
     Object.keys(fieldErrors).length === 0 &&
     exception.problem.code === 'VALIDATION_FAILED' &&
-    /денеж|знак/iu.test(exception.problem.detail)
+    /[а-яё]/iu.test(detail)
   ) {
-    fieldErrors.amount = exception.problem.detail;
+    if (/сумм|денеж|знак/iu.test(detail)) fieldErrors.amount = detail;
+    else if (/дат/iu.test(detail)) fieldErrors.occurredOn = detail;
   }
   formErrors.value = fieldErrors;
-  return Object.keys(fieldErrors).length > 0 ? 'Укажите данные формы.' : exception.problem.detail;
-}
-
-// The journal only ever opens this form via openEdit — quick-add now lives in
-// the shared entry dialog — so a submit here always updates the selected row.
-function receiveForm(input: CreateTransactionInput | UpdateTransactionInput) {
-  if (!selectedTransaction.value) return;
-  confirmation.value = { action: 'update', transaction: selectedTransaction.value, input };
+  formError.value = v2ErrorMessage(exception, fallback, JOURNAL_OVERRIDES);
 }
 
 function keyFor(operation: string) {
@@ -300,10 +270,14 @@ function keyFor(operation: string) {
   return key;
 }
 
-function ask(
-  action: Exclude<ConfirmationAction, 'create' | 'update'>,
-  transaction: TransactionDto,
-) {
+// The form already emits only the changed fields; saving is still confirmed once
+// because a correction moves balances immediately.
+function receiveForm(input: UpdateTransactionV2Request) {
+  if (!selectedTransaction.value) return;
+  confirmation.value = { action: 'update', transaction: selectedTransaction.value, input };
+}
+
+function ask(action: Exclude<ConfirmationAction, 'update'>, transaction: TransactionJournalV2Item) {
   confirmation.value = { action, transaction };
 }
 
@@ -311,85 +285,55 @@ async function runConfirmation() {
   const current = confirmation.value;
   if (!current || !budget.value) return;
   confirmation.value = null;
-  if (!current.transaction) return;
 
   if (current.action === 'update' && current.input) {
-    await saveUpdate(current.transaction, current.input as UpdateTransactionInput);
+    await saveUpdate(current.transaction, current.input);
     return;
   }
 
-  const transaction = current.transaction;
-  if (current.action === 'confirm') {
-    apply(await mutations.confirm(budget.value.id, transaction));
-    return;
-  }
-  if (current.action === 'cancel') {
-    apply(await mutations.cancel(budget.value.id, transaction));
-    return;
-  }
-  if (current.action === 'restore') {
-    apply(await mutations.restore(budget.value.id, transaction));
-    return;
-  }
-
-  const removed = await mutations.remove(budget.value.id, transaction);
-  if (removed) {
-    apply(removed);
-    return;
-  }
-  // Deleting an income that still carries confirmed allocations is a deliberate
-  // second decision: cancel those allocations, or delete them with the income.
-  const failure = mutations.lastError.value;
-  if (
-    failure instanceof ApiRequestError &&
-    failure.problem.code === 'INCOME_HAS_CONFIRMED_ALLOCATIONS'
-  ) {
-    allocationChoice.value = transaction;
-  }
-}
-
-function apply(updated: TransactionDto | null): void {
-  if (!updated) return;
-  applyChanged(updated);
+  const result =
+    current.action === 'delete'
+      ? await mutations.remove(budget.value.id, current.transaction)
+      : await mutations.restore(budget.value.id, current.transaction);
+  if (!result) return;
+  // The row changed shape (it left or re-entered the list): close its drawer and
+  // read the list again instead of patching a half-known row.
+  if (detailed.value?.id === current.transaction.id) detailed.value = null;
   void load();
 }
 
-async function saveUpdate(transaction: TransactionDto, input: UpdateTransactionInput) {
-  if (!budget.value) return;
+async function saveUpdate(
+  transaction: TransactionJournalV2Item,
+  input: UpdateTransactionV2Request,
+) {
+  if (!budget.value || pending.value) return;
   pending.value = true;
   error.value = '';
-  const operation = `update:${transaction.id}`;
+  // The same edit retried keeps its key; a changed edit is a new request.
+  const operation = `update:${transaction.id}:${JSON.stringify(input)}`;
   const key = keyFor(operation);
   try {
-    await api.updateTransaction(budget.value.id, transaction.id, input, key);
+    await planV2.updateTransaction(budget.value.id, transaction.id, input, key);
     mutationKeys.delete(operation);
-    formOpen.value = false;
-    selectedTransaction.value = null;
+    closeForm();
     push({ tone: 'success', title: 'Операция обновлена' });
     await load();
   } catch (exception) {
-    error.value = mapFormError(exception);
+    mapFormError(exception);
   } finally {
     pending.value = false;
   }
 }
 
-// Deletion was already confirmed once; this dialog only asks what happens to
-// the allocations, so the answer runs the mutation instead of asking again.
-async function chooseAllocationResolution(resolution: 'CANCEL' | 'DELETE'): Promise<void> {
-  const transaction = allocationChoice.value;
-  allocationChoice.value = null;
-  if (!transaction || !budget.value) return;
-  apply(await mutations.removeWithAllocations(budget.value.id, transaction, resolution));
-}
-
+// The v2 export covers the whole budget history (both accounting models); it
+// does not take the journal filters.
 async function downloadCsv() {
   if (!budget.value || !isOwner.value) return;
   exportPending.value = true;
   exportStatus.value = '';
   exportError.value = '';
   try {
-    const blob = await api.downloadTransactionsCsv(budget.value.id, toListInput());
+    const blob = await planV2.exportTransactions(budget.value.id);
     if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
@@ -402,7 +346,7 @@ async function downloadCsv() {
     }
     exportStatus.value = 'Экспорт CSV подготовлен.';
   } catch {
-    exportError.value = 'Не удалось скачать CSV. Сузьте фильтры или повторите попытку.';
+    exportError.value = 'Не удалось скачать CSV. Повторите попытку.';
   } finally {
     exportPending.value = false;
   }
@@ -429,7 +373,7 @@ async function downloadCsv() {
           :loading="exportPending"
           :disabled="exportPending"
           :aria-label="exportPending ? 'Подготовка CSV…' : 'Экспорт CSV'"
-          tooltip="Экспорт CSV"
+          tooltip="Экспорт всех операций в CSV"
           @click="downloadCsv"
         >
           <Download :size="18" aria-hidden="true" />
@@ -444,9 +388,8 @@ async function downloadCsv() {
           :accounts="accounts"
           :categories="categoryOptions"
           :envelopes="envelopes"
-          :periods="periods"
+          :can-view-deleted="isOwner"
           @change="onFilterChange"
-          @search="onSearch"
           @reset="onReset"
         />
       </template>
@@ -456,22 +399,6 @@ async function downloadCsv() {
         <p v-if="exportError" class="operations-page__error" role="alert">{{ exportError }}</p>
         <p v-if="error" class="operations-page__error" role="alert">
           {{ error }} <UiButton variant="tertiary" @click="load()">Повторить</UiButton>
-        </p>
-
-        <p v-if="unallocatedIncome" class="operations-page__unallocated">
-          Не распределено
-          <FinanceMoney
-            :minor-units="unallocatedIncome.unallocatedMinor"
-            :currency="unallocatedIncome.currency"
-            :scale="unallocatedIncome.scale"
-          />
-          <UiButton
-            variant="tertiary"
-            data-testid="open-unallocated"
-            @click="detailed = unallocatedIncome"
-          >
-            Распределить
-          </UiButton>
         </p>
 
         <div
@@ -494,74 +421,52 @@ async function downloadCsv() {
           description="Под текущие фильтры не подошла ни одна операция."
         />
 
-        <template v-else>
-          <p v-if="!isGrouped" class="operations-page__sorted">Отсортировано по сумме</p>
-
-          <div class="operations-page__sections">
-            <OperationGroup v-for="section in sections" :key="section.date" :label="section.label">
-              <li v-for="transaction in section.items" :key="transaction.id">
-                <OperationRow
-                  :transaction="transaction"
-                  :category-name="categoryName(transaction)"
-                  :category-icon="categoryIcon(transaction)"
-                  :account-name="accountName(transaction)"
-                  :envelope-name="envelopeName(transaction)"
-                  @select="detailed = transaction"
-                >
-                  <template #actions>
-                    <UiActionMenu label="Действия над операцией">
-                      <button
-                        v-if="mutations.availableActions(transaction.status).includes('confirm')"
-                        type="button"
-                        role="menuitem"
-                        data-testid="row-confirm"
-                        @click="ask('confirm', transaction)"
-                      >
-                        Подтвердить
-                      </button>
-                      <button
-                        v-if="transaction.status !== 'DELETED'"
-                        type="button"
-                        role="menuitem"
-                        data-testid="row-edit"
-                        @click="openEdit(transaction)"
-                      >
-                        Изменить
-                      </button>
-                      <button
-                        v-if="mutations.availableActions(transaction.status).includes('cancel')"
-                        type="button"
-                        role="menuitem"
-                        data-testid="row-cancel"
-                        @click="ask('cancel', transaction)"
-                      >
-                        Отменить
-                      </button>
-                      <button
-                        v-if="mutations.availableActions(transaction.status).includes('delete')"
-                        type="button"
-                        role="menuitem"
-                        data-testid="row-delete"
-                        @click="ask('delete', transaction)"
-                      >
-                        Удалить
-                      </button>
-                      <button
-                        v-if="mutations.availableActions(transaction.status).includes('restore')"
-                        type="button"
-                        role="menuitem"
-                        data-testid="row-restore"
-                        @click="ask('restore', transaction)"
-                      >
-                        Восстановить
-                      </button>
-                    </UiActionMenu>
-                  </template>
-                </OperationRow>
-              </li>
-            </OperationGroup>
-          </div>
-        </template>
+        <div v-else class="operations-page__sections">
+          <OperationGroup v-for="section in sections" :key="section.date" :label="section.label">
+            <li v-for="transaction in section.items" :key="transaction.id">
+              <OperationRow
+                :transaction="transaction"
+                :category-name="categoryName(transaction)"
+                :category-icon="categoryIcon(transaction)"
+                :account-name="accountName(transaction)"
+                :envelope-name="envelopeName(transaction)"
+                @select="detailed = transaction"
+              >
+                <template v-if="hasRowActions(transaction)" #actions>
+                  <UiActionMenu label="Действия над операцией">
+                    <button
+                      v-if="canEditTransaction(transaction)"
+                      type="button"
+                      role="menuitem"
+                      data-testid="row-edit"
+                      @click="openEdit(transaction)"
+                    >
+                      Изменить
+                    </button>
+                    <button
+                      v-if="availableActions(transaction).includes('delete')"
+                      type="button"
+                      role="menuitem"
+                      data-testid="row-delete"
+                      @click="ask('delete', transaction)"
+                    >
+                      Удалить
+                    </button>
+                    <button
+                      v-if="availableActions(transaction).includes('restore')"
+                      type="button"
+                      role="menuitem"
+                      data-testid="row-restore"
+                      @click="ask('restore', transaction)"
+                    >
+                      Восстановить
+                    </button>
+                  </UiActionMenu>
+                </template>
+              </OperationRow>
+            </li>
+          </OperationGroup>
+        </div>
 
         <UiButton v-if="nextCursor" variant="secondary" :disabled="loading" @click="load(true)">
           Показать ещё
@@ -576,60 +481,38 @@ async function downloadCsv() {
       :account-name="detailed ? accountName(detailed) : ''"
       :category-name="detailed ? categoryName(detailed) : ''"
       :envelope-name="detailed ? envelopeName(detailed) : null"
-      :accounts="accounts"
-      :envelopes="envelopes"
+      :busy="pending || mutations.pending.value"
       @close="detailed = null"
-      @changed="applyChanged"
       @edit="openEdit"
       @request-delete="ask('delete', $event)"
+      @request-restore="ask('restore', $event)"
     />
 
-    <UiModal :open="formOpen" title="Изменить операцию" @close="formOpen = false">
+    <UiModal :open="formOpen" title="Изменить операцию" @close="closeForm">
       <OperationForm
-        mode="edit"
-        :model="form"
+        v-if="selectedTransaction"
+        :key="selectedTransaction.id"
+        :current="selectedTransaction"
         :accounts="accounts"
         :categories="categories"
         :envelopes="envelopes"
         :errors="formErrors"
+        :form-error="formError"
         :pending="pending"
-        :current="selectedTransaction"
         @submit="receiveForm"
       />
     </UiModal>
 
     <UiConfirmDialog
       :open="confirmation !== null"
-      :title="
-        confirmation?.action === 'delete'
-          ? 'Удалить операцию?'
-          : confirmation?.action === 'restore'
-            ? 'Восстановить операцию?'
-            : 'Подтвердить действие?'
-      "
-      :description="
-        confirmation?.action === 'delete'
-          ? 'Операция останется в истории, но перестанет влиять на балансы.'
-          : 'Изменения сразу повлияют на операции и баланс.'
-      "
+      :title="confirmationCopy.title"
+      :description="confirmationCopy.description"
       confirm-label="Подтвердить"
       cancel-label="Отмена"
       :variant="confirmation?.action === 'delete' ? 'danger' : 'primary'"
       :loading="pending || mutations.pending.value"
       @confirm="runConfirmation"
       @cancel="confirmation = null"
-    />
-
-    <UiConfirmDialog
-      :open="allocationChoice !== null"
-      title="У дохода есть распределения"
-      description="Отменить распределения и оставить их в истории или удалить вместе с доходом?"
-      confirm-label="Удалить распределения"
-      cancel-label="Отменить распределения"
-      variant="danger"
-      :loading="mutations.pending.value"
-      @confirm="chooseAllocationResolution('DELETE')"
-      @cancel="chooseAllocationResolution('CANCEL')"
     />
   </div>
 </template>
@@ -643,23 +526,9 @@ async function downloadCsv() {
   min-width: 0;
 }
 
-.operations-page__sorted,
 .operations-page__status {
   margin-bottom: var(--hf-space-4);
-  color: var(--hf-color-text-muted);
-}
-
-.operations-page__status {
   color: var(--hf-color-status-success);
-}
-
-.operations-page__unallocated {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--hf-space-2);
-  align-items: center;
-  margin-bottom: var(--hf-space-4);
-  color: var(--hf-color-status-warning);
 }
 
 .operations-page__error {

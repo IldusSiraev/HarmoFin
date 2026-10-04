@@ -1,59 +1,52 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { definePageMeta } from '#imports';
 import { RefreshCw, Wallet } from '@lucide/vue';
 
 import AppAddMenu from '../../components/app/AppAddMenu.vue';
 import { accountSubtitle, ACCOUNT_TYPE_ICONS } from '../../components/accounts/account-type.js';
 import AvailableBudgetCard from '../../components/dashboard/AvailableBudgetCard.vue';
+import FinancialMonthTimeline from '../../components/dashboard/FinancialMonthTimeline.vue';
 import BalanceList from '../../components/dashboard/BalanceList.vue';
+import UpcomingObligations from '../../components/dashboard/UpcomingObligations.vue';
 import DashboardWarnings from '../../components/dashboard/DashboardWarnings.vue';
 import OnboardingChecklist from '../../components/dashboard/OnboardingChecklist.vue';
-import PeriodLeftoverPrompt from '../../components/dashboard/PeriodLeftoverPrompt.vue';
-import FinancialMonthTimeline from '../../components/dashboard/FinancialMonthTimeline.vue';
+import PeriodDecisionCard from '../../components/dashboard/PeriodDecisionCard.vue';
 import RecentOperations from '../../components/dashboard/RecentOperations.vue';
-import UpcomingObligations from '../../components/dashboard/UpcomingObligations.vue';
-import { envelopeSubtitle, ENVELOPE_TYPE_ICONS } from '../../components/envelopes/envelope-type.js';
+import { ENVELOPE_TYPE_ICONS, envelopeSubtitle } from '../../components/envelopes/envelope-type.js';
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
-import { formatMinorUnits } from '../../components/finance/money-format.js';
 import UiButton from '../../components/ui/Button.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
-import UiProgress from '../../components/ui/Progress.vue';
 import UiSkeleton from '../../components/ui/Skeleton.vue';
-import UiStatus from '../../components/ui/Status.vue';
 import { useAuth } from '../../composables/useAuth.js';
+import { useFundingEntry } from '../../composables/useFundingEntry.js';
+import {
+  type DashboardV2Response,
+  type TransactionJournalV2Item,
+  useEnvelopePlanV2,
+} from '../../composables/useEnvelopePlanV2.js';
 import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
-import {
-  type DashboardSummaryDto,
-  type TransactionDto,
-  useBudgetReferenceData,
-} from '../../composables/useBudgetReferenceData.js';
 
 definePageMeta({ middleware: 'auth', layout: 'app' });
 
 const { currentData, loadMe } = useAuth();
-const api = useBudgetReferenceData();
 const loading = ref(true);
 const error = ref('');
-const summary = ref<DashboardSummaryDto | null>(null);
-const recent = ref<TransactionDto[]>([]);
-const accountsTotal = ref<string | null>(null);
-const envelopesTotal = ref<string | null>(null);
+const dashboardV2 = ref<DashboardV2Response | null>(null);
+// The onboarding checklist shows the period plan decision while it is expanded.
+const checklistHostsTarget = ref(false);
+const recent = ref<TransactionJournalV2Item[]>([]);
 const {
   accounts,
   accountDetails,
   categories,
   envelopes,
-  envelopeDetails,
   load: loadReferenceData,
 } = useOperationReferenceData();
 const { openDialog } = useOperationDialogs();
 const accountById = computed(
   () => new Map(accountDetails.value.map((account) => [account.id, account])),
-);
-const envelopeById = computed(
-  () => new Map(envelopeDetails.value.map((envelope) => [envelope.id, envelope])),
 );
 
 function accountIcon(id: string) {
@@ -66,33 +59,30 @@ function accountSubtitleFor(id: string): string {
   return account ? accountSubtitle(account) : '';
 }
 
-function envelopeIcon(id: string) {
-  const envelope = envelopeById.value.get(id);
-  return envelope ? ENVELOPE_TYPE_ICONS[envelope.envelopeType] : null;
+type EnvelopeRow = DashboardV2Response['envelopes'][number];
+
+// The list slot hands over the generic balance item; the full server row is looked up by id.
+function envelopeRow(id: string): EnvelopeRow {
+  return dashboardV2.value!.envelopes.find((row) => row.id === id)!;
 }
 
-function envelopeSubtitleFor(id: string): string {
-  const envelope = envelopeById.value.get(id);
-  return envelope ? envelopeSubtitle(envelope) : '';
+function envelopeIcon(row: EnvelopeRow) {
+  return ENVELOPE_TYPE_ICONS[row.envelopeType] ?? Wallet;
 }
 
-// Only savings-goal envelopes carry a meaningful target — the same condition
-// EnvelopeRow.vue already uses on the reference page, so the dashboard's
-// progress bar means the same thing there and here.
-function envelopeTarget(id: string): string | null {
-  return envelopeById.value.get(id)?.targetAmountMinor ?? null;
+function envelopeSubtitleFor(row: EnvelopeRow): string {
+  return envelopeSubtitle(row);
 }
 
-function envelopeGoalLabel(id: string, balanceMinor: string): string {
-  const envelope = envelopeById.value.get(id);
-  const target = envelope?.targetAmountMinor;
-  if (!envelope || target === null || target === undefined) return '';
-  const saved = formatMinorUnits(balanceMinor, envelope.currency, envelope.scale);
-  const total = formatMinorUnits(target, envelope.currency, envelope.scale);
-  return `${saved} из ${total}`;
-}
+// Free money is shown as the server sent it; only a string check decides if the row appears.
+const hasFreeMoney = computed(() => {
+  const free = dashboardV2.value?.freeToAssignMinor ?? '0';
+  return free !== '0' && !free.startsWith('-');
+});
 
 const activeBudget = computed(() => currentData.value?.workspaces[0]?.budgets[0] ?? null);
+const planV2 = useEnvelopePlanV2();
+const funding = useFundingEntry();
 function workspaceName() {
   return currentData.value?.workspaces[0]?.name ?? 'Бюджет';
 }
@@ -107,18 +97,44 @@ onMounted(() => {
   void loadDashboard();
 });
 
-// A dashboard total is a nice-to-have next to the balance rows below it, not
-// something worth failing the whole page over — a rejection here becomes
-// "no total shown" instead of the generic error state.
-async function safeTotal(read: Promise<{ totalMinor: string }>): Promise<string | null> {
-  return read.then((value) => value.totalMinor).catch(() => null);
+// A confirmed assignment changes what is free and what the period holds.
+watch(
+  () => funding.confirmedCount.value,
+  () => void refreshDashboardV2(),
+);
+
+// Period leftover/deficit warnings are decisions owned by PeriodDecisionCard;
+// the shared warnings list keeps only the coverage ones.
+const coverageWarnings = computed(
+  () => dashboardV2.value?.warnings.filter((warning) => warning.kind !== 'PERIOD') ?? [],
+);
+
+// Re-reads the server dashboard after a decision without swapping the page for
+// the loading skeleton, so focus stays on the decision card.
+const pageTitle = ref<HTMLElement | null>(null);
+function focusFallback(preferCard = false) {
+  const card = preferCard ? document.getElementById('period-decision-title') : null;
+  (card ?? pageTitle.value)?.focus();
 }
 
-// Same reasoning as safeTotal: recent operations are a nice-to-have next to
-// the summary cards, not something worth failing the whole page over.
+async function refreshDashboardV2() {
+  const budget = activeBudget.value;
+  if (!budget) return;
+  try {
+    dashboardV2.value = await planV2.getDashboard(budget.id);
+    // The decision card may be gone now: keep focus on a stable element.
+    await nextTick();
+    focusFallback(true);
+  } catch {
+    error.value = 'Не удалось обновить сводку бюджета.';
+  }
+}
+
+// Recent operations are a nice-to-have next to the summary cards, not
+// something worth failing the whole page over.
 async function safeTransactions(
-  read: Promise<{ items: TransactionDto[]; nextCursor: string | null }>,
-): Promise<{ items: TransactionDto[]; nextCursor: string | null }> {
+  read: Promise<{ items: TransactionJournalV2Item[]; nextCursor: string | null }>,
+): Promise<{ items: TransactionJournalV2Item[]; nextCursor: string | null }> {
   return read.catch(() => ({ items: [], nextCursor: null }));
 }
 
@@ -129,28 +145,14 @@ async function loadDashboard() {
     if (!currentData.value) await loadMe();
     const budget = activeBudget.value;
     if (!budget) return;
-    const [summaryResult, recentResult, accountsTotalResult, envelopesTotalResult] =
-      await Promise.all([
-        api.getDashboardSummary(budget.id),
-        safeTransactions(
-          api.listTransactions(budget.id, {
-            limit: 5,
-            sortBy: 'occurredOn',
-            sortDirection: 'desc',
-          }),
-        ),
-        safeTotal(api.getAccountsSummary(budget.id)),
-        safeTotal(api.getEnvelopesSummary(budget.id)),
-        // The account/category/envelope names behind recent operations are
-        // also a nice-to-have: if they fail to load, RecentOperations still
-        // renders with whatever fallback it has, instead of taking down the
-        // whole dashboard.
-        loadReferenceData().catch(() => undefined),
-      ]);
-    summary.value = summaryResult;
+    const [dashboardResult, recentResult] = await Promise.all([
+      planV2.getDashboard(budget.id),
+      // The journal is newest first by contract: the first page is "recent".
+      safeTransactions(planV2.listTransactions(budget.id, { limit: 5 })),
+      loadReferenceData().catch(() => undefined),
+    ]);
+    dashboardV2.value = dashboardResult;
     recent.value = recentResult.items;
-    accountsTotal.value = accountsTotalResult;
-    envelopesTotal.value = envelopesTotalResult;
   } catch {
     error.value = 'Не удалось загрузить сводку бюджета.';
   } finally {
@@ -177,11 +179,11 @@ async function loadDashboard() {
       title="Бюджет не выбран"
       description="Создайте или выберите активный бюджет для просмотра сводки."
     />
-    <template v-else-if="summary">
+    <template v-else-if="dashboardV2">
       <div class="dashboard-header">
         <div>
           <p class="dashboard-kicker">{{ workspaceName() }}</p>
-          <h1 class="dashboard-title">{{ activeBudget.name }}</h1>
+          <h1 ref="pageTitle" class="dashboard-title" tabindex="-1">{{ activeBudget.name }}</h1>
         </div>
         <div class="dashboard-header__actions">
           <AppAddMenu tooltip-placement="bottom" />
@@ -200,65 +202,60 @@ async function loadDashboard() {
 
       <FinancialMonthTimeline
         class="dashboard-timeline"
-        :cycle="summary.cycle"
-        :period="summary.period"
+        :cycle="dashboardV2.cycle"
+        :period="dashboardV2.period"
+        :as-of="dashboardV2.asOf"
       />
 
       <div class="dashboard-sections">
         <OnboardingChecklist
           :budget-id="activeBudget.id"
-          :onboarding="summary.onboarding"
-          :initialize-template="api.initializeTemplate"
           @template-initialized="loadDashboard"
+          @target-decided="refreshDashboardV2"
+          @hosts-target="checklistHostsTarget = $event"
         />
 
-        <DashboardWarnings
-          :warnings="summary.warnings"
-          :accounts="summary.accounts"
-          :envelopes="summary.envelopes"
-          :unallocated-income-minor="summary.unallocatedIncomeMinor"
-          :unassigned-starting-balance-minor="summary.unassignedStartingBalanceMinor"
-        />
-
-        <PeriodLeftoverPrompt
-          :leftover="summary.previousPeriodLeftover"
+        <PeriodDecisionCard
           :budget-id="activeBudget.id"
-          :envelopes="envelopeDetails"
-          :create-reallocation="api.createEnvelopeReallocation"
-          @reallocated="loadDashboard"
+          :warnings="dashboardV2.warnings"
+          :suggested-target="dashboardV2.suggestedTarget"
+          :hide-target="checklistHostsTarget"
+          :period-id="dashboardV2.period.periodId"
+          :protected-assignments="dashboardV2.protectedAssignments"
+          @changed="refreshDashboardV2"
+          @focus-fallback="focusFallback()"
         />
+
+        <DashboardWarnings :v2-warnings="coverageWarnings" />
 
         <div class="dashboard-hero-row">
           <AvailableBudgetCard
             class="dashboard-hero-row__spend"
-            :period-limit="summary.periodLimit"
-            :period="summary.period"
+            :dashboard="dashboardV2"
+            @assign="funding.offer({ sourceKind: 'FREE' })"
           />
           <UpcomingObligations
             class="dashboard-hero-row__obligations"
-            :items="summary.upcomingObligations"
+            :items="dashboardV2.nearestObligations"
           />
         </div>
 
         <div class="dashboard-lists-row">
           <BalanceList
             title="Счета"
-            :items="summary.accounts"
-            :warnings="summary.warnings"
+            :items="dashboardV2.accounts"
+            :warnings="[]"
             subject="ACCOUNT"
-            :total-minor="accountsTotal"
+            :total-minor="dashboardV2.cashMinor"
             more-link="/app/accounts"
           >
-            <template #row="{ item, hasWarning }">
+            <template #row="{ item }">
               <span class="dashboard-balance-icon">
                 <component :is="accountIcon(item.id) ?? Wallet" :size="16" aria-hidden="true" />
               </span>
               <span class="dashboard-balance-body">
                 <span class="dashboard-balance-name">{{ item.name }}</span>
                 <span class="dashboard-balance-subtitle">{{ accountSubtitleFor(item.id) }}</span>
-              </span>
-              <span v-if="hasWarning" class="dashboard-balance-meta">
-                <UiStatus label="Дефицит" tone="warning" />
               </span>
               <FinanceMoney
                 class="dashboard-balance-trailing"
@@ -268,46 +265,45 @@ async function loadDashboard() {
               />
             </template>
           </BalanceList>
+
           <BalanceList
             title="Конверты"
-            :items="summary.envelopes"
-            :warnings="summary.warnings"
+            :items="dashboardV2.envelopes"
+            :warnings="[]"
             subject="ENVELOPE"
-            :total-minor="envelopesTotal"
+            :total-minor="dashboardV2.envelopesTotalMinor"
             more-link="/app/envelopes"
           >
-            <template #row="{ item, hasWarning }">
+            <template #row="{ item }">
               <span class="dashboard-balance-icon">
-                <component :is="envelopeIcon(item.id) ?? Wallet" :size="16" aria-hidden="true" />
+                <component :is="envelopeIcon(envelopeRow(item.id))" :size="16" aria-hidden="true" />
               </span>
               <span class="dashboard-balance-body">
-                <span class="dashboard-balance-line">
-                  <span class="dashboard-balance-name">{{ item.name }}</span>
-                  <span v-if="hasWarning" class="dashboard-balance-meta">
-                    <UiStatus label="Дефицит" tone="warning" />
-                  </span>
-                  <FinanceMoney
-                    class="dashboard-balance-trailing"
-                    :minor-units="item.balanceMinor"
-                    currency="RUB"
-                    :scale="2"
-                  />
-                </span>
-                <template v-if="envelopeTarget(item.id)">
-                  <UiProgress
-                    class="dashboard-balance-progress"
-                    :value="item.balanceMinor"
-                    :max="envelopeTarget(item.id) ?? '0'"
-                    :label="`Накоплено ${envelopeGoalLabel(item.id, item.balanceMinor)}`"
-                  />
-                  <span class="dashboard-balance-subtitle">{{
-                    envelopeGoalLabel(item.id, item.balanceMinor)
-                  }}</span>
-                </template>
-                <span v-else class="dashboard-balance-subtitle">{{
-                  envelopeSubtitleFor(item.id)
+                <span class="dashboard-balance-name">{{ item.name }}</span>
+                <span class="dashboard-balance-subtitle">{{
+                  envelopeSubtitleFor(envelopeRow(item.id))
                 }}</span>
               </span>
+              <FinanceMoney
+                class="dashboard-balance-trailing"
+                :minor-units="item.balanceMinor"
+                currency="RUB"
+                :scale="2"
+              />
+            </template>
+            <template #footer>
+              <p
+                v-if="hasFreeMoney"
+                class="dashboard-unassigned"
+                data-testid="envelopes-unassigned"
+              >
+                Не назначено
+                <FinanceMoney
+                  :minor-units="dashboardV2.freeToAssignMinor"
+                  currency="RUB"
+                  :scale="2"
+                />
+              </p>
             </template>
           </BalanceList>
         </div>
@@ -382,11 +378,6 @@ async function loadDashboard() {
   margin-bottom: var(--hf-space-6);
 }
 
-.dashboard-sections {
-  display: grid;
-  gap: var(--hf-space-5);
-}
-
 .dashboard-hero-row,
 .dashboard-lists-row {
   display: grid;
@@ -403,6 +394,18 @@ async function loadDashboard() {
   .dashboard-lists-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.dashboard-unassigned {
+  margin: 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-sections {
+  display: grid;
+  gap: var(--hf-space-5);
 }
 
 .dashboard-balance-icon {
@@ -439,28 +442,8 @@ async function loadDashboard() {
   white-space: nowrap;
 }
 
-.dashboard-balance-meta {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-}
-
 .dashboard-balance-trailing {
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
-}
-
-.dashboard-balance-line {
-  display: flex;
-  gap: var(--hf-space-2);
-  align-items: center;
-}
-
-.dashboard-balance-line .dashboard-balance-name {
-  flex: 1;
-}
-
-.dashboard-balance-progress {
-  margin-top: var(--hf-space-1);
 }
 </style>

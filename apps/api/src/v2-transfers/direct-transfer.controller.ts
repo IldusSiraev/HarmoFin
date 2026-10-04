@@ -9,6 +9,7 @@ import {
   Query,
   Req,
   UseGuards,
+  Inject,
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import {
@@ -75,7 +76,10 @@ function contextOf(request: AuthenticatedRequest): RequestContext {
 @UseGuards(SessionAuthGuard)
 @ApiCookieAuth('session')
 export class DirectTransferController {
-  constructor(private readonly service: DirectTransferApplicationService) {}
+  constructor(
+    @Inject(DirectTransferApplicationService)
+    private readonly service: DirectTransferApplicationService,
+  ) {}
 
   @Get()
   @ApiOkResponse({ type: DirectTransferListResponse })

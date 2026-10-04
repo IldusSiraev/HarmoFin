@@ -1,118 +1,117 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import type { DashboardSummaryDto } from '../../composables/useBudgetReferenceData.js';
-
 defineOptions({ name: 'FinancialMonthTimeline' });
 
+// Dates only: the server decides the cycle, the current period and "today" (asOf).
 const props = defineProps<{
-  cycle: DashboardSummaryDto['cycle'];
-  period: DashboardSummaryDto['period'];
+  cycle: { start: string; end: string };
+  period: { start: string; end: string };
+  asOf: string;
 }>();
 
-const dayFormatter = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
-const shortDayFormatter = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' });
+const dayFormatter = new Intl.DateTimeFormat('ru-RU', {
+  day: 'numeric',
+  month: 'long',
+  timeZone: 'UTC',
+});
+const shortDayFormatter = new Intl.DateTimeFormat('ru-RU', {
+  day: 'numeric',
+  month: 'short',
+  timeZone: 'UTC',
+});
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function toDate(iso: string): Date {
-  const [year, month, day] = iso.split('-').map(Number);
-  return new Date(year ?? 0, (month ?? 1) - 1, day ?? 1);
+  return new Date(`${iso}T00:00:00Z`);
 }
 
-function formatDate(iso: string): string {
-  return dayFormatter.format(toDate(iso));
+function dayOffset(from: string, to: string): number {
+  return Math.round((toDate(to).getTime() - toDate(from).getTime()) / DAY_MS);
 }
 
-function formatDateShort(iso: string): string {
-  return shortDayFormatter.format(toDate(iso));
+function addDays(iso: string, amount: number): string {
+  return new Date(toDate(iso).getTime() + amount * DAY_MS).toISOString().slice(0, 10);
 }
 
-function dayOffset(from: Date, to: Date): number {
-  const msPerDay = 24 * 60 * 60 * 1000;
-  return Math.round((to.getTime() - from.getTime()) / msPerDay);
-}
+const totalSpan = computed(() => Math.max(dayOffset(props.cycle.start, props.cycle.end), 1));
 
-const totalSpan = computed(() => {
-  const span = dayOffset(toDate(props.cycle.start), toDate(props.cycle.end));
-  return span > 0 ? span : 1;
-});
+// The boundary is the day the periods hand off: the day after the first period's last day,
+// or the second period's first day.
+const boundaryDate = computed(() =>
+  props.period.start === props.cycle.start ? addDays(props.period.end, 1) : props.period.start,
+);
+const boundaryOffset = computed(() => dayOffset(props.cycle.start, boundaryDate.value));
+const boundaryVisible = computed(
+  () => boundaryOffset.value > 0 && boundaryOffset.value < totalSpan.value,
+);
 
-// The boundary is the day the current period hands off to the other one: the
-// day after the FIRST period's last day, or the SECOND period's first day.
-const boundaryOffset = computed(() => {
-  const start = toDate(props.cycle.start);
-  return props.period.id === 'FIRST'
-    ? dayOffset(start, toDate(props.period.end)) + 1
-    : dayOffset(start, toDate(props.period.start));
-});
+const todayOffset = computed(() =>
+  Math.min(Math.max(dayOffset(props.cycle.start, props.asOf), 0), totalSpan.value),
+);
 
-const todayOffset = computed(() => {
-  const raw = dayOffset(toDate(props.cycle.start), new Date());
-  return Math.min(Math.max(raw, 0), totalSpan.value);
-});
-
-function toPercent(offset: number): number {
-  return (offset / totalSpan.value) * 100;
-}
-
+const toPercent = (offset: number) => (offset / totalSpan.value) * 100;
 const todayPercent = computed(() => toPercent(todayOffset.value));
 const boundaryPercent = computed(() => toPercent(boundaryOffset.value));
 
-// Keep marker labels off the track's edges so they don't clip outside the card
-// or collide with the start/end labels below the track.
-function clampLabelPercent(percent: number): number {
-  return Math.min(Math.max(percent, 6), 94);
-}
-
-const todayLabelPercent = computed(() => clampLabelPercent(todayPercent.value));
-const boundaryLabelPercent = computed(() => clampLabelPercent(boundaryPercent.value));
-
-const startLabel = computed(() => formatDate(props.cycle.start));
-const endLabel = computed(() => formatDate(props.cycle.end));
-
-// Read straight off the clock instead of re-deriving from todayOffset: offset is
-// a rounded day count, so late-in-the-day it can round up to tomorrow's date.
-const todayDateLabel = computed(() => shortDayFormatter.format(new Date()));
-const boundaryDateLabel = computed(() => formatDateShort(toIso(boundaryOffset.value)));
-
-function toIso(offset: number): string {
-  const date = toDate(props.cycle.start);
-  date.setDate(date.getDate() + offset);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-const summaryLabel = computed(
-  () =>
-    `Финансовый месяц: с ${startLabel.value} по ${endLabel.value}. ` +
-    `Сегодня — день ${todayOffset.value + 1} из ${totalSpan.value + 1}.`,
+// The "today" label sits above the track alone; start, end and boundary labels share the row
+// below it. The boundary label is kept clear of the start and end labels, so no two labels collide
+// at narrow widths (the tick on the track still marks the exact day).
+const clamp = (percent: number, min: number, max: number) => Math.min(Math.max(percent, min), max);
+const todayLabelPercent = computed(() => clamp(todayPercent.value, 8, 92));
+const boundaryLabelPercent = computed(() => clamp(boundaryPercent.value, 34, 66));
+const asOfInCycle = computed(
+  () => props.asOf >= props.cycle.start && props.asOf <= props.cycle.end,
 );
+
+const startLabel = computed(() => dayFormatter.format(toDate(props.cycle.start)));
+const endLabel = computed(() => dayFormatter.format(toDate(props.cycle.end)));
+const todayDateLabel = computed(() => shortDayFormatter.format(toDate(props.asOf)));
+const boundaryDateLabel = computed(() => shortDayFormatter.format(toDate(boundaryDate.value)));
+
+const summaryLabel = computed(() => {
+  const parts = [`Финансовый месяц: с ${startLabel.value} по ${endLabel.value}.`];
+  if (asOfInCycle.value) {
+    parts.push(`Сегодня — день ${todayOffset.value + 1} из ${totalSpan.value + 1}.`);
+  }
+  if (boundaryVisible.value)
+    parts.push(`Смена периода: ${boundaryDateLabel.value.replace(/\.$/, '')}.`);
+  return parts.join(' ');
+});
 </script>
 
 <template>
   <div class="fm-timeline">
     <p class="fm-timeline__title">Ваш финансовый месяц</p>
     <div class="fm-timeline__marks" aria-hidden="true">
-      <span class="fm-timeline__mark fm-timeline__mark--start">{{ startLabel }}</span>
       <span
-        class="fm-timeline__mark fm-timeline__mark--boundary"
-        :style="{ left: `${boundaryLabelPercent}%` }"
-      >
-        {{ boundaryDateLabel }}
-      </span>
-      <span
+        v-if="asOfInCycle"
         class="fm-timeline__mark fm-timeline__mark--today"
         :style="{ left: `${todayLabelPercent}%` }"
       >
         {{ todayDateLabel }}
       </span>
-      <span class="fm-timeline__mark fm-timeline__mark--end">{{ endLabel }}</span>
     </div>
     <div class="fm-timeline__track" role="img" :aria-label="summaryLabel">
       <div class="fm-timeline__fill" :style="{ width: `${todayPercent}%` }" />
-      <div class="fm-timeline__boundary" :style="{ left: `${boundaryPercent}%` }" />
-      <div class="fm-timeline__today" :style="{ left: `${todayPercent}%` }" />
+      <div
+        v-if="boundaryVisible"
+        class="fm-timeline__boundary"
+        :style="{ left: `${boundaryPercent}%` }"
+      />
+      <div v-if="asOfInCycle" class="fm-timeline__today" :style="{ left: `${todayPercent}%` }" />
+    </div>
+    <div class="fm-timeline__marks" aria-hidden="true">
+      <span class="fm-timeline__mark fm-timeline__mark--start">{{ startLabel }}</span>
+      <span
+        v-if="boundaryVisible"
+        class="fm-timeline__mark fm-timeline__mark--boundary"
+        :style="{ left: `${boundaryLabelPercent}%` }"
+      >
+        {{ boundaryDateLabel }}
+      </span>
+      <span class="fm-timeline__mark fm-timeline__mark--end">{{ endLabel }}</span>
     </div>
   </div>
 </template>
@@ -154,7 +153,7 @@ const summaryLabel = computed(
   width: 2px;
   height: 0.875rem;
   background: var(--hf-color-text);
-  opacity: 0.35;
+  opacity: 0.6;
   transform: translateX(-50%);
 }
 

@@ -1,56 +1,60 @@
 import { readonly, ref, type Ref } from 'vue';
 
-import { ApiRequestError } from './useApiClient.js';
-import { useBudgetReferenceData, type TransactionDto } from './useBudgetReferenceData.js';
+import {
+  useEnvelopePlanV2,
+  type TransactionJournalV2Item,
+  type TransactionV2LifecycleResponse,
+} from './useEnvelopePlanV2.js';
 import { useToast } from './useToast.js';
+import { v2ErrorMessage } from './useV2Error.js';
 
-// Deleting an income that still carries confirmed allocations is not a failure:
-// the caller has to ask whether those allocations are cancelled or deleted, so
-// this code is reported through lastError instead of a toast.
-const CALLER_HANDLED_CODES = new Set(['INCOME_HAS_CONFIRMED_ALLOCATIONS']);
-
-export type OperationAction = 'confirm' | 'cancel' | 'delete' | 'restore';
+// Journal actions on the Envelope Plan v2.2 API. There is no confirm or cancel:
+// a v2 fact is created CONFIRMED (or DRAFT, edited in place) and leaves the books
+// only through delete, which restore undoes.
+export type OperationAction = 'delete' | 'restore';
 
 type ActionCopy = { success: string; failure: string };
 
-const COPY: Record<OperationAction | 'deleteWithAllocations', ActionCopy> = {
-  confirm: { success: 'Операция подтверждена', failure: 'Не удалось подтвердить операцию' },
-  cancel: { success: 'Операция отменена', failure: 'Не удалось отменить операцию' },
+const COPY: Record<OperationAction, ActionCopy> = {
   delete: { success: 'Операция удалена', failure: 'Не удалось удалить операцию' },
   restore: { success: 'Операция восстановлена', failure: 'Не удалось восстановить операцию' },
-  deleteWithAllocations: {
-    success: 'Операция удалена',
-    failure: 'Не удалось удалить операцию',
-  },
 };
 
-// Actions allowed per status. Editing lives in the form, not here.
-const ACTIONS: Record<TransactionDto['status'], OperationAction[]> = {
-  DRAFT: ['confirm', 'cancel', 'delete'],
-  CONFIRMED: ['delete'],
-  CANCELLED: ['delete'],
-  DELETED: ['restore'],
+// An income that still funds envelopes cannot be deleted until the assignments
+// are reduced; the shared "source exhausted" text speaks about funding instead.
+const OVERRIDES: Record<string, string> = {
+  RESOURCE_NOT_FOUND: 'Операция не найдена. Обновите журнал.',
+  SOURCE_EXHAUSTED:
+    'На этот доход назначены средства. Сначала уменьшите или отмените назначения этого дохода.',
 };
+
+type RowState = Pick<TransactionJournalV2Item, 'status'>;
+
+export function canEditTransaction(transaction: RowState): boolean {
+  return transaction.status === 'CONFIRMED' || transaction.status === 'DRAFT';
+}
+
+export function availableActions(transaction: RowState): OperationAction[] {
+  return transaction.status === 'DELETED' ? ['restore'] : ['delete'];
+}
 
 export interface OperationMutations {
   pending: Readonly<Ref<boolean>>;
-  // The last rejection, kept so a caller can react to a specific server code —
-  // deleting an income with confirmed allocations needs a second decision.
+  // The last rejection, kept so a caller can react to a specific server code.
   lastError: Readonly<Ref<unknown>>;
-  confirm: (budgetId: string, transaction: TransactionDto) => Promise<TransactionDto | null>;
-  cancel: (budgetId: string, transaction: TransactionDto) => Promise<TransactionDto | null>;
-  remove: (budgetId: string, transaction: TransactionDto) => Promise<TransactionDto | null>;
-  restore: (budgetId: string, transaction: TransactionDto) => Promise<TransactionDto | null>;
-  removeWithAllocations: (
+  remove: (
     budgetId: string,
-    transaction: TransactionDto,
-    resolution: 'CANCEL' | 'DELETE',
-  ) => Promise<TransactionDto | null>;
-  availableActions: (status: TransactionDto['status']) => OperationAction[];
+    transaction: TransactionJournalV2Item,
+  ) => Promise<TransactionV2LifecycleResponse | null>;
+  restore: (
+    budgetId: string,
+    transaction: TransactionJournalV2Item,
+  ) => Promise<TransactionV2LifecycleResponse | null>;
+  availableActions: (transaction: RowState) => OperationAction[];
 }
 
 export function useOperationMutations(): OperationMutations {
-  const api = useBudgetReferenceData();
+  const api = useEnvelopePlanV2();
   const { push } = useToast();
   const pending = ref(false);
   const lastError = ref<unknown>(null);
@@ -69,25 +73,32 @@ export function useOperationMutations(): OperationMutations {
   }
 
   async function run(
-    action: keyof typeof COPY,
-    transactionId: string,
-    call: (idempotencyKey: string) => Promise<TransactionDto>,
-  ): Promise<TransactionDto | null> {
+    action: OperationAction,
+    transaction: TransactionJournalV2Item,
+    call: (idempotencyKey: string) => Promise<TransactionV2LifecycleResponse>,
+  ): Promise<TransactionV2LifecycleResponse | null> {
+    // A double click must not send a second request while the first is in flight.
+    if (pending.value) return null;
     pending.value = true;
-    const idempotencyKey = keyFor(action, transactionId);
+    const idempotencyKey = keyFor(action, transaction.id);
     try {
       const result = await call(idempotencyKey);
-      keys.delete(`${action}:${transactionId}`);
+      keys.delete(`${action}:${transaction.id}`);
       lastError.value = null;
-      push({ tone: 'success', title: COPY[action].success });
+      const warnings = result.warnings.map((warning) => warning.detail).join(' ');
+      push({
+        tone: 'success',
+        title: COPY[action].success,
+        ...(warnings ? { description: warnings } : {}),
+      });
       return result;
     } catch (error) {
       lastError.value = error;
-      if (error instanceof ApiRequestError && CALLER_HANDLED_CODES.has(error.problem.code)) {
-        return null;
-      }
-      const description = error instanceof Error ? error.message : undefined;
-      push({ tone: 'error', title: COPY[action].failure, ...(description ? { description } : {}) });
+      push({
+        tone: 'error',
+        title: COPY[action].failure,
+        description: v2ErrorMessage(error, 'Повторите попытку.', OVERRIDES),
+      });
       return null;
     } finally {
       pending.value = false;
@@ -97,27 +108,10 @@ export function useOperationMutations(): OperationMutations {
   return {
     pending: readonly(pending),
     lastError: readonly(lastError),
-    confirm: (budgetId, transaction) =>
-      run('confirm', transaction.id, (key) =>
-        api.confirmTransaction(budgetId, transaction.id, key),
-      ),
-    cancel: (budgetId, transaction) =>
-      run('cancel', transaction.id, (key) => api.cancelTransaction(budgetId, transaction.id, key)),
     remove: (budgetId, transaction) =>
-      run('delete', transaction.id, (key) => api.deleteTransaction(budgetId, transaction.id, key)),
+      run('delete', transaction, (key) => api.deleteTransaction(budgetId, transaction.id, key)),
     restore: (budgetId, transaction) =>
-      run('restore', transaction.id, (key) =>
-        api.restoreTransaction(budgetId, transaction.id, key),
-      ),
-    removeWithAllocations: (budgetId, transaction, resolution) =>
-      run('deleteWithAllocations', transaction.id, (key) =>
-        api.deleteTransactionWithAllocations(
-          budgetId,
-          transaction.id,
-          { allocationResolution: resolution },
-          key,
-        ),
-      ),
-    availableActions: (status) => [...ACTIONS[status]],
+      run('restore', transaction, (key) => api.restoreTransaction(budgetId, transaction.id, key)),
+    availableActions,
   };
 }

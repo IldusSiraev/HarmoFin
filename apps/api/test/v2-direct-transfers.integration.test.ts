@@ -28,7 +28,6 @@ const emails = {
   owner: `v2-direct-owner-${randomUUID()}@harmofin.test`,
   viewer: `v2-direct-viewer-${randomUUID()}@harmofin.test`,
   outsider: `v2-direct-outsider-${randomUUID()}@harmofin.test`,
-  legacy: `v2-direct-legacy-${randomUUID()}@harmofin.test`,
 };
 
 type RegisteredUser = { userId: string; workspaceId: string; budgetId: string };
@@ -69,7 +68,6 @@ describe('v2 прямые переводы между счетами без ко
       ctx[key] = await register(emails[key]);
     }
 
-    // v1-legacy остаётся на planModelVersion=1; остальные бюджеты — v2
     await prisma.budget.update({
       where: { id: ctx.owner!.budgetId },
       data: { planModelVersion: 2, planModelActivatedOn: d(-60), timezone: 'UTC' },
@@ -389,7 +387,7 @@ describe('v2 прямые переводы между счетами без ко
     expect(await accountBalance(ownerAccountIdB)).toBe(beforeDestination);
   });
 
-  it('viewer — 403, чужой бюджет — 404, бюджет v1 — 409', async () => {
+  it('viewer — 403, чужой бюджет — 404', async () => {
     const viewerError = await expectError(
       service.create(
         ctx.viewer!.userId,
@@ -421,22 +419,6 @@ describe('v2 прямые переводы между счетами без ко
     );
     expect(outsiderError.status).toBe(404);
     expect(outsiderError.code).toBe('RESOURCE_NOT_FOUND');
-
-    const legacyError = await expectError(
-      service.create(
-        ctx.legacy!.userId,
-        ctx.legacy!.budgetId,
-        {
-          sourceAccountId: ownerAccountId,
-          destinationAccountId: ownerAccountIdB,
-          amount: '100',
-          occurredOn: today,
-        },
-        'direct-legacy',
-      ),
-    );
-    expect(legacyError.status).toBe(409);
-    expect(legacyError.code).toBe('MODEL_VERSION_MISMATCH');
   });
 
   it('архивный счёт — 400, некорректные суммы — 400', async () => {
@@ -497,24 +479,16 @@ describe('v2 прямого перевод — HTTP-контракт', () => {
   let pagerDestAccount: string;
   const fixtureSrcMinor = 100n;
 
-  type TransferPartItem = {
-    id: string;
-    amountMinor: string;
-    sourceEnvelopeId: string;
-    destinationEnvelopeId: string | null;
-  };
-
   type TransferItem = {
     id: string;
     budgetId: string;
     status: string;
-    mode: 'ACCOUNT_ONLY' | 'LEGACY_PARTS';
+    mode: 'ACCOUNT_ONLY';
     totalMinor: string;
     comment: string | null;
     occurredOn: string;
     sourceAccountId: string | null;
     destinationAccountId: string | null;
-    parts?: TransferPartItem[];
   };
 
   type ListResponse = { items: TransferItem[]; nextCursor: string | null };
@@ -671,7 +645,7 @@ describe('v2 прямого перевод — HTTP-контракт', () => {
     }
   });
 
-  it('#1 POST создаёт ACCOUNT_ONLY прямого перевода: статус 201, comment записан, parts undefined, балансы сдвинулись', async () => {
+  it('#1 POST создаёт ACCOUNT_ONLY прямого перевода: статус 201, comment записан, балансы сдвинулись', async () => {
     const beforeSrc = await accountBalance(fixtureSrcAccount);
     const beforeDst = await accountBalance(fixtureDestAccount);
 
@@ -690,7 +664,6 @@ describe('v2 прямого перевод — HTTP-контракт', () => {
     expect(res.statusCode).toBe(201);
     const body = res.json<Record<string, unknown>>();
     expect(body.mode).toBe('ACCOUNT_ONLY');
-    expect(body.parts).toBeUndefined();
     expect(body.comment).toBe('HTTP test comment');
     expect(typeof body.totalMinor).toBe('string');
 
@@ -794,36 +767,7 @@ describe('v2 прямого перевод — HTTP-контракт', () => {
     await prisma.account.deleteMany({ where: { id: outsiderAccountId } });
   });
 
-  it('#6 POST на v1-бюджет для v2-budget → 409 MODEL_VERSION_MISMATCH', async () => {
-    const res = await server.inject({
-      method: 'POST',
-      url: `/api/v1/budgets/${fCtx.fixtureOwner!.budgetId}/transfers`,
-      headers: {
-        ...authCookieHeaders(fCtx.fixtureOwner),
-        'x-csrf-token': fCtx.fixtureOwner?.csrfToken ?? '',
-        origin,
-        'idempotency-key': 'http-v1-mismatch',
-      },
-      payload: {
-        total: '5.00',
-        sourceAccountId: fixtureSrcAccount,
-        destinationAccountId: fixtureDestAccount,
-        parts: [
-          {
-            sourceEnvelopeId: fixtureEnvelope,
-            destinationEnvelopeId: fixtureEnvelopeB,
-            amount: '5.00',
-          },
-        ],
-        occurredOn: todayInTimezone(new Date(), 'UTC'),
-      },
-    });
-    expect(res.statusCode).toBe(409);
-    const body = res.json<Record<string, unknown>>();
-    expect(body.code).toBe('MODEL_VERSION_MISMATCH');
-  });
-
-  it('#7 GET list → 200 ACCOUNT_ONLY + LEGACY', async () => {
+  it('#7 GET list → 200 только ACCOUNT_ONLY, остаточный LEGACY_PARTS перевод не отдаётся', async () => {
     const res = await server.inject({
       method: 'GET',
       url: transferUrl(),
@@ -832,28 +776,14 @@ describe('v2 прямого перевод — HTTP-контракт', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json<ListResponse>();
 
-    const acItems = body.items.filter((i) => i.mode === 'ACCOUNT_ONLY');
-    expect(acItems.length).toBeGreaterThan(0);
-    for (const item of acItems) {
+    expect(body.items.length).toBeGreaterThan(0);
+    for (const item of body.items) {
+      expect(item.mode).toBe('ACCOUNT_ONLY');
       expect(typeof item.sourceAccountId).toBe('string');
-      expect(item.parts).toBeUndefined();
       expect(typeof item.totalMinor).toBe('string');
+      expect(item).not.toHaveProperty('parts');
     }
-
-    const legacyItem = body.items.find((i) => i.mode === 'LEGACY_PARTS');
-    expect(legacyItem).toBeDefined();
-    if (legacyItem === undefined) {
-      throw new Error('legacy transfer expected in list');
-    }
-    expect(legacyItem.sourceAccountId).toBeNull();
-    expect(legacyItem.parts).toBeDefined();
-    if (legacyItem.parts === undefined) {
-      throw new Error('legacy parts expected');
-    }
-    expect(legacyItem.parts.length).toBe(2);
-    const amounts = legacyItem.parts.map((p) => p.amountMinor);
-    expect(amounts).toContain('40');
-    expect(amounts).toContain('60');
+    expect(body.items.some((item) => item.id === fixtureLegacyTransferId)).toBe(false);
   });
 
   it('#8a GET list ?limit=2: page1 = 2, page2 = остаток, nextCursor → null; union = ровно 3 id', async () => {
@@ -956,7 +886,7 @@ describe('v2 прямого перевод — HTTP-контракт', () => {
     ).toEqual([...union].sort());
   });
 
-  it('#9 GET detail: ACCOUNT_ONLY без parts, LEGACY с parts=2, randomUUID → 404', async () => {
+  it('#9 GET detail: ACCOUNT_ONLY без parts, LEGACY_PARTS и randomUUID → 404', async () => {
     const listRes = await server.inject({
       method: 'GET',
       url: transferUrl(),
@@ -964,37 +894,24 @@ describe('v2 прямого перевод — HTTP-контракт', () => {
     });
     const listBody = listRes.json<ListResponse>();
 
-    const acItem = listBody.items.find((i) => i.mode === 'ACCOUNT_ONLY');
-    if (acItem) {
-      const detailRes = await server.inject({
-        method: 'GET',
-        url: transferUrl(acItem.id),
-        headers: authCookieHeaders(fCtx.fixtureOwner),
-      });
-      expect(detailRes.statusCode).toBe(200);
-      const detBody = detailRes.json<TransferItem>();
-      expect(detBody.parts).toBeUndefined();
-    }
-
-    const lgItem = listBody.items.find((i) => i.mode === 'LEGACY_PARTS');
-    if (lgItem) {
-      const detailRes = await server.inject({
-        method: 'GET',
-        url: transferUrl(lgItem.id),
-        headers: authCookieHeaders(fCtx.fixtureOwner),
-      });
-      expect(detailRes.statusCode).toBe(200);
-      const detBody = detailRes.json<TransferItem>();
-      expect(detBody.parts).toBeDefined();
-      expect(detBody.parts?.length).toBe(2);
-    }
-
-    const detailRes = await server.inject({
+    const acItem = listBody.items[0];
+    expect(acItem).toBeDefined();
+    const accountOnly = await server.inject({
       method: 'GET',
-      url: transferUrl(randomUUID()),
+      url: transferUrl(acItem!.id),
       headers: authCookieHeaders(fCtx.fixtureOwner),
     });
-    expect(detailRes.statusCode).toBe(404);
+    expect(accountOnly.statusCode).toBe(200);
+    expect(accountOnly.json<TransferItem>()).not.toHaveProperty('parts');
+
+    for (const id of [fixtureLegacyTransferId, randomUUID()]) {
+      const missing = await server.inject({
+        method: 'GET',
+        url: transferUrl(id),
+        headers: authCookieHeaders(fCtx.fixtureOwner),
+      });
+      expect(missing.statusCode).toBe(404);
+    }
   });
 
   it('#10 OpenAPI: 200, v2-пути, POST-коды, required Idempotency-Key, cookie-авторизация', async () => {

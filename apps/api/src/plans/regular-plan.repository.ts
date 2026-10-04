@@ -160,6 +160,59 @@ export class RegularPlanRepository {
     });
   }
 
+  /** Budget model facts needed to materialize v2 occurrences; filtered by budget id. */
+  findBudgetPlanModel(tx: Prisma.TransactionClient, budgetId: string) {
+    return tx.budget.findFirst({
+      where: { id: budgetId, status: 'ACTIVE', workspace: { status: 'ACTIVE' } },
+      select: {
+        id: true,
+        workspaceId: true,
+        timezone: true,
+        planModelVersion: true,
+        planModelActivatedOn: true,
+      },
+    });
+  }
+
+  /**
+   * Active EXPENSE plans on a mandatory envelope and INCOME plans on an active income category
+   * that can produce dates up to `to`.
+   * Plan rows are locked (ordered by id) so concurrent materializers serialize per budget and
+   * the existing-date check that follows cannot race into duplicate occurrences.
+   */
+  async lockMaterializablePlans(tx: Prisma.TransactionClient, budgetId: string, to: Date) {
+    await tx.$queryRaw`
+      SELECT "id" FROM "regular_plans"
+      WHERE "budget_id" = ${budgetId}::uuid
+        AND "is_active" = true
+        AND "deleted_at" IS NULL
+      ORDER BY "id"
+      FOR UPDATE
+    `;
+    return tx.regularPlan.findMany({
+      where: {
+        budgetId,
+        isActive: true,
+        deletedAt: null,
+        startOn: { lte: to },
+        OR: [
+          {
+            planType: 'EXPENSE',
+            envelope: { is: { budgetId, envelopeType: 'MANDATORY_EXPENSES', archivedAt: null } },
+          },
+          // Income forecasts need an active income category, never an envelope. SAVINGS is
+          // described by the envelope funding rule and is not materialized here.
+          {
+            planType: 'INCOME',
+            category: { is: { budgetId, categoryType: 'INCOME', archivedAt: null } },
+          },
+        ],
+      },
+      select: regularPlanSelect,
+      orderBy: { id: 'asc' },
+    });
+  }
+
   async createPlan(
     tx: Prisma.TransactionClient,
     data: RegularPlanCreateData,

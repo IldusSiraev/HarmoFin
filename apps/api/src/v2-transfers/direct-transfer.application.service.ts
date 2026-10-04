@@ -71,27 +71,16 @@ function occurredOnKey(occurredOn: Date): string {
   return occurredOn.toISOString().slice(0, 10);
 }
 
-/**
- * Views returned by list/get endpoints (both ACCOUNT_ONLY and LEGACY_PARTS).
- */
-export type DirectTransferPartView = {
-  id: string;
-  amountMinor: string;
-  sourceEnvelopeId: string;
-  destinationEnvelopeId: string | null;
-};
-
 export type DirectTransferViewListItem = {
   id: string;
   budgetId: string;
   status: string;
-  mode: 'LEGACY_PARTS' | 'ACCOUNT_ONLY';
+  mode: 'ACCOUNT_ONLY';
   totalMinor: string;
   comment: string | null;
   occurredOn: string;
   sourceAccountId: string | null;
   destinationAccountId: string | null;
-  parts: DirectTransferPartView[] | undefined;
 };
 
 export type DirectTransferListView = {
@@ -251,7 +240,7 @@ export class DirectTransferApplicationService {
     // Prisma cursor is inclusive: the cursor row is included in the result,
     // so slice(1) ≡ skip: 1 — the page is exclusive of the cursor row (keyset).
     const transfers = await this.prisma.transfer.findMany({
-      where: { budgetId, deletedAt: null },
+      where: { budgetId, deletedAt: null, mode: 'ACCOUNT_ONLY' },
       orderBy: [{ occurredOn: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
       ...(query.cursor ? { cursor: { id: query.cursor } } : {}),
       take: limit + 1,
@@ -265,14 +254,6 @@ export class DirectTransferApplicationService {
         occurredOn: true,
         sourceAccountId: true,
         destinationAccountId: true,
-        parts: {
-          select: {
-            id: true,
-            amountMinor: true,
-            sourceEnvelopeId: true,
-            destinationEnvelopeId: true,
-          },
-        },
         createdAt: true,
       },
     });
@@ -283,21 +264,12 @@ export class DirectTransferApplicationService {
       id: t.id,
       budgetId: t.budgetId,
       status: t.status,
-      mode: t.mode,
+      mode: 'ACCOUNT_ONLY' as const,
       totalMinor: formatMinorUnits(t.totalMinor),
       comment: t.comment,
       occurredOn: t.occurredOn.toISOString().slice(0, 10),
       sourceAccountId: t.sourceAccountId,
       destinationAccountId: t.destinationAccountId,
-      parts:
-        t.mode === 'LEGACY_PARTS'
-          ? t.parts.map((p) => ({
-              id: p.id,
-              amountMinor: formatMinorUnits(p.amountMinor),
-              sourceEnvelopeId: p.sourceEnvelopeId,
-              destinationEnvelopeId: p.destinationEnvelopeId,
-            }))
-          : undefined,
     }));
 
     const last = items[items.length - 1];
@@ -312,7 +284,7 @@ export class DirectTransferApplicationService {
     await this.planModelPolicy.requireModel(userId, budgetId, 2);
 
     const transfer = await this.prisma.transfer.findFirst({
-      where: { id: transferId, budgetId, deletedAt: null },
+      where: { id: transferId, budgetId, deletedAt: null, mode: 'ACCOUNT_ONLY' },
       select: {
         id: true,
         budgetId: true,
@@ -323,14 +295,6 @@ export class DirectTransferApplicationService {
         occurredOn: true,
         sourceAccountId: true,
         destinationAccountId: true,
-        parts: {
-          select: {
-            id: true,
-            amountMinor: true,
-            sourceEnvelopeId: true,
-            destinationEnvelopeId: true,
-          },
-        },
       },
     });
 
@@ -342,21 +306,12 @@ export class DirectTransferApplicationService {
       id: transfer.id,
       budgetId: transfer.budgetId,
       status: transfer.status,
-      mode: transfer.mode,
+      mode: 'ACCOUNT_ONLY' as const,
       totalMinor: formatMinorUnits(transfer.totalMinor),
       comment: transfer.comment,
       occurredOn: transfer.occurredOn.toISOString().slice(0, 10),
       sourceAccountId: transfer.sourceAccountId,
       destinationAccountId: transfer.destinationAccountId,
-      parts:
-        transfer.mode === 'LEGACY_PARTS'
-          ? transfer.parts.map((p) => ({
-              id: p.id,
-              amountMinor: formatMinorUnits(p.amountMinor),
-              sourceEnvelopeId: p.sourceEnvelopeId,
-              destinationEnvelopeId: p.destinationEnvelopeId,
-            }))
-          : undefined,
     };
   }
 }

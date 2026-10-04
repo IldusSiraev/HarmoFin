@@ -73,6 +73,15 @@ export class BudgetResponse {
   primaryCurrency!: string;
 }
 
+export class MeBudgetResponse extends BudgetResponse {
+  @ApiProperty({
+    type: Number,
+    enum: [1, 2],
+    description: 'Модель плана бюджета: 1 — прежняя, 2 — Envelope Plan v2.2.',
+  })
+  planModelVersion!: number;
+}
+
 export class AuthSessionResponse {
   @ApiProperty({ type: UserResponse })
   user!: UserResponse;
@@ -119,8 +128,8 @@ export class WorkspaceMembershipResponse extends WorkspaceResponse {
   @ApiProperty({ type: String, enum: ['OWNER', 'EDITOR', 'VIEWER'] })
   role!: string;
 
-  @ApiProperty({ type: [BudgetResponse] })
-  budgets!: BudgetResponse[];
+  @ApiProperty({ type: [MeBudgetResponse] })
+  budgets!: MeBudgetResponse[];
 }
 
 export class MeResponse {

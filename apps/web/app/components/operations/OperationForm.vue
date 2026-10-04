@@ -4,12 +4,11 @@ import { computed, reactive, ref, watch } from 'vue';
 import {
   selectableCategories,
   type CategoryDto,
-  type TransactionDto,
 } from '../../composables/useBudgetReferenceData.js';
+import type { TransactionJournalV2Item } from '../../composables/useEnvelopePlanV2.js';
 import {
-  toTransactionInput,
-  toUpdateTransactionInput,
-  type OperationFormModel,
+  createOperationEditForm,
+  toUpdateTransactionV2Input,
 } from '../../composables/useOperationForm.js';
 import FinanceMoneyInput from '../finance/FinanceMoneyInput.vue';
 import UiButton from '../ui/Button.vue';
@@ -19,216 +18,109 @@ import UiSelect from '../ui/Select.vue';
 
 defineOptions({ name: 'OperationForm' });
 
+// Edits one journal operation on the v2 API. The type is fixed, and only the
+// fields the PATCH accepts are offered; the form emits just what changed.
 const props = withDefaults(
   defineProps<{
-    mode: 'create' | 'edit';
-    model: OperationFormModel;
+    current: TransactionJournalV2Item;
     accounts: ReadonlyArray<{ value: string; label: string }>;
     categories: ReadonlyArray<CategoryDto>;
     envelopes: ReadonlyArray<{ value: string; label: string }>;
     errors?: Partial<Record<string, string>>;
+    // A problem that does not belong to one field; shown inside the form so it
+    // is not hidden behind the modal.
+    formError?: string;
     pending?: boolean;
-    current?: TransactionDto | null;
   }>(),
-  { errors: () => ({}), pending: false, current: null },
+  { errors: () => ({}), formError: '', pending: false },
 );
 
 const emit = defineEmits<{
-  submit: [
-    input: ReturnType<typeof toTransactionInput> | ReturnType<typeof toUpdateTransactionInput>,
-  ];
+  submit: [input: ReturnType<typeof toUpdateTransactionV2Input>];
 }>();
-const form = reactive({ ...props.model });
 
-// New operations are filled out one decision at a time; editing an existing
-// one shows every field at once so a correction doesn't require re-stepping
-// through fields that are already right.
-const stepped = props.mode === 'create';
-const totalSteps = 4;
-const currentStep = ref(1);
+const original = computed(() => createOperationEditForm(props.current));
+const form = reactive({ ...original.value });
+const unchanged = ref(false);
 
-const stepTitles: Record<number, string> = {
-  1: 'Когда и сколько',
-  2: 'Счёт',
-  3: 'Категория',
-  4: 'Детали',
-};
-
-watch(
-  () => props.model,
-  (model) => {
-    Object.assign(form, model);
-    currentStep.value = 1;
-  },
-  { deep: true },
-);
-watch(
-  () => form.transactionType,
-  (type) => {
-    if (type === 'INCOME') {
-      form.envelopeId = '';
-      form.merchantName = '';
-    } else {
-      form.sourceDescription = '';
-    }
-  },
-);
-
-function categoriesFor(type: 'INCOME' | 'EXPENSE') {
-  return selectableCategories(props.categories)
-    .filter((category) => category.categoryType === type && !category.archivedAt)
-    .map((category) => ({ value: category.id, label: category.name }));
-}
-
-const canAdvance = computed(() => {
-  if (currentStep.value === 1) return Boolean(form.occurredOn && form.amount);
-  if (currentStep.value === 2) return Boolean(form.accountId);
-  if (currentStep.value === 3) return Boolean(form.categoryId);
-  return true;
+watch(original, (next) => {
+  Object.assign(form, next);
+  unchanged.value = false;
 });
 
-function goNext() {
-  if (canAdvance.value && currentStep.value < totalSteps) currentStep.value += 1;
-}
+const isExpense = computed(() => props.current.transactionType === 'EXPENSE');
 
-function goBack() {
-  if (currentStep.value > 1) currentStep.value -= 1;
-}
+const categoryOptions = computed(() =>
+  selectableCategories(props.categories)
+    .filter(
+      (category) =>
+        category.categoryType === props.current.transactionType &&
+        (!category.archivedAt || category.id === props.current.categoryId),
+    )
+    .map((category) => ({ value: category.id, label: category.name })),
+);
 
-function showsStep(step: number): boolean {
-  return !stepped || currentStep.value === step;
-}
+const envelopeOptions = computed(() => [{ value: '', label: 'Без конверта' }, ...props.envelopes]);
 
-function submit(status: 'DRAFT' | 'CONFIRMED') {
-  if (props.mode === 'edit') {
-    emit('submit', toUpdateTransactionInput(form, props.current?.status === 'CONFIRMED'));
-    return;
-  }
-  emit('submit', toTransactionInput(form, status));
+function submit() {
+  if (props.pending) return;
+  const input = toUpdateTransactionV2Input(form, original.value, props.current.transactionType);
+  unchanged.value = Object.keys(input).length === 0;
+  if (!unchanged.value) emit('submit', input);
 }
 </script>
 
 <template>
-  <form class="operation-form" @submit.prevent="submit('DRAFT')">
-    <p v-if="stepped" class="operation-form__step">
-      Шаг {{ currentStep }} из {{ totalSteps }} · {{ stepTitles[currentStep] }}
+  <form class="operation-form" novalidate @submit.prevent="submit">
+    <p v-if="formError || unchanged" class="operation-form__error" role="alert">
+      {{ formError || 'Нет изменений: измените хотя бы одно поле.' }}
     </p>
 
-    <template v-if="showsStep(1)">
-      <UiSelect
-        v-model="form.transactionType"
-        name="transactionType"
-        label="Тип операции"
-        :options="[
-          { value: 'INCOME', label: 'Доход' },
-          { value: 'EXPENSE', label: 'Расход' },
-        ]"
-        required
-      />
-      <UiDatePicker
-        v-model="form.occurredOn"
-        name="occurredOn"
-        label="Дата операции"
-        :error="errors.occurredOn"
-        required
-        quick-dates
-      />
-      <FinanceMoneyInput
-        v-model="form.amount"
-        name="amount"
-        label="Сумма"
-        :error="errors.amount"
-        required
-      />
-    </template>
-
-    <template v-if="showsStep(2)">
-      <UiSelect
-        v-model="form.accountId"
-        name="accountId"
-        label="Счёт"
-        :options="accounts"
-        :error="errors.accountId"
-        required
-      />
-    </template>
-
-    <template v-if="showsStep(3)">
-      <UiSelect
-        v-model="form.categoryId"
-        name="categoryId"
-        label="Категория"
-        :options="categoriesFor(form.transactionType)"
-        :error="errors.categoryId"
-        required
-      />
-    </template>
-
-    <template v-if="showsStep(4)">
-      <template v-if="form.transactionType === 'INCOME'">
-        <UiInput
-          v-model="form.sourceDescription"
-          name="sourceDescription"
-          label="Источник дохода"
-          :error="errors.sourceDescription"
-        />
-        <label class="operation-form__check"
-          ><input v-model="form.isPlanned" type="checkbox" /> Запланированная операция</label
-        >
-      </template>
-      <template v-else>
-        <UiSelect
-          v-model="form.envelopeId"
-          name="envelopeId"
-          label="Конверт"
-          :options="envelopes"
-          :error="errors.envelopeId"
-          required
-        />
-        <UiInput
-          v-model="form.merchantName"
-          name="merchantName"
-          label="Получатель или магазин"
-          :error="errors.merchantName"
-        />
-      </template>
-    </template>
+    <FinanceMoneyInput
+      v-model="form.amount"
+      name="amount"
+      label="Сумма"
+      :error="errors.amount"
+      required
+    />
+    <UiDatePicker
+      v-model="form.occurredOn"
+      name="occurredOn"
+      label="Дата операции"
+      :error="errors.occurredOn"
+      required
+      quick-dates
+    />
+    <UiSelect
+      v-model="form.accountId"
+      name="accountId"
+      label="Счёт"
+      :options="accounts"
+      :error="errors.accountId"
+      required
+    />
+    <UiSelect
+      v-model="form.categoryId"
+      name="categoryId"
+      label="Категория"
+      :options="categoryOptions"
+      :error="errors.categoryId"
+      required
+    />
+    <UiSelect
+      v-if="isExpense"
+      v-model="form.envelopeId"
+      name="envelopeId"
+      label="Конверт"
+      :options="envelopeOptions"
+      :error="errors.envelopeId"
+    />
+    <UiInput v-model="form.comment" name="comment" label="Комментарий" :error="errors.comment" />
 
     <div class="operation-form__actions">
-      <UiButton
-        v-if="stepped && currentStep > 1"
-        type="button"
-        variant="tertiary"
-        :disabled="pending"
-        @click="goBack"
-        >Назад</UiButton
+      <UiButton type="submit" data-action="save-operation" :disabled="pending" :loading="pending"
+        >Сохранить изменения</UiButton
       >
-      <UiButton
-        v-if="stepped && currentStep < totalSteps"
-        type="button"
-        :disabled="!canAdvance"
-        @click="goNext"
-        >Далее</UiButton
-      >
-      <template v-if="showsStep(totalSteps)">
-        <template v-if="mode === 'edit'">
-          <UiButton
-            type="submit"
-            data-action="save-operation"
-            :disabled="pending"
-            :loading="pending"
-            >Сохранить изменения</UiButton
-          >
-        </template>
-        <template v-else>
-          <UiButton type="submit" variant="secondary" :disabled="pending" :loading="pending"
-            >Создать черновик</UiButton
-          >
-          <UiButton type="button" :disabled="pending" @click="submit('CONFIRMED')"
-            >Подтвердить операцию</UiButton
-          >
-        </template>
-      </template>
     </div>
   </form>
 </template>
@@ -238,23 +130,13 @@ function submit(status: 'DRAFT' | 'CONFIRMED') {
   display: grid;
   gap: var(--hf-space-4);
 }
-.operation-form__step {
+.operation-form__error {
   margin: 0;
-  color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-small);
-  font-weight: var(--hf-font-weight-medium);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: var(--hf-color-text-danger);
 }
 .operation-form__actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--hf-space-3);
-}
-.operation-form__check {
-  display: flex;
-  align-items: center;
-  gap: var(--hf-space-2);
-  min-height: var(--hf-control-height-md);
 }
 </style>

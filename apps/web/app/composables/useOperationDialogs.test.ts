@@ -48,15 +48,6 @@ describe('useOperationDialogs', () => {
     expect(entryType.value).toBe('TRANSFER');
   });
 
-  it('opens the advanced split-transfer dialog', () => {
-    const { openDialog, entryType, openTransferAdvanced } = useOperationDialogs();
-
-    openTransferAdvanced();
-
-    expect(openDialog.value).toBe('transferAdvanced');
-    expect(entryType.value).toBe('TRANSFER');
-  });
-
   it('closes', () => {
     const { openDialog, openTransfer, close } = useOperationDialogs();
 

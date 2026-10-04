@@ -11,6 +11,7 @@ import {
   forbidden,
   periodSlotAlreadyAssigned,
 } from '../common/reference-data/reference-data.errors.js';
+import { todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { AssignmentBalanceRepository } from './assignment-balance.repository.js';
 import {
@@ -40,6 +41,25 @@ type EnvelopePlanBody = {
   spentMinor: string;
   balanceMinor: string;
   archivedAt: string | null;
+  periods: EnvelopePeriodBody[];
+};
+
+type EnvelopePeriodBody = {
+  periodId: string;
+  startsOn: string;
+  endsOn: string;
+  fundedMinor: string;
+  spentMinor: string;
+  balanceMinor: string;
+  current: boolean;
+};
+
+type BalanceRow = {
+  envelopeId: string;
+  periodId: string | null;
+  funded: bigint;
+  spent: bigint;
+  balance: bigint;
 };
 
 function validationFailed(detail: string): BadRequestException {
@@ -124,7 +144,13 @@ export class EnvelopePlanApplicationService {
       const envelopes = await this.repository.listActive(tx, budgetId);
       const rowBalances = await this.balances.allBalances(tx, budgetId, new Date());
       const totals = this.totalsByEnvelope(rowBalances);
-      const items = envelopes.map((envelope) => this.toBody(tx, envelope, totals));
+      const periods = await this.periodsByEnvelope(
+        tx,
+        budgetId,
+        envelopes.map((envelope) => envelope.id),
+        rowBalances,
+      );
+      const items = envelopes.map((envelope) => this.toBody(envelope, totals, periods));
       return { status: 200, body: { items } };
     });
   }
@@ -139,7 +165,8 @@ export class EnvelopePlanApplicationService {
       const envelope = await this.repository.findEnvelope(tx, budgetId, envelopeId);
       const allRows = await this.balances.allBalances(tx, budgetId, new Date());
       const totals = this.totalsByEnvelope(allRows);
-      return { status: 200, body: this.toBody(tx, envelope, totals) };
+      const periods = await this.periodsByEnvelope(tx, budgetId, [envelope.id], allRows);
+      return { status: 200, body: this.toBody(envelope, totals, periods) };
     });
   }
 
@@ -216,7 +243,8 @@ export class EnvelopePlanApplicationService {
 
           const rowBalances = await this.balances.allBalances(tx, budgetId, new Date());
           const totals = this.totalsByEnvelope(rowBalances);
-          return { status: 201, body: this.toBody(tx, envelope, totals) };
+          const periods = await this.periodsByEnvelope(tx, budgetId, [envelope.id], rowBalances);
+          return { status: 201, body: this.toBody(envelope, totals, periods) };
         },
       );
     });
@@ -294,7 +322,8 @@ export class EnvelopePlanApplicationService {
 
           const rowBalances = await this.balances.allBalances(tx, budgetId, new Date());
           const totals = this.totalsByEnvelope(rowBalances);
-          return { status: 200, body: this.toBody(tx, updated, totals) };
+          const periods = await this.periodsByEnvelope(tx, budgetId, [updated.id], rowBalances);
+          return { status: 200, body: this.toBody(updated, totals, periods) };
         },
       );
     });
@@ -350,9 +379,10 @@ export class EnvelopePlanApplicationService {
             requestId,
           });
 
+          const periods = await this.periodsByEnvelope(tx, budgetId, [updated.id], rowBalances);
           return {
             status: 200,
-            body: this.toBody(tx, updated, this.totalsByEnvelope(rowBalances)),
+            body: this.toBody(updated, this.totalsByEnvelope(rowBalances), periods),
           };
         },
       );
@@ -408,6 +438,49 @@ export class EnvelopePlanApplicationService {
     }
   }
 
+  // Periods with money movement plus the current one, per envelope. The period
+  // buckets are read with the budget filter in the query; "current" is decided
+  // by the server in the budget timezone, never by the browser.
+  private async periodsByEnvelope(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    envelopeIds: string[],
+    rows: BalanceRow[],
+  ): Promise<Map<string, EnvelopePeriodBody[]>> {
+    const result = new Map<string, EnvelopePeriodBody[]>();
+    const periods = await this.repository.listPeriods(tx, budgetId, envelopeIds);
+    if (periods.length === 0) return result;
+    const today = todayInTimezone(
+      new Date(),
+      await this.repository.requireBudgetTimezone(tx, budgetId),
+    );
+    const byPeriod = new Map<string, BalanceRow>();
+    for (const row of rows) {
+      if (row.periodId !== null) byPeriod.set(row.periodId, row);
+    }
+    for (const period of periods) {
+      // Periods that have not started yet have no balance row.
+      const row = byPeriod.get(period.id);
+      if (!row) continue;
+      const startsOn = period.startsOn.toISOString().slice(0, 10);
+      const endsOn = period.endsOn.toISOString().slice(0, 10);
+      const current = startsOn <= today && today <= endsOn;
+      if (!current && row.funded === 0n && row.spent === 0n) continue;
+      const list = result.get(period.envelopeId) ?? [];
+      list.push({
+        periodId: period.id,
+        startsOn,
+        endsOn,
+        fundedMinor: formatMinorUnits(row.funded),
+        spentMinor: formatMinorUnits(row.spent),
+        balanceMinor: formatMinorUnits(row.balance),
+        current,
+      });
+      result.set(period.envelopeId, list);
+    }
+    return result;
+  }
+
   private totalsByEnvelope(
     rows: Array<{ envelopeId: string; funded: bigint; spent: bigint; balance: bigint }>,
   ): Map<string, { funded: bigint; spent: bigint; balance: bigint }> {
@@ -424,9 +497,9 @@ export class EnvelopePlanApplicationService {
   }
 
   private toBody(
-    _tx: Prisma.TransactionClient,
     envelope: Awaited<ReturnType<EnvelopePlanRepository['findEnvelope']>>,
     totals: Map<string, { funded: bigint; spent: bigint; balance: bigint }>,
+    periods: Map<string, EnvelopePeriodBody[]>,
   ): EnvelopePlanBody {
     const t = totals.get(envelope.id) ?? { funded: 0n, spent: 0n, balance: 0n };
     return {
@@ -443,6 +516,7 @@ export class EnvelopePlanApplicationService {
       spentMinor: formatMinorUnits(t.spent),
       balanceMinor: formatMinorUnits(t.balance),
       archivedAt: envelope.archivedAt ? envelope.archivedAt.toISOString() : null,
+      periods: periods.get(envelope.id) ?? [],
     };
   }
 }

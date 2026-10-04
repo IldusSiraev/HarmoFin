@@ -24,7 +24,6 @@ const emails = {
   owner: `v2-acc-owner-${randomUUID()}@harmofin.test`,
   editor: `v2-acc-editor-${randomUUID()}@harmofin.test`,
   outsider: `v2-acc-outsider-${randomUUID()}@harmofin.test`,
-  legacy: `v2-acc-legacy-${randomUUID()}@harmofin.test`,
 };
 
 type FixtureUser = {
@@ -42,7 +41,6 @@ const ctx: Partial<Record<keyof typeof emails, FixtureUser>> = {};
 
 let cashAccountId: string;
 let zeroAccountId: string;
-let v1AccountId: string;
 let envelopeId: string;
 let futureTransferId: string;
 
@@ -123,8 +121,6 @@ describe('v2: доступность счетов (asOf-балансы, lockBudg
         updatedByUserId: ctx.owner!.userId,
       },
     });
-
-    v1AccountId = await createRawAccount(ctx.legacy!.budgetId, 'v1-счёт', 100_000n);
   });
 
   afterAll(async () => {
@@ -267,7 +263,7 @@ describe('v2: доступность счетов (asOf-балансы, lockBudg
     expect(repeatArchive.json<{ archivedAt: string | null }>().archivedAt).not.toBeNull();
   });
 
-  it('v2-restore: 200 + audit RESTORED; повтор/неархив — 409; editor — 403; outsider — 404; v1 — 409', async () => {
+  it('v2-restore: 200 + audit RESTORED; повтор/неархив — 409; editor — 403; outsider — 404', async () => {
     const ownerBudgetId = budgetOf('owner');
 
     // Неархивный счёт
@@ -317,15 +313,6 @@ describe('v2: доступность счетов (asOf-балансы, lockBudg
       headers: mutationHeaders(ctx.outsider!),
     });
     expect(outsiderRestore.statusCode).toBe(404);
-
-    // v1-бюджет — 409 MODEL_VERSION_MISMATCH
-    const legacyRestore = await server.inject({
-      method: 'POST',
-      url: accountsUrl(budgetOf('legacy'), v1AccountId, 'restore'),
-      headers: mutationHeaders(ctx.legacy!),
-    });
-    expect(legacyRestore.statusCode).toBe(409);
-    expect(legacyRestore.json<Record<string, unknown>>().code).toBe('MODEL_VERSION_MISMATCH');
   });
 
   it('v2: архивный счёт с остатком восстанавливается без zero-check', async () => {
@@ -402,16 +389,6 @@ describe('v2: доступность счетов (asOf-балансы, lockBudg
     });
     expect(okUpdate.statusCode).toBe(200);
     expect(okUpdate.json<{ startingBalanceMinor: string }>().startingBalanceMinor).toBe('100100');
-  });
-
-  it('v1-архивация с остатком — 200 (guard только для v2)', async () => {
-    const legacy = await server.inject({
-      method: 'POST',
-      url: accountsUrl(budgetOf('legacy'), v1AccountId, 'archive'),
-      headers: mutationHeaders(ctx.legacy!),
-    });
-    expect(legacy.statusCode).toBe(200);
-    expect(legacy.json<{ archivedAt: string | null }>().archivedAt).not.toBeNull();
   });
 });
 

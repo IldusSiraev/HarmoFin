@@ -5,8 +5,8 @@ import {
   useBudgetReferenceData,
   type AccountDto,
   type CategoryDto,
-  type EnvelopeDto,
 } from './useBudgetReferenceData.js';
+import { useEnvelopePlanV2, type EnvelopePlanDto } from './useEnvelopePlanV2.js';
 
 export interface ReferenceOption {
   value: string;
@@ -19,7 +19,8 @@ const accounts = ref<ReferenceOption[]>([]);
 const accountDetails = ref<AccountDto[]>([]);
 const categories = ref<CategoryDto[]>([]);
 const envelopes = ref<ReferenceOption[]>([]);
-const envelopeDetails = ref<EnvelopeDto[]>([]);
+// Envelope Plan v2.2 records (funded/spent/balance from the server).
+const envelopePlans = ref<EnvelopePlanDto[]>([]);
 const budgetId = ref<string | null>(null);
 // Which budget the cached lists belong to: a different budget — or a different
 // signed-in user — must never read another one's reference data.
@@ -30,7 +31,7 @@ export function useOperationReferenceData(): {
   accountDetails: Ref<AccountDto[]>;
   categories: Ref<CategoryDto[]>;
   envelopes: Ref<ReferenceOption[]>;
-  envelopeDetails: Ref<EnvelopeDto[]>;
+  envelopePlans: Ref<EnvelopePlanDto[]>;
   budgetId: Ref<string | null>;
   load: () => Promise<void>;
   invalidate: () => void;
@@ -49,20 +50,20 @@ export function useOperationReferenceData(): {
     if (loadedFor === id) return;
     if (loadedFor !== null) forget();
 
-    const [accountList, categoryList, envelopeList] = await Promise.all([
+    // Envelopes come from the v2 list; accounts and categories stay on the
+    // stable v1 endpoints.
+    const [accountList, categoryList, envelopeResult] = await Promise.all([
       api.listAccounts(id, 'active'),
       api.listCategories(id, undefined, 'active'),
-      api.listEnvelopes(id, 'active'),
+      useEnvelopePlanV2().listEnvelopes(id),
     ]);
 
     accounts.value = accountList.map((account) => ({ value: account.id, label: account.name }));
     accountDetails.value = accountList;
     categories.value = categoryList;
-    envelopes.value = envelopeList.map((envelope) => ({
-      value: envelope.id,
-      label: envelope.name,
-    }));
-    envelopeDetails.value = envelopeList;
+    const plans = envelopeResult.items.filter((envelope) => envelope.archivedAt === null);
+    envelopePlans.value = plans;
+    envelopes.value = plans.map((envelope) => ({ value: envelope.id, label: envelope.name }));
     loadedFor = id;
   }
 
@@ -71,7 +72,7 @@ export function useOperationReferenceData(): {
     accountDetails.value = [];
     categories.value = [];
     envelopes.value = [];
-    envelopeDetails.value = [];
+    envelopePlans.value = [];
     loadedFor = null;
   }
 
@@ -86,7 +87,7 @@ export function useOperationReferenceData(): {
     accountDetails,
     categories,
     envelopes,
-    envelopeDetails,
+    envelopePlans,
     budgetId,
     load,
     invalidate,

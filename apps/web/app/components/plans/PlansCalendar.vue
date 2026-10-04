@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { addDays, addMonths, format, startOfMonth, subMonths } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight } from '@lucide/vue';
+import { AlertTriangle, ChevronLeft, ChevronRight, Circle } from '@lucide/vue';
 
-import { buildCalendarGrid } from './calendar-grid.js';
-import type { DayAggregate } from './day-aggregates.js';
+import type { PlansCalendarDay } from '../../composables/useEnvelopePlanV2.js';
 import { formatCompactSigned, formatMinorUnits } from '../finance/money-format.js';
+import { buildCalendarGrid } from './calendar-grid.js';
 
 defineOptions({ name: 'PlansCalendar' });
 
@@ -15,7 +15,7 @@ const props = withDefaults(
     monthAnchor: string;
     selectedDate: string;
     today: string;
-    aggregates: Record<string, DayAggregate>;
+    days: ReadonlyArray<PlansCalendarDay>;
     loading?: boolean;
   }>(),
   { loading: false },
@@ -27,106 +27,107 @@ const emit = defineEmits<{
 }>();
 
 const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+// The worker materialises occurrences up to today + 60 days; a month past that
+// would look like "no plans at all".
+const HORIZON_DAYS = 60;
 
+const root = ref<HTMLElement | null>(null);
 const grid = computed(() => buildCalendarGrid(props.monthAnchor));
-
+const dayByDate = computed(() => new Map(props.days.map((day) => [day.date, day])));
 const monthLabel = computed(() =>
   format(parsePlainDate(props.monthAnchor), 'LLLL yyyy', { locale: ru }),
 );
-
-// The worker only materialises plan occurrences up to today + 60 days
-// (apps/worker/src/plan-occurrence.handler.ts). Navigating past that horizon
-// would render an empty month that looks like "no plans at all".
-const OCCURRENCE_HORIZON_DAYS = 60;
-
-const nextMonthDisabled = computed(() => {
-  const nextMonthStart = startOfMonth(addMonths(parsePlainDate(props.monthAnchor), 1));
-  const horizon = addDays(parsePlainDate(props.today), OCCURRENCE_HORIZON_DAYS);
-  return nextMonthStart > horizon;
-});
-
-function aggregateFor(date: string): DayAggregate | undefined {
-  return props.aggregates[date];
-}
-
-function incomeAmount(date: string): string | null {
-  const aggregate = aggregateFor(date);
-  if (!aggregate || aggregate.incomeMinor === 0n) return null;
-  return formatCompactSigned(aggregate.incomeMinor.toString(), 2);
-}
-
-function expenseAmount(date: string): string | null {
-  const aggregate = aggregateFor(date);
-  if (!aggregate || aggregate.expenseMinor === 0n) return null;
-  return formatCompactSigned((-aggregate.expenseMinor).toString(), 2);
-}
-
-function dotFor(date: string): 'none' | 'upcoming' | 'overdue' {
-  return aggregateFor(date)?.dot ?? 'none';
-}
-
-function cellLabel(date: string): string {
-  const parts = [format(parsePlainDate(date), 'd MMMM yyyy, EEEE', { locale: ru })];
-
-  if (date === props.today) parts.push('сегодня');
-  if (date === props.selectedDate) parts.push('выбрано');
-
-  // The visible cell text shows compact amounts (+106к), but an aria-label
-  // overrides the accessible name computed from that text — so the label has to
-  // carry the amounts themselves, not just their direction.
-  const aggregate = aggregateFor(date);
-  if (aggregate?.incomeMinor) {
-    parts.push(`доход ${formatMinorUnits(aggregate.incomeMinor.toString(), 'RUB', 2)}`);
-  }
-  if (aggregate?.expenseMinor) {
-    parts.push(`расход ${formatMinorUnits(aggregate.expenseMinor.toString(), 'RUB', 2)}`);
-  }
-
-  const dot = dotFor(date);
-  if (dot === 'overdue') parts.push('просроченный платёж');
-  else if (dot === 'upcoming') parts.push('предстоящий платёж');
-
-  return parts.join(', ');
-}
-
-function goToPreviousMonth() {
-  emit('change-month', format(subMonths(parsePlainDate(props.monthAnchor), 1), 'yyyy-MM-dd'));
-}
-
-function goToNextMonth() {
-  emit('change-month', format(addMonths(parsePlainDate(props.monthAnchor), 1), 'yyyy-MM-dd'));
-}
+const nextMonthDisabled = computed(
+  () =>
+    startOfMonth(addMonths(parsePlainDate(props.monthAnchor), 1)) >
+    addDays(parsePlainDate(props.today), HORIZON_DAYS),
+);
+// The selected day, or the first day of the month, is the single tab stop.
+const tabStop = computed(() =>
+  grid.value.some((cell) => cell.inCurrentMonth && cell.date === props.selectedDate)
+    ? props.selectedDate
+    : (grid.value.find((cell) => cell.inCurrentMonth)?.date ?? ''),
+);
 
 function parsePlainDate(value: string): Date {
   const [year, month, day] = value.split('-').map(Number);
   return new Date(year as number, (month as number) - 1, day as number);
 }
+
+function incomeText(date: string): string | null {
+  const day = dayByDate.value.get(date);
+  return day && day.incomeMinor !== '0' ? formatCompactSigned(day.incomeMinor, 2) : null;
+}
+
+function expenseText(date: string): string | null {
+  const day = dayByDate.value.get(date);
+  return day && day.expenseMinor !== '0' ? formatCompactSigned(`-${day.expenseMinor}`, 2) : null;
+}
+
+function cellLabel(date: string): string {
+  const parts = [format(parsePlainDate(date), 'd MMMM yyyy, EEEE', { locale: ru })];
+  if (date === props.today) parts.push('сегодня');
+  const day = dayByDate.value.get(date);
+  // The visible text is compact (+43к); an aria-label replaces it, so carry the amounts.
+  if (day && day.incomeMinor !== '0')
+    parts.push(`доход ${formatMinorUnits(day.incomeMinor, 'RUB', 2)}`);
+  if (day && day.expenseMinor !== '0')
+    parts.push(`расход ${formatMinorUnits(day.expenseMinor, 'RUB', 2)}`);
+  if (day?.dot === 'overdue') parts.push('просроченный платёж');
+  else if (day?.dot === 'upcoming') parts.push('предстоящий платёж');
+  return parts.join(', ');
+}
+
+function monthAnchorOf(delta: 1 | -1): string {
+  const base = parsePlainDate(props.monthAnchor);
+  return format(delta === 1 ? addMonths(base, 1) : subMonths(base, 1), 'yyyy-MM-dd');
+}
+
+const KEY_STEPS: Record<string, number> = {
+  ArrowLeft: -1,
+  ArrowRight: 1,
+  ArrowUp: -7,
+  ArrowDown: 7,
+};
+
+function handleKeydown(event: KeyboardEvent, date: string): void {
+  const step = KEY_STEPS[event.key];
+  if (step === undefined) return;
+  event.preventDefault();
+  const target = format(addDays(parsePlainDate(date), step), 'yyyy-MM-dd');
+  const inMonth = grid.value.some((cell) => cell.inCurrentMonth && cell.date === target);
+  if (!inMonth) return;
+  emit('select-day', target);
+  void nextTick(() =>
+    root.value?.querySelector<HTMLElement>(`[data-testid="calendar-day-${target}"]`)?.focus(),
+  );
+}
 </script>
 
 <template>
-  <div class="plans-calendar">
+  <div ref="root" class="plans-calendar">
     <div class="plans-calendar__header">
       <button
         type="button"
-        data-action="calendar-prev-month"
         class="plans-calendar__nav"
+        data-testid="calendar-prev-month"
         aria-label="Предыдущий месяц"
-        @click="goToPreviousMonth"
+        @click="emit('change-month', monthAnchorOf(-1))"
       >
         <ChevronLeft :size="20" aria-hidden="true" />
       </button>
-      <p class="plans-calendar__month">{{ monthLabel }}</p>
+      <p class="plans-calendar__month" aria-live="polite">{{ monthLabel }}</p>
       <button
         type="button"
-        data-action="calendar-next-month"
         class="plans-calendar__nav"
+        data-testid="calendar-next-month"
         :aria-label="
           nextMonthDisabled
             ? 'Следующий месяц недоступен: планы рассчитаны на 60 дней вперёд'
             : 'Следующий месяц'
         "
         :disabled="nextMonthDisabled"
-        @click="goToNextMonth"
+        @click="emit('change-month', monthAnchorOf(1))"
       >
         <ChevronRight :size="20" aria-hidden="true" />
       </button>
@@ -136,58 +137,72 @@ function parsePlainDate(value: string): Date {
       <span v-for="label in WEEKDAY_LABELS" :key="label">{{ label }}</span>
     </div>
 
-    <div class="plans-calendar__grid" :aria-busy="loading">
+    <div
+      class="plans-calendar__grid"
+      data-testid="calendar-grid"
+      role="group"
+      aria-label="Дни месяца"
+      :aria-busy="loading"
+    >
       <button
         v-for="cell in grid"
         :key="cell.date"
         type="button"
-        data-testid="calendar-cell"
-        :data-date="cell.date"
-        :data-in-month="cell.inCurrentMonth"
         class="plans-calendar__cell"
         :class="{
-          'plans-calendar__cell--muted': !cell.inCurrentMonth,
+          'plans-calendar__cell--outside': !cell.inCurrentMonth,
           'plans-calendar__cell--today': cell.date === today,
           'plans-calendar__cell--selected': cell.date === selectedDate,
         }"
-        :aria-label="cellLabel(cell.date)"
+        :data-testid="`calendar-day-${cell.date}`"
+        :disabled="!cell.inCurrentMonth"
+        :tabindex="cell.date === tabStop ? 0 : -1"
+        :aria-label="cell.inCurrentMonth ? cellLabel(cell.date) : undefined"
+        :aria-pressed="cell.inCurrentMonth ? cell.date === selectedDate : undefined"
         @click="emit('select-day', cell.date)"
+        @keydown="handleKeydown($event, cell.date)"
       >
-        <span class="plans-calendar__day-number">{{ Number(cell.date.slice(-2)) }}</span>
-        <span
-          v-if="incomeAmount(cell.date)"
-          class="plans-calendar__amount plans-calendar__amount--income"
-        >
-          {{ incomeAmount(cell.date) }}
-        </span>
-        <span
-          v-if="expenseAmount(cell.date)"
-          class="plans-calendar__amount plans-calendar__amount--expense"
-        >
-          {{ expenseAmount(cell.date) }}
-        </span>
-        <span
-          v-if="dotFor(cell.date) !== 'none'"
-          class="plans-calendar__dot"
-          :class="`plans-calendar__dot--${dotFor(cell.date)}`"
-          aria-hidden="true"
-        />
+        <span class="plans-calendar__num">{{ Number(cell.date.slice(8)) }}</span>
+        <template v-if="cell.inCurrentMonth">
+          <span
+            v-if="incomeText(cell.date)"
+            class="plans-calendar__amount plans-calendar__amount--income"
+          >
+            {{ incomeText(cell.date) }}
+          </span>
+          <span
+            v-if="incomeText(cell.date)"
+            class="plans-calendar__sign plans-calendar__sign--income"
+            aria-hidden="true"
+          >
+            {{ '+' }}
+          </span>
+          <span
+            v-if="expenseText(cell.date)"
+            class="plans-calendar__amount plans-calendar__amount--expense"
+          >
+            {{ expenseText(cell.date) }}
+          </span>
+          <span
+            v-if="expenseText(cell.date)"
+            class="plans-calendar__sign plans-calendar__sign--expense"
+            aria-hidden="true"
+          >
+            {{ '−' }}
+          </span>
+          <span
+            v-if="dayByDate.get(cell.date)?.dot"
+            class="plans-calendar__marker"
+            :class="`plans-calendar__marker--${dayByDate.get(cell.date)?.dot}`"
+            :data-testid="`calendar-dot-${cell.date}`"
+            :data-dot="dayByDate.get(cell.date)?.dot"
+            aria-hidden="true"
+          >
+            <AlertTriangle v-if="dayByDate.get(cell.date)?.dot === 'overdue'" :size="12" />
+            <Circle v-else :size="8" fill="currentColor" />
+          </span>
+        </template>
       </button>
-    </div>
-
-    <div class="plans-calendar__legend">
-      <span class="plans-calendar__legend-item">
-        <span class="plans-calendar__dot plans-calendar__dot--legend-income" aria-hidden="true" />
-        Доход
-      </span>
-      <span class="plans-calendar__legend-item">
-        <span class="plans-calendar__dot plans-calendar__dot--legend-expense" aria-hidden="true" />
-        Расход
-      </span>
-      <span class="plans-calendar__legend-item">
-        <span class="plans-calendar__dot plans-calendar__dot--upcoming" aria-hidden="true" />
-        Планы
-      </span>
     </div>
   </div>
 </template>
@@ -195,11 +210,12 @@ function parsePlainDate(value: string): Date {
 <style scoped>
 .plans-calendar {
   display: grid;
-  gap: var(--hf-space-3);
-  padding: var(--hf-card-padding);
-  border-radius: var(--hf-card-radius);
+  gap: var(--hf-space-2);
+  padding: var(--hf-space-4);
+  border: 1px solid var(--hf-color-border);
+  border-radius: var(--hf-radius-lg);
   background: var(--hf-color-surface);
-  box-shadow: var(--hf-shadow-card);
+  box-shadow: var(--hf-shadow-sm);
 }
 .plans-calendar__header {
   display: flex;
@@ -212,23 +228,25 @@ function parsePlainDate(value: string): Date {
   text-transform: capitalize;
 }
 .plans-calendar__nav {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
   width: 2.75rem;
   height: 2.75rem;
-  border: 0;
+  border: none;
   border-radius: var(--hf-radius-md);
   background: transparent;
-  color: var(--hf-color-text-muted);
+  color: var(--hf-color-text);
   cursor: pointer;
 }
-.plans-calendar__nav:hover {
-  background: var(--hf-color-action-secondary-hover);
-}
 .plans-calendar__nav:disabled {
-  opacity: 0.5;
+  color: var(--hf-color-text-muted);
   cursor: not-allowed;
+}
+.plans-calendar__nav:focus-visible,
+.plans-calendar__cell:focus-visible {
+  outline: 2px solid var(--hf-color-action-primary);
+  outline-offset: 2px;
 }
 .plans-calendar__weekdays,
 .plans-calendar__grid {
@@ -236,102 +254,84 @@ function parsePlainDate(value: string): Date {
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: var(--hf-space-1);
 }
-.plans-calendar__grid[aria-busy='true'] {
-  opacity: 0.6;
-  pointer-events: none;
+/* Every row has the same fixed height, so a cell with amounts and a marker is no taller than an empty one. */
+.plans-calendar__grid {
+  grid-auto-rows: 5.25rem;
 }
-.plans-calendar__weekdays span {
+.plans-calendar__weekdays {
   color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-caption);
+  font-size: var(--hf-font-size-small);
   text-align: center;
 }
 .plans-calendar__cell {
   display: grid;
   align-content: start;
-  gap: 0.125rem;
   justify-items: center;
-  min-height: 3.75rem;
+  gap: 2px;
+  min-width: 0;
+  height: 100%;
+  min-height: 2.75rem;
   padding: var(--hf-space-1);
-  border: 1px solid var(--hf-color-border);
+  border: 2px solid transparent;
   border-radius: var(--hf-radius-md);
-  background: var(--hf-color-surface);
+  background: transparent;
+  color: var(--hf-color-text);
+  font: inherit;
   cursor: pointer;
 }
-.plans-calendar__cell:hover {
-  background: var(--hf-color-action-secondary-hover);
+.plans-calendar__cell:disabled {
+  cursor: default;
+  opacity: 0.35;
 }
-.plans-calendar__cell:focus-visible {
-  outline: 2px solid var(--hf-color-action-primary);
-  outline-offset: -2px;
-}
-.plans-calendar__cell--muted {
-  color: var(--hf-color-text-subtle);
-  background: var(--hf-color-surface-subtle);
-}
-.plans-calendar__cell--today .plans-calendar__day-number {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 50%;
-  background: var(--hf-color-brand);
-  color: var(--hf-color-white);
+.plans-calendar__cell--today .plans-calendar__num {
+  font-weight: var(--hf-font-weight-semibold);
+  text-decoration: underline;
 }
 .plans-calendar__cell--selected {
-  border-color: var(--hf-color-text);
-}
-.plans-calendar__day-number {
-  font-size: var(--hf-font-size-caption);
+  border: 2px solid var(--hf-color-action-primary);
+  background: var(--hf-color-surface-subtle);
 }
 .plans-calendar__amount {
-  font-size: 0.625rem;
-  font-weight: var(--hf-font-weight-semibold);
+  max-width: 100%;
+  font-size: var(--hf-font-size-small);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* Contrast: the success colour is below 4.5:1 as text; the "+" sign carries the meaning. */
 .plans-calendar__amount--income {
-  color: var(--hf-color-status-success);
+  color: var(--hf-color-text);
+}
+.plans-calendar__sign {
+  display: none;
+  font-size: 0.75rem;
+  font-weight: var(--hf-font-weight-semibold);
+  line-height: 1;
+}
+.plans-calendar__sign--income {
+  color: var(--hf-color-text);
+}
+.plans-calendar__sign--expense {
+  color: var(--hf-color-status-danger);
 }
 .plans-calendar__amount--expense {
   color: var(--hf-color-status-danger);
 }
-.plans-calendar__dot {
-  width: 0.375rem;
-  height: 0.375rem;
-  border-radius: 50%;
+.plans-calendar__marker--overdue {
+  color: var(--hf-color-text-danger);
 }
-.plans-calendar__dot--upcoming,
-.plans-calendar__dot--legend-income {
-  background: var(--hf-color-brand);
+.plans-calendar__marker--upcoming {
+  color: var(--hf-color-status-info);
 }
-.plans-calendar__dot--overdue,
-.plans-calendar__dot--legend-expense {
-  background: var(--hf-color-status-danger);
-}
-.plans-calendar__dot--legend-income {
-  background: var(--hf-color-status-success);
-}
-.plans-calendar__legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--hf-space-4);
-  color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-caption);
-}
-.plans-calendar__legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--hf-space-1);
-}
-@media (max-width: 47.9375rem) {
-  .plans-calendar__cell {
-    min-height: 3.25rem;
+@media (max-width: 30rem) {
+  .plans-calendar__grid {
+    grid-auto-rows: 4.5rem;
   }
-  .plans-calendar__day-number {
-    font-size: 0.625rem;
-  }
+  /* On a phone the cell is narrow: show a sign glyph instead of amounts; the aria-label and the day panel carry the values. */
   .plans-calendar__amount {
-    font-size: 0.5625rem;
+    display: none;
+  }
+  .plans-calendar__sign {
+    display: inline;
   }
 }
 </style>

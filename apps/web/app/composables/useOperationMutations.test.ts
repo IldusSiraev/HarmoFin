@@ -1,126 +1,171 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const api = {
-  confirmTransaction: vi.fn(),
-  cancelTransaction: vi.fn(),
   deleteTransaction: vi.fn(),
   restoreTransaction: vi.fn(),
-  deleteTransactionWithAllocations: vi.fn(),
 };
 
-vi.mock('./useBudgetReferenceData.js', async (importOriginal) => ({
+vi.mock('./useEnvelopePlanV2.js', async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  useBudgetReferenceData: () => api,
+  useEnvelopePlanV2: () => api,
 }));
 
 import { ApiRequestError } from './useApiClient.js';
-import { useOperationMutations } from './useOperationMutations.js';
+import type { TransactionJournalV2Item } from './useEnvelopePlanV2.js';
+import { canEditTransaction, useOperationMutations } from './useOperationMutations.js';
 import { useToast } from './useToast.js';
-import type { TransactionDto } from './useBudgetReferenceData.js';
 
-const transaction = { id: 'transaction-id', status: 'DRAFT' } as unknown as TransactionDto;
+const transaction = {
+  id: 'transaction-id',
+  status: 'CONFIRMED',
+  accountingModelVersion: 2,
+  transactionType: 'EXPENSE',
+} as unknown as TransactionJournalV2Item;
+
+const lifecycle = (status: string, warnings: Array<{ code: string; detail: string }> = []) => ({
+  id: 'transaction-id',
+  status,
+  warnings,
+  occurrences: [],
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
   useToast().clear();
 });
 
-describe('useOperationMutations', () => {
-  it('confirms an operation and announces it', async () => {
-    api.confirmTransaction.mockResolvedValue({ ...transaction, status: 'CONFIRMED' });
-    const { confirm } = useOperationMutations();
-
-    const result = await confirm('budget-id', transaction);
-
-    expect(api.confirmTransaction).toHaveBeenCalledWith(
-      'budget-id',
-      'transaction-id',
-      expect.any(String),
-    );
-    expect(result?.status).toBe('CONFIRMED');
-    expect(useToast().toasts.value.at(-1)?.title).toBe('Операция подтверждена');
-  });
-
-  it('reuses one idempotency key while the same action keeps failing', async () => {
-    api.confirmTransaction.mockRejectedValue(new Error('network'));
-    const { confirm } = useOperationMutations();
-
-    await confirm('budget-id', transaction);
-    await confirm('budget-id', transaction);
-
-    const firstKey = api.confirmTransaction.mock.calls[0]?.[2];
-    const secondKey = api.confirmTransaction.mock.calls[1]?.[2];
-    expect(firstKey).toBe(secondKey);
-  });
-
-  it('takes a fresh key for the next action after a success', async () => {
-    api.confirmTransaction.mockResolvedValue(transaction);
-    const { confirm } = useOperationMutations();
-
-    await confirm('budget-id', transaction);
-    await confirm('budget-id', transaction);
-
-    expect(api.confirmTransaction.mock.calls[0]?.[2]).not.toBe(
-      api.confirmTransaction.mock.calls[1]?.[2],
-    );
-  });
-
-  it('announces a failure instead of throwing', async () => {
-    api.deleteTransaction.mockRejectedValue(new Error('network'));
+describe('useOperationMutations (v2)', () => {
+  it('deletes through the v2 client with one key and announces it', async () => {
+    api.deleteTransaction.mockResolvedValue(lifecycle('DELETED'));
     const { remove } = useOperationMutations();
 
     const result = await remove('budget-id', transaction);
 
-    expect(result).toBeNull();
-    expect(useToast().toasts.value.at(-1)?.tone).toBe('error');
-    expect(useToast().toasts.value.at(-1)?.title).toBe('Не удалось удалить операцию');
+    expect(api.deleteTransaction).toHaveBeenCalledWith(
+      'budget-id',
+      'transaction-id',
+      expect.any(String),
+    );
+    expect(result?.status).toBe('DELETED');
+    expect(useToast().toasts.value.at(-1)?.title).toBe('Операция удалена');
   });
 
-  it('keeps the rejection so a caller can act on the server code', async () => {
-    const failure = new Error('network');
-    api.deleteTransaction.mockRejectedValue(failure);
-    const { remove, lastError } = useOperationMutations();
+  it('restores through the v2 client', async () => {
+    api.restoreTransaction.mockResolvedValue(lifecycle('CONFIRMED'));
+    const { restore } = useOperationMutations();
+
+    await restore('budget-id', { ...transaction, status: 'DELETED' });
+
+    expect(api.restoreTransaction).toHaveBeenCalledWith(
+      'budget-id',
+      'transaction-id',
+      expect.any(String),
+    );
+    expect(useToast().toasts.value.at(-1)?.title).toBe('Операция восстановлена');
+  });
+
+  it('shows server warnings next to the success message', async () => {
+    api.restoreTransaction.mockResolvedValue(
+      lifecycle('CONFIRMED', [
+        { code: 'ENVELOPE_BALANCE_INSUFFICIENT', detail: 'Конверт в минусе.' },
+      ]),
+    );
+    const { restore } = useOperationMutations();
+
+    await restore('budget-id', transaction);
+
+    expect(useToast().toasts.value.at(-1)?.description).toBe('Конверт в минусе.');
+  });
+
+  it('reuses one key while the same action keeps failing, then takes a fresh one', async () => {
+    api.deleteTransaction.mockRejectedValueOnce(new Error('network'));
+    api.deleteTransaction.mockRejectedValueOnce(new Error('network'));
+    api.deleteTransaction.mockResolvedValueOnce(lifecycle('DELETED'));
+    api.deleteTransaction.mockResolvedValueOnce(lifecycle('DELETED'));
+    const { remove } = useOperationMutations();
 
     await remove('budget-id', transaction);
+    await remove('budget-id', transaction);
+    await remove('budget-id', transaction);
+    await remove('budget-id', transaction);
 
-    expect(lastError.value).toBe(failure);
+    const keys = api.deleteTransaction.mock.calls.map((call) => call[2]);
+    expect(keys[0]).toBe(keys[1]);
+    expect(keys[1]).toBe(keys[2]);
+    expect(keys[3]).not.toBe(keys[2]);
   });
 
-  it('leaves an income with allocations to the caller instead of announcing a failure', async () => {
+  it('ignores a second call while the first one is in flight', async () => {
+    let finish: (value: unknown) => void = () => undefined;
+    api.deleteTransaction.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    const { remove } = useOperationMutations();
+
+    const first = remove('budget-id', transaction);
+    const second = await remove('budget-id', transaction);
+    finish(lifecycle('DELETED'));
+    await first;
+
+    expect(second).toBeNull();
+    expect(api.deleteTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('announces a failure in Russian instead of throwing and keeps the rejection', async () => {
     const failure = new ApiRequestError(409, {
-      code: 'INCOME_HAS_CONFIRMED_ALLOCATIONS',
-      detail: 'У дохода есть подтверждённые распределения.',
+      code: 'TRANSACTION_NOT_EDITABLE',
+      detail: 'technical',
     });
     api.deleteTransaction.mockRejectedValue(failure);
     const { remove, lastError } = useOperationMutations();
 
     const result = await remove('budget-id', transaction);
 
+    const toast = useToast().toasts.value.at(-1);
     expect(result).toBeNull();
     expect(lastError.value).toBe(failure);
-    expect(useToast().toasts.value).toHaveLength(0);
+    expect(toast?.tone).toBe('error');
+    expect(toast?.title).toBe('Не удалось удалить операцию');
+    expect(toast?.description).toContain('нельзя изменить');
+    expect(toast?.description).not.toContain('technical');
   });
 
-  it('resolves an income deletion with its allocations', async () => {
-    api.deleteTransactionWithAllocations.mockResolvedValue({ ...transaction, status: 'DELETED' });
-    const { removeWithAllocations } = useOperationMutations();
+  it('words an income blocked by assignments for this screen, not for funding', async () => {
+    api.deleteTransaction.mockRejectedValue(
+      new ApiRequestError(409, { code: 'SOURCE_EXHAUSTED', detail: 'technical' }),
+    );
+    const { remove } = useOperationMutations();
 
-    await removeWithAllocations('budget-id', transaction, 'CANCEL');
+    await remove('budget-id', { ...transaction, transactionType: 'INCOME' });
 
-    expect(api.deleteTransactionWithAllocations).toHaveBeenCalledWith(
-      'budget-id',
-      'transaction-id',
-      { allocationResolution: 'CANCEL' },
-      expect.any(String),
+    expect(useToast().toasts.value.at(-1)?.description).toContain(
+      'На этот доход назначены средства',
     );
   });
 
-  it('offers only the actions the status allows', () => {
+  it('words a missing operation for the journal', async () => {
+    api.deleteTransaction.mockRejectedValue(
+      new ApiRequestError(404, { code: 'RESOURCE_NOT_FOUND', detail: 'technical' }),
+    );
+    const { remove } = useOperationMutations();
+
+    await remove('budget-id', transaction);
+
+    expect(useToast().toasts.value.at(-1)?.description).toBe(
+      'Операция не найдена. Обновите журнал.',
+    );
+  });
+
+  it('offers only the actions the row allows', () => {
     const { availableActions } = useOperationMutations();
 
-    expect(availableActions('DRAFT')).toEqual(['confirm', 'cancel', 'delete']);
-    expect(availableActions('CONFIRMED')).toEqual(['delete']);
-    expect(availableActions('CANCELLED')).toEqual(['delete']);
-    expect(availableActions('DELETED')).toEqual(['restore']);
+    expect(availableActions(transaction)).toEqual(['delete']);
+    expect(availableActions({ ...transaction, status: 'DRAFT' })).toEqual(['delete']);
+    expect(availableActions({ ...transaction, status: 'DELETED' })).toEqual(['restore']);
+  });
+
+  it('allows editing only drafts and confirmed operations', () => {
+    expect(canEditTransaction(transaction)).toBe(true);
+    expect(canEditTransaction({ ...transaction, status: 'DRAFT' })).toBe(true);
+    expect(canEditTransaction({ ...transaction, status: 'CANCELLED' })).toBe(false);
+    expect(canEditTransaction({ ...transaction, status: 'DELETED' })).toBe(false);
   });
 });

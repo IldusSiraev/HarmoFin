@@ -75,7 +75,7 @@ describe('internal notifications', () => {
     await prisma.$disconnect();
   });
 
-  it('creates each plan notification once and materializes financial warnings', async () => {
+  it('creates each due and overdue notification once and no old financial rules', async () => {
     const handler = new NotificationRuleHandler(prisma);
     const now = new Date(`${today}T12:00:00.000Z`);
 
@@ -86,92 +86,14 @@ describe('internal notifications', () => {
       where: { budgetId: owner.budgetId, userId: owner.userId },
       select: { notificationType: true, occurrenceId: true, title: true },
     });
-    expect(notifications).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ notificationType: 'PLAN_UPCOMING' }),
-        expect.objectContaining({
-          notificationType: 'PLAN_TODAY',
-          occurrenceId: todayOccurrenceId,
-        }),
-        expect.objectContaining({ notificationType: 'PLAN_OVERDUE' }),
-        expect.objectContaining({ notificationType: 'UNALLOCATED_INCOME' }),
-        expect.objectContaining({ notificationType: 'NEGATIVE_ACCOUNT' }),
-        expect.objectContaining({ notificationType: 'NEGATIVE_ENVELOPE' }),
-        expect.objectContaining({ notificationType: 'INSUFFICIENT_MANDATORY_OBLIGATIONS' }),
-      ]),
+    expect(notifications.map((item) => item.notificationType).sort()).toEqual([
+      'PLAN_OVERDUE',
+      'PLAN_TODAY',
+    ]);
+    expect(notifications.find((item) => item.notificationType === 'PLAN_TODAY')?.occurrenceId).toBe(
+      todayOccurrenceId,
     );
-    expect(notifications.filter((item) => item.notificationType === 'PLAN_TODAY')).toHaveLength(1);
     expect(notifications.every((item) => /[А-Яа-яЁё]/u.test(item.title))).toBe(true);
-  });
-
-  it('resolves and opens a new negative-account warning episode', async () => {
-    const handler = new NotificationRuleHandler(prisma);
-    await prisma.account.update({ where: { id: accountId }, data: { startingBalanceMinor: 0n } });
-    await handler.execute(new Date(`${today}T12:05:00.000Z`), owner.budgetId);
-    await prisma.account.update({
-      where: { id: accountId },
-      data: { startingBalanceMinor: -501n },
-    });
-    await handler.execute(new Date(`${today}T12:10:00.000Z`), owner.budgetId);
-
-    const episodes = await prisma.notification.findMany({
-      where: {
-        budgetId: owner.budgetId,
-        notificationType: 'NEGATIVE_ACCOUNT',
-        relatedEntityId: accountId,
-      },
-      select: { resolvedAt: true },
-      orderBy: { createdAt: 'asc' },
-    });
-    expect(episodes).toHaveLength(2);
-    expect(episodes[0]?.resolvedAt).not.toBeNull();
-    expect(episodes[1]?.resolvedAt).toBeNull();
-  });
-
-  it('ignores draft and cancelled income when checking unallocated income', async () => {
-    await prisma.incomeAllocation.create({
-      data: {
-        id: randomUUID(),
-        budgetId: owner.budgetId,
-        incomeTransactionId,
-        amountMinor: 500n,
-        occurredOn: new Date(`${today}T00:00:00.000Z`),
-        accountId,
-        envelopeId,
-        createdByUserId: owner.userId,
-        updatedByUserId: owner.userId,
-      },
-    });
-    await prisma.transaction.createMany({
-      data: ['DRAFT', 'CANCELLED'].map((status) => ({
-        id: randomUUID(),
-        budgetId: owner.budgetId,
-        transactionType: 'INCOME' as const,
-        status: status as 'DRAFT' | 'CANCELLED',
-        amountMinor: 10_000n,
-        occurredOn: new Date(`${today}T00:00:00.000Z`),
-        accountId,
-        categoryId: incomeCategoryId,
-        ...(status === 'CANCELLED' ? { cancelledAt: new Date() } : {}),
-        createdByUserId: owner.userId,
-        updatedByUserId: owner.userId,
-      })),
-    });
-
-    await new NotificationRuleHandler(prisma).execute(
-      new Date(`${today}T12:15:00.000Z`),
-      owner.budgetId,
-    );
-
-    expect(
-      await prisma.notification.findFirst({
-        where: {
-          budgetId: owner.budgetId,
-          notificationType: 'UNALLOCATED_INCOME',
-          resolvedAt: null,
-        },
-      }),
-    ).toBeNull();
   });
 
   it('lists unread notifications before read notifications', async () => {

@@ -37,5 +37,7 @@ describe('GoalProgressReport', () => {
     expect(wrapper.text()).toContain('250,00');
     expect(wrapper.text()).toContain('Просрочено');
     expect(wrapper.text()).toContain('2');
+    expect(wrapper.text()).toContain('Назначено');
+    expect(wrapper.find('a').exists()).toBe(false);
   });
 });

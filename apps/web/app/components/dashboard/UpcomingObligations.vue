@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { DashboardSummaryDto } from '../../composables/useBudgetReferenceData.js';
+import type { DashboardV2Response } from '../../composables/useEnvelopePlanV2.js';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiMoreLink from '../ui/MoreLink.vue';
 
 defineProps<{
-  items: DashboardSummaryDto['upcomingObligations'];
+  items: DashboardV2Response['nearestObligations'];
 }>();
 
 const dateFormatter = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
@@ -18,16 +18,22 @@ function formatScheduledOn(iso: string): string {
 
 <template>
   <section class="upcoming-obligations" aria-labelledby="upcoming-obligations-title">
-    <h2 id="upcoming-obligations-title" class="upcoming-obligations__title">Обязательства</h2>
+    <header class="upcoming-obligations__header">
+      <h2 id="upcoming-obligations-title" class="upcoming-obligations__title">Обязательства</h2>
+      <UiMoreLink to="/app/plans" aria-label="Все: Обязательства">Все</UiMoreLink>
+    </header>
     <p v-if="items.length === 0" class="upcoming-obligations__empty">Ближайших обязательств нет.</p>
     <ul v-else>
       <li v-for="item in items" :key="item.occurrenceId">
         <p class="upcoming-obligations__date">{{ formatScheduledOn(item.scheduledOn) }}</p>
         <div class="upcoming-obligations__row">
-          <span class="upcoming-obligations__name">{{ item.planName }}</span>
-          <FinanceMoney :minor-units="item.amountMinor" currency="RUB" :scale="2" />
+          <span class="upcoming-obligations__name" :title="item.name">{{ item.name }}</span>
+          <FinanceMoney :minor-units="item.unpaidMinor" currency="RUB" :scale="2" />
         </div>
-        <UiMoreLink class="upcoming-obligations__link" :to="item.actionPath"
+        <UiMoreLink
+          class="upcoming-obligations__link"
+          :to="`/app/plans?occurrence=${item.occurrenceId}`"
+          :aria-label="`Открыть план: ${item.name}, ${formatScheduledOn(item.scheduledOn)}`"
           >Открыть план</UiMoreLink
         >
       </li>
@@ -50,6 +56,12 @@ function formatScheduledOn(iso: string): string {
 .upcoming-obligations p,
 .upcoming-obligations ul {
   margin: 0;
+}
+.upcoming-obligations__header {
+  display: flex;
+  gap: var(--hf-space-3);
+  align-items: center;
+  justify-content: space-between;
 }
 .upcoming-obligations__title {
   color: var(--hf-color-text-muted);
@@ -90,5 +102,6 @@ function formatScheduledOn(iso: string): string {
 }
 .upcoming-obligations__link {
   justify-self: start;
+  min-height: 2.75rem;
 }
 </style>

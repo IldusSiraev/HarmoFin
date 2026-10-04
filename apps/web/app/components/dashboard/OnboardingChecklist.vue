@@ -1,120 +1,250 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { CircleCheck, Circle, ChevronDown, ChevronUp } from '@lucide/vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { AlertTriangle, CircleCheck, Circle, ChevronDown, ChevronUp } from '@lucide/vue';
 
+import FinanceMoney from '../finance/FinanceMoney.vue';
+import TemplatePreviewSheet from '../funding/TemplatePreviewSheet.vue';
 import UiButton from '../ui/Button.vue';
 import UiStatus from '../ui/Status.vue';
-import type {
-  DashboardSummaryDto,
-  ReferenceTemplateResult,
-} from '../../composables/useBudgetReferenceData.js';
+import {
+  useEnvelopePlanV2,
+  type DashboardV2Response,
+} from '../../composables/useEnvelopePlanV2.js';
+import { useFundingEntry } from '../../composables/useFundingEntry.js';
+import { v2ErrorMessage } from '../../composables/useV2Error.js';
 
 defineOptions({ name: 'OnboardingChecklist' });
 
 const STORAGE_KEY = 'harmofin-onboarding-collapsed';
 
-type OnboardingStatus = DashboardSummaryDto['onboarding'];
+type V2Onboarding = DashboardV2Response['onboarding'];
 
 const props = defineProps<{
   budgetId: string;
-  onboarding: OnboardingStatus;
-  initializeTemplate: (budgetId: string) => Promise<ReferenceTemplateResult>;
 }>();
 
+// `targetDecided`: the period plan was confirmed or rejected here, the page
+// rereads its dashboard. `hostsTarget`: this checklist currently shows the
+// plan decision, so the period card must not repeat it.
 const emit = defineEmits<{
   templateInitialized: [];
+  targetDecided: [];
+  hostsTarget: [hosts: boolean];
 }>();
 
-type StepKey = keyof OnboardingStatus;
+type StepAction = 'template' | 'assign' | 'target' | 'link';
 
 type Step = {
-  key: StepKey;
+  key: string;
   title: string;
   description: string;
   href: string;
   linkLabel: string;
+  action: StepAction;
+  done: boolean;
 };
 
-const steps: Step[] = [
-  {
-    key: 'categoriesSeeded',
-    title: 'Базовые категории и конверты',
-    description:
-      'Создайте набор стандартных категорий и конвертов одним нажатием — их можно будет изменить позже.',
-    href: '/app/settings',
-    linkLabel: 'Перейти',
-  },
-  {
-    key: 'cycleConfigured',
-    title: 'Финансовый цикл',
-    description:
-      'Финансовый месяц не обязан начинаться 1-го числа — настройте день, который соответствует вашему графику доходов.',
-    href: '/app/settings',
-    linkLabel: 'Перейти',
-  },
-  {
-    key: 'hasAccounts',
-    title: 'Счета',
-    description: 'Добавьте счета, на которых реально лежат деньги, с их текущим остатком.',
-    href: '/app/accounts',
-    linkLabel: 'Перейти',
-  },
-  {
-    key: 'hasEnvelopeStartingBalances',
-    title: 'Начальные остатки конвертов',
-    description:
-      'Разнесите деньги со счетов по конвертам — так будет видно, что уже распределено, а что нет.',
+const funding = useFundingEntry();
+
+// Progress comes from the server's dashboard onboarding block.
+const v2Status = ref<V2Onboarding | null>(null);
+// The draft period plan proposed by the template; the server owns the amount.
+const proposal = ref<{ amountMinor: string; periodId: string } | null>(null);
+const v2 = useEnvelopePlanV2();
+
+async function loadV2Status(): Promise<void> {
+  try {
+    const dashboard = await v2.getDashboard(props.budgetId);
+    v2Status.value = dashboard.onboarding;
+    const periodId = dashboard.period?.periodId ?? null;
+    proposal.value =
+      dashboard.suggestedTarget != null && periodId !== null
+        ? { amountMinor: dashboard.suggestedTarget, periodId }
+        : null;
+  } catch {
+    // Keep the last known status; the dashboard itself reports load errors.
+  }
+}
+
+const CYCLE_NOTE = 'Цикл уже задан в шаблоне; изменить его можно в Настройках.';
+
+function periodStep(status: V2Onboarding): Step {
+  const done = !status.needsPeriodSetup;
+  if (proposal.value && !done) {
+    return {
+      key: 'periodSetup',
+      title: 'Подтвердите план периода',
+      description: `Шаблон предложил сумму на обычные траты периода. Пока вы её не подтвердите, «Можно потратить» не считается. «Отклонить» — задать лимит самостоятельно. ${CYCLE_NOTE}`,
+      href: '/app/envelopes',
+      linkLabel: 'Перейти',
+      action: 'target',
+      done,
+    };
+  }
+  if (done) {
+    return {
+      key: 'periodSetup',
+      title: 'Лимит на текущий период',
+      description:
+        status.needsOpeningAssignment || !status.hasAccounts
+          ? 'План периода подтверждён. Деньги появятся в нём, когда вы назначите их конвертам: это шаг «Назначить имеющиеся деньги».'
+          : 'План периода подтверждён.',
+      href: '/app/envelopes',
+      linkLabel: 'Открыть конверты',
+      action: 'link',
+      done,
+    };
+  }
+  return {
+    key: 'periodSetup',
+    title: 'Лимит на текущий период',
+    description: `Укажите, сколько планируете тратить на обычные траты в этом периоде. ${CYCLE_NOTE}`,
     href: '/app/envelopes',
-    linkLabel: 'Перейти',
-  },
-  {
-    key: 'hasAllocatedIncome',
-    title: 'Первый доход и распределение',
-    description:
-      'Добавьте операцию дохода и распределите её по конвертам — это включит расчёт доступного лимита периода.',
-    href: '/app/operations',
-    linkLabel: 'Перейти',
-  },
-];
+    linkLabel: 'Задать лимит',
+    action: 'link',
+    done,
+  };
+}
+
+const steps = computed<Step[]>(() => {
+  const status = v2Status.value;
+  if (!status) return [];
+  return [
+    {
+      key: 'categoriesSeeded',
+      title: 'Базовые категории и конверты',
+      description:
+        'Посмотрите, что создастся, и подтвердите. Целевые суммы и накопления необязательны.',
+      href: '/app/settings',
+      linkLabel: 'Перейти',
+      action: 'template',
+      done: status.categoriesSeeded,
+    },
+    periodStep(status),
+    {
+      key: 'hasAccounts',
+      title: 'Счета',
+      description: 'Добавьте счета, на которых реально лежат деньги, с их текущим остатком.',
+      href: '/app/accounts',
+      linkLabel: 'Перейти',
+      action: 'link',
+      done: status.hasAccounts,
+    },
+    {
+      key: 'openingAssignment',
+      title: 'Назначить имеющиеся деньги',
+      description:
+        'Распределите деньги со счетов по конвертам или оставьте свободными: это можно сделать позже.',
+      href: '/app/accounts',
+      linkLabel: 'Перейти',
+      action: 'assign',
+      done: status.hasAccounts && !status.needsOpeningAssignment,
+    },
+    {
+      key: 'hasMandatoryPlans',
+      title: 'Обязательные платежи',
+      description: 'Добавьте регулярные обязательные платежи, чтобы видеть, что нужно оплатить.',
+      href: '/app/plans',
+      linkLabel: 'Перейти',
+      action: 'link',
+      done: status.hasMandatoryPlans,
+    },
+  ];
+});
+
+const ready = computed(() => v2Status.value !== null);
 
 const collapsed = ref(false);
+const templateSheetOpen = ref(false);
 
 onMounted(() => {
   collapsed.value = window.localStorage.getItem(STORAGE_KEY) === 'true';
+  void loadV2Status();
 });
+
+// A confirmed funding or an applied template bumps this counter: re-read the
+// server status instead of deriving anything in the browser.
+watch(
+  () => funding.confirmedCount.value,
+  () => void loadV2Status(),
+);
 
 function setCollapsed(value: boolean): void {
   collapsed.value = value;
   window.localStorage.setItem(STORAGE_KEY, String(value));
 }
 
-const doneCount = computed(() => steps.filter((step) => props.onboarding[step.key]).length);
-const allDone = computed(() => doneCount.value === steps.length);
+const doneCount = computed(() => steps.value.filter((step) => step.done).length);
+const allDone = computed(() => steps.value.length > 0 && doneCount.value === steps.value.length);
 
-const templateSaving = ref(false);
-const templateFailed = ref(false);
+function openTemplateSheet(): void {
+  templateSheetOpen.value = true;
+}
 
-async function runInitializeTemplate(): Promise<void> {
-  templateSaving.value = true;
-  templateFailed.value = false;
+function onTemplateApplied(): void {
+  emit('templateInitialized');
+}
+
+function offerOpeningAssignment(): void {
+  funding.offer({ sourceKind: 'OPENING' });
+}
+
+const hostsTarget = computed(
+  () =>
+    ready.value &&
+    !allDone.value &&
+    !collapsed.value &&
+    proposal.value !== null &&
+    steps.value.some((step) => step.action === 'target' && !step.done),
+);
+watch(hostsTarget, (value) => emit('hostsTarget', value), { immediate: true });
+onBeforeUnmount(() => emit('hostsTarget', false));
+
+// One Idempotency-Key per attempt: a retry of the same decision reuses it.
+let attempt: { fingerprint: string; key: string } | null = null;
+const targetPending = ref(false);
+const targetError = ref('');
+// Polite announcement for screen readers: the focused button disappears.
+const decisionNotice = ref('');
+
+async function decideTarget(kind: 'confirm' | 'reject'): Promise<void> {
+  const current = proposal.value;
+  if (targetPending.value || current === null) return;
+  targetPending.value = true;
+  targetError.value = '';
   try {
-    await props.initializeTemplate(props.budgetId);
-    emit('templateInitialized');
-  } catch {
-    templateFailed.value = true;
+    const fingerprint = `${kind}:${current.periodId}`;
+    if (attempt?.fingerprint !== fingerprint) attempt = { fingerprint, key: crypto.randomUUID() };
+    if (kind === 'confirm') {
+      await v2.confirmPeriodTarget(props.budgetId, current.periodId, attempt.key);
+    } else {
+      await v2.rejectPeriodTarget(props.budgetId, current.periodId, attempt.key);
+    }
+    attempt = null;
+    // The decision is done: never offer it again, even if the reread fails.
+    proposal.value = null;
+    decisionNotice.value =
+      kind === 'confirm' ? 'План периода подтверждён.' : 'План периода отклонён.';
+    await loadV2Status();
+    emit('targetDecided');
+  } catch (error) {
+    targetError.value = v2ErrorMessage(error, 'Не удалось выполнить действие. Попробуйте ещё раз.');
   } finally {
-    templateSaving.value = false;
+    targetPending.value = false;
   }
 }
 </script>
 
 <template>
   <section
-    v-if="!allDone"
+    v-if="ready && !allDone"
     class="onboarding-checklist"
     data-testid="onboarding-checklist"
     :aria-labelledby="collapsed ? undefined : 'onboarding-checklist-title'"
   >
+    <p class="onboarding-checklist__sr" role="status" data-testid="onboarding-notice">
+      {{ decisionNotice }}
+    </p>
     <button
       v-if="collapsed"
       type="button"
@@ -152,13 +282,14 @@ async function runInitializeTemplate(): Promise<void> {
           :key="step.key"
           class="onboarding-checklist__row"
           data-testid="onboarding-step"
+          :data-step="step.key"
         >
           <span
             class="onboarding-checklist__icon"
-            :class="{ 'onboarding-checklist__icon--done': onboarding[step.key] }"
+            :class="{ 'onboarding-checklist__icon--done': step.done }"
           >
             <CircleCheck
-              v-if="onboarding[step.key]"
+              v-if="step.done"
               data-testid="onboarding-step-done"
               :size="20"
               aria-hidden="true"
@@ -170,22 +301,69 @@ async function runInitializeTemplate(): Promise<void> {
             <span class="onboarding-checklist__row-head">
               <span class="onboarding-checklist__row-title">{{ step.title }}</span>
               <UiStatus
-                :label="onboarding[step.key] ? 'Готово' : 'Не начато'"
-                :tone="onboarding[step.key] ? 'success' : 'neutral'"
+                :label="step.done ? 'Готово' : 'Не начато'"
+                :tone="step.done ? 'success' : 'neutral'"
               />
             </span>
             <span class="onboarding-checklist__description">{{ step.description }}</span>
+            <template v-if="step.action === 'target' && proposal">
+              <FinanceMoney
+                class="onboarding-checklist__amount"
+                data-testid="onboarding-target-amount"
+                :minor-units="proposal.amountMinor"
+                currency="RUB"
+                :scale="2"
+              />
+              <span
+                v-if="targetError"
+                class="onboarding-checklist__error"
+                role="alert"
+                data-testid="onboarding-target-error"
+              >
+                <AlertTriangle :size="14" aria-hidden="true" />
+                {{ targetError }}
+              </span>
+            </template>
           </span>
 
+          <div v-if="step.action === 'target'" class="onboarding-checklist__actions">
+            <UiButton
+              variant="primary"
+              size="sm"
+              :loading="targetPending"
+              data-testid="onboarding-target-confirm"
+              @click="decideTarget('confirm')"
+            >
+              Подтвердить план
+            </UiButton>
+            <UiButton
+              variant="secondary"
+              size="sm"
+              :disabled="targetPending"
+              data-testid="onboarding-target-reject"
+              @click="decideTarget('reject')"
+            >
+              Отклонить
+            </UiButton>
+          </div>
+
           <UiButton
-            v-if="step.key === 'categoriesSeeded'"
+            v-else-if="step.action === 'template'"
             variant="tertiary"
             size="sm"
             data-action="onboarding-initialize-template"
-            :loading="templateSaving"
-            @click="runInitializeTemplate"
+            @click="openTemplateSheet"
           >
-            Создать базовый шаблон
+            Настроить базовый шаблон
+          </UiButton>
+          <UiButton
+            v-else-if="step.action === 'assign'"
+            variant="tertiary"
+            size="sm"
+            data-action="onboarding-assign-money"
+            @click="offerOpeningAssignment"
+          >
+            Назначить деньги
           </UiButton>
           <UiButton v-else variant="tertiary" size="sm" :to="step.href">
             {{ step.linkLabel }}
@@ -193,11 +371,11 @@ async function runInitializeTemplate(): Promise<void> {
         </li>
       </ul>
 
-      <UiStatus
-        v-if="templateFailed"
-        label="Не удалось выполнить действие. Повторите попытку."
-        tone="danger"
-        aria-live="polite"
+      <TemplatePreviewSheet
+        :open="templateSheetOpen"
+        :budget-id="budgetId"
+        @close="templateSheetOpen = false"
+        @applied="onTemplateApplied"
       />
     </template>
   </section>
@@ -218,6 +396,7 @@ async function runInitializeTemplate(): Promise<void> {
   display: inline-flex;
   align-items: center;
   align-self: flex-start;
+  min-height: var(--hf-control-height-sm);
   padding: var(--hf-space-2) var(--hf-space-3);
   border: 1px solid var(--hf-color-border);
   border-radius: var(--hf-radius-full, 999px);
@@ -280,6 +459,38 @@ async function runInitializeTemplate(): Promise<void> {
 
 .onboarding-checklist__row-title {
   font-weight: var(--hf-font-weight-medium);
+}
+
+.onboarding-checklist__amount {
+  font-weight: var(--hf-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.onboarding-checklist__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hf-space-2);
+}
+
+.onboarding-checklist__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.onboarding-checklist__error {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hf-space-1);
+  color: var(--hf-color-text-danger);
+  font-size: var(--hf-font-size-caption);
+  line-height: var(--hf-line-height-caption);
 }
 
 .onboarding-checklist__description {

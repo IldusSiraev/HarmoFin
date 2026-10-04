@@ -7,6 +7,7 @@ import { AssignmentApplicationService } from './assignment.application.service.j
 import { EnvelopePlanApplicationService } from './envelope-plan.application.service.js';
 import { EnvelopePlanController } from './envelope-plan.controller.js';
 import { MovementApplicationService } from './movement.application.service.js';
+import { PeriodTargetApplicationService } from './period-target.application.service.js';
 
 @Module({})
 export class EnvelopePlanModule {
@@ -39,6 +40,16 @@ export class EnvelopePlanModule {
           provide: MovementApplicationService,
           useFactory: (prisma: PrismaService) =>
             new MovementApplicationService(
+              prisma,
+              new IdempotencyService(),
+              new PlanModelPolicy(prisma),
+            ),
+          inject: [PrismaService],
+        },
+        {
+          provide: PeriodTargetApplicationService,
+          useFactory: (prisma: PrismaService) =>
+            new PeriodTargetApplicationService(
               prisma,
               new IdempotencyService(),
               new PlanModelPolicy(prisma),

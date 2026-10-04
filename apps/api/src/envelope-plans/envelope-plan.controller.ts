@@ -10,6 +10,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
@@ -42,8 +43,14 @@ import {
   CreateEnvelopeRequest,
   EnvelopeHistoryListResponse,
   EnvelopePlanListResponse,
+  AssignmentResultResponse,
   EnvelopePlanResponse,
+  MovementResultResponse,
+  FundingRuleResponse,
   MoveEnvelopeRequest,
+  PeriodTargetResponse,
+  PutFundingRuleRequest,
+  PutPeriodTargetRequest,
   ReviseAssignmentRequest,
   UpdateEnvelopeRequest,
 } from './envelope-plan.dto.js';
@@ -52,13 +59,19 @@ import {
   createAssignmentSchema,
   createEnvelopeSchema,
   envelopeHistorySchema,
+  putFundingRuleSchema,
+  putPeriodTargetSchema,
   updateEnvelopeSchema,
+  uuidParamSchema,
   type CreateAssignmentInput,
   type CreateEnvelopeInput,
   type EnvelopeHistoryQuery,
+  type PutFundingRuleInput,
+  type PutPeriodTargetInput,
   type UpdateEnvelopeInput,
 } from './envelope-plan.schemas.js';
 import { MovementApplicationService } from './movement.application.service.js';
+import { PeriodTargetApplicationService } from './period-target.application.service.js';
 import { moveEnvelopeSchema, type MoveEnvelopeInput } from './movement.schemas.js';
 
 type AuthenticatedRequest = FastifyRequest & { authContext?: RequestContext };
@@ -69,7 +82,7 @@ const idempotencyHeader = {
   schema: { type: 'string', minLength: 1, maxLength: 128 },
 } as const;
 
-@ApiTags('envelope-plans')
+@ApiTags('envelope-plans (v2)')
 @Controller({ path: 'budgets/:budgetId', version: '2' })
 @UseGuards(SessionAuthGuard)
 @ApiCookieAuth('session')
@@ -81,12 +94,17 @@ export class EnvelopePlanController {
     private readonly assignments: AssignmentApplicationService,
     @Inject(MovementApplicationService)
     private readonly movements: MovementApplicationService,
+    @Inject(PeriodTargetApplicationService)
+    private readonly periodTargets: PeriodTargetApplicationService,
   ) {}
 
   @Get('envelopes')
   @ApiOkResponse({ type: EnvelopePlanListResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   async list(@Param('budgetId') budgetId: string, @Req() request: AuthenticatedRequest) {
     return (await this.plans.list(contextOf(request).userId, budgetId)).body;
   }
@@ -115,8 +133,11 @@ export class EnvelopePlanController {
 
   @Get('envelopes/:envelopeId')
   @ApiOkResponse({ type: EnvelopePlanResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   async get(
     @Param('budgetId') budgetId: string,
     @Param('envelopeId') envelopeId: string,
@@ -187,7 +208,9 @@ export class EnvelopePlanController {
   @ApiOkResponse({ type: EnvelopeHistoryListResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   async history(
     @Param('budgetId') budgetId: string,
     @Param('envelopeId') envelopeId: string,
@@ -197,11 +220,127 @@ export class EnvelopePlanController {
     return (await this.plans.history(contextOf(request).userId, budgetId, envelopeId, query)).body;
   }
 
+  @Put('envelopes/:envelopeId/funding-rule')
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiBody({ type: PutFundingRuleRequest })
+  @ApiOkResponse({ type: FundingRuleResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  async putFundingRule(
+    @Param('budgetId') budgetId: string,
+    @Param('envelopeId', new ZodValidationPipe(uuidParamSchema)) envelopeId: string,
+    @Body(new ZodValidationPipe(putFundingRuleSchema)) input: PutFundingRuleInput,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (
+      await this.periodTargets.putFundingRule(
+        contextOf(request).userId,
+        budgetId,
+        envelopeId,
+        input,
+        validKey(key),
+        request.id,
+      )
+    ).body;
+  }
+
+  @Put('envelopes/:envelopeId/periods/:periodStart/target')
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiBody({ type: PutPeriodTargetRequest })
+  @ApiOkResponse({ type: PeriodTargetResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  async putPeriodTarget(
+    @Param('budgetId') budgetId: string,
+    @Param('envelopeId', new ZodValidationPipe(uuidParamSchema)) envelopeId: string,
+    @Param('periodStart') periodStart: string,
+    @Body(new ZodValidationPipe(putPeriodTargetSchema)) input: PutPeriodTargetInput,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (
+      await this.periodTargets.putPeriodTarget(
+        contextOf(request).userId,
+        budgetId,
+        envelopeId,
+        periodStart,
+        input,
+        validKey(key),
+        request.id,
+      )
+    ).body;
+  }
+
+  @Post('periods/:periodId/confirm-target')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiOkResponse({ type: PeriodTargetResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  async confirmTarget(
+    @Param('budgetId') budgetId: string,
+    @Param('periodId', new ZodValidationPipe(uuidParamSchema)) periodId: string,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (
+      await this.periodTargets.confirmTarget(
+        contextOf(request).userId,
+        budgetId,
+        periodId,
+        validKey(key),
+        request.id,
+      )
+    ).body;
+  }
+
+  @Post('periods/:periodId/reject-target')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiOkResponse({ type: PeriodTargetResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  async rejectTarget(
+    @Param('budgetId') budgetId: string,
+    @Param('periodId', new ZodValidationPipe(uuidParamSchema)) periodId: string,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (
+      await this.periodTargets.rejectTarget(
+        contextOf(request).userId,
+        budgetId,
+        periodId,
+        validKey(key),
+        request.id,
+      )
+    ).body;
+  }
+
   @Post('assignments')
   @UseGuards(CsrfGuard)
   @ApiHeader(idempotencyHeader)
   @ApiBody({ type: CreateAssignmentRequest })
-  @ApiCreatedResponse({ type: EnvelopePlanResponse })
+  @ApiCreatedResponse({ type: AssignmentResultResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 403, type: ProblemDetailsResponse })
@@ -248,7 +387,7 @@ export class EnvelopePlanController {
   @UseGuards(CsrfGuard)
   @ApiHeader(idempotencyHeader)
   @ApiBody({ type: ReviseAssignmentRequest })
-  @ApiOkResponse({ type: EnvelopePlanResponse })
+  @ApiOkResponse({ type: AssignmentResultResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 403, type: ProblemDetailsResponse })
@@ -278,7 +417,7 @@ export class EnvelopePlanController {
   @HttpCode(200)
   @UseGuards(CsrfGuard)
   @ApiHeader(idempotencyHeader)
-  @ApiOkResponse({ type: EnvelopePlanResponse })
+  @ApiOkResponse({ type: AssignmentResultResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 403, type: ProblemDetailsResponse })
@@ -306,7 +445,7 @@ export class EnvelopePlanController {
   @UseGuards(CsrfGuard)
   @ApiHeader(idempotencyHeader)
   @ApiBody({ type: MoveEnvelopeRequest })
-  @ApiCreatedResponse({ type: EnvelopePlanResponse })
+  @ApiCreatedResponse({ type: MovementResultResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 403, type: ProblemDetailsResponse })

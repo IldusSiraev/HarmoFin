@@ -64,7 +64,10 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
       :disabled="to ? undefined : disabled || loading"
       :aria-busy="loading || undefined"
       :aria-label="ariaLabel"
-      :aria-describedby="describedby"
+      :aria-describedby="
+        [describedby, $attrs['aria-describedby'] as string | undefined].filter(Boolean).join(' ') ||
+        undefined
+      "
       @click="handleClick($event, loading, disabled)"
     >
       <span v-if="loading" class="ui-button__loader" aria-hidden="true" />

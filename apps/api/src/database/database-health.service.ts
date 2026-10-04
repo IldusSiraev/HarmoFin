@@ -1,4 +1,4 @@
-import { Injectable, type OnApplicationShutdown } from '@nestjs/common';
+import { Inject, Injectable, type OnApplicationShutdown } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PrismaService } from './prisma.service.js';
@@ -7,7 +7,7 @@ import { PrismaService } from './prisma.service.js';
 export class DatabaseHealthService implements OnApplicationShutdown {
   private closed = false;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async check(): Promise<void> {
     await this.prisma.$queryRaw(Prisma.sql`SELECT 1`);

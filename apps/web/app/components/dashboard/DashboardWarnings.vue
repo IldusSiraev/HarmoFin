@@ -2,77 +2,41 @@
 import { computed } from 'vue';
 import { Info, TriangleAlert } from '@lucide/vue';
 
-import FinanceMoney from '../finance/FinanceMoney.vue';
-import type { DashboardSummaryDto } from '../../composables/useBudgetReferenceData.js';
+import type { DashboardV2Response } from '../../composables/useEnvelopePlanV2.js';
 
 defineOptions({ name: 'DashboardWarnings' });
 
-type DashboardWarning = DashboardSummaryDto['warnings'][number];
-type DashboardBalance = DashboardSummaryDto['accounts'][number];
-
 type WarningRow = {
   key: string;
-  kind: 'balance' | 'income' | 'unassigned' | 'overassigned';
+  kind: 'balance' | 'income';
   text: string;
-  amountMinor: string;
   href: string;
+  actionLabel: string;
 };
 
+type V2Warning = DashboardV2Response['warnings'][number];
+
+// Server text + actionPath for each warning.
 const props = defineProps<{
-  warnings: ReadonlyArray<DashboardWarning>;
-  accounts: ReadonlyArray<DashboardBalance>;
-  envelopes: ReadonlyArray<DashboardBalance>;
-  unallocatedIncomeMinor: string;
-  unassignedStartingBalanceMinor: string;
+  v2Warnings: ReadonlyArray<V2Warning>;
 }>();
 
-function warningText(warning: DashboardWarning): string {
-  const kind = warning.subject === 'ACCOUNT' ? 'Счёт' : 'Конверт';
-  const source = warning.subject === 'ACCOUNT' ? props.accounts : props.envelopes;
-  const name = source.find((item) => item.id === warning.id)?.name;
-  return name === undefined ? `${kind} в минусе` : `${kind} «${name}» в минусе`;
-}
+const V2_ACTION_LABELS: Record<V2Warning['code'], string> = {
+  MANDATORY_GAP: 'Покрыть обязательные',
+  CASH_SHORTFALL: 'Проверить счета',
+  PERIOD_DEFICIT: 'Покрыть превышение',
+  PERIOD_LEFTOVER: 'Решить, куда направить',
+};
 
-const rows = computed<WarningRow[]>(() => {
-  const result: WarningRow[] = props.warnings.map((warning) => ({
-    key: `${warning.subject}-${warning.id}`,
-    kind: 'balance',
-    text: warningText(warning),
-    amountMinor: warning.balanceMinor,
-    href: warning.subject === 'ACCOUNT' ? '/app/accounts' : '/app/envelopes',
-  }));
-
-  if (BigInt(props.unallocatedIncomeMinor) > 0n) {
-    result.push({
-      key: 'unallocated-income',
-      kind: 'income',
-      text: 'Доход не распределён по конвертам',
-      amountMinor: props.unallocatedIncomeMinor,
-      href: '/app/operations',
-    });
-  }
-
-  const unassignedStartingBalanceMinor = BigInt(props.unassignedStartingBalanceMinor);
-  if (unassignedStartingBalanceMinor > 0n) {
-    result.push({
-      key: 'unassigned-starting-balance',
-      kind: 'unassigned',
-      text: 'Начальные остатки не распределены по конвертам',
-      amountMinor: props.unassignedStartingBalanceMinor,
-      href: '/app/envelopes',
-    });
-  } else if (unassignedStartingBalanceMinor < 0n) {
-    result.push({
-      key: 'unassigned-starting-balance',
-      kind: 'overassigned',
-      text: 'В конвертах указано больше денег, чем есть на счетах',
-      amountMinor: (-unassignedStartingBalanceMinor).toString(),
-      href: '/app/envelopes',
-    });
-  }
-
-  return result;
-});
+const rows = computed<WarningRow[]>(() =>
+  props.v2Warnings.map((warning, index) => ({
+    key: `${warning.code}-${warning.periodId ?? warning.envelopeId ?? index}`,
+    kind: warning.code === 'PERIOD_LEFTOVER' ? 'income' : 'balance',
+    text: warning.message,
+    href: warning.actionPath,
+    actionLabel: V2_ACTION_LABELS[warning.code],
+  })),
+);
 </script>
 
 <template>
@@ -87,7 +51,7 @@ const rows = computed<WarningRow[]>(() => {
     <ul class="dashboard-warnings__list">
       <li v-for="row in rows" :key="row.key" class="dashboard-warnings__row">
         <TriangleAlert
-          v-if="row.kind === 'balance' || row.kind === 'overassigned'"
+          v-if="row.kind === 'balance'"
           class="dashboard-warnings__icon dashboard-warnings__icon--danger"
           :size="20"
           aria-hidden="true"
@@ -95,13 +59,7 @@ const rows = computed<WarningRow[]>(() => {
         <Info v-else class="dashboard-warnings__icon" :size="20" aria-hidden="true" />
 
         <span class="dashboard-warnings__text">{{ row.text }}</span>
-        <FinanceMoney
-          class="dashboard-warnings__amount"
-          :minor-units="row.amountMinor"
-          currency="RUB"
-          :scale="2"
-        />
-        <NuxtLink :to="row.href" class="dashboard-warnings__link">Посмотреть</NuxtLink>
+        <NuxtLink :to="row.href" class="dashboard-warnings__link">{{ row.actionLabel }}</NuxtLink>
       </li>
     </ul>
   </section>
@@ -154,11 +112,10 @@ const rows = computed<WarningRow[]>(() => {
   min-width: 0;
 }
 
-.dashboard-warnings__amount {
-  font-weight: var(--hf-font-weight-semibold);
-}
-
 .dashboard-warnings__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
   color: var(--hf-color-action-primary);
   font-weight: var(--hf-font-weight-medium);
 }

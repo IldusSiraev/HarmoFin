@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { ArrowLeft, Search, X } from '@lucide/vue';
 
 import {
@@ -11,13 +11,14 @@ import { useOperationReferenceData } from '../../composables/useOperationReferen
 import type { EntryType } from '../../composables/useOperationDialogs.js';
 import {
   createOperationForm,
+  normalizeDecimal,
   toTransactionInput,
+  type OneTimePayEntry,
   type OperationFormModel,
 } from '../../composables/useOperationForm.js';
 import {
   createTransferForm,
-  syncSourceEnvelope,
-  toCreateTransferInput,
+  toDirectTransferInput,
   type TransferFormModel,
 } from '../../composables/useTransferForm.js';
 import OperationAmountField from '../operations/OperationAmountField.vue';
@@ -37,18 +38,19 @@ const props = withDefaults(
     accounts: ReadonlyArray<{ value: string; label: string }>;
     categories: ReadonlyArray<CategoryDto>;
     envelopes: ReadonlyArray<{ value: string; label: string }>;
+    mandatoryEnvelopeIds?: ReadonlyArray<string>;
     pending?: boolean;
     error?: string;
   }>(),
-  { pending: false, error: '' },
+  { mandatoryEnvelopeIds: () => [], pending: false, error: '' },
 );
 
 const emit = defineEmits<{
   close: [];
   back: [];
   submitOperation: [input: ReturnType<typeof toTransactionInput>];
-  submitTransfer: [input: ReturnType<typeof toCreateTransferInput>];
-  splitTransfer: [model: TransferFormModel];
+  submitDirectTransfer: [input: ReturnType<typeof toDirectTransferInput>];
+  submitOneTimePay: [input: OneTimePayEntry];
 }>();
 
 const tabs: ReadonlyArray<{ type: EntryType; label: string; modifier: string }> = [
@@ -61,6 +63,9 @@ const activeType = ref<EntryType>('EXPENSE');
 const operation = reactive<OperationFormModel>(createOperationForm());
 const transfer = reactive<TransferFormModel>(createTransferForm());
 const categorySearch = ref('');
+const oneTimeStep = ref(false);
+const oneTimeName = ref('');
+const oneTimeNameError = ref('');
 const popularCategories = ref<ReadonlyArray<{ value: string; label: string }>>([]);
 
 const api = useBudgetReferenceData();
@@ -91,6 +96,7 @@ async function loadPopularCategories(type: EntryType): Promise<void> {
 function selectType(type: EntryType): void {
   activeType.value = type;
   categorySearch.value = '';
+  oneTimeStep.value = false;
   void loadPopularCategories(type);
 }
 
@@ -102,6 +108,7 @@ watch(
     if (!open) return;
     activeType.value = props.initialType;
     categorySearch.value = '';
+    oneTimeStep.value = false;
     Object.assign(operation, createOperationForm(), {
       transactionType: props.initialType === 'INCOME' ? 'INCOME' : 'EXPENSE',
     });
@@ -109,6 +116,10 @@ watch(
     void loadPopularCategories(props.initialType);
   },
 );
+
+watch(oneTimeName, () => {
+  oneTimeNameError.value = '';
+});
 
 watch(activeType, (type) => {
   if (type === 'EXPENSE' || type === 'INCOME') operation.transactionType = type;
@@ -171,30 +182,70 @@ const transferDestinationOptions = computed(() =>
   props.accounts.filter((account) => account.value !== transfer.sourceAccountId),
 );
 
+// An expense does not need an envelope; "" is the explicit "no assignment".
+const envelopeOptions = computed(() => [
+  { value: '', label: 'Без назначения' },
+  ...props.envelopes,
+]);
+const mandatorySelected = computed(
+  () => activeType.value === 'EXPENSE' && props.mandatoryEnvelopeIds.includes(operation.envelopeId),
+);
+
 const canSubmit = computed(() => {
   if (activeType.value === 'TRANSFER') {
-    return Boolean(
-      transfer.total &&
-      transfer.sourceAccountId &&
-      transfer.destinationAccountId &&
-      transfer.parts[0]?.sourceEnvelopeId,
-    );
+    return Boolean(transfer.total && transfer.sourceAccountId && transfer.destinationAccountId);
   }
-  if (!operation.amount || !operation.accountId || !operation.categoryId) return false;
-  return activeType.value === 'INCOME' || Boolean(operation.envelopeId);
+  return Boolean(operation.amount && operation.accountId && operation.categoryId);
 });
 
 function submit(): void {
-  if (!canSubmit.value) return;
+  if (!canSubmit.value || props.pending) return;
   if (activeType.value === 'TRANSFER') {
-    emit('submitTransfer', toCreateTransferInput(transfer, 'CONFIRMED'));
+    emit('submitDirectTransfer', toDirectTransferInput(transfer));
+    return;
+  }
+  if (mandatorySelected.value) {
+    // A mandatory envelope is only paid against a plan: switch to the short
+    // one-time-payment confirmation instead of a plain expense request.
+    oneTimeName.value =
+      operation.merchantName.trim() ||
+      props.categories.find((category) => category.id === operation.categoryId)?.name ||
+      '';
+    oneTimeNameError.value = '';
+    oneTimeStep.value = true;
+    void nextTick(() => document.querySelector<HTMLElement>('input[name="oneTimeName"]')?.focus());
     return;
   }
   emit('submitOperation', toTransactionInput(operation, 'CONFIRMED'));
 }
 
-function requestSplit(): void {
-  emit('splitTransfer', { ...transfer, parts: transfer.parts.map((part) => ({ ...part })) });
+function leaveOneTimeStep(): void {
+  oneTimeStep.value = false;
+  void nextTick(() => document.querySelector<HTMLElement>('[data-testid="entry-submit"]')?.focus());
+}
+
+function goBack(): void {
+  if (oneTimeStep.value) leaveOneTimeStep();
+  else emit('back');
+}
+
+function submitOneTime(): void {
+  const name = oneTimeName.value.trim();
+  if (props.pending) return;
+  if (!name) {
+    oneTimeNameError.value = 'Укажите название платежа';
+    return;
+  }
+  oneTimeNameError.value = '';
+  const comment = operation.merchantName.trim();
+  emit('submitOneTimePay', {
+    name,
+    amount: normalizeDecimal(operation.amount),
+    occurredOn: operation.occurredOn,
+    accountId: operation.accountId,
+    categoryId: operation.categoryId,
+    ...(comment ? { comment } : {}),
+  });
 }
 </script>
 
@@ -204,8 +255,8 @@ function requestSplit(): void {
       <button
         type="button"
         class="entry-dialog__back"
-        aria-label="Назад к выбору типа"
-        @click="emit('back')"
+        :aria-label="oneTimeStep ? 'Назад к форме' : 'Назад к выбору типа'"
+        @click="goBack"
       >
         <ArrowLeft :size="20" aria-hidden="true" />
       </button>
@@ -218,6 +269,7 @@ function requestSplit(): void {
           class="entry-dialog__tab"
           :class="[tab.modifier, { 'entry-dialog__tab--active': activeType === tab.type }]"
           :aria-selected="activeType === tab.type"
+          :disabled="oneTimeStep"
           :data-testid="`entry-tab-${tab.type}`"
           @click="selectType(tab.type)"
         >
@@ -231,7 +283,40 @@ function requestSplit(): void {
 
     <p v-if="error" class="entry-dialog__error" role="alert">{{ error }}</p>
 
-    <div class="entry-dialog__body">
+    <div v-if="oneTimeStep" class="entry-dialog__body" data-testid="entry-onetime">
+      <p class="entry-dialog__hint">
+        Обязательные расходы оплачиваются по плану. Добавим разовый платёж на эту сумму и сразу
+        оплатим его.
+      </p>
+      <UiInput
+        v-model="oneTimeName"
+        name="oneTimeName"
+        label="Название платежа"
+        autocomplete="off"
+        :error="oneTimeNameError"
+      />
+      <UiButton
+        class="entry-dialog__step-button"
+        full-width
+        data-testid="entry-onetime-confirm"
+        :disabled="pending"
+        :loading="pending"
+        @click="submitOneTime"
+      >
+        Добавить и оплатить
+      </UiButton>
+      <UiButton
+        class="entry-dialog__step-button"
+        variant="tertiary"
+        full-width
+        data-testid="entry-onetime-back"
+        @click="leaveOneTimeStep"
+      >
+        Изменить
+      </UiButton>
+    </div>
+
+    <div v-else class="entry-dialog__body">
       <template v-if="activeType !== 'TRANSFER'">
         <OperationAmountField v-model="operation.amount" :accent="accent" />
 
@@ -268,10 +353,13 @@ function requestSplit(): void {
           v-model="operation.envelopeId"
           name="envelope"
           label="Конверт"
-          :options="envelopes"
+          :options="envelopeOptions"
           :accent="accent"
-          required
         />
+        <p v-if="mandatorySelected" class="entry-dialog__hint" data-testid="entry-mandatory-hint">
+          Обязательные оплачиваются по плану, а не обычным расходом. Нажмите «Добавить разовый
+          платёж и оплатить».
+        </p>
 
         <div class="entry-dialog__row">
           <UiDatePicker
@@ -324,16 +412,6 @@ function requestSplit(): void {
           accent="info"
           required
         />
-        <UiPillSelect
-          name="transferEnvelope"
-          label="Конверт"
-          :options="envelopes"
-          :model-value="transfer.parts[0]?.sourceEnvelopeId ?? ''"
-          accent="info"
-          required
-          @update:model-value="transfer.parts[0] && syncSourceEnvelope(transfer.parts[0], $event)"
-        />
-
         <div class="entry-dialog__row">
           <UiDatePicker
             v-model="transfer.occurredOn"
@@ -342,31 +420,12 @@ function requestSplit(): void {
             required
             quick-dates
           />
-          <UiInput
-            v-model="transfer.comment"
-            name="transferComment"
-            label="Заметка"
-            placeholder="Необязательно"
-          />
-        </div>
-
-        <div class="entry-dialog__split-row">
-          <button
-            type="button"
-            class="entry-dialog__split"
-            data-testid="entry-split-transfer"
-            @click="requestSplit"
-          >
-            Разбить перевод на несколько конвертов
-          </button>
-          <UiInfoTooltip
-            text="Нужно только если этим переводом вы одновременно двигаете деньги нескольких разных конвертов — например, часть на «Автомобиль», часть на «Отпуск». Для обычного перевода это не требуется."
-          />
         </div>
       </template>
     </div>
 
     <UiButton
+      v-if="!oneTimeStep"
       class="entry-dialog__submit"
       full-width
       data-testid="entry-submit"
@@ -374,7 +433,7 @@ function requestSplit(): void {
       :loading="pending"
       @click="submit"
     >
-      Сохранить операцию
+      {{ mandatorySelected ? 'Добавить разовый платёж и оплатить' : 'Сохранить операцию' }}
     </UiButton>
   </UiModal>
 </template>
@@ -472,22 +531,15 @@ function requestSplit(): void {
   font-size: var(--hf-font-size-small);
 }
 
-.entry-dialog__split-row {
-  display: flex;
-  align-items: center;
-  gap: var(--hf-space-2);
-  justify-self: start;
+.entry-dialog__step-button {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
 }
 
-.entry-dialog__split {
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--hf-color-action-primary);
-  font: inherit;
-  font-weight: var(--hf-font-weight-medium);
-  text-decoration: underline;
-  cursor: pointer;
+.entry-dialog__hint {
+  margin: 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
 }
 
 .entry-dialog__error {

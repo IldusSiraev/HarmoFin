@@ -1,9 +1,7 @@
-import type { TransactionDto } from '../../composables/useBudgetReferenceData.js';
-
-export interface OperationDayGroup {
+export interface OperationDayGroup<T extends { occurredOn: string }> {
   date: string;
   label: string;
-  items: TransactionDto[];
+  items: T[];
 }
 
 const MONTHS = [
@@ -33,12 +31,12 @@ function previousDay(iso: string): string {
   return date.toISOString().slice(0, 10);
 }
 
-export function groupByDay(
-  items: ReadonlyArray<TransactionDto>,
+export function groupByDay<T extends { occurredOn: string }>(
+  items: ReadonlyArray<T>,
   today: string,
-): OperationDayGroup[] {
+): Array<OperationDayGroup<T>> {
   const yesterday = previousDay(today);
-  const groups: OperationDayGroup[] = [];
+  const groups: Array<OperationDayGroup<T>> = [];
 
   for (const item of items) {
     const existing = groups.find((group) => group.date === item.occurredOn);

@@ -1,19 +1,18 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { Search, SlidersHorizontal } from '@lucide/vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { SlidersHorizontal } from '@lucide/vue';
 
 import UiButton from '../ui/Button.vue';
 import UiChip from '../ui/Chip.vue';
 import UiDatePicker from '../ui/DatePicker.vue';
 import UiDrawer from '../ui/Drawer.vue';
-import UiInput from '../ui/Input.vue';
 import UiSelect from '../ui/Select.vue';
 import type { OperationFilters } from '../../composables/useOperationFilters.js';
 
 defineOptions({ name: 'OperationsToolbar' });
 
 type Option = { value: string; label: string };
-type ChipKey = 'periodStart' | 'accountId' | 'categoryId' | 'envelopeId';
+type ChipKey = 'accountId' | 'categoryId' | 'envelopeId';
 
 const props = defineProps<{
   filters: OperationFilters;
@@ -21,42 +20,20 @@ const props = defineProps<{
   accounts: ReadonlyArray<Option>;
   categories: ReadonlyArray<Option>;
   envelopes: ReadonlyArray<Option>;
-  periods: ReadonlyArray<Option>;
+  // Deleted operations are visible to the owner only: the API answers 403 otherwise.
+  canViewDeleted: boolean;
 }>();
 
 const emit = defineEmits<{
   change: [key: keyof OperationFilters, value: string];
-  search: [value: string];
   reset: [];
 }>();
 
-const SEARCH_DEBOUNCE_MS = 300;
-
-const searchText = ref(props.filters.search);
 const openChip = ref<ChipKey | null>(null);
 const moreOpen = ref(false);
 const root = ref<HTMLElement | null>(null);
 const chipsRow = ref<HTMLElement | null>(null);
 const optionsLeft = ref(0);
-let searchTimer: ReturnType<typeof setTimeout> | undefined;
-
-watch(
-  () => props.filters.search,
-  (value) => {
-    searchText.value = value;
-  },
-);
-
-function onSearchInput(value: string): void {
-  searchText.value = value;
-  if (searchTimer !== undefined) clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => emit('search', value), SEARCH_DEBOUNCE_MS);
-}
-
-onBeforeUnmount(() => {
-  if (searchTimer !== undefined) clearTimeout(searchTimer);
-});
-
 const typeTabs: Option[] = [
   { value: '', label: 'Все' },
   { value: 'INCOME', label: 'Доходы' },
@@ -65,12 +42,19 @@ const typeTabs: Option[] = [
 
 const chips = computed<Array<{ key: ChipKey; label: string; options: ReadonlyArray<Option> }>>(
   () => [
-    { key: 'periodStart', label: 'Период', options: props.periods },
     { key: 'accountId', label: 'Счёт', options: props.accounts },
     { key: 'categoryId', label: 'Категория', options: props.categories },
     { key: 'envelopeId', label: 'Конверт', options: props.envelopes },
   ],
 );
+
+const statusOptions = computed(() => [
+  { value: '', label: 'Активные' },
+  { value: 'DRAFT', label: 'Черновики' },
+  { value: 'CONFIRMED', label: 'Подтверждённые' },
+  { value: 'CANCELLED', label: 'Отменённые' },
+  ...(props.canViewDeleted ? [{ value: 'DELETED', label: 'Удалённые' }] : []),
+]);
 
 const openChipData = computed(
   () => chips.value.find((chip) => chip.key === openChip.value) ?? null,
@@ -147,35 +131,20 @@ onBeforeUnmount(() => {
 <template>
   <div ref="root" class="operations-toolbar">
     <div class="operations-toolbar__primary">
-      <div class="operations-toolbar__tabs" role="tablist" aria-label="Тип операций">
+      <div class="operations-toolbar__tabs" role="group" aria-label="Тип операций">
         <button
           v-for="tab in typeTabs"
           :key="tab.value"
           type="button"
-          role="tab"
           class="operations-toolbar__tab"
           :class="{ 'operations-toolbar__tab--active': filters.type === tab.value }"
-          :aria-selected="filters.type === tab.value ? 'true' : 'false'"
+          :aria-pressed="filters.type === tab.value ? 'true' : 'false'"
           :data-testid="`type-tab-${tab.value || 'all'}`"
           @click="emit('change', 'type', tab.value)"
         >
           {{ tab.label }}
         </button>
       </div>
-
-      <UiInput
-        class="operations-toolbar__search"
-        name="operations-search"
-        type="search"
-        label="Поиск по операциям"
-        hide-label
-        placeholder="Категория, получатель, комментарий"
-        data-testid="operations-search"
-        :model-value="searchText"
-        @update:model-value="onSearchInput"
-      >
-        <template #icon><Search :size="18" /></template>
-      </UiInput>
     </div>
 
     <div ref="chipsRow" class="operations-toolbar__chips">
@@ -217,20 +186,13 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <UiDrawer :open="moreOpen" title="Фильтры и сортировка" @close="moreOpen = false">
+    <UiDrawer :open="moreOpen" title="Фильтры" @close="moreOpen = false">
       <div class="operations-toolbar__more">
         <UiSelect
           name="status"
           label="Статус"
           :model-value="filters.status"
-          :options="[
-            { value: '', label: 'Активные' },
-            { value: 'DRAFT', label: 'Черновики' },
-            { value: 'CONFIRMED', label: 'Подтверждённые' },
-            { value: 'CANCELLED', label: 'Отменённые' },
-            { value: 'DELETED', label: 'Удалённые' },
-            { value: 'all', label: 'Все' },
-          ]"
+          :options="statusOptions"
           @update:model-value="emit('change', 'status', $event)"
         />
         <UiDatePicker
@@ -244,32 +206,6 @@ onBeforeUnmount(() => {
           label="Дата по"
           :model-value="filters.to"
           @update:model-value="emit('change', 'to', $event)"
-        />
-        <UiDatePicker
-          name="cycleStart"
-          label="Начало цикла"
-          :model-value="filters.cycleStart"
-          @update:model-value="emit('change', 'cycleStart', $event)"
-        />
-        <UiSelect
-          name="sortBy"
-          label="Сортировка"
-          :model-value="filters.sortBy"
-          :options="[
-            { value: 'occurredOn', label: 'По дате' },
-            { value: 'amount', label: 'По сумме' },
-          ]"
-          @update:model-value="emit('change', 'sortBy', $event)"
-        />
-        <UiSelect
-          name="sortDirection"
-          label="Направление"
-          :model-value="filters.sortDirection"
-          :options="[
-            { value: 'desc', label: 'По убыванию' },
-            { value: 'asc', label: 'По возрастанию' },
-          ]"
-          @update:model-value="emit('change', 'sortDirection', $event)"
         />
       </div>
 
@@ -334,22 +270,6 @@ onBeforeUnmount(() => {
   border-color: var(--hf-color-brand);
   background: var(--hf-color-brand-soft);
   color: var(--hf-color-brand);
-}
-
-.operations-toolbar__search {
-  flex: 0 1 20rem;
-  min-width: 12rem;
-  margin-left: auto;
-}
-
-/* Once the search box wraps onto its own line, margin-left: auto would push
-   it to the right and strand it there instead of letting it use the full
-   line width. */
-@media (max-width: 47.9375rem) {
-  .operations-toolbar__search {
-    flex-basis: 100%;
-    margin-left: 0;
-  }
 }
 
 .operations-toolbar__chips {

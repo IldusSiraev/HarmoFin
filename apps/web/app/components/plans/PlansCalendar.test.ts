@@ -1,158 +1,122 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
+import { nextTick } from 'vue';
 
 import PlansCalendar from './PlansCalendar.vue';
-import type { DayAggregate } from './day-aggregates.js';
 
-function mountCalendar(
-  aggregates: Record<string, DayAggregate> = {},
-  overrides: Partial<{ monthAnchor: string; selectedDate: string; today: string }> = {},
-) {
+const days = [
+  { date: '2026-09-05', incomeMinor: '4300000', expenseMinor: '600000', dot: 'overdue' as const },
+  { date: '2026-09-25', incomeMinor: '0', expenseMinor: '0', dot: 'upcoming' as const },
+];
+
+function mountCalendar(props: Record<string, unknown> = {}) {
   return mount(PlansCalendar, {
     props: {
       monthAnchor: '2026-09-01',
       selectedDate: '2026-09-24',
       today: '2026-09-24',
-      aggregates,
-      ...overrides,
+      days,
+      ...props,
     },
+    attachTo: document.body,
   });
 }
 
 describe('PlansCalendar', () => {
-  it('renders 42 day cells with the correct in-month count', () => {
+  it('shows the month label and 42 day cells with neighbours disabled', () => {
     const wrapper = mountCalendar();
-
-    expect(wrapper.findAll('[data-testid="calendar-cell"]')).toHaveLength(42);
-    expect(wrapper.findAll('[data-testid="calendar-cell"][data-in-month="true"]')).toHaveLength(30);
-  });
-
-  it('shows a compact signed amount for a day with a net total', () => {
-    const wrapper = mountCalendar({
-      '2026-09-10': { incomeMinor: 10600000n, expenseMinor: 0n, netMinor: 10600000n, dot: 'none' },
-    });
-
-    const cell = wrapper.get('[data-date="2026-09-10"]');
-    expect(cell.text()).toContain('+106к');
-  });
-
-  it('shows both an income and an expense amount on a day with both', () => {
-    const wrapper = mountCalendar({
-      '2026-09-24': {
-        incomeMinor: 60000000n,
-        expenseMinor: 3500000n,
-        netMinor: 56500000n,
-        dot: 'none',
-      },
-    });
-
-    const cell = wrapper.get('[data-date="2026-09-24"]');
-    expect(cell.text()).toContain('+600к');
-    expect(cell.text()).toContain('−35к');
-  });
-
-  it('shows an overdue dot for a past DUE day and an upcoming dot for a future one', () => {
-    const wrapper = mountCalendar({
-      '2026-09-10': { incomeMinor: 0n, expenseMinor: 0n, netMinor: 0n, dot: 'overdue' },
-      '2026-09-26': { incomeMinor: 0n, expenseMinor: 0n, netMinor: 0n, dot: 'upcoming' },
-    });
-
+    expect(wrapper.text()).toContain('сентябрь 2026');
+    expect(wrapper.findAll('[data-testid^="calendar-day-"]')).toHaveLength(42);
     expect(
-      wrapper.get('[data-date="2026-09-10"]').find('.plans-calendar__dot--overdue').exists(),
-    ).toBe(true);
+      wrapper.get('[data-testid="calendar-day-2026-08-31"]').attributes('disabled'),
+    ).toBeDefined();
     expect(
-      wrapper.get('[data-date="2026-09-26"]').find('.plans-calendar__dot--upcoming').exists(),
-    ).toBe(true);
+      wrapper.get('[data-testid="calendar-day-2026-09-01"]').attributes('disabled'),
+    ).toBeUndefined();
   });
 
-  it('emits select-day when a cell is clicked and marks the selected/today cells', () => {
+  it('shows compact income and expense amounts and puts them in the aria-label', () => {
     const wrapper = mountCalendar();
-
-    expect(wrapper.get('[data-date="2026-09-24"]').classes()).toContain(
-      'plans-calendar__cell--today',
-    );
-    expect(wrapper.get('[data-date="2026-09-24"]').classes()).toContain(
-      'plans-calendar__cell--selected',
-    );
-
-    wrapper.get('[data-date="2026-09-10"]').trigger('click');
-    expect(wrapper.emitted('select-day')?.[0]).toEqual(['2026-09-10']);
-  });
-
-  it('emits change-month with the first day of the neighboring month', async () => {
-    const wrapper = mountCalendar();
-
-    await wrapper.get('[data-action="calendar-next-month"]').trigger('click');
-    expect(wrapper.emitted('change-month')?.[0]).toEqual(['2026-10-01']);
-
-    await wrapper.get('[data-action="calendar-prev-month"]').trigger('click');
-    expect(wrapper.emitted('change-month')?.[1]).toEqual(['2026-08-01']);
-  });
-
-  it('builds an aria-label with full date context, tone, and plan status for each cell', () => {
-    const wrapper = mountCalendar({
-      '2026-09-10': { incomeMinor: 0n, expenseMinor: 0n, netMinor: 0n, dot: 'overdue' },
-      '2026-09-24': {
-        incomeMinor: 10600000n,
-        expenseMinor: 0n,
-        netMinor: 10600000n,
-        dot: 'none',
-      },
-    });
-
-    const overdueLabel = wrapper.get('[data-date="2026-09-10"]').attributes('aria-label');
-    expect(overdueLabel).toContain('10 сентября 2026');
-    expect(overdueLabel).toContain('четверг');
-    expect(overdueLabel).toContain('просроченный платёж');
-
-    const todayLabel = wrapper.get('[data-date="2026-09-24"]').attributes('aria-label');
-    expect(todayLabel).toContain('24 сентября 2026');
-    expect(todayLabel).toContain('четверг');
-    expect(todayLabel).toContain('сегодня');
-    expect(todayLabel).toContain('выбрано');
-    // The aria-label overrides the visible "+106к" text, so it must carry the
-    // exact amount, not just the direction. ru-RU groups with U+00A0 and
-    // separates the ₽ sign with U+00A0 as well.
-    expect(todayLabel).toContain('доход 106 000,00 ₽');
-  });
-
-  it('spells out a negative day total as an expense amount in the aria-label', () => {
-    const wrapper = mountCalendar({
-      '2026-09-13': { incomeMinor: 0n, expenseMinor: 85000n, netMinor: -85000n, dot: 'none' },
-    });
-
-    const label = wrapper.get('[data-date="2026-09-13"]').attributes('aria-label');
+    const cell = wrapper.get('[data-testid="calendar-day-2026-09-05"]');
+    expect(cell.text()).toContain('+43к');
+    expect(cell.text()).toContain('−6');
+    const label = cell.attributes('aria-label') ?? '';
+    expect(label).toContain('5 сентября 2026');
+    expect(label).toContain('доход');
     expect(label).toContain('расход');
-    expect(label).toContain('850,00 ₽');
+    expect(label).toContain('просроченный платёж');
   });
 
-  it('disables next-month navigation beyond the 60-day occurrence horizon', () => {
-    const wrapper = mountCalendar({}, { monthAnchor: '2026-12-01', selectedDate: '2026-12-01' });
-
-    const next = wrapper.get('[data-action="calendar-next-month"]');
-    expect(next.attributes('disabled')).toBeDefined();
-    expect(next.attributes('aria-label')).toContain('недоступен');
+  it('marks today and the selected day for assistive tech', () => {
+    const wrapper = mountCalendar({ selectedDate: '2026-09-25' });
     expect(
-      wrapper.get('[data-action="calendar-prev-month"]').attributes('disabled'),
-    ).toBeUndefined();
+      wrapper.get('[data-testid="calendar-day-2026-09-24"]').attributes('aria-label'),
+    ).toContain('сегодня');
+    const selected = wrapper.get('[data-testid="calendar-day-2026-09-25"]');
+    expect(selected.attributes('aria-pressed')).toBe('true');
+    expect(selected.attributes('aria-label')).toContain('предстоящий платёж');
   });
 
-  it('keeps next-month navigation enabled inside the horizon', () => {
+  it('draws a shape marker per dot kind', () => {
     const wrapper = mountCalendar();
-
-    expect(
-      wrapper.get('[data-action="calendar-next-month"]').attributes('disabled'),
-    ).toBeUndefined();
-    expect(wrapper.get('[data-action="calendar-next-month"]').attributes('aria-label')).toBe(
-      'Следующий месяц',
+    expect(wrapper.get('[data-testid="calendar-dot-2026-09-05"]').attributes('data-dot')).toBe(
+      'overdue',
     );
+    expect(wrapper.get('[data-testid="calendar-dot-2026-09-25"]').attributes('data-dot')).toBe(
+      'upcoming',
+    );
+    expect(wrapper.find('[data-testid="calendar-dot-2026-09-06"]').exists()).toBe(false);
   });
 
-  it('marks the grid busy while the range reloads', async () => {
+  it('emits select-day for an enabled cell only', async () => {
     const wrapper = mountCalendar();
+    await wrapper.get('[data-testid="calendar-day-2026-09-10"]').trigger('click');
+    expect(wrapper.emitted('select-day')).toEqual([['2026-09-10']]);
+  });
 
-    expect(wrapper.get('.plans-calendar__grid').attributes('aria-busy')).toBe('false');
-    await wrapper.setProps({ loading: true });
-    expect(wrapper.get('.plans-calendar__grid').attributes('aria-busy')).toBe('true');
+  it('emits change-month and blocks navigation beyond today + 60 days', async () => {
+    const wrapper = mountCalendar();
+    await wrapper.get('[data-testid="calendar-prev-month"]').trigger('click');
+    expect(wrapper.emitted('change-month')).toEqual([['2026-08-01']]);
+    // today 2026-09-24 + 60 days = 2026-11-23: October starts earlier, December 1 is later.
+    expect(
+      wrapper.get('[data-testid="calendar-next-month"]').attributes('disabled'),
+    ).toBeUndefined();
+    await wrapper.setProps({ monthAnchor: '2026-11-01' });
+    const next = wrapper.get('[data-testid="calendar-next-month"]');
+    expect(next.attributes('disabled')).toBeDefined();
+    expect(next.attributes('aria-label')).toContain('60 дней');
+  });
+
+  it('keeps exactly one day cell in the tab order', async () => {
+    const wrapper = mountCalendar();
+    const tabbable = () => wrapper.findAll('[data-testid^="calendar-day-"][tabindex="0"]');
+    expect(tabbable()).toHaveLength(1);
+    expect(tabbable()[0]?.attributes('data-testid')).toBe('calendar-day-2026-09-24');
+    // Selected day outside the displayed month falls back to the first day of the month.
+    await wrapper.setProps({ selectedDate: '2026-10-03' });
+    expect(tabbable()).toHaveLength(1);
+    expect(tabbable()[0]?.attributes('data-testid')).toBe('calendar-day-2026-09-01');
+  });
+
+  it('flags the grid busy while loading', () => {
+    expect(
+      mountCalendar({ loading: true }).get('[data-testid="calendar-grid"]').attributes('aria-busy'),
+    ).toBe('true');
+  });
+
+  it('ArrowRight selects the next day, ArrowDown beyond the month does nothing', async () => {
+    const wrapper = mountCalendar();
+    const cell = wrapper.get('[data-testid="calendar-day-2026-09-24"]');
+    await cell.trigger('keydown', { key: 'ArrowRight' });
+    expect(wrapper.emitted('select-day')).toEqual([['2026-09-25']]);
+    await nextTick();
+    expect(document.activeElement).toBe(
+      wrapper.get('[data-testid="calendar-day-2026-09-25"]').element,
+    );
+    await wrapper
+      .get('[data-testid="calendar-day-2026-09-28"]')
+      .trigger('keydown', { key: 'ArrowDown' });
+    expect(wrapper.emitted('select-day')).toEqual([['2026-09-25']]);
   });
 });

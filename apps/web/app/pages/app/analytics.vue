@@ -2,10 +2,12 @@
 import { computed, onMounted, ref } from 'vue';
 import { definePageMeta, navigateTo, useRoute } from '#imports';
 
+import ExportPanelV2 from '../../components/analytics/ExportPanelV2.vue';
 import GoalProgressReport from '../../components/analytics/GoalProgressReport.vue';
 import PlanVsActualReport from '../../components/analytics/PlanVsActualReport.vue';
 import ReportChart from '../../components/analytics/ReportChart.vue';
 import ReportFilters, { type AnalyticsFilters } from '../../components/analytics/ReportFilters.vue';
+import ReportTable from '../../components/analytics/ReportTable.vue';
 import FilterPanel from '../../components/ui/FilterPanel.vue';
 import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../components/ui/Button.vue';
@@ -13,29 +15,37 @@ import UiEmptyState from '../../components/ui/EmptyState.vue';
 import UiSelect from '../../components/ui/Select.vue';
 import { useAuth } from '../../composables/useAuth.js';
 import {
+  REPORT_V2_KEYS,
+  type ReportV2Key,
+  useEnvelopePlanV2,
+} from '../../composables/useEnvelopePlanV2.js';
+import {
   type GenericReportDto,
   type GoalProgressReportDto,
   type PlanVsActualReportDto,
   type ReportDto,
-  type ReportKey,
   useBudgetReferenceData,
 } from '../../composables/useBudgetReferenceData.js';
 
 defineOptions({ name: 'BudgetAnalyticsPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
 
+const V2_KEYS: ReadonlyArray<string> = REPORT_V2_KEYS;
+
 const auth = useAuth();
 const route = useRoute();
 const api = useBudgetReferenceData();
+const v2 = useEnvelopePlanV2();
 const loading = ref(true);
 const error = ref('');
 const report = ref<ReportDto | null>(null);
-const reportKey = ref<ReportKey>(reportKeyFromQuery(route.query.report));
+const reportKey = ref<ReportV2Key>(reportKeyFromQuery(route.query.report));
 const filters = ref<AnalyticsFilters>(filtersFromQuery(route.query));
 const accounts = ref<Array<{ value: string; label: string }>>([]);
 const categories = ref<Array<{ value: string; label: string }>>([]);
 const envelopes = ref<Array<{ value: string; label: string }>>([]);
 const budget = computed(() => auth.currentData.value?.workspaces[0]?.budgets[0] ?? null);
+const isOwner = computed(() => auth.currentData.value?.workspaces[0]?.role === 'OWNER');
 
 onMounted(() => {
   void load();
@@ -47,19 +57,24 @@ async function load() {
     loading.value = false;
     return;
   }
+  // A shared link may carry an unknown key; fall back to the default.
+  if (!V2_KEYS.includes(reportKey.value)) reportKey.value = 'expenses-by-category';
   loading.value = true;
   error.value = '';
   try {
+    const budgetId = budget.value.id;
     const [reportData, accountData, categoryData, envelopeData] = await Promise.all([
-      api.getReport(budget.value.id, reportKey.value, reportFilters()),
-      api.listAccounts(budget.value.id, 'active'),
-      api.listCategories(budget.value.id, undefined, 'active'),
-      api.listEnvelopes(budget.value.id, 'active'),
+      v2.getReport(budgetId, reportKey.value, reportFilters()),
+      api.listAccounts(budgetId, 'active'),
+      api.listCategories(budgetId, undefined, 'active'),
+      v2.listEnvelopes(budgetId),
     ]);
-    report.value = reportData;
+    report.value = reportData as ReportDto;
     accounts.value = accountData.map((item) => ({ value: item.id, label: item.name }));
     categories.value = categoryData.map((item) => ({ value: item.id, label: item.name }));
-    envelopes.value = envelopeData.map((item) => ({ value: item.id, label: item.name }));
+    envelopes.value = envelopeData.items
+      .filter((item) => item.archivedAt === null)
+      .map((item) => ({ value: item.id, label: item.name }));
   } catch {
     error.value = 'Не удалось загрузить отчёт.';
   } finally {
@@ -73,7 +88,7 @@ function updateFilters(value: AnalyticsFilters) {
 }
 
 function updateReportKey(value: string) {
-  reportKey.value = value as ReportKey;
+  reportKey.value = value as ReportV2Key;
   updateUrlAndLoad();
 }
 
@@ -89,7 +104,6 @@ function reportFilters() {
     ...(filters.value.accountId ? { accountId: filters.value.accountId } : {}),
     ...(filters.value.categoryId ? { categoryId: filters.value.categoryId } : {}),
     ...(filters.value.envelopeId ? { envelopeId: filters.value.envelopeId } : {}),
-    ...(filters.value.type ? { type: filters.value.type } : {}),
   };
 }
 
@@ -101,14 +115,12 @@ function filtersFromQuery(
   query: Record<string, string | null | Array<string | null> | undefined>,
 ): AnalyticsFilters {
   const value = (name: string) => (typeof query[name] === 'string' ? query[name] : '');
-  const type = value('type');
   return {
     from: value('from'),
     to: value('to'),
     accountId: value('accountId'),
     categoryId: value('categoryId'),
     envelopeId: value('envelopeId'),
-    type: type === 'INCOME' || type === 'EXPENSE' ? type : '',
   };
 }
 
@@ -124,29 +136,29 @@ function isGenericReport(value: ReportDto | null): value is GenericReportDto {
   return value !== null && !isPlanVsActualReport(value) && !isGoalProgressReport(value);
 }
 
-function reportKeyFromQuery(value: string | null | Array<string | null> | undefined): ReportKey {
-  const keys: ReportKey[] = [
-    'expenses-by-category',
-    'expenses-by-period',
-    'expenses-by-cycle',
-    'incomes-by-cycle',
-    'savings-reallocation-by-cycle',
-    'net-cash-flow',
-    'account-balances',
-    'envelope-balances',
-    'savings-goals',
-    'plan-vs-actual',
-  ];
-  return typeof value === 'string' && keys.includes(value as ReportKey)
-    ? (value as ReportKey)
+function reportKeyFromQuery(value: string | null | Array<string | null> | undefined): ReportV2Key {
+  return typeof value === 'string' && V2_KEYS.includes(value)
+    ? (value as ReportV2Key)
     : 'expenses-by-category';
 }
+
+// There is no physical envelope balance report: savings goals show the assigned balance.
+const reportOptions = [
+  { value: 'expenses-by-category', label: 'Расходы по категориям' },
+  { value: 'expenses-by-period', label: 'Расходы по периодам' },
+  { value: 'expenses-by-cycle', label: 'Расходы по циклам' },
+  { value: 'incomes-by-cycle', label: 'Доходы по циклам' },
+  { value: 'net-cash-flow', label: 'Доходы минус расходы' },
+  { value: 'account-balances', label: 'Остатки счетов' },
+  { value: 'savings-goals', label: 'Цели накоплений (назначено)' },
+  { value: 'plan-vs-actual', label: 'План и факт' },
+  { value: 'assignment-movements', label: 'Назначения и переносы' },
+];
 
 function activeFilterCount() {
   const advanced: Array<string> = [
     filters.value.from,
     filters.value.to,
-    filters.value.type,
     filters.value.accountId,
     filters.value.categoryId,
     filters.value.envelopeId,
@@ -170,18 +182,7 @@ function activeFilterCount() {
           v-model="reportKey"
           name="reportKey"
           label="Отчёт"
-          :options="[
-            { value: 'expenses-by-category', label: 'Расходы по категориям' },
-            { value: 'expenses-by-period', label: 'Расходы по периодам' },
-            { value: 'expenses-by-cycle', label: 'Расходы по циклам' },
-            { value: 'incomes-by-cycle', label: 'Доходы по циклам' },
-            { value: 'savings-reallocation-by-cycle', label: 'Перераспределения накоплений' },
-            { value: 'net-cash-flow', label: 'Доходы минус расходы' },
-            { value: 'account-balances', label: 'Остатки счетов' },
-            { value: 'envelope-balances', label: 'Остатки конвертов' },
-            { value: 'savings-goals', label: 'Цели накоплений' },
-            { value: 'plan-vs-actual', label: 'План и факт' },
-          ]"
+          :options="reportOptions"
           @update:model-value="updateReportKey"
         />
         <FilterPanel :active-count="activeFilterCount()">
@@ -206,7 +207,13 @@ function activeFilterCount() {
         />
         <PlanVsActualReport v-else-if="isPlanVsActualReport(report)" :rows="report.rows" />
         <GoalProgressReport v-else-if="isGoalProgressReport(report)" :rows="report.rows" />
+        <ReportTable
+          v-else-if="report && report.key === 'assignment-movements'"
+          :rows="report.rows"
+          hide-journal
+        />
         <ReportChart v-else-if="isGenericReport(report)" :report="report" />
+        <ExportPanelV2 v-if="budget" :budget-id="budget.id" :is-owner="isOwner" />
       </template>
     </ReferencePageLayout>
   </div>

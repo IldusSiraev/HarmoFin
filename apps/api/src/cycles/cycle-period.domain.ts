@@ -65,7 +65,19 @@ export function todayInTimezone(now: Date, timezone: string): string {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
-function validateSettings(settings: CycleSettings): void {
+export function assertIsoDate(value: string): void {
+  parseDate(value);
+}
+
+export function addIsoDays(value: string, amount: number): string {
+  return formatDate(addDays(parseDate(value), amount));
+}
+
+export function compareIsoDates(left: string, right: string): number {
+  return compare(parseDate(left), parseDate(right));
+}
+
+export function validateSettings(settings: CycleSettings): void {
   if (
     !Number.isInteger(settings.cycleStartDay) ||
     settings.cycleStartDay < 1 ||

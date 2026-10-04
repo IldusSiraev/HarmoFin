@@ -38,9 +38,7 @@ export class AssignmentBalanceRepository {
   ): Promise<AssignmentBalance> {
     const timezone = await this.requireBudgetTimezone(tx, budgetId);
     const asOfDate = new Date(`${todayInTimezone(asOf, timezone)}T00:00:00Z`);
-    const period = periodId
-      ? await this.requirePeriod(tx, budgetId, envelopeId, periodId)
-      : null;
+    const period = periodId ? await this.requirePeriod(tx, budgetId, envelopeId, periodId) : null;
 
     const assignmentPeriodMatch = period
       ? Prisma.sql`"period_id" = ${periodId}::uuid`

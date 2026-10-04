@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+
+import { NEW_BUDGET_TIMEZONE } from '../common/plan-model/new-budget-model.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { runSeed } from './seed.js';
@@ -91,5 +94,43 @@ describe('runSeed', () => {
     expect(createClient).toHaveBeenCalledOnce();
     expect(transaction).toHaveBeenCalledOnce();
     expect(disconnect).toHaveBeenCalledOnce();
+  });
+
+  it('creates the demo budget in plan model 2 with an activation date (DB CHECK)', async () => {
+    const budgetUpsert = vi.fn();
+    budgetUpsert.mockResolvedValue({ id: '01800000-0000-7000-8000-000000000003' });
+    const tx = {
+      user: { upsert: vi.fn(async () => ({ id: '01800000-0000-7000-8000-000000000001' })) },
+      workspace: { upsert: vi.fn(async () => ({ id: '01800000-0000-7000-8000-000000000002' })) },
+      workspaceMembership: { upsert: vi.fn() },
+      budget: { upsert: budgetUpsert },
+      auditEvent: { upsert: vi.fn() },
+    };
+    const createClient = vi.fn(() => ({
+      $transaction: async (callback: (client: typeof tx) => Promise<void>) => callback(tx),
+      $disconnect: vi.fn(),
+    }));
+
+    await runSeed(validEnvironment, {
+      createClient: createClient as unknown as NonNullable<SeedDependencies['createClient']>,
+    });
+
+    const args = budgetUpsert.mock.calls[0]?.[0] as {
+      create: { planModelVersion: number; planModelActivatedOn: Date };
+      update: Record<string, unknown>;
+    };
+    expect(args.create.planModelVersion).toBe(2);
+    expect(args.create.planModelActivatedOn).toBeInstanceOf(Date);
+    expect(args.update).not.toHaveProperty('planModelVersion');
+  });
+
+  it('keeps NEW_BUDGET_TIMEZONE equal to the Prisma schema timezone default', () => {
+    const schema = readFileSync(
+      new URL('../../../../prisma/schema.prisma', import.meta.url),
+      'utf8',
+    );
+    const budget = /model Budget \{[\s\S]*?^\}/m.exec(schema)?.[0] ?? '';
+    const match = /timezone\s+String\s+@default\("([^"]+)"\)/.exec(budget);
+    expect(match?.[1]).toBe(NEW_BUDGET_TIMEZONE);
   });
 });

@@ -2,6 +2,7 @@
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import type { GoalProgressRowDto } from '../../composables/useBudgetReferenceData.js';
 
+// The amount is the assigned continuous balance, not money on an account.
 defineProps<{ rows: ReadonlyArray<GoalProgressRowDto> }>();
 
 function deadlineText(row: GoalProgressRowDto) {
@@ -15,18 +16,13 @@ function deadlineText(row: GoalProgressRowDto) {
 function progressText(row: GoalProgressRowDto) {
   return `Прогресс: ${row.progressPermille} из 1000`;
 }
-
-function journalHref(row: GoalProgressRowDto) {
-  const query = new URLSearchParams(row.journalFilters);
-  return `/app/operations?${query}`;
-}
 </script>
 
 <template>
   <section class="goal-progress" aria-labelledby="goal-progress-title">
     <div class="goal-progress__heading">
       <h2 id="goal-progress-title">Цели накоплений</h2>
-      <p>Прогресс считается по подтверждённым операциям.</p>
+      <p>Назначено на цель: назначенный остаток конверта. Это не деньги на счёте.</p>
     </div>
     <p v-if="rows.length === 0" class="goal-progress__empty">Нет активных целей накоплений.</p>
     <div
@@ -43,7 +39,6 @@ function journalHref(row: GoalProgressRowDto) {
             <th scope="col">Прогресс</th>
             <th scope="col">Осталось</th>
             <th scope="col">Срок</th>
-            <th scope="col">Операции</th>
           </tr>
         </thead>
         <tbody>
@@ -59,6 +54,7 @@ function journalHref(row: GoalProgressRowDto) {
                 :aria-valuetext="progressText(row)"
               />
               <span class="goal-progress__amounts">
+                Назначено:
                 <FinanceMoney :minor-units="row.currentMinor" currency="RUB" :scale="2" />
                 из
                 <FinanceMoney :minor-units="row.targetMinor" currency="RUB" :scale="2" />
@@ -71,9 +67,6 @@ function journalHref(row: GoalProgressRowDto) {
               }"
             >
               {{ deadlineText(row) }}
-            </td>
-            <td>
-              <NuxtLink :to="journalHref(row)">Открыть журнал</NuxtLink>
             </td>
           </tr>
         </tbody>
@@ -107,7 +100,7 @@ function journalHref(row: GoalProgressRowDto) {
   background: var(--hf-color-surface);
 }
 .goal-progress__table-wrap:focus-visible {
-  outline: var(--hf-focus-indicator);
+  box-shadow: var(--hf-focus-indicator);
   outline-offset: 2px;
 }
 table {

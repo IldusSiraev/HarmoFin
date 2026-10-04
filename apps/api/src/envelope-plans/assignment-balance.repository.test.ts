@@ -10,9 +10,7 @@ const periodId = '33333333-3333-4333-8333-333333333333';
 function serializeSqlValue(value: unknown): string {
   const fragment = value as { strings?: unknown; values?: unknown } | null;
   if (fragment && Array.isArray(fragment.strings)) {
-    const parts = Array.isArray(fragment.values)
-      ? fragment.values.map(serializeSqlValue)
-      : [];
+    const parts = Array.isArray(fragment.values) ? fragment.values.map(serializeSqlValue) : [];
     return fragment.strings
       .map((chunk: string, index: number) => chunk + (parts[index] ?? ''))
       .join('');
@@ -113,7 +111,13 @@ describe('AssignmentBalanceRepository', () => {
 
     const repository = new AssignmentBalanceRepository();
     await expect(
-      repository.balance(noPeriod.tx, budgetId, envelopeId, periodId, new Date('2026-10-20T00:00:00Z')),
+      repository.balance(
+        noPeriod.tx,
+        budgetId,
+        envelopeId,
+        periodId,
+        new Date('2026-10-20T00:00:00Z'),
+      ),
     ).rejects.toThrow();
     await expect(
       repository.balance(

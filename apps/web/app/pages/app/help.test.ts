@@ -1,25 +1,41 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('#imports', () => ({ definePageMeta: vi.fn() }));
 
 import HelpPage from './help.vue';
 
 describe('HelpPage', () => {
-  it('explains the core terms in plain language', () => {
-    const wrapper = mount(HelpPage);
-    const text = wrapper.text();
+  it('explains the four numbers without physical envelope wallets', () => {
+    const text = mount(HelpPage).text();
 
     expect(text).toContain('Как пользоваться HarmoFin');
-    expect(text).toContain('Счёт');
-    expect(text).toContain('Конверт');
-    expect(text).toContain('Финансовый месяц');
-    expect(text).toContain('Можно потратить');
+    for (const term of ['На счетах', 'Назначено', 'Свободно для назначения', 'Можно потратить']) {
+      expect(text).toContain(term);
+    }
+    expect(text).not.toContain('Разбить перевод на несколько конвертов');
+    expect(text).not.toContain(
+      'Один счёт может одновременно содержать деньги нескольких конвертов',
+    );
   });
 
   it('answers common questions in a details/summary list', () => {
     const wrapper = mount(HelpPage);
-    const summaries = wrapper.findAll('summary');
 
-    expect(summaries.length).toBeGreaterThan(0);
-    expect(wrapper.text()).toContain('Чем счёт отличается от конверта?');
+    expect(wrapper.findAll('summary').length).toBeGreaterThan(0);
+    expect(wrapper.text()).toContain('Двигает ли перевод между счетами назначения?');
+  });
+
+  it('covers savings, overpayment, transfers, expected income, horizon, cycle and timezone', () => {
+    const text = mount(HelpPage).text();
+
+    expect(text).toContain('Садик');
+    expect(text).toContain('3 000');
+    expect(text).toContain('доплата');
+    expect(text).toContain('Перевод между счетами не двигает назначения');
+    expect(text).toContain('Ожидаемый доход не входит в «На счетах»');
+    expect(text).toContain('горизонт');
+    expect(text).toContain('будущего периода');
+    expect(text).toContain('TIMEZONE_CHANGE_REQUIRES_RECONCILIATION');
   });
 });

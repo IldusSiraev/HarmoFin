@@ -1,12 +1,16 @@
-import { Landmark, PiggyBank, ShieldCheck, ShoppingCart, Sparkles, Wallet } from '@lucide/vue';
+import { Landmark, PiggyBank, ShieldCheck, ShoppingCart, Sparkles } from '@lucide/vue';
 
-import type {
-  EnvelopeDto,
-  EnvelopeType,
-  PeriodSlot,
-} from '../../composables/useBudgetReferenceData.js';
+// Icons by Envelope Plan v2.2 envelope type; unknown types fall back to the
+// caller's default.
+export const ENVELOPE_TYPE_ICONS: Record<string, typeof Landmark> = {
+  CURRENT_EXPENSES: ShoppingCart,
+  MANDATORY_EXPENSES: Landmark,
+  SAVINGS_GOAL: PiggyBank,
+  RESERVE: ShieldCheck,
+  CUSTOM: Sparkles,
+};
 
-export const ENVELOPE_TYPE_LABELS: Record<EnvelopeType, string> = {
+const ENVELOPE_TYPE_LABELS: Record<string, string> = {
   CURRENT_EXPENSES: 'Текущие расходы',
   MANDATORY_EXPENSES: 'Обязательные расходы',
   SAVINGS_GOAL: 'Цели накоплений',
@@ -15,23 +19,16 @@ export const ENVELOPE_TYPE_LABELS: Record<EnvelopeType, string> = {
   CUSTOM: 'Другое',
 };
 
-export const ENVELOPE_TYPE_ICONS: Record<EnvelopeType, typeof Landmark> = {
-  CURRENT_EXPENSES: ShoppingCart,
-  MANDATORY_EXPENSES: Landmark,
-  SAVINGS_GOAL: PiggyBank,
-  RESERVE: ShieldCheck,
-  FREE_MONEY: Wallet,
-  CUSTOM: Sparkles,
-};
-
-export const PERIOD_SLOT_LABELS: Record<PeriodSlot, string> = {
+const PERIOD_SLOT_LABELS: Record<string, string> = {
   FIRST: 'Первая половина',
   SECOND: 'Вторая половина',
 };
 
-export function envelopeSubtitle(
-  envelope: Pick<EnvelopeDto, 'envelopeType' | 'periodSlot'>,
-): string {
+// "Текущие расходы · Первая половина": type label plus the period slot when there is one.
+export function envelopeSubtitle(envelope: {
+  envelopeType: string;
+  periodSlot: string | null;
+}): string {
   return [
     ENVELOPE_TYPE_LABELS[envelope.envelopeType],
     envelope.periodSlot === null ? null : PERIOD_SLOT_LABELS[envelope.periodSlot],

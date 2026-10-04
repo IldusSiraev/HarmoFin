@@ -11,16 +11,31 @@ export class PlanOccurrenceHandler {
     const budgets = await this.prisma.budget.findMany({
       where: {
         status: 'ACTIVE',
+        // Only plan model 2 budgets with a recorded activation date are processed; others are skipped.
+        planModelVersion: 2,
+        planModelActivatedOn: { not: null },
         workspace: { status: 'ACTIVE' },
         ...(budgetId ? { id: budgetId } : {}),
       },
-      select: { id: true, workspaceId: true, timezone: true },
+      select: {
+        id: true,
+        workspaceId: true,
+        timezone: true,
+        planModelActivatedOn: true,
+      },
     });
     for (const budget of budgets) {
       const today = localDate(now, budget.timezone);
       await this.prisma.$transaction(async (tx) => {
         await transitionDueOccurrences(tx, budget.workspaceId, budget.id, today);
-        await materializeOccurrences(tx, budget.workspaceId, budget.id, today);
+        if (!budget.planModelActivatedOn) return;
+        await materializeV2Occurrences(
+          tx,
+          budget.workspaceId,
+          budget.id,
+          today,
+          isoDate(budget.planModelActivatedOn),
+        );
       });
     }
   }
@@ -61,101 +76,136 @@ async function transitionDueOccurrences(
   );
 }
 
-async function materializeOccurrences(
+/**
+ * v2 budgets: materialize mandatory EXPENSE plans from max(plan.startOn, activation) to today+60
+ * (not limited to today-7, so a long worker downtime still yields past-due obligations). Rows
+ * already present in any status are never rewritten; plan rows are locked to prevent duplicates.
+ */
+async function materializeV2Occurrences(
   tx: Prisma.TransactionClient,
   workspaceId: string,
   budgetId: string,
   today: string,
+  activatedOn: string,
 ): Promise<void> {
-  const from = addDays(today, -7);
   const to = addDays(today, 60);
+  await tx.$queryRaw`
+    SELECT "id" FROM "regular_plans"
+    WHERE "budget_id" = ${budgetId}::uuid AND "is_active" = true AND "deleted_at" IS NULL
+    ORDER BY "id"
+    FOR UPDATE
+  `;
   const plans = await tx.regularPlan.findMany({
     where: {
       budgetId,
       isActive: true,
       deletedAt: null,
+      planType: 'EXPENSE',
       startOn: { lte: dateValue(to) },
-      OR: [{ endOn: null }, { endOn: { gte: dateValue(from) } }],
+      OR: [{ endOn: null }, { endOn: { gte: dateValue(activatedOn) } }],
+      envelope: { is: { budgetId, envelopeType: 'MANDATORY_EXPENSES', archivedAt: null } },
     },
-    select: {
-      id: true,
-      name: true,
-      planType: true,
-      amountMinor: true,
-      currency: true,
-      scale: true,
-      anchorOn: true,
-      startOn: true,
-      endOn: true,
-      recurrence: true,
-      intervalMonths: true,
-      accountId: true,
-      categoryId: true,
-      envelopeId: true,
-      comment: true,
-    },
+    select: planSelect,
+    orderBy: { id: 'asc' },
   });
+  if (plans.length === 0) return;
+  const existing = await tx.planOccurrence.findMany({
+    where: {
+      budgetId,
+      planId: { in: plans.map((plan) => plan.id) },
+      scheduledOn: { gte: dateValue(activatedOn), lte: dateValue(to) },
+    },
+    select: { planId: true, scheduledOn: true },
+  });
+  const known = new Set(existing.map((row) => `${row.planId}:${isoDate(row.scheduledOn)}`));
 
   for (const plan of plans) {
-    for (const scheduledOn of datesForPlanInWindow(
+    const startOn = isoDate(plan.startOn);
+    const from = startOn >= activatedOn ? startOn : activatedOn;
+    const rows: Array<{ id: string; date: string; status: PlanOccurrenceStatus }> = [];
+    for (const date of datesForPlanInWindow(
       {
         anchorOn: isoDate(plan.anchorOn),
-        startOn: isoDate(plan.startOn),
+        startOn,
         endOn: plan.endOn ? isoDate(plan.endOn) : null,
         recurrence: plan.recurrence,
         intervalMonths: plan.intervalMonths,
       },
       { from, to },
     )) {
-      const occurrenceId = randomUUID();
-      const date = dateValue(scheduledOn);
-      const result = await tx.planOccurrence.createMany({
-        data: {
-          id: occurrenceId,
-          workspaceId,
-          budgetId,
-          planId: plan.id,
-          scheduledOn: date,
-          planName: plan.name,
-          planType: plan.planType,
-          amountMinor: plan.amountMinor,
-          currency: plan.currency,
-          scale: plan.scale,
-          accountId: plan.accountId,
-          categoryId: plan.categoryId,
-          envelopeId: plan.envelopeId,
-          comment: plan.comment,
-        },
-        skipDuplicates: true,
-      });
-      if (result.count === 0) continue;
-      await tx.auditEvent.create({
-        data: {
-          id: randomUUID(),
-          actorUserId: null,
-          workspaceId,
-          budgetId,
-          entityType: 'plan_occurrence',
-          entityId: occurrenceId,
-          action: 'CREATED',
-          source: 'WORKER',
-          newValues: occurrenceAuditValues(
-            {
-              planId: plan.id,
-              scheduledOn: date,
-              planType: plan.planType,
-              amountMinor: plan.amountMinor,
-              status: 'PENDING',
-              transactionId: null,
-              cancellationReason: null,
-            },
-            'PENDING',
-          ),
-        },
-      });
+      const key = `${plan.id}:${date}`;
+      if (known.has(key)) continue;
+      known.add(key);
+      rows.push({ id: randomUUID(), date, status: date <= today ? 'DUE' : 'PENDING' });
     }
+    if (rows.length === 0) continue;
+    await tx.planOccurrence.createMany({
+      data: rows.map((row) => ({
+        id: row.id,
+        workspaceId,
+        budgetId,
+        planId: plan.id,
+        scheduledOn: dateValue(row.date),
+        planName: plan.name,
+        planType: plan.planType,
+        amountMinor: plan.amountMinor,
+        currency: plan.currency,
+        scale: plan.scale,
+        accountId: plan.accountId,
+        categoryId: plan.categoryId,
+        envelopeId: plan.envelopeId,
+        comment: plan.comment,
+        status: row.status,
+      })),
+    });
+    await Promise.all(
+      rows.map((row) =>
+        tx.auditEvent.create({
+          data: {
+            id: randomUUID(),
+            actorUserId: null,
+            workspaceId,
+            budgetId,
+            entityType: 'plan_occurrence',
+            entityId: row.id,
+            action: 'CREATED',
+            source: 'WORKER',
+            newValues: occurrenceAuditValues(
+              {
+                planId: plan.id,
+                scheduledOn: dateValue(row.date),
+                planType: plan.planType,
+                amountMinor: plan.amountMinor,
+                status: row.status,
+                transactionId: null,
+                cancellationReason: null,
+              },
+              row.status,
+            ),
+          },
+        }),
+      ),
+    );
   }
 }
+
+const planSelect = {
+  id: true,
+  name: true,
+  planType: true,
+  amountMinor: true,
+  currency: true,
+  scale: true,
+  anchorOn: true,
+  startOn: true,
+  endOn: true,
+  recurrence: true,
+  intervalMonths: true,
+  accountId: true,
+  categoryId: true,
+  envelopeId: true,
+  comment: true,
+} as const;
 
 const occurrenceAuditSelect = {
   id: true,

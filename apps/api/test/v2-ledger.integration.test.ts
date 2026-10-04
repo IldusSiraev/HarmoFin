@@ -265,9 +265,7 @@ describe('v2 envelope ledger: assignment balance projection', () => {
   });
 
   it('не включает назначение до effective_on: баланс 0', async () => {
-    await expect(
-      balance(envelopeAId, periodAId, at('2026-10-01')),
-    ).resolves.toEqual({
+    await expect(balance(envelopeAId, periodAId, at('2026-10-01'))).resolves.toEqual({
       funded: 0n,
       spent: 0n,
       balance: 0n,
@@ -352,9 +350,7 @@ describe('v2 envelope ledger: assignment balance projection', () => {
       spent: 150_000n,
       balance: 850_000n,
     });
-    expect(rows.some((row) => row.envelopeId === envelopeAId && row.periodId === null)).toBe(
-      false,
-    );
+    expect(rows.some((row) => row.envelopeId === envelopeAId && row.periodId === null)).toBe(false);
     expect(byKey.get(`${envelopeDId}:`)).toEqual({
       envelopeId: envelopeDId,
       periodId: null,
@@ -374,7 +370,7 @@ describe('v2 envelope ledger: assignment balance projection', () => {
     expect(await prisma.incomeAllocation.count({ where: { budgetId } })).toBe(1);
     expect(await prisma.transferPart.count({ where: { budgetId } })).toBe(1);
 
-    const [cashRow] = await prisma.$queryRaw`
+    const [cashRow] = (await prisma.$queryRaw`
       SELECT a."starting_balance_minor"
           + (SELECT COALESCE(SUM(t."amount_minor"), 0) FROM "transactions" t
              WHERE t."budget_id" = ${budgetId}::uuid
@@ -387,7 +383,7 @@ describe('v2 envelope ledger: assignment balance projection', () => {
                AND t."status" = 'CONFIRMED'
                AND t."transaction_type" = 'EXPENSE') AS cash
       FROM "accounts" a WHERE a."id" = ${accountId}::uuid
-    ` as unknown as Array<{ cash: string | bigint }>;
+    `) as unknown as Array<{ cash: string | bigint }>;
     if (!cashRow) throw new Error('Account row not found.');
     expect(BigInt(String(cashRow.cash))).toBe(15_350_000n);
   });
@@ -430,11 +426,7 @@ async function createEnvelope(name: string): Promise<string> {
   return envelope.id;
 }
 
-async function createPeriod(
-  envelopeId: string,
-  startsOn: string,
-  endsOn: string,
-): Promise<string> {
+async function createPeriod(envelopeId: string, startsOn: string, endsOn: string): Promise<string> {
   const period = await prisma.envelopePeriod.create({
     data: {
       id: randomUUID(),
