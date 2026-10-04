@@ -73,6 +73,15 @@ Never commit secrets or put them in a Dockerfile or client bundle. Obtain secret
 - Do not fabricate commands or dependencies. Add commands to `README.md` only after creating and verifying them.
 - Write user-facing documentation and UI text in Russian. Use English for code identifiers, API names, and database schema.
 
+## Development agent team
+
+- The [development agent team design](docs/superpowers/specs/2026-09-29-development-agent-team-design.md) is authoritative for internal agent roles, task packets, routing, gates, receipts and token policy. It is not a HarmoFin product feature.
+- `.claude/agents/` and `.opencode/agents/` are platform adapters. Keep role names, one-writer rule, reviewer contracts, gates and receipts aligned; native tool permissions and model mappings may differ. Do not duplicate product rules or weaken portable policy in an adapter.
+- The orchestrator is the only agent coordinating a task and communicating with the owner. Assign exactly one writer; parallel work is limited to read-only reviews.
+- Every code task requires QA evidence and final review. Apply Financial, Security, API, UI/UX, backend or release reviews required by the routing matrix. Financial and Security `BLOCK` cannot be cleared by the orchestrator alone.
+- Do not create worktrees. Do not run local Playwright without direct owner request. Do not commit, push, deploy, roll back or publish without explicit owner approval.
+- When changing an adapter, update the corresponding adapter and verify its installed native schema. Keep prompts and model mappings in agent configuration; do not duplicate them here.
+
 ## Working agreement
 
 Read the source documents linked above before making product or architectural assumptions. Keep roadmap items (functional spec section 18, "После v1") separate from v1 implementation, preserve budget isolation and server-side financial correctness in every change, and avoid adding future features to v1 acceptance scope.

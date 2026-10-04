@@ -38,6 +38,8 @@ temp/
 # Local agent working data
 .superpowers/
 .claude/
+.opencode/
+opencode.json
 
 # IDE settings and metadata
 .idea/
