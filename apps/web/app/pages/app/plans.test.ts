@@ -14,6 +14,8 @@ const v2 = {
   listIncomeOccurrences: vi.fn(),
   recordIncomeOccurrence: vi.fn(),
   createTransaction: vi.fn(),
+  createObligationPlan: vi.fn(),
+  createIncomePlan: vi.fn(),
 };
 const funding = { offer: vi.fn(), dismiss: vi.fn() };
 const budgetRow = {
@@ -95,6 +97,7 @@ describe('plans page', () => {
       attachTo: document.body,
       global: {
         stubs: {
+          teleport: true,
           NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
           ...confirmStub,
         },
@@ -123,6 +126,8 @@ describe('plans page', () => {
     v2.payObligation.mockResolvedValue({ transaction: null, occurrence: daycare, warnings: [] });
     v2.skipObligationOccurrence.mockResolvedValue({ transaction: null, occurrence: daycare });
     v2.listIncomeOccurrences.mockResolvedValue({ items: [salary] });
+    v2.createObligationPlan.mockResolvedValue({ id: 'plan-new' });
+    v2.createIncomePlan.mockResolvedValue({ id: 'plan-new' });
     v2.recordIncomeOccurrence.mockResolvedValue({
       occurrence: { id: 'inc-occ', status: 'COMPLETED', transactionId: 'income-tx' },
       transaction: { id: 'income-tx', amountMinor: '8700000' },
@@ -391,7 +396,7 @@ describe('plans page', () => {
       expect(row.text().replace(/\s/g, ' ')).toContain('100 000,00');
       expect(row.text()).toContain('Прогноз — не входит в «На счетах»');
       expect(wrapper.get('[data-testid="income-list"]').text()).toContain(
-        'Ожидаемое поступление не защищает текущие обязательства',
+        'Это прогноз: пока деньги не пришли',
       );
       expect(v2.listIncomeOccurrences).toHaveBeenCalledTimes(1);
       expect(v2.recordIncomeOccurrence).not.toHaveBeenCalled();
@@ -542,6 +547,160 @@ describe('plans page', () => {
       await wrapper.get('[data-testid="income-cancel"]').trigger('click');
       await flushPromises();
       expect(document.activeElement).toBe(button.element);
+    });
+  });
+
+  describe('plan creation', () => {
+    async function openDialog(testId: string) {
+      await wrapper!.get(`[data-testid="${testId}"]`).trigger('click');
+      await flushPromises();
+    }
+    async function fillPlan(name: string, amount: string, pill: string) {
+      await wrapper!.get('#operation-amount-input').setValue(amount);
+      await wrapper!.get('#planName-input').setValue(name);
+      await wrapper!.get(`[data-testid="pill-planCategory-${pill}"]`).trigger('click');
+    }
+    async function submitPlan() {
+      await wrapper!.get('[data-testid="plan-submit"]').trigger('click');
+      await flushPromises();
+    }
+
+    it('opens the dialog on the payment tab from the header button', async () => {
+      wrapper = mountV2();
+      await flushPromises();
+      expect(wrapper.find('[data-testid="plan-submit"]').exists()).toBe(false);
+
+      await openDialog('plan-add-obligation');
+      expect(wrapper.get('[data-testid="plan-tab-obligation"]').attributes('aria-selected')).toBe(
+        'true',
+      );
+    });
+
+    it('shows the empty payments state with an add button', async () => {
+      v2.listObligationOccurrences.mockResolvedValue({ items: [] });
+      wrapper = mountV2();
+      await flushPromises();
+
+      const list = wrapper.get('[data-testid="obligation-list"]');
+      expect(list.text()).toContain('Обязательных платежей пока нет.');
+      expect(list.text()).toContain('«Можно потратить» учтёт их заранее');
+      await openDialog('plan-add-obligation-empty');
+      expect(wrapper.find('[data-testid="plan-submit"]').exists()).toBe(true);
+    });
+
+    it('shows the empty income state and opens the income tab', async () => {
+      v2.listIncomeOccurrences.mockResolvedValue({ items: [] });
+      wrapper = mountV2();
+      await flushPromises();
+
+      const income = wrapper.get('[data-testid="income-list"]');
+      expect(income.text()).toContain('Здесь будут ожидаемые поступления.');
+      expect(income.text()).not.toContain('Это прогноз');
+      await openDialog('plan-add-income-empty');
+      expect(wrapper.get('[data-testid="plan-tab-income"]').attributes('aria-selected')).toBe(
+        'true',
+      );
+    });
+
+    it('shows the forecast line when planned income exists, never the old wording', async () => {
+      wrapper = mountV2();
+      await flushPromises();
+
+      expect(wrapper.get('[data-testid="income-list"]').text()).toContain(
+        'Это прогноз: пока деньги не пришли и вы не записали их как доход, они не входят в «На счетах» и не увеличивают «Можно потратить»',
+      );
+      expect(wrapper.text()).not.toContain('не защищает текущие обязательства');
+    });
+
+    it('creates an obligation plan, rereads lists, announces it and focuses the list', async () => {
+      wrapper = mountV2();
+      await flushPromises();
+      await openDialog('plan-add-obligation');
+      await fillPlan('Аренда', '45000,5', 'category-id');
+      v2.listObligationOccurrences.mockClear();
+      v2.listIncomeOccurrences.mockClear();
+      await submitPlan();
+
+      expect(v2.createObligationPlan).toHaveBeenCalledTimes(1);
+      const [budgetId, request, key] = v2.createObligationPlan.mock.calls[0]!;
+      expect(budgetId).toBe('budget-id');
+      expect(request).toMatchObject({
+        name: 'Аренда',
+        amount: '45000.5',
+        categoryId: 'category-id',
+        recurrence: 'MONTHLY',
+      });
+      expect(typeof key).toBe('string');
+      expect(v2.createIncomePlan).not.toHaveBeenCalled();
+      expect(v2.listObligationOccurrences).toHaveBeenCalledTimes(1);
+      expect(v2.listIncomeOccurrences).toHaveBeenCalledTimes(1);
+      expect(wrapper.find('[data-testid="plan-submit"]').exists()).toBe(false);
+      expect(wrapper.get('[role="status"]').text()).toBe('Платёж «Аренда» добавлен.');
+      expect(document.activeElement).toBe(wrapper.get('[data-testid="obligation-list"]').element);
+    });
+
+    it('creates an income plan through createIncomePlan', async () => {
+      v2.listIncomeOccurrences.mockResolvedValue({ items: [] });
+      wrapper = mountV2();
+      await flushPromises();
+      await openDialog('plan-add-income-empty');
+      await fillPlan('Зарплата', '100000', 'income-cat');
+      await submitPlan();
+
+      expect(v2.createIncomePlan).toHaveBeenCalledTimes(1);
+      expect(v2.createObligationPlan).not.toHaveBeenCalled();
+      expect(v2.createIncomePlan.mock.calls[0]?.[1]).toMatchObject({
+        name: 'Зарплата',
+        amount: '100000',
+        categoryId: 'income-cat',
+      });
+      expect(wrapper.get('[role="status"]').text()).toBe('Доход «Зарплата» добавлен.');
+      expect(document.activeElement).toBe(wrapper.get('[data-testid="income-list"]').element);
+    });
+
+    it('reuses the key for an unchanged retry and issues a new one after an edit', async () => {
+      v2.createObligationPlan.mockRejectedValue(
+        new ApiRequestError(500, { code: 'INTERNAL', detail: 'x' }),
+      );
+      wrapper = mountV2();
+      await flushPromises();
+      await openDialog('plan-add-obligation');
+      await fillPlan('Аренда', '100', 'category-id');
+      await submitPlan();
+      await submitPlan();
+      const calls = v2.createObligationPlan.mock.calls;
+      expect(calls).toHaveLength(2);
+      expect(calls[1]?.[2]).toBe(calls[0]?.[2]);
+
+      await wrapper.get('#operation-amount-input').setValue('200');
+      await submitPlan();
+      expect(v2.createObligationPlan.mock.calls[2]?.[2]).not.toBe(calls[0]?.[2]);
+    });
+
+    it('keeps the dialog open with input and shows server errors', async () => {
+      v2.createObligationPlan.mockRejectedValueOnce(
+        new ApiRequestError(422, {
+          code: 'VALIDATION_FAILED',
+          detail: 'bad',
+          fieldErrors: [{ field: 'name', message: 'Название занято', code: 'x' }],
+        }),
+      );
+      wrapper = mountV2();
+      await flushPromises();
+      await openDialog('plan-add-obligation');
+      await fillPlan('Аренда', '100', 'category-id');
+      await submitPlan();
+
+      expect(wrapper.find('[data-testid="plan-submit"]').exists()).toBe(true);
+      expect(wrapper.text()).toContain('Название занято');
+      expect((wrapper.get('#planName-input').element as HTMLInputElement).value).toBe('Аренда');
+
+      v2.createObligationPlan.mockRejectedValueOnce(
+        new ApiRequestError(500, { code: 'INTERNAL', detail: 'raw english' }),
+      );
+      await submitPlan();
+      expect(wrapper.text()).toContain('Не удалось сохранить план. Попробуйте ещё раз.');
+      expect(wrapper.text()).not.toContain('raw english');
     });
   });
 });

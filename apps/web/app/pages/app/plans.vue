@@ -5,6 +5,14 @@ import { AlertTriangle, Bell, Check, Plus, SkipForward, TrendingUp } from '@luci
 import { definePageMeta, useRoute } from '#imports';
 
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
+import PlanCreateDialog, {
+  type PlanCreateSubmit,
+} from '../../components/plans/PlanCreateDialog.vue';
+import {
+  fieldErrorsFromProblem,
+  type PlanFormErrors,
+  type PlanKind,
+} from '../../components/plans/plan-form.js';
 import ObligationPaySheet, {
   type ObligationPaySubmit,
 } from '../../components/obligations/ObligationPaySheet.vue';
@@ -23,6 +31,7 @@ import {
 } from '../../composables/useEnvelopePlanV2.js';
 import { useFundingEntry } from '../../composables/useFundingEntry.js';
 import { ApiRequestError } from '../../composables/useApiClient.js';
+import { v2ErrorMessage } from '../../composables/useV2Error.js';
 import {
   type CategoryDto,
   useBudgetReferenceData,
@@ -122,6 +131,16 @@ const INCOME_ERROR_TEXT: Record<string, string> = {
   IDEMPOTENCY_CONFLICT: 'Данные дохода изменились. Проверьте форму и повторите.',
   MODEL_VERSION_MISMATCH: 'Этот бюджет работает по другой модели планов. Обновите страницу.',
 };
+
+// Plan creation. The dialog is always mounted (like the sheets above) so the
+// modal can hand focus back to the button that opened it; this page owns the
+// request, the Idempotency-Key and the status.
+const planDialogOpen = ref(false);
+const planDialogKind = ref<PlanKind>('obligation');
+const planPending = ref(false);
+const planError = ref<string | null>(null);
+const planFieldErrors = ref<PlanFormErrors>({});
+let planAttempt: { fingerprint: string; key: string } | null = null;
 
 const categoryById = computed(
   () => new Map(categories.value.map((category) => [category.id, category])),
@@ -259,6 +278,64 @@ async function submitPay(input: ObligationPaySubmit) {
   }
 }
 
+function openPlanDialog(kind: PlanKind) {
+  planError.value = null;
+  planFieldErrors.value = {};
+  planDialogKind.value = kind;
+  planDialogOpen.value = true;
+}
+
+function closePlanDialog() {
+  if (planPending.value) return;
+  planDialogOpen.value = false;
+}
+
+// One key per unchanged attempt: a retry of the same request reuses it, any
+// edit is a different attempt and gets a new one.
+function planKeyFor(payload: PlanCreateSubmit): string {
+  const fingerprint = JSON.stringify(payload);
+  if (planAttempt?.fingerprint !== fingerprint) {
+    planAttempt = { fingerprint, key: crypto.randomUUID() };
+  }
+  return planAttempt.key;
+}
+
+async function submitPlan(payload: PlanCreateSubmit) {
+  if (!budget.value || planPending.value) return;
+  planPending.value = true;
+  planError.value = null;
+  planFieldErrors.value = {};
+  const key = planKeyFor(payload);
+  try {
+    if (payload.kind === 'obligation') {
+      await v2.createObligationPlan(budget.value.id, payload.request, key);
+    } else {
+      await v2.createIncomePlan(budget.value.id, payload.request, key);
+    }
+    planAttempt = null;
+    planDialogOpen.value = false;
+    statusText.value =
+      payload.kind === 'obligation'
+        ? `Платёж «${payload.request.name}» добавлен.`
+        : `Доход «${payload.request.name}» добавлен.`;
+    try {
+      await loadObligations();
+    } catch {
+      error.value = 'План добавлен, но список не обновился. Обновите страницу.';
+    }
+    await nextTick();
+    (payload.kind === 'obligation' ? obligationListEl : incomeListEl).value?.focus();
+  } catch (exception) {
+    if (exception instanceof ApiRequestError) {
+      const mapped = fieldErrorsFromProblem(exception.problem);
+      planFieldErrors.value = mapped.fields;
+    }
+    planError.value = v2ErrorMessage(exception, 'Не удалось сохранить план. Попробуйте ещё раз.');
+  } finally {
+    planPending.value = false;
+  }
+}
+
 function openIncomeRecord(item: IncomeOccurrenceItem) {
   incomeError.value = null;
   incomeFieldErrors.value = {};
@@ -369,6 +446,12 @@ function errorMessage(exception: unknown) {
     <ReferencePageLayout>
       <template #kicker>Регулярные планы</template>
       <template #title>Планы</template>
+      <template #actions>
+        <UiButton data-testid="plan-add-obligation" @click="openPlanDialog('obligation')">
+          <Plus :size="16" aria-hidden="true" />
+          Добавить платёж
+        </UiButton>
+      </template>
       <template #content>
         <p v-if="statusText" class="plans-page__status" role="status">{{ statusText }}</p>
         <p v-if="error" class="plans-page__error" role="alert">{{ error }}</p>
@@ -381,9 +464,19 @@ function errorMessage(exception: unknown) {
             data-testid="obligation-list"
             aria-label="Обязательные платежи"
           >
-            <p v-if="sortedObligations.length === 0" class="obligation-list__empty">
-              Обязательных платежей пока нет.
-            </p>
+            <div v-if="sortedObligations.length === 0" class="plans-page__empty">
+              <p class="obligation-list__empty">Обязательных платежей пока нет.</p>
+              <p class="obligation-list__empty">
+                Добавьте аренду, коммунальные платежи, кредиты — «Можно потратить» учтёт их заранее.
+              </p>
+              <UiButton
+                variant="secondary"
+                data-testid="plan-add-obligation-empty"
+                @click="openPlanDialog('obligation')"
+              >
+                Добавить платёж
+              </UiButton>
+            </div>
             <ul v-else class="obligation-list__items">
               <li
                 v-for="item in sortedObligations"
@@ -464,16 +557,24 @@ function errorMessage(exception: unknown) {
             aria-label="Ожидаемые доходы"
           >
             <h2 class="income-list__title">Ожидаемые доходы</h2>
-            <p class="income-list__warning">
+            <p v-if="!incomeLoadFailed && visibleIncome.length > 0" class="income-list__warning">
               <AlertTriangle :size="14" aria-hidden="true" />
-              Ожидаемое поступление не защищает текущие обязательства.
+              Это прогноз: пока деньги не пришли и вы не записали их как доход, они не входят в «На
+              счетах» и не увеличивают «Можно потратить».
             </p>
             <p v-if="incomeLoadFailed" class="plans-page__error" role="alert">
               Не удалось загрузить ожидаемые доходы.
             </p>
-            <p v-else-if="visibleIncome.length === 0" class="obligation-list__empty">
-              Плановых доходов пока нет.
-            </p>
+            <div v-else-if="visibleIncome.length === 0" class="plans-page__empty">
+              <p class="obligation-list__empty">Здесь будут ожидаемые поступления.</p>
+              <UiButton
+                variant="secondary"
+                data-testid="plan-add-income-empty"
+                @click="openPlanDialog('income')"
+              >
+                Добавить доход
+              </UiButton>
+            </div>
             <ul v-else class="obligation-list__items">
               <li
                 v-for="item in visibleIncome"
@@ -545,6 +646,18 @@ function errorMessage(exception: unknown) {
       @close="closeIncomeRecord"
     />
 
+    <PlanCreateDialog
+      :open="planDialogOpen"
+      :categories="categories"
+      :initial-kind="planDialogKind"
+      :initial-date="today"
+      :pending="planPending"
+      :error="planError"
+      :field-errors="planFieldErrors"
+      @submit="submitPlan"
+      @close="closePlanDialog"
+    />
+
     <UiConfirmDialog
       :open="confirmation !== null"
       title="Пропустить обязательство?"
@@ -569,6 +682,11 @@ function errorMessage(exception: unknown) {
 }
 .plans-page__error {
   color: var(--hf-color-text-danger);
+}
+.plans-page__empty {
+  display: grid;
+  justify-items: start;
+  gap: var(--hf-space-2);
 }
 .obligation-list__empty {
   margin: 0;
