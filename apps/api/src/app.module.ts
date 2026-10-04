@@ -21,6 +21,7 @@ import { ExportsModule } from './exports/exports.module.js';
 import { HealthModule } from './health/health.module.js';
 import { ReportModule } from './reports/report.module.js';
 import { PlansModule } from './plans/plans.module.js';
+import { PlansCalendarModule } from './plans-calendar/plans-calendar.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
 import { WorkspaceModule } from './workspaces/workspace.module.js';
@@ -49,6 +50,7 @@ export class AppModule {
         FundingModule.register(),
         TemplateModule.register(),
         PlansModule.register(),
+        PlansCalendarModule.register(),
         NotificationsModule.register(),
         ReportModule.register(),
         ExportsModule.register(),

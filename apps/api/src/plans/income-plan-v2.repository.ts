@@ -15,7 +15,7 @@ const planSelect = {
   isActive: true,
 } as const;
 
-const incomePlanFilter = (budgetId: string) =>
+export const incomePlanFilter = (budgetId: string) =>
   ({
     budgetId,
     deletedAt: null,

@@ -16,7 +16,7 @@ const planSelect = {
   isActive: true,
 } as const;
 
-const mandatoryPlanFilter = (budgetId: string) =>
+export const mandatoryPlanFilter = (budgetId: string) =>
   ({
     budgetId,
     deletedAt: null,
@@ -27,6 +27,7 @@ const mandatoryPlanFilter = (budgetId: string) =>
 export type OccurrenceListFilter = {
   planId?: string | undefined;
   status?: PlanOccurrenceStatus | undefined;
+  statuses?: PlanOccurrenceStatus[] | undefined;
   from?: Date | undefined;
   to?: Date | undefined;
 };
@@ -65,6 +66,7 @@ export class ObligationPlanRepository {
         plan: { is: mandatoryPlanFilter(budgetId) },
         ...(query.planId ? { planId: query.planId } : {}),
         ...(query.status ? { status: query.status } : {}),
+        ...(query.statuses ? { status: { in: query.statuses } } : {}),
         ...(query.from || query.to
           ? {
               scheduledOn: {

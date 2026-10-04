@@ -80,6 +80,7 @@ const EXPECTED_V2: Array<[Method, string]> = [
   ['post', '/api/v2/budgets/{budgetId}/obligations/plans'],
   ['patch', '/api/v2/budgets/{budgetId}/obligations/plans/{planId}'],
   ['get', '/api/v2/budgets/{budgetId}/obligations/occurrences'],
+  ['get', '/api/v2/budgets/{budgetId}/plans/calendar'],
   ['post', '/api/v2/budgets/{budgetId}/obligations/one-time-pay'],
   ['post', '/api/v2/budgets/{budgetId}/obligations/{occurrenceId}/pay'],
   ['post', '/api/v2/budgets/{budgetId}/obligations/{occurrenceId}/skip'],
