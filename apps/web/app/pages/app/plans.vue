@@ -5,6 +5,8 @@ import { AlertTriangle, Plus } from '@lucide/vue';
 import { definePageMeta, useRoute } from '#imports';
 
 import PlanDayPanel from '../../components/plans/PlanDayPanel.vue';
+import PlanCatalog from '../../components/plans/PlanCatalog.vue';
+import PlanEditDialog from '../../components/plans/PlanEditDialog.vue';
 import PlanItemList from '../../components/plans/PlanItemList.vue';
 import PlanKpiRow from '../../components/plans/PlanKpiRow.vue';
 import PlansCalendar from '../../components/plans/PlansCalendar.vue';
@@ -16,6 +18,13 @@ import {
   type PlanFormErrors,
   type PlanKind,
 } from '../../components/plans/plan-form.js';
+import {
+  planEditFieldErrors,
+  planUpdateMessage,
+  toCatalogEntries,
+  type PlanCatalogEntry,
+  type PlanEditErrors,
+} from '../../components/plans/plan-edit.js';
 import ObligationPaySheet, {
   type ObligationPaySubmit,
 } from '../../components/obligations/ObligationPaySheet.vue';
@@ -32,6 +41,7 @@ import {
   type PlansCalendarItem,
   type PlansCalendarResponse,
   type TransactionJournalV2Item,
+  type UpdatePlanRequest,
   useEnvelopePlanV2,
 } from '../../composables/useEnvelopePlanV2.js';
 import { useFundingEntry } from '../../composables/useFundingEntry.js';
@@ -153,6 +163,15 @@ const planError = ref<string | null>(null);
 const planFieldErrors = ref<PlanFormErrors>({});
 let planAttempt: { fingerprint: string; key: string } | null = null;
 
+// Plan edit/stop/resume. The catalog feeds both the dialog and the "all plans" block.
+const catalog = ref<PlanCatalogEntry[]>([]);
+const catalogLoadFailed = ref(false);
+const editEntry = ref<PlanCatalogEntry | null>(null);
+const planEditPending = ref(false);
+const planEditError = ref<string | null>(null);
+const planEditFieldErrorsState = ref<PlanEditErrors>({});
+let planEditAttempt: { fingerprint: string; key: string } | null = null;
+
 const categoryById = computed(
   () => new Map(categories.value.map((category) => [category.id, category])),
 );
@@ -217,8 +236,25 @@ async function loadPage(withReference = false): Promise<void> {
       categoryResult.status === 'fulfilled' &&
       withReference);
   await loadFacts();
+  await loadPlans();
   for (const result of [calendarResult, accountResult, categoryResult]) {
     if (result.status === 'rejected') throw result.reason;
+  }
+}
+
+// Plan lists feed the catalog and the edit dialog; a failure must not break the page.
+async function loadPlans(): Promise<void> {
+  if (!budget.value) return;
+  const budgetId = budget.value.id;
+  const [obligations, incomes] = await Promise.allSettled([
+    v2.listObligationPlans(budgetId, 'all'),
+    v2.listIncomePlans(budgetId, 'all'),
+  ]);
+  if (obligations.status === 'fulfilled' && incomes.status === 'fulfilled') {
+    catalog.value = toCatalogEntries(obligations.value.items, incomes.value.items);
+    catalogLoadFailed.value = false;
+  } else {
+    catalogLoadFailed.value = true;
   }
 }
 
@@ -529,6 +565,89 @@ async function submitIncomeRecord(input: IncomeRecordSubmit) {
   }
 }
 
+function openPlanEdit(item: PlansCalendarItem) {
+  const kind = item.kind === 'OBLIGATION' ? 'obligation' : 'income';
+  const entry = catalog.value.find(
+    (candidate) => candidate.kind === kind && candidate.id === item.planId,
+  );
+  if (!entry) {
+    error.value = 'План не найден. Обновите страницу.';
+    return;
+  }
+  openPlanEditFor(entry);
+}
+
+function openPlanEditFor(entry: PlanCatalogEntry) {
+  error.value = '';
+  planEditError.value = null;
+  planEditFieldErrorsState.value = {};
+  editEntry.value = entry;
+}
+
+function closePlanEdit() {
+  if (planEditPending.value) return;
+  editEntry.value = null;
+}
+
+// One key per unchanged attempt: a retry of the same request reuses it, any edit is a new attempt.
+function planEditKeyFor(entry: PlanCatalogEntry, request: UpdatePlanRequest): string {
+  const fingerprint = JSON.stringify({ kind: entry.kind, id: entry.id, request });
+  if (planEditAttempt?.fingerprint !== fingerprint) {
+    planEditAttempt = { fingerprint, key: crypto.randomUUID() };
+  }
+  return planEditAttempt.key;
+}
+
+async function applyPlanUpdate(
+  entry: PlanCatalogEntry,
+  request: UpdatePlanRequest,
+  fromDialog: boolean,
+) {
+  if (!budget.value || planEditPending.value) return;
+  planEditPending.value = true;
+  planEditError.value = null;
+  planEditFieldErrorsState.value = {};
+  if (!fromDialog) error.value = '';
+  const key = planEditKeyFor(entry, request);
+  try {
+    const result =
+      entry.kind === 'obligation'
+        ? await v2.updateObligationPlan(budget.value.id, entry.id, request, key)
+        : await v2.updateIncomePlan(budget.value.id, entry.id, request, key);
+    planEditAttempt = null;
+    editEntry.value = null;
+    statusText.value = planUpdateMessage(entry, request, result);
+    try {
+      await loadPage();
+    } catch {
+      error.value = 'План обновлён, но список не обновился. Обновите страницу.';
+    }
+    await nextTick();
+    planListEl.value?.focus();
+  } catch (exception) {
+    const message = v2ErrorMessage(exception, 'Не удалось сохранить план. Попробуйте ещё раз.');
+    if (fromDialog) {
+      if (exception instanceof ApiRequestError) {
+        planEditFieldErrorsState.value = planEditFieldErrors(exception.problem);
+      }
+      planEditError.value = message;
+    } else {
+      error.value = message;
+    }
+  } finally {
+    planEditPending.value = false;
+  }
+}
+
+const savePlanEdit = (request: UpdatePlanRequest) => {
+  if (editEntry.value) void applyPlanUpdate(editEntry.value, request, true);
+};
+const stopPlan = () => {
+  if (editEntry.value) void applyPlanUpdate(editEntry.value, { status: 'ARCHIVED' }, true);
+};
+const resumePlan = (entry: PlanCatalogEntry) =>
+  void applyPlanUpdate(entry, { status: 'ACTIVE' }, false);
+
 async function runConfirmation() {
   if (!budget.value || !confirmation.value) return;
   const current = confirmation.value;
@@ -616,6 +735,7 @@ function errorMessage(exception: unknown) {
               @change-month="changeMonth"
             />
             <PlanDayPanel
+              class="plans-page__panel"
               :date="selectedDate"
               :items="dayItems"
               :facts="dayFacts"
@@ -627,6 +747,7 @@ function errorMessage(exception: unknown) {
               @pay="onPay"
               @skip="onSkip"
               @record-income="onRecordIncome"
+              @edit-plan="openPlanEdit"
               @retry-facts="loadFacts"
             />
           </div>
@@ -642,7 +763,15 @@ function errorMessage(exception: unknown) {
             @pay="onPay"
             @skip="onSkip"
             @record-income="onRecordIncome"
+            @edit-plan="openPlanEdit"
             @add-plan="openPlanDialog($event)"
+          />
+          <PlanCatalog
+            :entries="catalog"
+            :load-failed="catalogLoadFailed"
+            :busy="planEditPending"
+            @edit="openPlanEditFor"
+            @resume="resumePlan"
           />
         </div>
       </template>
@@ -684,6 +813,17 @@ function errorMessage(exception: unknown) {
       :field-errors="planFieldErrors"
       @submit="submitPlan"
       @close="closePlanDialog"
+    />
+
+    <PlanEditDialog
+      :open="editEntry !== null"
+      :entry="editEntry"
+      :pending="planEditPending"
+      :error="planEditError"
+      :field-errors="planEditFieldErrorsState"
+      @save="savePlanEdit"
+      @stop="stopPlan"
+      @close="closePlanEdit"
     />
 
     <UiConfirmDialog
@@ -732,7 +872,11 @@ function errorMessage(exception: unknown) {
 @media (min-width: 64rem) {
   .plans-page__board {
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-    align-items: start;
+    align-items: stretch;
+  }
+  /* The day panel takes the calendar's height instead of stretching the row; its lists scroll. */
+  .plans-page__panel {
+    contain: size;
   }
 }
 </style>

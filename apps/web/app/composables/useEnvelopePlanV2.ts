@@ -477,6 +477,18 @@ export interface PlanResponse {
   status: string;
 }
 
+export interface UpdatePlanRequest {
+  name?: string;
+  amount?: string;
+  status?: 'ACTIVE' | 'ARCHIVED';
+  applyToCurrentOpen?: boolean;
+}
+
+export interface UpdatePlanResponse extends PlanResponse {
+  updatedOccurrences: number;
+  cancelledOccurrences: number;
+}
+
 export interface ObligationPlanResponse extends PlanResponse {
   envelopeId: string | null;
 }
@@ -1018,6 +1030,28 @@ export function useEnvelopePlanV2() {
       get<{ items: PlanResponse[] }>(`${base(budgetId)}/income-plans${query({ status })}`),
     createIncomePlan: (budgetId: string, input: CreatePlanRequest, idempotencyKey: string) =>
       postKeyed<PlanCreateResponse>(`${base(budgetId)}/income-plans`, input, idempotencyKey),
+    updateObligationPlan: (
+      budgetId: string,
+      planId: string,
+      input: UpdatePlanRequest,
+      idempotencyKey: string,
+    ) =>
+      patchKeyed<UpdatePlanResponse>(
+        `${base(budgetId)}/obligations/plans/${encodeURIComponent(planId)}`,
+        input,
+        idempotencyKey,
+      ),
+    updateIncomePlan: (
+      budgetId: string,
+      planId: string,
+      input: UpdatePlanRequest,
+      idempotencyKey: string,
+    ) =>
+      patchKeyed<UpdatePlanResponse>(
+        `${base(budgetId)}/income-plans/${encodeURIComponent(planId)}`,
+        input,
+        idempotencyKey,
+      ),
     recordIncomeOccurrence: (
       budgetId: string,
       occurrenceId: string,

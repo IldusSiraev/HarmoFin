@@ -77,6 +77,24 @@ describe('PlanDayPanel', () => {
     expect(wrapper.get('h2').text()).toContain('24 сентября');
   });
 
+  it('keeps the header fixed and scrolls the lists in their own container', () => {
+    const wrapper = mountPanel({ items: [rent], facts: [expenseFact] });
+    const scroll = wrapper.get('[data-testid="day-panel-scroll"]');
+    expect(scroll.find('[data-testid="day-item-occ-rent"]').exists()).toBe(true);
+    expect(scroll.find('[data-testid="day-fact-tx-1"]').exists()).toBe(true);
+    expect(scroll.find('[data-testid="plan-add-for-day"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="plan-add-for-day"]').exists()).toBe(true);
+  });
+
+  it('puts the actions of a plan item in its own row next to the status line', () => {
+    const wrapper = mountPanel({ items: [rent] });
+    const row = wrapper.get('[data-testid="day-item-occ-rent"]');
+    const actions = row.get('[data-testid="day-actions-occ-rent"]');
+    expect(actions.find('[data-testid="day-edit-occ-rent"]').exists()).toBe(true);
+    expect(actions.find('[data-testid="day-pay-occ-rent"]').exists()).toBe(true);
+    expect(row.get('[data-testid="day-meta-occ-rent"]').text()).toContain('Ожидается');
+  });
+
   it('shows an empty day and emits add-plan with the date', async () => {
     const wrapper = mountPanel();
     expect(wrapper.get('[data-testid="day-empty"]').text()).toContain(
@@ -161,6 +179,40 @@ describe('PlanDayPanel', () => {
     expect(retry).toBeDefined();
     await retry!.trigger('click');
     expect(wrapper.emitted('retry-facts')).toHaveLength(1);
+  });
+
+  it('shows an edit button on every item regardless of status and emits edit-plan', async () => {
+    const closed = { ...rent, occurrenceId: 'occ-closed', status: 'COMPLETED' };
+    const wrapper = mountPanel({ items: [rent, salary, closed] });
+    for (const [id, name] of [
+      ['day-edit-occ-rent', 'Аренда'],
+      ['day-edit-occ-salary', 'Зарплата'],
+      ['day-edit-occ-closed', 'Аренда'],
+    ] as const) {
+      expect(wrapper.get(`[data-testid="${id}"]`).attributes('aria-label')).toBe(
+        `Изменить план ${name}`,
+      );
+    }
+    expect(wrapper.find('[data-testid="day-pay-occ-closed"]').exists()).toBe(false);
+    await wrapper.get('[data-testid="day-edit-occ-closed"]').trigger('click');
+    await wrapper.get('[data-testid="day-edit-occ-salary"]').trigger('click');
+    expect(wrapper.emitted('edit-plan')).toEqual([[closed], [salary]]);
+  });
+
+  it('shows an edit button for skipped and cancelled items and emits edit-plan', async () => {
+    const skipped = { ...rent, occurrenceId: 'occ-skipped', status: 'SKIPPED' };
+    const cancelled = { ...salary, occurrenceId: 'occ-cancelled', status: 'CANCELLED' };
+    const wrapper = mountPanel({ items: [skipped, cancelled] });
+    await wrapper.get('[data-testid="day-edit-occ-skipped"]').trigger('click');
+    await wrapper.get('[data-testid="day-edit-occ-cancelled"]').trigger('click');
+    expect(wrapper.emitted('edit-plan')).toEqual([[skipped], [cancelled]]);
+  });
+
+  it('disables the edit buttons while busy', () => {
+    const wrapper = mountPanel({ items: [rent, salary], busy: true });
+    for (const id of ['day-edit-occ-rent', 'day-edit-occ-salary']) {
+      expect(wrapper.get(`[data-testid="${id}"]`).attributes('disabled')).toBeDefined();
+    }
   });
 
   it('disables plan actions while busy', () => {

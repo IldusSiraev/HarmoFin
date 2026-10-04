@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { AlertTriangle, Bell, Check, Plus, SkipForward, TrendingUp } from '@lucide/vue';
+import { AlertTriangle, Bell, Check, Pencil, Plus, SkipForward, TrendingUp } from '@lucide/vue';
 
 import type { PlansCalendarItem } from '../../composables/useEnvelopePlanV2.js';
 import FinanceMoney from '../finance/FinanceMoney.vue';
@@ -27,6 +27,7 @@ const emit = defineEmits<{
   pay: [item: PlansCalendarItem];
   skip: [item: PlansCalendarItem];
   'record-income': [item: PlansCalendarItem];
+  'edit-plan': [item: PlansCalendarItem];
   'add-plan': [kind: 'obligation' | 'income'];
 }>();
 
@@ -81,7 +82,7 @@ defineExpose({ focus: () => root.value?.focus() });
         data-testid="list-mode-all"
         @click="emit('update:mode', 'all')"
       >
-        Все
+        За месяц
       </UiButton>
     </div>
 
@@ -176,8 +177,21 @@ defineExpose({ focus: () => root.value?.focus() });
               <FinanceMoney :minor-units="item.unpaidMinor" currency="RUB" :scale="2" />
             </span>
           </div>
-          <div v-if="isOpen(item)" class="obligation-row__actions">
+          <div class="obligation-row__actions">
             <UiButton
+              variant="tertiary"
+              size="sm"
+              class="obligation-row__icon-btn"
+              :aria-label="`Изменить план ${item.name}`"
+              :title="`Изменить план ${item.name}`"
+              :data-testid="`obligation-edit-${item.occurrenceId}`"
+              :disabled="busy"
+              @click="emit('edit-plan', item)"
+            >
+              <Pencil :size="16" aria-hidden="true" />
+            </UiButton>
+            <UiButton
+              v-if="isOpen(item)"
               variant="tertiary"
               size="sm"
               class="obligation-row__icon-btn"
@@ -190,7 +204,7 @@ defineExpose({ focus: () => root.value?.focus() });
               <Check :size="16" aria-hidden="true" />
             </UiButton>
             <UiButton
-              v-if="item.paidMinor === '0'"
+              v-if="isOpen(item) && item.paidMinor === '0'"
               size="sm"
               variant="tertiary"
               class="obligation-row__icon-btn"
@@ -220,8 +234,21 @@ defineExpose({ focus: () => root.value?.focus() });
           <div class="obligation-row__amounts">
             <FinanceMoney :minor-units="item.expectedMinor" currency="RUB" :scale="2" />
           </div>
-          <div v-if="isOpen(item)" class="obligation-row__actions">
+          <div class="obligation-row__actions">
             <UiButton
+              variant="tertiary"
+              size="sm"
+              class="obligation-row__icon-btn"
+              :aria-label="`Изменить план ${item.name}`"
+              :title="`Изменить план ${item.name}`"
+              :data-testid="`income-edit-${item.occurrenceId}`"
+              :disabled="busy"
+              @click="emit('edit-plan', item)"
+            >
+              <Pencil :size="16" aria-hidden="true" />
+            </UiButton>
+            <UiButton
+              v-if="isOpen(item)"
               variant="tertiary"
               size="sm"
               class="obligation-row__icon-btn"

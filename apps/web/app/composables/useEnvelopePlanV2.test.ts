@@ -516,4 +516,30 @@ describe('useEnvelopePlanV2', () => {
     expect(call.init.method).toBe('POST');
     expect(call.headers.get('Idempotency-Key')).toBe('k-r');
   });
+
+  it('patches plans with the Idempotency-Key and only the given fields', async () => {
+    const api = useEnvelopePlanV2();
+
+    await api.updateObligationPlan(
+      budgetId,
+      'plan-1',
+      { amount: '50000.00', applyToCurrentOpen: true },
+      'key-obl',
+    );
+    let call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/obligations/plans/plan-1`);
+    expect(call.init.method).toBe('PATCH');
+    expect(call.headers.get('Idempotency-Key')).toBe('key-obl');
+    expect(JSON.parse(String(call.init.body))).toEqual({
+      amount: '50000.00',
+      applyToCurrentOpen: true,
+    });
+
+    await api.updateIncomePlan(budgetId, 'plan-2', { status: 'ARCHIVED' }, 'key-inc');
+    call = lastCall();
+    expect(call.url).toBe(`${apiUrl}${base}/income-plans/plan-2`);
+    expect(call.init.method).toBe('PATCH');
+    expect(call.headers.get('Idempotency-Key')).toBe('key-inc');
+    expect(JSON.parse(String(call.init.body))).toEqual({ status: 'ARCHIVED' });
+  });
 });

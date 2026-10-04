@@ -16,6 +16,10 @@ const v2 = {
   createTransaction: vi.fn(),
   createObligationPlan: vi.fn(),
   createIncomePlan: vi.fn(),
+  listObligationPlans: vi.fn(),
+  listIncomePlans: vi.fn(),
+  updateObligationPlan: vi.fn(),
+  updateIncomePlan: vi.fn(),
 };
 const funding = { offer: vi.fn(), dismiss: vi.fn() };
 const budgetRow = {
@@ -137,13 +141,37 @@ describe('plans page', () => {
     categoryId: 'income-cat',
     transactionId: null,
   };
+  // The page hosts the skip confirm and PlanEditDialog hosts the stop confirm; tell them apart by title.
   const confirmStub = {
     UiConfirmDialog: {
-      props: ['open'],
+      props: ['open', 'title'],
       emits: ['confirm', 'cancel'],
       template:
-        '<div v-if="open"><button data-testid="confirm-yes" @click="$emit(\'confirm\')">Да</button></div>',
+        "<div v-if=\"open\"><button :data-testid=\"title.startsWith('Остановить') ? 'confirm-stop' : 'confirm-yes'\" @click=\"$emit('confirm')\">Да</button></div>",
     },
+  };
+  const rentPlan = {
+    id: 'plan-rent',
+    planType: 'EXPENSE',
+    name: 'Аренда',
+    amountMinor: '4000000',
+    recurrence: 'MONTHLY' as const,
+    intervalMonths: null,
+    scheduledOn: '2026-09-30',
+    endOn: null,
+    categoryId: 'category-id',
+    comment: null,
+    status: 'ACTIVE',
+    envelopeId: 'mandatory-envelope',
+  };
+  const salaryPlan = {
+    ...rentPlan,
+    id: 'inc-plan',
+    planType: 'INCOME',
+    name: 'Зарплата',
+    amountMinor: '10000000',
+    categoryId: 'income-cat',
+    envelopeId: null,
   };
 
   const overdueDaycare = () => toCalendarItem(daycare, 'OBLIGATION', { overdue: true });
@@ -207,6 +235,18 @@ describe('plans page', () => {
     v2.skipObligationOccurrence.mockResolvedValue({ transaction: null, occurrence: daycare });
     v2.createObligationPlan.mockResolvedValue({ id: 'plan-new' });
     v2.createIncomePlan.mockResolvedValue({ id: 'plan-new' });
+    v2.listObligationPlans.mockResolvedValue({ items: [rentPlan] });
+    v2.listIncomePlans.mockResolvedValue({ items: [salaryPlan] });
+    v2.updateObligationPlan.mockResolvedValue({
+      ...rentPlan,
+      updatedOccurrences: 3,
+      cancelledOccurrences: 2,
+    });
+    v2.updateIncomePlan.mockResolvedValue({
+      ...salaryPlan,
+      updatedOccurrences: 1,
+      cancelledOccurrences: 1,
+    });
     v2.recordIncomeOccurrence.mockResolvedValue({
       occurrence: { id: 'inc-occ', status: 'COMPLETED', transactionId: 'income-tx' },
       transaction: { id: 'income-tx', amountMinor: '8700000' },
@@ -1077,6 +1117,224 @@ describe('plans page', () => {
       await submitPlan();
       expect(wrapper.text()).toContain('Не удалось сохранить план. Попробуйте ещё раз.');
       expect(wrapper.text()).not.toContain('raw english');
+    });
+  });
+
+  describe('plan edit', () => {
+    const input = (selector: string) => wrapper!.get(selector).element as HTMLInputElement;
+    async function openEdit(testId: string) {
+      await wrapper!.get(`[data-testid="${testId}"]`).trigger('click');
+      await flushPromises();
+    }
+    async function mountReady() {
+      wrapper = mountV2();
+      await flushPromises();
+    }
+    async function save() {
+      await wrapper!.get('[data-testid="plan-edit-submit"]').trigger('click');
+      await flushPromises();
+    }
+
+    it('reads both plan lists on load and shows the catalog count', async () => {
+      await mountReady();
+
+      expect(v2.listObligationPlans).toHaveBeenCalledWith('budget-id', 'all');
+      expect(v2.listIncomePlans).toHaveBeenCalledWith('budget-id', 'all');
+      expect(wrapper!.get('[data-testid="plan-catalog"]').text()).toContain('Все планы (2)');
+    });
+
+    it('opens the dialog from the list rows and the day panel', async () => {
+      await mountReady();
+
+      await openEdit('obligation-edit-occ-rent');
+      expect(input('#planEditName-input').value).toBe('Аренда');
+      expect(input('#operation-amount-input').value).toBe('40000.00');
+
+      await mountReadyAgain();
+      await openEdit('income-edit-inc-occ');
+      expect(input('#planEditName-input').value).toBe('Зарплата');
+
+      await mountReadyAgain();
+      await wrapper!.get('[data-testid="calendar-day-2026-09-30"]').trigger('click');
+      await flushPromises();
+      await openEdit('day-edit-occ-rent');
+      expect(input('#planEditName-input').value).toBe('Аренда');
+    });
+
+    async function mountReadyAgain() {
+      wrapper!.unmount();
+      document.body.innerHTML = '';
+      await mountReady();
+    }
+
+    it('shows an alert and no dialog when the plan is missing from the lists', async () => {
+      v2.listObligationPlans.mockResolvedValue({ items: [] });
+      await mountReady();
+      await openEdit('obligation-edit-occ-rent');
+
+      const alert = wrapper!
+        .findAll('[role="alert"]')
+        .find((node) => node.text() === 'План не найден. Обновите страницу.');
+      expect(alert).toBeDefined();
+      expect(wrapper!.find('[data-testid="plan-edit-submit"]').exists()).toBe(false);
+
+      await openEdit('income-edit-inc-occ');
+      expect(wrapper!.find('[data-testid="plan-edit-submit"]').exists()).toBe(true);
+      expect(wrapper!.text()).not.toContain('План не найден. Обновите страницу.');
+    });
+
+    it('saves a new amount with the current-open flag for an obligation and an income', async () => {
+      await mountReady();
+      await openEdit('obligation-edit-occ-rent');
+      await wrapper!.get('#operation-amount-input').setValue('50000');
+      await wrapper!.get('[data-testid="plan-edit-apply-current"]').setValue(true);
+      await save();
+
+      expect(v2.updateObligationPlan).toHaveBeenCalledWith(
+        'budget-id',
+        'plan-rent',
+        { amount: '50000.00', applyToCurrentOpen: true },
+        expect.any(String),
+      );
+
+      await openEdit('income-edit-inc-occ');
+      await wrapper!.get('#operation-amount-input').setValue('120000');
+      await save();
+      expect(v2.updateIncomePlan).toHaveBeenCalledWith(
+        'budget-id',
+        'inc-plan',
+        { amount: '120000.00' },
+        expect.any(String),
+      );
+    });
+
+    it('closes, rereads lists, announces the count and focuses the list on success', async () => {
+      await mountReady();
+      await openEdit('obligation-edit-occ-rent');
+      await wrapper!.get('#operation-amount-input').setValue('50000');
+      const before = {
+        calendar: v2.getPlansCalendar.mock.calls.length,
+        obligations: v2.listObligationPlans.mock.calls.length,
+        incomes: v2.listIncomePlans.mock.calls.length,
+        facts: v2.listTransactions.mock.calls.length,
+      };
+      await save();
+
+      expect(wrapper!.find('[data-testid="plan-edit-submit"]').exists()).toBe(false);
+      expect(v2.getPlansCalendar.mock.calls.length).toBeGreaterThan(before.calendar);
+      expect(v2.listObligationPlans.mock.calls.length).toBeGreaterThan(before.obligations);
+      expect(v2.listIncomePlans.mock.calls.length).toBeGreaterThan(before.incomes);
+      expect(v2.listTransactions.mock.calls.length).toBeGreaterThan(before.facts);
+      expect(wrapper!.get('[role="status"]').text()).toBe(
+        'План «Аренда» обновлён. Изменено платежей: 3.',
+      );
+      expect(document.activeElement).toBe(wrapper!.get('[data-testid="plans-list"]').element);
+    });
+
+    it('announces a name-only edit without a counter', async () => {
+      await mountReady();
+      await openEdit('obligation-edit-occ-rent');
+      await wrapper!.get('#planEditName-input').setValue('Квартира');
+      await save();
+
+      expect(v2.updateObligationPlan.mock.calls[0]?.[2]).toEqual({ name: 'Квартира' });
+      expect(wrapper!.get('[role="status"]').text()).toBe('План «Квартира» обновлён.');
+    });
+
+    it('reuses the key for an unchanged retry and issues a new one after an edit', async () => {
+      v2.updateObligationPlan.mockRejectedValue(
+        new ApiRequestError(500, { code: 'INTERNAL', detail: 'x' }),
+      );
+      await mountReady();
+      await openEdit('obligation-edit-occ-rent');
+      await wrapper!.get('#operation-amount-input').setValue('50000');
+      await save();
+      await save();
+      const calls = v2.updateObligationPlan.mock.calls;
+      expect(calls).toHaveLength(2);
+      expect(calls[1]?.[3]).toBe(calls[0]?.[3]);
+
+      await wrapper!.get('#operation-amount-input').setValue('60000');
+      await save();
+      expect(v2.updateObligationPlan.mock.calls[2]?.[3]).not.toBe(calls[0]?.[3]);
+    });
+
+    it('keeps the dialog open with field errors and a Russian general error', async () => {
+      v2.updateObligationPlan.mockRejectedValueOnce(
+        new ApiRequestError(400, {
+          code: 'VALIDATION_FAILED',
+          detail: 'bad',
+          fieldErrors: [{ field: 'name', message: 'Название занято', code: 'x' }],
+        }),
+      );
+      await mountReady();
+      await openEdit('obligation-edit-occ-rent');
+      await wrapper!.get('#planEditName-input').setValue('Квартира');
+      await save();
+
+      expect(wrapper!.find('[data-testid="plan-edit-submit"]').exists()).toBe(true);
+      expect(wrapper!.text()).toContain('Название занято');
+      expect(input('#planEditName-input').value).toBe('Квартира');
+
+      v2.updateObligationPlan.mockRejectedValueOnce(
+        new ApiRequestError(500, { code: 'INTERNAL', detail: 'raw english' }),
+      );
+      await save();
+      expect(wrapper!.text()).toContain('Не удалось сохранить план. Попробуйте ещё раз.');
+      expect(wrapper!.text()).not.toContain('raw english');
+    });
+
+    it('stops a plan after confirmation and reports cancelled payments', async () => {
+      await mountReady();
+      await openEdit('obligation-edit-occ-rent');
+      await openEdit('plan-edit-stop');
+      expect(v2.updateObligationPlan).not.toHaveBeenCalled();
+      await openEdit('confirm-stop');
+
+      expect(v2.updateObligationPlan).toHaveBeenCalledWith(
+        'budget-id',
+        'plan-rent',
+        { status: 'ARCHIVED' },
+        expect.any(String),
+      );
+      expect(wrapper!.get('[role="status"]').text()).toBe(
+        'План «Аренда» остановлен. Отменено платежей: 2.',
+      );
+    });
+
+    it('resumes a stopped plan from the catalog and shows a resume error on the page', async () => {
+      v2.listObligationPlans.mockResolvedValue({
+        items: [{ ...rentPlan, status: 'ARCHIVED' }],
+      });
+      v2.updateObligationPlan.mockRejectedValueOnce(
+        new ApiRequestError(500, { code: 'INTERNAL', detail: 'raw english' }),
+      );
+      await mountReady();
+
+      await openEdit('catalog-resume-plan-rent');
+      const alert = wrapper!.get('.plans-page__error');
+      expect(alert.text()).toBe('Не удалось сохранить план. Попробуйте ещё раз.');
+      expect(wrapper!.get('[data-testid="plan-catalog"]').text()).not.toContain('raw english');
+
+      await openEdit('catalog-resume-plan-rent');
+      expect(v2.updateObligationPlan).toHaveBeenLastCalledWith(
+        'budget-id',
+        'plan-rent',
+        { status: 'ACTIVE' },
+        expect.any(String),
+      );
+      expect(wrapper!.get('[role="status"]').text()).toBe('План «Аренда» возобновлён.');
+      expect(wrapper!.find('.plans-page__error').exists()).toBe(false);
+    });
+
+    it('keeps the page usable when the plan lists fail to load', async () => {
+      v2.listObligationPlans.mockRejectedValue(new Error('boom'));
+      await mountReady();
+
+      expect(wrapper!.find('[data-testid="obligation-row-occ-rent"]').exists()).toBe(true);
+      expect(wrapper!.find('[data-testid="calendar-day-2026-09-24"]').exists()).toBe(true);
+      expect(wrapper!.find('[data-testid="catalog-error"]').exists()).toBe(true);
+      expect(wrapper!.find('.plans-page__error').exists()).toBe(false);
     });
   });
 });

@@ -199,6 +199,8 @@ describe('PlanItemList', () => {
     );
     expect(wrapper.get('[data-testid="list-mode-all"]').attributes('aria-selected')).toBe('false');
     expect(wrapper.get('[data-testid="list-mode-upcoming"]').attributes('role')).toBe('tab');
+    expect(wrapper.get('[data-testid="list-mode-upcoming"]').text()).toBe('Ближайшие');
+    expect(wrapper.get('[data-testid="list-mode-all"]').text()).toBe('За месяц');
     await wrapper.get('[data-testid="list-mode-all"]').trigger('click');
     expect(wrapper.emitted('update:mode')).toEqual([['all']]);
     await wrapper.setProps({ mode: 'all' });
@@ -213,6 +215,46 @@ describe('PlanItemList', () => {
     expect(root.element.tagName).toBe('SECTION');
     expect(root.attributes('tabindex')).toBe('-1');
     expect(root.attributes('aria-label')).toBe('Планы');
+  });
+
+  it('shows an edit button for every row regardless of status and emits edit-plan', async () => {
+    const recorded = { ...salary, occurrenceId: 'inc-done', status: 'COMPLETED' };
+    const wrapper = mountList({
+      mode: 'all',
+      items: [rent, salary, done, recorded],
+      overdue: [],
+    });
+    for (const [id, name] of [
+      ['obligation-edit-occ-rent', 'Аренда'],
+      ['obligation-edit-occ-done', 'Интернет'],
+      ['income-edit-inc-occ', 'Зарплата'],
+      ['income-edit-inc-done', 'Зарплата'],
+    ] as const) {
+      expect(wrapper.get(`[data-testid="${id}"]`).attributes('aria-label')).toBe(
+        `Изменить план ${name}`,
+      );
+    }
+    expect(wrapper.find('[data-testid="obligation-pay-occ-done"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="income-record-inc-done"]').exists()).toBe(false);
+    await wrapper.get('[data-testid="obligation-edit-occ-done"]').trigger('click');
+    await wrapper.get('[data-testid="income-edit-inc-occ"]').trigger('click');
+    expect(wrapper.emitted('edit-plan')).toEqual([[done], [salary]]);
+  });
+
+  it('shows an edit button for skipped and cancelled items and emits edit-plan', async () => {
+    const skipped = { ...rent, occurrenceId: 'occ-skipped', status: 'SKIPPED' };
+    const cancelled = { ...salary, occurrenceId: 'inc-cancelled', status: 'CANCELLED' };
+    const wrapper = mountList({ mode: 'all', items: [skipped, cancelled], overdue: [] });
+    await wrapper.get('[data-testid="obligation-edit-occ-skipped"]').trigger('click');
+    await wrapper.get('[data-testid="income-edit-inc-cancelled"]').trigger('click');
+    expect(wrapper.emitted('edit-plan')).toEqual([[skipped], [cancelled]]);
+  });
+
+  it('disables the edit buttons while busy', () => {
+    const wrapper = mountList({ busy: true });
+    for (const id of ['obligation-edit-occ-rent', 'income-edit-inc-occ']) {
+      expect(wrapper.get(`[data-testid="${id}"]`).attributes('disabled')).toBeDefined();
+    }
   });
 
   it('disables action buttons while busy', () => {

@@ -25,7 +25,11 @@ interface TemplateApply {
   created: { categories: Array<{ id: string; name: string }> };
 }
 interface PlanCreated {
+  id: string;
   occurrenceId: string | null;
+}
+interface PlanList {
+  items: Array<{ id: string; amountMinor: string; status: string }>;
 }
 interface Dashboard {
   cashMinor: string;
@@ -239,6 +243,76 @@ for (const [label, viewport] of [
       await expect(panel.getByTestId(`day-item-${income.occurrenceId}`)).toBeVisible();
       await expect(page.getByTestId('kpi-planned-income')).toContainText(/100\s000/);
       await expect(page.getByTestId('kpi-planned-expense')).toContainText(/45\s000/);
+    });
+
+    test('plan edit: change amount, stop and resume a plan', async ({ page }) => {
+      test.setTimeout(180_000);
+
+      await registerAndReachApp(page);
+      const budgetId = await budgetIdOf(page);
+      const base = `${API_V2}/budgets/${budgetId}`;
+
+      // SETUP (API): template categories and one monthly payment plan today.
+      const preview = await getJson<TemplatePreview>(page, `${base}/reference-template/preview`);
+      const template = await apiMutate<TemplateApply>(page, `${base}/reference-template/apply`, {
+        previewHash: preview.previewHash,
+        periods: [
+          { role: 'FIRST', action: 'CREATE' },
+          { role: 'SECOND', action: 'CREATE' },
+        ],
+        mandatory: { action: 'CREATE' },
+        savings: [],
+      });
+      const category = template.created.categories.find((item) => item.name === 'Аренда');
+      if (!category) throw new Error('Template category "Аренда" is missing');
+      const today = await budgetToday(page, budgetId);
+      const plan = await apiMutate<PlanCreated>(page, `${base}/obligations/plans`, {
+        name: 'Аренда',
+        amount: '45000.00',
+        scheduledOn: today,
+        categoryId: category.id,
+        recurrence: 'MONTHLY',
+      });
+      if (!plan.occurrenceId) throw new Error('Plan did not create an occurrence');
+      const planStatus = async (): Promise<{ amountMinor: string; status: string } | undefined> => {
+        const list = await getJson<PlanList>(page, `${base}/obligations/plans?status=all`);
+        return list.items.find((item) => item.id === plan.id);
+      };
+
+      await page.goto('/app/plans');
+      await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
+
+      // 1. Change the amount and apply it to the current open payments.
+      await page.getByTestId(`obligation-edit-${plan.occurrenceId}`).click();
+      const dialog = page.getByRole('dialog', { name: 'Изменить план' });
+      await expect(dialog).toBeVisible();
+      await dialog.locator('#operation-amount-input').fill('50000');
+      const applyCurrent = dialog.getByTestId('plan-edit-apply-current');
+      await expect(applyCurrent).toBeVisible();
+      await applyCurrent.check();
+      await dialog.getByTestId('plan-edit-submit').click();
+      await expect(dialog).toBeHidden();
+      await expect(page.getByRole('status')).toContainText(
+        'План «Аренда» обновлён. Изменено платежей',
+      );
+      expect((await planStatus())?.amountMinor).toBe('5000000');
+
+      // 2. Stop the plan through the confirmation.
+      await page.getByTestId(`obligation-edit-${plan.occurrenceId}`).click();
+      await expect(dialog).toBeVisible();
+      await dialog.getByTestId('plan-edit-stop').click();
+      await page.getByRole('button', { name: 'Остановить', exact: true }).click();
+      await expect(page.getByRole('status')).toContainText('остановлен');
+      expect((await planStatus())?.status).toBe('ARCHIVED');
+
+      // 3. The catalog lists the stopped plan and resumes it.
+      const catalog = page.getByTestId('plan-catalog');
+      await catalog.locator('summary').click();
+      const row = catalog.getByTestId(`catalog-row-obligation-${plan.id}`);
+      await expect(row).toContainText('Остановлен');
+      await row.getByRole('button', { name: 'Возобновить' }).click();
+      await expect(page.getByRole('status')).toContainText('возобновлён');
+      expect((await planStatus())?.status).toBe('ACTIVE');
     });
   });
 }
