@@ -139,12 +139,33 @@ export class DashboardV2UpcomingResponse {
   unpaidMinor!: string;
 }
 
+export class DashboardV2CycleResponse {
+  @ApiProperty({ type: String, format: 'date' })
+  start!: string;
+
+  @ApiProperty({ type: String, format: 'date' })
+  end!: string;
+}
+
 export class DashboardV2Response {
   @ApiProperty({ type: Number, enum: [2] })
   planModelVersion!: 2;
 
   @ApiProperty({ type: DashboardV2PeriodResponse })
   period!: DashboardV2PeriodResponse;
+
+  @ApiProperty({
+    type: DashboardV2CycleResponse,
+    description: 'Финансовый месяц (цикл), содержащий дату расчёта.',
+  })
+  cycle!: DashboardV2CycleResponse;
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    description: 'Дата расчёта: сегодня в часовом поясе бюджета или переданный asOf.',
+  })
+  asOf!: string;
 
   @ApiProperty({
     type: String,

@@ -178,6 +178,8 @@ export interface PeriodTargetResponse {
 export interface DashboardV2Response {
   planModelVersion: 2;
   period: { start: string; end: string; periodId: string | null };
+  cycle: { start: string; end: string };
+  asOf: string;
   horizonEnd: string;
   spendable: { state: 'READY' | 'NEEDS_PERIOD_SETUP'; amountMinor: string | null };
   suggestedTarget: string | null;

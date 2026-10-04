@@ -78,6 +78,8 @@ describe('dashboard page', () => {
   const dashboardV2 = {
     planModelVersion: 2,
     period: { start: '2026-09-25', end: '2026-10-09', periodId: 'period-id' },
+    cycle: { start: '2026-09-10', end: '2026-10-09' },
+    asOf: '2026-10-04',
     horizonEnd: '2026-10-20',
     spendable: { state: 'READY', amountMinor: '5500000' },
     suggestedTarget: null,
@@ -148,6 +150,16 @@ describe('dashboard page', () => {
     expect(wrapper.get('a[href="/app/plans"]')).toBeTruthy();
     expect(v2Api.getDashboard).toHaveBeenCalledWith('budget-id');
     expect(normalize(text)).toContain('Банковская карта · 4801');
+  });
+
+  it('shows the financial month timeline from the server cycle and date', async () => {
+    const wrapper = mount(DashboardPage, { global: { stubs } });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Ваш финансовый месяц');
+    expect(wrapper.get('.fm-timeline [role="img"]').attributes('aria-label')).toBe(
+      'Финансовый месяц: с 10 сентября по 9 октября. Сегодня — день 25 из 30. Смена периода: 25 сент.',
+    );
   });
 
   it('reads the latest operations from the journal', async () => {

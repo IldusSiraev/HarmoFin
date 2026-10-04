@@ -30,6 +30,10 @@ export type DashboardV2Summary = {
   mandatoryGapMinor: string;
   /** `periodId` is the current main period row (null when the budget has no main envelope). */
   period: { start: string; end: string; periodId: string | null };
+  /** Financial month containing `asOf` (clipped at the next settings revision). */
+  cycle: { start: string; end: string };
+  /** Calculation date: today in the budget timezone unless the caller passed `asOf`. */
+  asOf: string;
   /** Last day of the mandatory-protection horizon (end of the next period). */
   horizonEnd: string;
   upcoming: Array<{ occurrenceId: string; scheduledOn: string; unpaidMinor: string }>;
@@ -224,7 +228,7 @@ export class DashboardV2ApplicationService {
         detail: 'Бюджет не найден или недоступен для этого пользователя.',
       });
     }
-    const { period } = await cycleAndPeriodAt(tx, budgetId, asOf, settings);
+    const { period, cycle } = await cycleAndPeriodAt(tx, budgetId, asOf, settings);
     const horizonEnd = await nextPeriodEndAt(tx, budgetId, asOf, settings);
     const envelopes = await repo.listEnvelopes(tx, budgetId);
     const typeOf = new Map(envelopes.map((envelope) => [envelope.id, envelope.envelopeType]));
@@ -372,6 +376,8 @@ export class DashboardV2ApplicationService {
       unbackedMinor: formatMinorUnits(result.unbackedAssignments),
       mandatoryGapMinor: formatMinorUnits(result.mandatoryGap),
       period: { start: period.start, end: period.end, periodId: periodRow?.id ?? null },
+      cycle: { start: cycle.start, end: cycle.end },
+      asOf,
       horizonEnd,
       upcoming: upcoming.map((item) => ({
         occurrenceId: item.occurrenceId,

@@ -97,6 +97,8 @@ describe('v2 dashboard summary (P01)', () => {
     expect(summary.freeToAssignMinor).toBe('0');
     expect(summary.unbackedMinor).toBe('0');
     expect(summary.period).toMatchObject(PERIOD);
+    expect(summary.cycle).toEqual({ start: '2026-03-01', end: '2026-03-31' });
+    expect(summary.asOf).toBe(ASOF);
     expect(summary.suggestedTarget).toBeNull();
     expect(summary.upcoming).toEqual([
       { occurrenceId: expect.any(String), scheduledOn: '2026-03-12', unpaidMinor: '4500000' },
@@ -310,8 +312,19 @@ describe('v2 dashboard summary (P01)', () => {
       const summary = await service.summary(w.userId, w.budgetId, asOf);
       expect(summary.spendable).toEqual({ state: 'NEEDS_PERIOD_SETUP', amountMinor: null });
       expect(summary.period.periodId).toBeNull();
+      expect(summary.asOf).toBe(asOf);
+      expect(summary.cycle.start <= asOf && asOf <= summary.cycle.end).toBe(true);
     }
     expect(await writeCounts(w.budgetId)).toEqual(before);
+  });
+
+  it('без asOf дата расчёта — сегодня бюджета, цикл содержит сегодня и период', async () => {
+    const w = await currentWorld(10_000_000n);
+    const summary = await service.summary(w.userId, w.budgetId);
+    expect(summary.asOf).toBe(TODAY);
+    expect(summary.cycle.start <= summary.period.start).toBe(true);
+    expect(summary.period.end <= summary.cycle.end).toBe(true);
+    expect(summary.cycle.start <= TODAY && TODAY <= summary.cycle.end).toBe(true);
   });
 
   it('писатель, удерживающий FOR UPDATE бюджета, не блокирует чтение VIEWER', async () => {
@@ -729,6 +742,8 @@ describe('v2 dashboard HTTP contract (P02)', () => {
       expect.arrayContaining([
         'planModelVersion',
         'period',
+        'cycle',
+        'asOf',
         'spendable',
         'suggestedTarget',
         'accounts',

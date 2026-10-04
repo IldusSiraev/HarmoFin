@@ -8,6 +8,8 @@ const normalize = (value: string): string => value.replace(/\p{Zs}/gu, ' ');
 const v2Base = {
   planModelVersion: 2 as const,
   period: { start: '2026-09-25', end: '2026-10-09', periodId: 'period-id' },
+  cycle: { start: '2026-09-10', end: '2026-10-09' },
+  asOf: '2026-10-04',
   horizonEnd: '2026-10-20',
   spendable: { state: 'READY' as const, amountMinor: '5500000' },
   suggestedTarget: null,

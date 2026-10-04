@@ -6,6 +6,7 @@ import { RefreshCw, Wallet } from '@lucide/vue';
 import AppAddMenu from '../../components/app/AppAddMenu.vue';
 import { accountSubtitle, ACCOUNT_TYPE_ICONS } from '../../components/accounts/account-type.js';
 import AvailableBudgetCard from '../../components/dashboard/AvailableBudgetCard.vue';
+import FinancialMonthTimeline from '../../components/dashboard/FinancialMonthTimeline.vue';
 import BalanceList from '../../components/dashboard/BalanceList.vue';
 import DashboardWarnings from '../../components/dashboard/DashboardWarnings.vue';
 import OnboardingChecklist from '../../components/dashboard/OnboardingChecklist.vue';
@@ -176,6 +177,13 @@ async function loadDashboard() {
         </div>
       </div>
 
+      <FinancialMonthTimeline
+        class="dashboard-timeline"
+        :cycle="dashboardV2.cycle"
+        :period="dashboardV2.period"
+        :as-of="dashboardV2.asOf"
+      />
+
       <div class="dashboard-sections">
         <OnboardingChecklist
           :budget-id="activeBudget.id"
@@ -291,6 +299,10 @@ async function loadDashboard() {
   font-weight: 700;
   letter-spacing: -0.04em;
   line-height: 1.1;
+}
+
+.dashboard-timeline {
+  margin-bottom: var(--hf-space-6);
 }
 
 .dashboard-sections {
