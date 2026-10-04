@@ -148,10 +148,6 @@ const breakdownOpen = ref(false);
       </span>
     </p>
 
-    <p class="available-budget__caption">
-      Обязательства {{ horizonLabel }} ·
-      <NuxtLink to="/app/plans" class="available-budget__link">Предстоящие обязательства</NuxtLink>
-    </p>
     <p v-if="dashboard.dueMayBeIncomplete" class="available-budget__caption">
       К оплате может быть неполным: часть обязательств за горизонтом ещё не видна.
     </p>
@@ -180,7 +176,7 @@ const breakdownOpen = ref(false);
           </dd>
         </div>
         <div>
-          <dt>К оплате по обязательствам</dt>
+          <dt>К оплате по обязательствам {{ horizonLabel }}</dt>
           <dd>
             <FinanceMoney :minor-units="dashboard.mandatoryDueMinor" currency="RUB" :scale="2" />
           </dd>

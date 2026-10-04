@@ -56,8 +56,7 @@ describe('AvailableBudgetCard', () => {
     expect(text).toContain('В конверте периода 65 000,00 ₽');
     expect(text).toContain('Не хватает на обязательные');
     expect(text).toContain('10 000,00 ₽');
-    expect(text).toContain('до 20 октября');
-    expect(wrapper.get('a[href="/app/plans"]')).toBeTruthy();
+    expect(text).not.toContain('до 20 октября');
   });
 
   it('explains a zero period balance and points to accounts when there are none', () => {
@@ -209,6 +208,15 @@ describe('AvailableBudgetCard breakdown markup', () => {
         }
       }
     }
+  });
+
+  it('keeps the horizon date in the breakdown, not as a separate link line', async () => {
+    const wrapper = mount(AvailableBudgetCard, { props: { dashboard: v2Base }, global: { stubs } });
+    expect(wrapper.text()).not.toContain('Предстоящие обязательства');
+    expect(wrapper.find('a[href="/app/plans"]').exists()).toBe(false);
+
+    await wrapper.get('[data-action="toggle-breakdown"]').trigger('click');
+    expect(normalize(wrapper.text())).toContain('К оплате по обязательствам до 20 октября');
   });
 
   it('shows the period figures and days left from the server', () => {

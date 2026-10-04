@@ -28,7 +28,7 @@ const visible = computed(() => props.items.slice(0, props.limit ?? LIMIT));
   <section class="balance-list" :aria-label="title">
     <header class="balance-list__header">
       <h2 class="balance-list__title">{{ title }}</h2>
-      <UiMoreLink :to="moreLink">Все</UiMoreLink>
+      <UiMoreLink :to="moreLink" :aria-label="`Все: ${title}`">Все</UiMoreLink>
     </header>
 
     <p v-if="totalMinor !== null" class="balance-list__total" data-testid="balance-list-total">

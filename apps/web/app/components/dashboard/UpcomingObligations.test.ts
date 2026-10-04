@@ -24,6 +24,10 @@ describe('UpcomingObligations', () => {
     expect(text).not.toContain('2026-10-26');
     const link = wrapper.get('a[href="/app/plans?occurrence=occurrence-id"]');
     // Repeated links need distinct accessible names for screen-reader link lists.
+    // One link to the whole plans page replaces the removed caption link in the spendable card.
+    const all = wrapper.get('a[href="/app/plans"]');
+    expect(all.text()).toBe('Все');
+    expect(all.attributes('aria-label')).toBe('Все: Обязательства');
     expect(link.attributes('aria-label')).toBe('Открыть план: Ипотека, 26 октября');
   });
 
