@@ -4,7 +4,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { calculateSpendable } from '../common/finance/v2-money.domain.js';
 import { formatMinorUnits } from '../common/money/minor-units.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
-import { todayInTimezone } from '../cycles/cycle-period.domain.js';
+import { addIsoDays, todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { cycleAndPeriodAt, nextPeriodEndAt } from '../cycles/cycle-settings-at.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { DashboardV2Repository } from './dashboard-v2.repository.js';
@@ -13,6 +13,9 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_ATTEMPTS = 3;
 const TX_OPTIONS = { maxWait: 5_000, timeout: 15_000 } as const;
 const WRITE_ROLES = new Set(['OWNER', 'EDITOR']);
+const NEAREST_OBLIGATIONS_LIMIT = 3;
+const NEAREST_OBLIGATIONS_DAYS = 60;
+const DAY_MS = 86_400_000;
 
 export type DashboardV2Summary = {
   cashMinor: string;
@@ -37,6 +40,32 @@ export type DashboardV2Summary = {
   /** Last day of the mandatory-protection horizon (end of the next period). */
   horizonEnd: string;
   upcoming: Array<{ occurrenceId: string; scheduledOn: string; unpaidMinor: string }>;
+  /** The nearest open mandatory payments (display list, up to 60 days), overdue first. */
+  nearestObligations: Array<{
+    occurrenceId: string;
+    name: string;
+    scheduledOn: string;
+    unpaidMinor: string;
+  }>;
+  /** Current main period figures; null while the period limit is not set up. */
+  periodStats: {
+    spentMinor: string;
+    /** Everything the main period envelope held: balance plus spent. */
+    availableMinor: string;
+    /** Days from asOf to the period end, both included. */
+    daysLeft: number;
+    /** Spendable divided by days left, rounded down to a minor unit; 0 when nothing is spendable. */
+    averagePerDayMinor: string;
+  } | null;
+  /** Envelope balances (all periods summed); archived ones only while they still hold money. */
+  envelopes: Array<{
+    id: string;
+    name: string;
+    envelopeType: EnvelopeType;
+    periodSlot: 'FIRST' | 'SECOND' | null;
+    balanceMinor: string;
+  }>;
+  envelopesTotalMinor: string;
   /**
    * True when the unpaid mandatory total may miss occurrences: the reader cannot materialize them
    * (VIEWER) or asOf is outside the period containing today (nothing materialized for it).
@@ -249,12 +278,14 @@ export class DashboardV2ApplicationService {
     const due = upcoming.reduce((sum, item) => sum + item.unpaidMinor, 0n);
 
     let mainFunded = 0n;
+    let mainSpent = 0n;
     let mainBalance = 0n;
     let mandatoryBalance = 0n;
     const otherBalances: bigint[] = [];
     for (const row of rows) {
       if (periodRow && row.envelopeId === periodRow.envelopeId && row.periodId === periodRow.id) {
         mainFunded = row.funded;
+        mainSpent = row.spent;
         mainBalance = row.balance;
       } else if (typeOf.get(row.envelopeId) === 'MANDATORY_EXPENSES') {
         mandatoryBalance += row.balance;
@@ -357,6 +388,37 @@ export class DashboardV2ApplicationService {
     }
 
     const accounts = await repo.accounts(tx, budgetId, instant);
+    const nearest = await repo.nearestObligations(
+      tx,
+      budgetId,
+      addIsoDays(asOf, NEAREST_OBLIGATIONS_DAYS),
+      NEAREST_OBLIGATIONS_LIMIT,
+    );
+    const daysLeft =
+      Math.round(
+        (Date.parse(`${period.end}T00:00:00Z`) - Date.parse(`${asOf}T00:00:00Z`)) / DAY_MS,
+      ) + 1;
+    const periodStats = needsSetup
+      ? null
+      : {
+          spentMinor: formatMinorUnits(mainSpent),
+          availableMinor: formatMinorUnits(mainBalance + mainSpent),
+          daysLeft,
+          // Never negative: an overspent period shows 0 per day, not a truncated negative.
+          averagePerDayMinor: formatMinorUnits(
+            result.spendableNow > 0n ? result.spendableNow / BigInt(daysLeft) : 0n,
+          ),
+        };
+    const balanceByEnvelope = new Map<string, bigint>();
+    for (const row of rows) {
+      balanceByEnvelope.set(
+        row.envelopeId,
+        (balanceByEnvelope.get(row.envelopeId) ?? 0n) + row.balance,
+      );
+    }
+    const envelopeList = envelopes
+      .map((envelope) => ({ envelope, balance: balanceByEnvelope.get(envelope.id) ?? 0n }))
+      .filter(({ envelope, balance }) => envelope.archivedAt === null || balance !== 0n);
     const mandatoryIds = envelopes
       .filter((envelope) => envelope.envelopeType === 'MANDATORY_EXPENSES')
       .map((envelope) => envelope.id);
@@ -384,6 +446,23 @@ export class DashboardV2ApplicationService {
         scheduledOn: item.scheduledOn,
         unpaidMinor: formatMinorUnits(item.unpaidMinor),
       })),
+      nearestObligations: nearest.map((item) => ({
+        occurrenceId: item.occurrenceId,
+        name: item.name,
+        scheduledOn: item.scheduledOn,
+        unpaidMinor: formatMinorUnits(item.unpaidMinor),
+      })),
+      periodStats,
+      envelopes: envelopeList.map(({ envelope, balance }) => ({
+        id: envelope.id,
+        name: envelope.name,
+        envelopeType: envelope.envelopeType,
+        periodSlot: envelope.periodSlot,
+        balanceMinor: formatMinorUnits(balance),
+      })),
+      envelopesTotalMinor: formatMinorUnits(
+        envelopeList.reduce((sum, { balance }) => sum + balance, 0n),
+      ),
       dueMayBeIncomplete,
       accounts: accounts.map((account) => ({
         id: account.id,

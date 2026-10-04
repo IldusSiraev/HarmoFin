@@ -18,6 +18,7 @@ const props = defineProps<{
 
 defineSlots<{
   row?(props: { item: DashboardBalance }): unknown;
+  footer?(): unknown;
 }>();
 
 const visible = computed(() => props.items.slice(0, props.limit ?? LIMIT));
@@ -54,6 +55,8 @@ const visible = computed(() => props.items.slice(0, props.limit ?? LIMIT));
         </slot>
       </li>
     </ul>
+
+    <slot name="footer" />
   </section>
 </template>
 

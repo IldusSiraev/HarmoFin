@@ -29,6 +29,13 @@ export type DashboardAccount = { id: string; name: string; balanceMinor: bigint 
 
 export type DashboardPeriodRange = { id: string; envelopeId: string; endsOn: string };
 
+export type NearestObligation = {
+  occurrenceId: string;
+  name: string;
+  scheduledOn: string;
+  unpaidMinor: bigint;
+};
+
 export type UpcomingOccurrence = {
   occurrenceId: string;
   scheduledOn: string;
@@ -184,6 +191,55 @@ export class DashboardV2Repository {
     `;
     return rows.map((row) => ({
       occurrenceId: row.id,
+      scheduledOn: row.scheduledOn,
+      unpaidMinor: BigInt(row.unpaid),
+    }));
+  }
+
+  /**
+   * The nearest open mandatory expense occurrences with an unpaid remainder, overdue ones first
+   * (display list: not tied to the protection horizon, bounded by `to`). Pure SELECT, every join
+   * filters budget_id.
+   */
+  async nearestObligations(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    to: string,
+    limit: number,
+  ): Promise<NearestObligation[]> {
+    const rows = await tx.$queryRaw<
+      Array<{ id: string; name: string; scheduledOn: string; unpaid: bigint }>
+    >`
+      SELECT o."id" AS "id",
+             o."plan_name" AS "name",
+             to_char(o."scheduled_on", 'YYYY-MM-DD') AS "scheduledOn",
+             GREATEST(0, o."amount_minor" - COALESCE(paid."paid_minor", 0))::bigint AS "unpaid"
+      FROM "plan_occurrences" o
+      JOIN "envelopes" e
+        ON e."id" = o."envelope_id" AND e."budget_id" = o."budget_id"
+      LEFT JOIN LATERAL (
+        SELECT SUM(t."amount_minor") AS "paid_minor"
+        FROM "plan_payments" pp
+        JOIN "transactions" t
+          ON t."id" = pp."transaction_id" AND t."budget_id" = pp."budget_id"
+        WHERE pp."occurrence_id" = o."id"
+          AND pp."budget_id" = o."budget_id"
+          AND t."status" = 'CONFIRMED'
+          AND t."deleted_at" IS NULL
+      ) paid ON true
+      WHERE o."budget_id" = ${budgetId}::uuid
+        AND o."plan_type" = 'EXPENSE'
+        AND o."status" IN ('PENDING', 'DUE')
+        AND o."scheduled_on" <= ${to}::date
+        AND e."envelope_type" = 'MANDATORY_EXPENSES'
+        AND e."archived_at" IS NULL
+        AND o."amount_minor" - COALESCE(paid."paid_minor", 0) > 0
+      ORDER BY o."scheduled_on", o."id"
+      LIMIT ${limit}
+    `;
+    return rows.map((row) => ({
+      occurrenceId: row.id,
+      name: row.name,
       scheduledOn: row.scheduledOn,
       unpaidMinor: BigInt(row.unpaid),
     }));

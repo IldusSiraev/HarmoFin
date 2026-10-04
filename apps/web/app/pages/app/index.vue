@@ -8,10 +8,12 @@ import { accountSubtitle, ACCOUNT_TYPE_ICONS } from '../../components/accounts/a
 import AvailableBudgetCard from '../../components/dashboard/AvailableBudgetCard.vue';
 import FinancialMonthTimeline from '../../components/dashboard/FinancialMonthTimeline.vue';
 import BalanceList from '../../components/dashboard/BalanceList.vue';
+import UpcomingObligations from '../../components/dashboard/UpcomingObligations.vue';
 import DashboardWarnings from '../../components/dashboard/DashboardWarnings.vue';
 import OnboardingChecklist from '../../components/dashboard/OnboardingChecklist.vue';
 import PeriodDecisionCard from '../../components/dashboard/PeriodDecisionCard.vue';
 import RecentOperations from '../../components/dashboard/RecentOperations.vue';
+import { ENVELOPE_TYPE_ICONS, envelopeSubtitle } from '../../components/envelopes/envelope-type.js';
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
@@ -56,6 +58,27 @@ function accountSubtitleFor(id: string): string {
   const account = accountById.value.get(id);
   return account ? accountSubtitle(account) : '';
 }
+
+type EnvelopeRow = DashboardV2Response['envelopes'][number];
+
+// The list slot hands over the generic balance item; the full server row is looked up by id.
+function envelopeRow(id: string): EnvelopeRow {
+  return dashboardV2.value!.envelopes.find((row) => row.id === id)!;
+}
+
+function envelopeIcon(row: EnvelopeRow) {
+  return ENVELOPE_TYPE_ICONS[row.envelopeType] ?? Wallet;
+}
+
+function envelopeSubtitleFor(row: EnvelopeRow): string {
+  return envelopeSubtitle(row);
+}
+
+// Free money is shown as the server sent it; only a string check decides if the row appears.
+const hasFreeMoney = computed(() => {
+  const free = dashboardV2.value?.freeToAssignMinor ?? '0';
+  return free !== '0' && !free.startsWith('-');
+});
 
 const activeBudget = computed(() => currentData.value?.workspaces[0]?.budgets[0] ?? null);
 const planV2 = useEnvelopePlanV2();
@@ -205,35 +228,85 @@ async function loadDashboard() {
 
         <DashboardWarnings :v2-warnings="coverageWarnings" />
 
-        <AvailableBudgetCard
-          :dashboard="dashboardV2"
-          @assign="funding.offer({ sourceKind: 'FREE' })"
-        />
+        <div class="dashboard-hero-row">
+          <AvailableBudgetCard
+            class="dashboard-hero-row__spend"
+            :dashboard="dashboardV2"
+            @assign="funding.offer({ sourceKind: 'FREE' })"
+          />
+          <UpcomingObligations
+            class="dashboard-hero-row__obligations"
+            :items="dashboardV2.nearestObligations"
+          />
+        </div>
 
-        <BalanceList
-          title="Счета"
-          :items="dashboardV2.accounts"
-          :warnings="[]"
-          subject="ACCOUNT"
-          :total-minor="dashboardV2.cashMinor"
-          more-link="/app/accounts"
-        >
-          <template #row="{ item }">
-            <span class="dashboard-balance-icon">
-              <component :is="accountIcon(item.id) ?? Wallet" :size="16" aria-hidden="true" />
-            </span>
-            <span class="dashboard-balance-body">
-              <span class="dashboard-balance-name">{{ item.name }}</span>
-              <span class="dashboard-balance-subtitle">{{ accountSubtitleFor(item.id) }}</span>
-            </span>
-            <FinanceMoney
-              class="dashboard-balance-trailing"
-              :minor-units="item.balanceMinor"
-              currency="RUB"
-              :scale="2"
-            />
-          </template>
-        </BalanceList>
+        <div class="dashboard-lists-row">
+          <BalanceList
+            title="Счета"
+            :items="dashboardV2.accounts"
+            :warnings="[]"
+            subject="ACCOUNT"
+            :total-minor="dashboardV2.cashMinor"
+            more-link="/app/accounts"
+          >
+            <template #row="{ item }">
+              <span class="dashboard-balance-icon">
+                <component :is="accountIcon(item.id) ?? Wallet" :size="16" aria-hidden="true" />
+              </span>
+              <span class="dashboard-balance-body">
+                <span class="dashboard-balance-name">{{ item.name }}</span>
+                <span class="dashboard-balance-subtitle">{{ accountSubtitleFor(item.id) }}</span>
+              </span>
+              <FinanceMoney
+                class="dashboard-balance-trailing"
+                :minor-units="item.balanceMinor"
+                currency="RUB"
+                :scale="2"
+              />
+            </template>
+          </BalanceList>
+
+          <BalanceList
+            title="Конверты"
+            :items="dashboardV2.envelopes"
+            :warnings="[]"
+            subject="ENVELOPE"
+            :total-minor="dashboardV2.envelopesTotalMinor"
+            more-link="/app/envelopes"
+          >
+            <template #row="{ item }">
+              <span class="dashboard-balance-icon">
+                <component :is="envelopeIcon(envelopeRow(item.id))" :size="16" aria-hidden="true" />
+              </span>
+              <span class="dashboard-balance-body">
+                <span class="dashboard-balance-name">{{ item.name }}</span>
+                <span class="dashboard-balance-subtitle">{{
+                  envelopeSubtitleFor(envelopeRow(item.id))
+                }}</span>
+              </span>
+              <FinanceMoney
+                class="dashboard-balance-trailing"
+                :minor-units="item.balanceMinor"
+                currency="RUB"
+                :scale="2"
+              />
+            </template>
+            <template #footer>
+              <p
+                v-if="hasFreeMoney"
+                class="dashboard-unassigned"
+                data-testid="envelopes-unassigned"
+              >
+                Не назначено
+                <FinanceMoney
+                  :minor-units="dashboardV2.freeToAssignMinor"
+                  currency="RUB"
+                  :scale="2"
+                />
+              </p>
+            </template>
+          </BalanceList>
+        </div>
 
         <RecentOperations
           :transactions="recent"
@@ -303,6 +376,31 @@ async function loadDashboard() {
 
 .dashboard-timeline {
   margin-bottom: var(--hf-space-6);
+}
+
+.dashboard-hero-row,
+.dashboard-lists-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--hf-space-5);
+}
+
+@media (min-width: 1024px) {
+  .dashboard-hero-row {
+    grid-template-columns: 2fr 1fr;
+    align-items: stretch;
+  }
+
+  .dashboard-lists-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.dashboard-unassigned {
+  margin: 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+  font-variant-numeric: tabular-nums;
 }
 
 .dashboard-sections {

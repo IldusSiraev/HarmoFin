@@ -41,6 +41,21 @@ const hasGap = computed(() => {
   return gap !== '0' && !gap.startsWith('-');
 });
 const horizonLabel = computed(() => formatUntil(props.dashboard.horizonEnd));
+const stats = computed(() => props.dashboard.periodStats);
+
+// Counts come from the server; this only picks the Russian word form.
+function daysLeftLabel(days: number): string {
+  const tail = days % 10;
+  const teen = days % 100;
+  if (tail === 1 && teen !== 11) return `осталось ${days} день`;
+  if (tail >= 2 && tail <= 4 && (teen < 12 || teen > 14)) return `осталось ${days} дня`;
+  return `осталось ${days} дней`;
+}
+const periodCaption = computed(() =>
+  stats.value
+    ? `${formatUntil(props.dashboard.period.end)} · ${daysLeftLabel(stats.value.daysLeft)}`
+    : '',
+);
 const breakdownOpen = ref(false);
 </script>
 
@@ -67,6 +82,25 @@ const breakdownOpen = ref(false);
         В конверте периода
         <FinanceMoney :minor-units="dashboard.currentBalanceMinor" currency="RUB" :scale="2" />
       </p>
+      <p v-if="stats" class="available-budget__caption" data-testid="available-budget-period">
+        {{ periodCaption }}
+      </p>
+      <dl v-if="stats" class="available-budget__stats" data-testid="available-budget-stats">
+        <div>
+          <dt>Потрачено</dt>
+          <dd><FinanceMoney :minor-units="stats.spentMinor" currency="RUB" :scale="2" /></dd>
+        </div>
+        <div>
+          <dt>Было доступно</dt>
+          <dd><FinanceMoney :minor-units="stats.availableMinor" currency="RUB" :scale="2" /></dd>
+        </div>
+        <div>
+          <dt>В среднем в день</dt>
+          <dd>
+            <FinanceMoney :minor-units="stats.averagePerDayMinor" currency="RUB" :scale="2" />
+          </dd>
+        </div>
+      </dl>
     </template>
 
     <p
@@ -232,6 +266,26 @@ const breakdownOpen = ref(false);
   font-size: var(--hf-font-size-h3);
   font-weight: var(--hf-font-weight-semibold);
   line-height: var(--hf-line-height-h3);
+}
+
+.available-budget__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--hf-space-3);
+  margin: 0;
+  padding-top: var(--hf-space-3);
+  border-top: 1px solid var(--hf-color-border);
+  font-variant-numeric: tabular-nums;
+}
+
+.available-budget__stats dt {
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+}
+
+.available-budget__stats dd {
+  margin: 0;
+  font-weight: var(--hf-font-weight-semibold);
 }
 
 .available-budget__link {

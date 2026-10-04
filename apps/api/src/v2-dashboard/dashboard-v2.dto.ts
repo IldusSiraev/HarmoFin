@@ -147,6 +147,78 @@ export class DashboardV2CycleResponse {
   end!: string;
 }
 
+export class DashboardV2NearestObligationResponse {
+  @ApiProperty({ type: String, format: 'uuid' })
+  occurrenceId!: string;
+
+  @ApiProperty({ type: String, description: 'Название обязательного платежа.' })
+  name!: string;
+
+  @ApiProperty({ type: String, format: 'date' })
+  scheduledOn!: string;
+
+  @ApiProperty({ type: String, pattern: MONEY })
+  unpaidMinor!: string;
+}
+
+export class DashboardV2PeriodStatsResponse {
+  @ApiProperty({ type: String, pattern: MONEY, description: 'Потрачено за текущий период.' })
+  spentMinor!: string;
+
+  @ApiProperty({
+    type: String,
+    pattern: MONEY,
+    description: 'Было доступно: остаток конверта периода плюс потрачено.',
+  })
+  availableMinor!: string;
+
+  @ApiProperty({
+    type: Number,
+    format: 'int32',
+    description: 'Дней до конца периода, включая сегодняшний.',
+  })
+  daysLeft!: number;
+
+  @ApiProperty({
+    type: String,
+    pattern: MONEY,
+    description:
+      '«Можно потратить» на оставшиеся дни, округление вниз до копейки; 0, если тратить нечего.',
+  })
+  averagePerDayMinor!: string;
+}
+
+export class DashboardV2EnvelopeResponse {
+  @ApiProperty({ type: String, format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ type: String })
+  name!: string;
+
+  @ApiProperty({
+    type: String,
+    enum: [
+      'CURRENT_EXPENSES',
+      'MANDATORY_EXPENSES',
+      'SAVINGS_GOAL',
+      'RESERVE',
+      'FREE_MONEY',
+      'CUSTOM',
+    ],
+  })
+  envelopeType!: string;
+
+  @ApiProperty({ type: String, enum: ['FIRST', 'SECOND'], nullable: true })
+  periodSlot!: 'FIRST' | 'SECOND' | null;
+
+  @ApiProperty({
+    type: String,
+    pattern: MONEY,
+    description: 'Остаток конверта по всем периодам.',
+  })
+  balanceMinor!: string;
+}
+
 export class DashboardV2Response {
   @ApiProperty({ type: Number, enum: [2] })
   planModelVersion!: 2;
@@ -218,6 +290,30 @@ export class DashboardV2Response {
 
   @ApiProperty({ type: [DashboardV2UpcomingResponse] })
   upcoming!: DashboardV2UpcomingResponse[];
+
+  @ApiProperty({
+    type: [DashboardV2NearestObligationResponse],
+    description: 'Три ближайших неоплаченных обязательных платежа в пределах 60 дней.',
+  })
+  nearestObligations!: DashboardV2NearestObligationResponse[];
+
+  @ApiProperty({
+    type: DashboardV2PeriodStatsResponse,
+    nullable: true,
+    description: 'null, пока лимит периода не настроен.',
+  })
+  periodStats!: DashboardV2PeriodStatsResponse | null;
+
+  @ApiProperty({ type: [DashboardV2EnvelopeResponse] })
+  envelopes!: DashboardV2EnvelopeResponse[];
+
+  @ApiProperty({
+    type: String,
+    pattern: MONEY,
+    description:
+      'Сумма остатков показанных конвертов; деньги, ещё не назначенные конвертам (freeToAssignMinor), в неё не входят.',
+  })
+  envelopesTotalMinor!: string;
 
   @ApiProperty({ type: [DashboardV2AccountResponse] })
   accounts!: DashboardV2AccountResponse[];

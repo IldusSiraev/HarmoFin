@@ -105,6 +105,158 @@ describe('v2 dashboard summary (P01)', () => {
     ]);
   });
 
+  it('UX-22: статистика периода, ближайшие обязательства и конверты считает сервер', async () => {
+    const w = await world(10_000_000n);
+    const period = await addPeriod(
+      w,
+      w.mainEnvelopeId,
+      PERIOD.start,
+      PERIOD.end,
+      'CONFIRMED',
+      6_500_000n,
+    );
+    await assign(w, w.mainEnvelopeId, period, 6_500_000n);
+    await assign(w, w.mandatoryEnvelopeId, null, 3_500_000n);
+    await occurrence(w, 4_500_000n, '2026-03-12');
+    await occurrence(w, 1_000_000n, '2026-03-20'); // beyond the protection horizon, within display range
+    await occurrence(w, 100_000n, '2026-03-11');
+    await occurrence(w, 200_000n, '2026-03-13');
+    await occurrence(w, 300_000n, '2026-03-14'); // 5th by date: cut off by the limit of 3
+    await occurrence(w, 900_000n, '2027-01-01'); // far beyond 60 days: never shown
+
+    const summary = await service.summary(w.userId, w.budgetId, ASOF);
+    // ASOF 2026-03-10, period ends 03-14: 5 days left including today, nothing spent yet.
+    expect(summary.periodStats).toEqual({
+      spentMinor: '0',
+      availableMinor: '6500000',
+      daysLeft: 5,
+      averagePerDayMinor: (BigInt(summary.spendable.amountMinor!) / 5n).toString(),
+    });
+    expect(summary.nearestObligations).toEqual([
+      {
+        occurrenceId: expect.any(String),
+        name: 'План',
+        scheduledOn: '2026-03-11',
+        unpaidMinor: '100000',
+      },
+      {
+        occurrenceId: expect.any(String),
+        name: 'План',
+        scheduledOn: '2026-03-12',
+        unpaidMinor: '4500000',
+      },
+      {
+        occurrenceId: expect.any(String),
+        name: 'План',
+        scheduledOn: '2026-03-13',
+        unpaidMinor: '200000',
+      },
+    ]);
+    expect(summary.envelopes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: w.mainEnvelopeId,
+          name: 'Текущий',
+          envelopeType: 'CURRENT_EXPENSES',
+          periodSlot: 'FIRST',
+          balanceMinor: '6500000',
+        }),
+        expect.objectContaining({
+          id: w.mandatoryEnvelopeId,
+          name: 'Обязательные',
+          envelopeType: 'MANDATORY_EXPENSES',
+          periodSlot: null,
+          balanceMinor: '3500000',
+        }),
+      ]),
+    );
+    expect(summary.envelopesTotalMinor).toBe('10000000');
+  });
+
+  it('UX-22: потрачено уменьшает остаток, но «было доступно» остаётся; без настройки периода статистики нет', async () => {
+    const w = await world(10_000_000n);
+    const period = await addPeriod(
+      w,
+      w.mainEnvelopeId,
+      PERIOD.start,
+      PERIOD.end,
+      'CONFIRMED',
+      6_500_000n,
+    );
+    await assign(w, w.mainEnvelopeId, period, 6_500_000n);
+    await expense(w, w.mainEnvelopeId, 348_297n, '2026-03-05');
+    const summary = await service.summary(w.userId, w.budgetId, ASOF);
+    expect(summary.periodStats).toMatchObject({
+      spentMinor: '348297',
+      availableMinor: '6500000',
+      daysLeft: 5,
+    });
+
+    const empty = await world(10_000_000n);
+    const unset = await service.summary(empty.userId, empty.budgetId, ASOF);
+    expect(unset.periodStats).toBeNull();
+  });
+
+  it('UX-22: просроченный первым, частичная оплата даёт остаток, удалённая оплата и полностью оплаченный учтены верно', async () => {
+    const w = await world(10_000_000n);
+    const period = await addPeriod(
+      w,
+      w.mainEnvelopeId,
+      PERIOD.start,
+      PERIOD.end,
+      'CONFIRMED',
+      6_500_000n,
+    );
+    await assign(w, w.mainEnvelopeId, period, 6_500_000n);
+    await assign(w, w.mandatoryEnvelopeId, null, 3_500_000n);
+    const pay = async (occurrenceId: string, amount: bigint, status: 'CONFIRMED' | 'DELETED') => {
+      const transactionId = await expense(w, w.mandatoryEnvelopeId, amount, '2026-03-02', status);
+      await prisma.planPayment.create({
+        data: { id: randomUUID(), budgetId: w.budgetId, occurrenceId, transactionId },
+      });
+    };
+    await occurrence(w, 300_000n, '2026-03-05'); // overdue: before asOf, still listed first
+    await pay(await occurrence(w, 1_000_000n, '2026-03-11'), 400_000n, 'CONFIRMED'); // partial
+    await pay(await occurrence(w, 200_000n, '2026-03-12'), 200_000n, 'DELETED'); // deleted payment
+    await pay(await occurrence(w, 100_000n, '2026-03-13'), 100_000n, 'CONFIRMED'); // fully paid
+
+    const summary = await service.summary(w.userId, w.budgetId, ASOF);
+    expect(summary.nearestObligations.map((item) => [item.scheduledOn, item.unpaidMinor])).toEqual([
+      ['2026-03-05', '300000'],
+      ['2026-03-11', '600000'],
+      ['2026-03-12', '200000'],
+    ]);
+  });
+
+  it('UX-22: архивный конверт с деньгами в списке, пустой архивный нет; последний день периода и нулевое «можно потратить»', async () => {
+    const w = await world(10_000_000n);
+    const period = await addPeriod(
+      w,
+      w.mainEnvelopeId,
+      PERIOD.start,
+      PERIOD.end,
+      'CONFIRMED',
+      6_500_000n,
+    );
+    const archivedWithMoney = await envelope(w, 'SAVINGS_GOAL', 'Старая цель');
+    const archivedEmpty = await envelope(w, 'SAVINGS_GOAL', 'Пустая цель');
+    await assign(w, archivedWithMoney, null, 50_000n);
+    await prisma.envelope.updateMany({
+      where: { id: { in: [archivedWithMoney, archivedEmpty] } },
+      data: { archivedAt: new Date() },
+    });
+
+    // Period confirmed but nothing assigned: spendable is a real zero, not "set up the limit".
+    const summary = await service.summary(w.userId, w.budgetId, PERIOD.end);
+    expect(summary.spendable).toEqual({ state: 'READY', amountMinor: '0' });
+    expect(summary.periodStats).toMatchObject({ daysLeft: 1, averagePerDayMinor: '0' });
+    const ids = summary.envelopes.map((item) => item.id);
+    expect(ids).toContain(archivedWithMoney);
+    expect(ids).not.toContain(archivedEmpty);
+    expect(summary.envelopesTotalMinor).toBe('50000');
+    expect(period).toBeDefined();
+  });
+
   it('назначенное накопление 20k уменьшает cash cap, ещё не назначенный желательный взнос 20k не влияет', async () => {
     const w = await world(10_000_000n);
     const period = await addPeriod(
@@ -744,6 +896,10 @@ describe('v2 dashboard HTTP contract (P02)', () => {
         'period',
         'cycle',
         'asOf',
+        'nearestObligations',
+        'periodStats',
+        'envelopes',
+        'envelopesTotalMinor',
         'spendable',
         'suggestedTarget',
         'accounts',

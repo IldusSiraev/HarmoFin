@@ -22,6 +22,15 @@ const v2Base = {
   unbackedMinor: '0',
   mandatoryGapMinor: '1000000',
   dueMayBeIncomplete: false,
+  nearestObligations: [],
+  periodStats: {
+    spentMinor: '348297',
+    availableMinor: '6848297',
+    daysLeft: 6,
+    averagePerDayMinor: '726396',
+  },
+  envelopes: [],
+  envelopesTotalMinor: '0',
   upcoming: [],
   accounts: [],
   protectedAssignments: [],
@@ -200,5 +209,32 @@ describe('AvailableBudgetCard breakdown markup', () => {
         }
       }
     }
+  });
+
+  it('shows the period figures and days left from the server', () => {
+    const wrapper = mount(AvailableBudgetCard, { props: { dashboard: v2Base }, global: { stubs } });
+    const text = normalize(wrapper.text());
+
+    expect(text).toContain('до 9 октября · осталось 6 дней');
+    expect(text).toContain('Потрачено');
+    expect(text).toContain('3 482,97 ₽');
+    expect(text).toContain('Было доступно');
+    expect(text).toContain('68 482,97 ₽');
+    expect(text).toContain('В среднем в день');
+    expect(text).toContain('7 263,96 ₽');
+  });
+
+  it('hides the period figures until the period is set up', () => {
+    const setup = mount(AvailableBudgetCard, {
+      props: {
+        dashboard: {
+          ...v2Base,
+          spendable: { state: 'NEEDS_PERIOD_SETUP' as const, amountMinor: null },
+          periodStats: null,
+        },
+      },
+      global: { stubs },
+    });
+    expect(setup.find('[data-testid="available-budget-stats"]').exists()).toBe(false);
   });
 });

@@ -92,6 +92,32 @@ describe('dashboard page', () => {
     unbackedMinor: '0',
     mandatoryGapMinor: '1000000',
     dueMayBeIncomplete: false,
+    nearestObligations: [
+      { occurrenceId: 'occ-1', name: 'Ипотека', scheduledOn: '2026-10-26', unpaidMinor: '3597300' },
+    ],
+    periodStats: {
+      spentMinor: '348297',
+      availableMinor: '6848297',
+      daysLeft: 6,
+      averagePerDayMinor: '726396',
+    },
+    envelopes: [
+      {
+        id: 'env-1',
+        name: 'Второй период',
+        envelopeType: 'CURRENT_EXPENSES',
+        periodSlot: 'SECOND',
+        balanceMinor: '4358377',
+      },
+      {
+        id: 'env-2',
+        name: 'Ремонт',
+        envelopeType: 'RESERVE',
+        periodSlot: null,
+        balanceMinor: '48941866',
+      },
+    ],
+    envelopesTotalMinor: '53300243',
     upcoming: [],
     accounts: [{ id: 'account-id', name: 'Наличные', balanceMinor: '10000000' }],
     protectedAssignments: [],
@@ -160,6 +186,33 @@ describe('dashboard page', () => {
     expect(wrapper.get('.fm-timeline [role="img"]').attributes('aria-label')).toBe(
       'Финансовый месяц: с 10 сентября по 9 октября. Сегодня — день 25 из 30. Смена периода: 25 сент.',
     );
+  });
+
+  it('shows the nearest obligations, period figures and envelopes from the server', async () => {
+    v2Api.getDashboard.mockResolvedValue({ ...dashboardV2, freeToAssignMinor: '5215531' });
+    const wrapper = mount(DashboardPage, { global: { stubs } });
+    await flushPromises();
+
+    const text = normalize(wrapper.text());
+    expect(text).toContain('Ипотека');
+    expect(text).toContain('26 октября');
+    expect(wrapper.get('a[href="/app/plans?occurrence=occ-1"]')).toBeTruthy();
+    expect(text).toContain('В среднем в день');
+    expect(text).toContain('Конверты');
+    expect(text).toContain('Второй период');
+    expect(text).toContain('Текущие расходы · Вторая половина');
+    expect(text).toContain('Ремонт');
+    expect(text).toContain('533 002,43 ₽');
+    expect(normalize(wrapper.get('[data-testid="envelopes-unassigned"]').text())).toContain(
+      'Не назначено 52 155,31 ₽',
+    );
+  });
+
+  it('hides the unassigned row when no money is free', async () => {
+    const wrapper = mount(DashboardPage, { global: { stubs } });
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="envelopes-unassigned"]').exists()).toBe(false);
   });
 
   it('reads the latest operations from the journal', async () => {
@@ -352,12 +405,11 @@ describe('dashboard page', () => {
     expect(v2Api.getDashboard.mock.calls.length).toBeGreaterThan(initialReads);
   });
 
-  it('shows no legacy leftover prompt, envelope balance list or template button', async () => {
+  it('shows no legacy leftover prompt or template button', async () => {
     const wrapper = mount(DashboardPage, { global: { stubs } });
     await flushPromises();
 
     expect(wrapper.find('[data-testid="period-leftover-prompt"]').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('Создать базовый шаблон');
-    expect(wrapper.findAll('h2').map((heading) => heading.text())).not.toContain('Конверты');
   });
 });

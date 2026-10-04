@@ -181,6 +181,26 @@ export interface DashboardV2Response {
   cycle: { start: string; end: string };
   asOf: string;
   horizonEnd: string;
+  nearestObligations: Array<{
+    occurrenceId: string;
+    name: string;
+    scheduledOn: string;
+    unpaidMinor: string;
+  }>;
+  periodStats: {
+    spentMinor: string;
+    availableMinor: string;
+    daysLeft: number;
+    averagePerDayMinor: string;
+  } | null;
+  envelopes: Array<{
+    id: string;
+    name: string;
+    envelopeType: string;
+    periodSlot: 'FIRST' | 'SECOND' | null;
+    balanceMinor: string;
+  }>;
+  envelopesTotalMinor: string;
   spendable: { state: 'READY' | 'NEEDS_PERIOD_SETUP'; amountMinor: string | null };
   suggestedTarget: string | null;
   cashMinor: string;
