@@ -91,7 +91,7 @@ for (const [label, viewport] of [
         .click();
       await dialog.getByRole('button', { name: 'Добавить платёж' }).click();
       await expect(dialog).toBeHidden();
-      await expect(page.getByRole('status')).toContainText('Платёж «Аренда» добавлен.');
+      await expect(page.getByTestId('plans-status')).toContainText('Платёж «Аренда» добавлен.');
       await expect(page.getByTestId('plans-list')).toContainText('Аренда');
 
       // 2. API: the plan exists, but no operation was created.
@@ -122,7 +122,7 @@ for (const [label, viewport] of [
         .click();
       await dialog.getByRole('button', { name: 'Добавить доход' }).click();
       await expect(dialog).toBeHidden();
-      await expect(page.getByRole('status')).toContainText('Доход «Зарплата» добавлен.');
+      await expect(page.getByTestId('plans-status')).toContainText('Доход «Зарплата» добавлен.');
       const incomeList = page.getByTestId('plans-list');
       await expect(incomeList).toContainText('Зарплата');
       await expect(incomeList).toContainText('Это прогноз');
@@ -292,7 +292,7 @@ for (const [label, viewport] of [
       await applyCurrent.check();
       await dialog.getByTestId('plan-edit-submit').click();
       await expect(dialog).toBeHidden();
-      await expect(page.getByRole('status')).toContainText(
+      await expect(page.getByTestId('plans-status')).toContainText(
         'План «Аренда» обновлён. Изменено платежей',
       );
       expect((await planStatus())?.amountMinor).toBe('5000000');
@@ -302,7 +302,7 @@ for (const [label, viewport] of [
       await expect(dialog).toBeVisible();
       await dialog.getByTestId('plan-edit-stop').click();
       await page.getByRole('button', { name: 'Остановить', exact: true }).click();
-      await expect(page.getByRole('status')).toContainText('остановлен');
+      await expect(page.getByTestId('plans-status')).toContainText('остановлен');
       expect((await planStatus())?.status).toBe('ARCHIVED');
 
       // 3. The catalog lists the stopped plan and resumes it.
@@ -311,7 +311,7 @@ for (const [label, viewport] of [
       const row = catalog.getByTestId(`catalog-row-obligation-${plan.id}`);
       await expect(row).toContainText('Остановлен');
       await row.getByRole('button', { name: 'Возобновить' }).click();
-      await expect(page.getByRole('status')).toContainText('возобновлён');
+      await expect(page.getByTestId('plans-status')).toContainText('возобновлён');
       expect((await planStatus())?.status).toBe('ACTIVE');
     });
   });
