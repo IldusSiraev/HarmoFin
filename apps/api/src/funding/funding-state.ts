@@ -49,6 +49,10 @@ export type FundingPreviewState = {
     spentMinor: bigint;
   }>;
   mandatoryDueMinor: bigint;
+  /** Unpaid mandatory slice of the current period (on or before currentPeriod.end, overdue included). */
+  mandatoryDueCurrentMinor: bigint;
+  /** Unpaid mandatory slice of the next period ((currentPeriod.end, nextPeriod.end]). */
+  mandatoryDueNextMinor: bigint;
   rules: Array<{
     envelopeId: string;
     type: string;
@@ -69,7 +73,13 @@ export type FundingPreviewState = {
     sourceCategoryId: string | null;
     targetEnvelopeId: string | null;
   };
-  overrides: Array<{ envelopeId: string; periodId: string | null; amountMinor: bigint }>;
+  /** Optional `lineId` targets a specific suggestion line (e.g. a mandatory slice). */
+  overrides: Array<{
+    envelopeId: string;
+    periodId: string | null;
+    amountMinor: bigint;
+    lineId?: string;
+  }>;
 };
 
 function canonicalize(value: unknown): unknown {

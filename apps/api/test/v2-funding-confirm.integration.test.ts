@@ -43,7 +43,12 @@ type RegisteredUser = {
 };
 type PreviewBody = {
   periodTargetDrafts: Array<{ periodId: string; targetMinor: string }>;
-  lines: Array<{ envelopeId: string; periodId: string | null; suggestedMinor: string }>;
+  lines: Array<{
+    envelopeId: string;
+    periodId: string | null;
+    lineId: string | null;
+    suggestedMinor: string;
+  }>;
   previewHash: string;
 };
 type ConfirmBody = {
@@ -57,7 +62,7 @@ type ConfirmBody = {
     amountMinor: string;
   }>;
 };
-type Line = { envelopeId: string; periodId?: string; amount: string };
+type Line = { envelopeId: string; periodId?: string; amount: string; lineId?: string };
 
 let app: NestFastifyApplication;
 let server: FastifyInstance;
@@ -320,6 +325,42 @@ describe('v2 funding confirm (R04)', () => {
     expect(conflict.statusCode).toBe(409);
     expect(conflict.json<{ code: string }>().code).toBe('IDEMPOTENCY_CONFLICT');
     expect((await confirm(payload, { key: '' })).statusCode).toBe(400);
+  });
+
+  it('lineId в строке: round-trip 200, повтор 200, тот же body без lineId — 409 IDEMPOTENCY_CONFLICT', async () => {
+    const income = await createIncome(owner().budgetId, accountId, salaryCategory, 1_000_000n);
+    const linesWithLineId: Line[] = [
+      { envelopeId: repairEnvelope, amount: '100.00', lineId: `${repairEnvelope}||SYNTHETIC` },
+    ];
+    const previewBody = await preview({
+      sourceKind: 'INCOME',
+      incomeTransactionId: income,
+      overrides: linesWithLineId,
+      confirmPeriodTargets: [],
+    });
+    const payload = {
+      sourceKind: 'INCOME',
+      incomeTransactionId: income,
+      previewHash: previewBody.previewHash,
+      confirmPeriodTargets: [],
+      lines: linesWithLineId,
+    };
+    const key = `line-${randomUUID()}`;
+    const first = await confirm(payload, { key });
+    expect(first.statusCode, first.body).toBe(200);
+    expect(first.json<ConfirmBody>().assignedMinor).toBe('10000');
+    const second = await confirm(payload, { key });
+    expect(second.statusCode).toBe(200);
+    expect(second.json()).toEqual(first.json());
+    const legacy = await confirm(
+      {
+        ...payload,
+        lines: [{ envelopeId: repairEnvelope, amount: '100.00' }],
+      },
+      { key },
+    );
+    expect(legacy.statusCode).toBe(409);
+    expect(legacy.json<{ code: string }>().code).toBe('IDEMPOTENCY_CONFLICT');
   });
 
   it('изменение расхода/правила/цели/дохода/разбивки после preview даёт 409 PREVIEW_STALE без записи', async () => {

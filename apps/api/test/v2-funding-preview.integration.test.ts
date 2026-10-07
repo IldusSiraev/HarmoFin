@@ -9,7 +9,11 @@ import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
 import { IdempotencyService } from '../src/common/idempotency/idempotency.service.js';
 import { PlanModelPolicy } from '../src/common/plan-model/plan-model.policy.js';
-import { cycleAndPeriodFor, todayInTimezone } from '../src/cycles/cycle-period.domain.js';
+import {
+  addIsoDays,
+  cycleAndPeriodFor,
+  todayInTimezone,
+} from '../src/cycles/cycle-period.domain.js';
 import { PrismaService } from '../src/database/prisma.service.js';
 import { AssignmentApplicationService } from '../src/envelope-plans/assignment.application.service.js';
 import { PeriodTargetApplicationService } from '../src/envelope-plans/period-target.application.service.js';
@@ -49,7 +53,12 @@ type PreviewBody = {
     targetMinor: string;
     selectedForConfirmation: boolean;
   }>;
-  lines: Array<{ envelopeId: string; periodId: string | null; suggestedMinor: string }>;
+  lines: Array<{
+    envelopeId: string;
+    periodId: string | null;
+    lineId: string | null;
+    suggestedMinor: string;
+  }>;
   remainingMinor: string;
   mandatoryGapMinor: string;
   previewHash: string;
@@ -181,8 +190,13 @@ describe('v2 funding preview (R03b)', () => {
     ]);
     const periodId = body.periodTargetDrafts[0]!.periodId;
     expect(body.lines).toEqual([
-      { envelopeId: mandatoryEnvelope, periodId: null, suggestedMinor: '4000000' },
-      { envelopeId: currentEnvelope, periodId, suggestedMinor: '4000000' },
+      {
+        envelopeId: mandatoryEnvelope,
+        periodId: null,
+        lineId: `${mandatoryEnvelope}||MANDATORY_CURRENT`,
+        suggestedMinor: '4000000',
+      },
+      { envelopeId: currentEnvelope, periodId, lineId: null, suggestedMinor: '4000000' },
     ]);
     expect(body.remainingMinor).toBe('0');
     expect(body.mandatoryGapMinor).toBe('4000000');
@@ -209,8 +223,13 @@ describe('v2 funding preview (R03b)', () => {
       expect.objectContaining({ targetMinor: '6500000', selectedForConfirmation: false }),
     ]);
     expect(body.lines).toEqual([
-      { envelopeId: mandatoryEnvelope, periodId: null, suggestedMinor: '4000000' },
-      { envelopeId: savingsEnvelope, periodId: null, suggestedMinor: '500000' },
+      {
+        envelopeId: mandatoryEnvelope,
+        periodId: null,
+        lineId: `${mandatoryEnvelope}||MANDATORY_CURRENT`,
+        suggestedMinor: '4000000',
+      },
+      { envelopeId: savingsEnvelope, periodId: null, lineId: null, suggestedMinor: '500000' },
     ]);
     expect(body.lines.some((line) => line.envelopeId === currentEnvelope)).toBe(false);
     expect(body.remainingMinor).toBe('3500000');
@@ -274,8 +293,8 @@ describe('v2 funding preview (R03b)', () => {
     expect(second.periodTargetDrafts).toEqual([]);
     expect(second.sourceAvailableMinor).toBe('3000000');
     expect(second.lines).toEqual([
-      { envelopeId: currentEnvelope, periodId, suggestedMinor: '2500000' },
-      { envelopeId: savingsEnvelope, periodId: null, suggestedMinor: '500000' },
+      { envelopeId: currentEnvelope, periodId, lineId: null, suggestedMinor: '2500000' },
+      { envelopeId: savingsEnvelope, periodId: null, lineId: null, suggestedMinor: '500000' },
     ]);
     expect(second.remainingMinor).toBe('0');
     expect(second.mandatoryGapMinor).toBe('0');
@@ -319,8 +338,12 @@ describe('v2 funding preview (R03b)', () => {
     ).json<PreviewBody>();
     expect(body.errors).toEqual([]);
     expect(body.lines).toEqual([
-      expect.objectContaining({ envelopeId: currentEnvelope, suggestedMinor: '2500000' }),
-      { envelopeId: savingsEnvelope, periodId: null, suggestedMinor: '500000' },
+      expect.objectContaining({
+        envelopeId: currentEnvelope,
+        lineId: null,
+        suggestedMinor: '2500000',
+      }),
+      { envelopeId: savingsEnvelope, periodId: null, lineId: null, suggestedMinor: '500000' },
     ]);
   });
 
@@ -339,7 +362,12 @@ describe('v2 funding preview (R03b)', () => {
       await preview({ sourceKind: 'INCOME', incomeTransactionId: income3 })
     ).json<PreviewBody>();
     expect(body.lines).toEqual([
-      { envelopeId: repairEnvelope, periodId: null, suggestedMinor: '1200000' },
+      {
+        envelopeId: repairEnvelope,
+        periodId: null,
+        lineId: null,
+        suggestedMinor: '1200000',
+      },
     ]);
     expect(body.mandatoryGapMinor).toBe('3000000');
     expect(body.remainingMinor).toBe('0');
@@ -363,8 +391,13 @@ describe('v2 funding preview (R03b)', () => {
       })
     ).json<PreviewBody>();
     expect(adjusted.lines).toEqual([
-      { envelopeId: repairEnvelope, periodId: null, suggestedMinor: '700000' },
-      { envelopeId: mandatoryEnvelope, periodId: null, suggestedMinor: '500000' },
+      { envelopeId: repairEnvelope, periodId: null, lineId: null, suggestedMinor: '700000' },
+      {
+        envelopeId: mandatoryEnvelope,
+        periodId: null,
+        lineId: `${mandatoryEnvelope}||MANDATORY_CURRENT`,
+        suggestedMinor: '500000',
+      },
     ]);
     expect(adjusted.remainingMinor).toBe('0');
     expect(adjusted.errors).toEqual([]);
@@ -377,7 +410,7 @@ describe('v2 funding preview (R03b)', () => {
       })
     ).json<PreviewBody>();
     expect(partial.lines).toEqual([
-      { envelopeId: repairEnvelope, periodId: null, suggestedMinor: '200000' },
+      { envelopeId: repairEnvelope, periodId: null, lineId: null, suggestedMinor: '200000' },
     ]);
     expect(partial.remainingMinor).toBe('1000000');
 
@@ -422,6 +455,145 @@ describe('v2 funding preview (R03b)', () => {
       overrides: [{ envelopeId: repairEnvelope, amount: '-1' }],
     });
     expect(negative.statusCode).toBe(400);
+  });
+
+  it('override с тем же lineId дважды — 400 VALIDATION_FAILED', async () => {
+    const response = await preview({
+      sourceKind: 'INCOME',
+      incomeTransactionId: income3,
+      overrides: [
+        { envelopeId: repairEnvelope, amount: '7000', lineId: 'same-line-id' },
+        { envelopeId: repairEnvelope, amount: '1000', lineId: 'same-line-id' },
+      ],
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({
+      code: 'VALIDATION_FAILED',
+      detail: 'Строка конверта указана дважды.',
+    });
+  });
+
+  it('override с lineId без совпадения: строка добавляется досозданной, id не возвращается', async () => {
+    const response = await preview({
+      sourceKind: 'INCOME',
+      incomeTransactionId: income3,
+      overrides: [
+        {
+          envelopeId: savingsEnvelope,
+          amount: '1500',
+          lineId: 'preview-test-custom-line-id',
+        },
+      ],
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json<PreviewBody>();
+    expect(body.lines).toEqual([
+      { envelopeId: repairEnvelope, periodId: null, lineId: null, suggestedMinor: '1200000' },
+      { envelopeId: savingsEnvelope, periodId: null, lineId: null, suggestedMinor: '150000' },
+    ]);
+    expect(body.remainingMinor).toBe('0');
+    expect(body.errors).toEqual([
+      {
+        code: 'OVERRIDES_EXCEED_SOURCE',
+        detail: 'Сумма назначений больше доступных средств источника.',
+      },
+    ]);
+  });
+
+  it('обязательные: два слайса — текущая строка по приоритету, следующая после строки периода', async () => {
+    const created = await createMandatoryOccurrence(2_000_000n, day(addIsoDays(current.end, 1)));
+    try {
+      const base = (await preview({ sourceKind: 'FREE' })).json<PreviewBody>();
+      expect(base.sourceAvailableMinor).toBe('34200000');
+      expect(base.lines).toEqual([
+        {
+          envelopeId: mandatoryEnvelope,
+          periodId: null,
+          lineId: `${mandatoryEnvelope}||MANDATORY_CURRENT`,
+          suggestedMinor: '3000000',
+        },
+        {
+          envelopeId: currentEnvelope,
+          periodId: expect.any(String),
+          lineId: null,
+          suggestedMinor: '2500000',
+        },
+        {
+          envelopeId: mandatoryEnvelope,
+          periodId: null,
+          lineId: `${mandatoryEnvelope}||MANDATORY_NEXT`,
+          suggestedMinor: '2000000',
+        },
+      ]);
+      expect(base.remainingMinor).toBe('26700000');
+      expect(base.mandatoryGapMinor).toBe('5000000');
+      expect(base.errors).toEqual([]);
+
+      const legacy = (
+        await preview({
+          sourceKind: 'FREE',
+          overrides: [{ envelopeId: mandatoryEnvelope, amount: '7000' }],
+        })
+      ).json<PreviewBody>();
+      expect(legacy.lines).toEqual([
+        {
+          envelopeId: mandatoryEnvelope,
+          periodId: null,
+          lineId: `${mandatoryEnvelope}||MANDATORY_CURRENT`,
+          suggestedMinor: '700000',
+        },
+        {
+          envelopeId: currentEnvelope,
+          periodId: expect.any(String),
+          lineId: null,
+          suggestedMinor: '2500000',
+        },
+        {
+          envelopeId: mandatoryEnvelope,
+          periodId: null,
+          lineId: `${mandatoryEnvelope}||MANDATORY_NEXT`,
+          suggestedMinor: '2000000',
+        },
+      ]);
+      expect(legacy.remainingMinor).toBe('29000000');
+
+      const byLineId = (
+        await preview({
+          sourceKind: 'FREE',
+          overrides: [
+            {
+              envelopeId: mandatoryEnvelope,
+              amount: '1200',
+              lineId: `${mandatoryEnvelope}||MANDATORY_NEXT`,
+            },
+          ],
+        })
+      ).json<PreviewBody>();
+      expect(byLineId.lines).toEqual([
+        {
+          envelopeId: mandatoryEnvelope,
+          periodId: null,
+          lineId: `${mandatoryEnvelope}||MANDATORY_CURRENT`,
+          suggestedMinor: '3000000',
+        },
+        {
+          envelopeId: currentEnvelope,
+          periodId: expect.any(String),
+          lineId: null,
+          suggestedMinor: '2500000',
+        },
+        {
+          envelopeId: mandatoryEnvelope,
+          periodId: null,
+          lineId: `${mandatoryEnvelope}||MANDATORY_NEXT`,
+          suggestedMinor: '120000',
+        },
+      ]);
+      expect(byLineId.remainingMinor).toBe('28580000');
+    } finally {
+      await prisma.planOccurrence.deleteMany({ where: { id: created.occurrenceId } });
+      await prisma.regularPlan.deleteMany({ where: { id: created.planId } });
+    }
   });
 
   it('FREE и OPENING: свободные деньги; OPENING после операций отклоняется', async () => {
@@ -701,8 +873,12 @@ async function createIncome(
   return row.id;
 }
 
-async function createMandatoryOccurrence(amountMinor: bigint): Promise<void> {
+async function createMandatoryOccurrence(
+  amountMinor: bigint,
+  scheduledOn: Date = day(today),
+): Promise<{ planId: string; occurrenceId: string }> {
   const planId = randomUUID();
+  const occurrenceId = randomUUID();
   const user = owner();
   await prisma.regularPlan.create({
     data: {
@@ -712,8 +888,8 @@ async function createMandatoryOccurrence(amountMinor: bigint): Promise<void> {
       name: `План ${planId.slice(0, 6)}`,
       planType: 'EXPENSE',
       amountMinor,
-      anchorOn: day(today),
-      startOn: day(today),
+      anchorOn: scheduledOn,
+      startOn: scheduledOn,
       recurrence: 'ONE_TIME',
       envelopeId: mandatoryEnvelope,
       isActive: true,
@@ -723,11 +899,11 @@ async function createMandatoryOccurrence(amountMinor: bigint): Promise<void> {
   });
   await prisma.planOccurrence.create({
     data: {
-      id: randomUUID(),
+      id: occurrenceId,
       workspaceId: user.workspaceId,
       budgetId: user.budgetId,
       planId,
-      scheduledOn: day(today),
+      scheduledOn,
       planName: 'План',
       planType: 'EXPENSE',
       amountMinor,
@@ -735,6 +911,7 @@ async function createMandatoryOccurrence(amountMinor: bigint): Promise<void> {
       status: 'DUE',
     },
   });
+  return { planId, occurrenceId };
 }
 
 async function register(email: string): Promise<RegisteredUser> {

@@ -10,12 +10,17 @@ export interface FundingRuleInput {
   needMinor: bigint;
   percentBasisPoints?: number;
   alreadyAllocatedFromIncomeMinor?: bigint;
+  /** Идентификатор строки (например, обязательный слайс); возвращается в строке suggestions. */
+  lineId?: string;
+  /** Строка идёт после всех обычных строк (ближние period-строки имеют приоритет). */
+  slotAfterPeriod?: boolean;
 }
 
 export interface FundingSuggestionLine {
   envelopeId: string;
   periodId: string | null;
   amountMinor: bigint;
+  lineId?: string;
 }
 
 export interface SuggestFundingInput {
@@ -41,8 +46,9 @@ function needOf(rule: FundingRuleInput, incomeAmount: bigint | null): bigint {
 }
 
 /**
- * Чистый расчёт предложений: стабильный порядок (priority, envelopeId, periodId),
+ * Чистый расчёт предложений: обычный порядок (priority, envelopeId, periodId),
  * каждая строка = min(остаток, потребность), сумма не превышает available.
+ * Строки с `slotAfterPeriod` идут после всех остальных, между собой тем же порядком.
  */
 export function suggestFunding(input: SuggestFundingInput): FundingSuggestionLine[] {
   const available = nonNegative(input.available);
@@ -62,6 +68,7 @@ export function suggestFunding(input: SuggestFundingInput): FundingSuggestionLin
 
   const ordered = [...input.orderedRules].sort(
     (a, b) =>
+      Number(Boolean(a.slotAfterPeriod)) - Number(Boolean(b.slotAfterPeriod)) ||
       a.priority - b.priority ||
       compareText(a.envelopeId, b.envelopeId) ||
       compareText(a.periodId ?? '', b.periodId ?? ''),
@@ -74,7 +81,12 @@ export function suggestFunding(input: SuggestFundingInput): FundingSuggestionLin
     const need = needOf(rule, input.incomeAmount);
     const amountMinor = need < remaining ? need : remaining;
     if (amountMinor <= 0n) continue;
-    lines.push({ envelopeId: rule.envelopeId, periodId: rule.periodId, amountMinor });
+    lines.push({
+      envelopeId: rule.envelopeId,
+      periodId: rule.periodId,
+      amountMinor,
+      ...(rule.lineId !== undefined ? { lineId: rule.lineId } : {}),
+    });
     remaining -= amountMinor;
   }
   return lines;

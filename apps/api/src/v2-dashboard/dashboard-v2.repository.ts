@@ -148,9 +148,10 @@ export class DashboardV2Repository {
     tx: Prisma.TransactionClient,
     budgetId: string,
     asOf: string,
+    currentEnd: string,
     horizonEnd: string,
   ): Promise<void> {
-    await this.mandatory.mandatoryDue(tx, budgetId, asOf, horizonEnd);
+    await this.mandatory.mandatoryDue(tx, budgetId, asOf, currentEnd, horizonEnd);
   }
 
   /**

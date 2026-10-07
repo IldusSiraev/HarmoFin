@@ -3,6 +3,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 
 import { calculateSpendable } from '../common/finance/v2-money.domain.js';
 import { formatMinorUnits } from '../common/money/minor-units.js';
+import { mandatorySliceGaps } from '../obligations/mandatory-due.domain.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { addIsoDays, todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { cycleAndPeriodAt, nextPeriodEndAt } from '../cycles/cycle-settings-at.js';
@@ -24,6 +25,10 @@ export type DashboardV2Summary = {
   /** Raw sum of MANDATORY_EXPENSES envelope balances (may be negative). */
   mandatoryBalanceMinor: string;
   mandatoryDueMinor: string;
+  /** Unpaid mandatory slice of the current period (includes overdue). */
+  mandatoryDueCurrentMinor: string;
+  /** Unpaid mandatory slice of the next period. */
+  mandatoryDueNextMinor: string;
   otherProtectedMinor: string;
   spendable: { state: 'READY' | 'NEEDS_PERIOD_SETUP'; amountMinor: string | null };
   /** Minor-unit string of the DRAFT target of the current main period, else null. */
@@ -31,6 +36,10 @@ export type DashboardV2Summary = {
   freeToAssignMinor: string;
   unbackedMinor: string;
   mandatoryGapMinor: string;
+  /** Uncovered part of the mandatory need that falls on the current period (including overdue). */
+  mandatoryGapCurrentMinor: string;
+  /** Uncovered part of the mandatory need that falls on the next period. */
+  mandatoryGapNextMinor: string;
   /** `periodId` is the current main period row (null when the budget has no main envelope). */
   period: { start: string; end: string; periodId: string | null };
   /** Financial month containing `asOf` (clipped at the next settings revision). */
@@ -95,6 +104,8 @@ export type DashboardV2ProtectedAssignment = {
 export type DashboardV2Warning = {
   kind: 'PERIOD' | 'COVERAGE';
   code: 'PERIOD_LEFTOVER' | 'PERIOD_DEFICIT' | 'MANDATORY_GAP' | 'CASH_SHORTFALL';
+  /** Optional severity for MANDATORY_GAP: ALERT when the current period is short, INFO when only the next. */
+  level?: 'ALERT' | 'INFO';
   /** Russian text status so the state never relies on colour alone. */
   message: string;
   amountMinor: string;
@@ -238,7 +249,7 @@ export class DashboardV2ApplicationService {
         userId,
       });
       const horizonEnd = await nextPeriodEndAt(tx, budgetId, today, settings);
-      await repo.materializeOccurrences(tx, budgetId, today, horizonEnd);
+      await repo.materializeOccurrences(tx, budgetId, today, current.end, horizonEnd);
     }, TX_OPTIONS);
   }
 
@@ -295,11 +306,18 @@ export class DashboardV2ApplicationService {
     }
     const otherProtected = otherBalances.reduce((sum, balance) => sum + positive(balance), 0n);
 
+    // Mandatory need split current/next by the period end: only `upcoming` rows (already bounded
+    // by the horizon) are used, no extra query.
+    const dueCurrent = upcoming
+      .filter((item) => item.scheduledOn <= period.end)
+      .reduce((sum, item) => sum + item.unpaidMinor, 0n);
+    const mandatoryGaps = mandatorySliceGaps(dueCurrent, due - dueCurrent, mandatoryBalance);
+
     const result = calculateSpendable({
       cash,
       current: mainBalance,
       mandatory: mandatoryBalance,
-      mandatoryDue: due,
+      mandatoryDueCurrent: dueCurrent,
       otherBalances,
     });
 
@@ -362,12 +380,25 @@ export class DashboardV2ApplicationService {
           : `/app/envelopes?coverPeriod=${row.periodId}`,
       });
     }
-    if (result.mandatoryGap > 0n) {
+    if (mandatoryGaps.currentGapMinor > 0n) {
       warnings.push({
         kind: 'COVERAGE',
         code: 'MANDATORY_GAP',
-        message: `Не хватает на обязательства ${rubles(result.mandatoryGap)}: можно потратить меньше остатка периода. Покройте обязательства.`,
-        amountMinor: formatMinorUnits(result.mandatoryGap),
+        level: 'ALERT',
+        message: `Не хватает на обязательства ${rubles(mandatoryGaps.currentGapMinor)} до конца периода ${period.end}: можно потратить меньше остатка периода. Покройте обязательства.`,
+        amountMinor: formatMinorUnits(mandatoryGaps.currentGapMinor),
+        envelopeId: null,
+        periodId: null,
+        balanceMinor: null,
+        actionPath: '/app/envelopes?cover=mandatory',
+      });
+    } else if (mandatoryGaps.nextGapMinor > 0n) {
+      warnings.push({
+        kind: 'COVERAGE',
+        code: 'MANDATORY_GAP',
+        level: 'INFO',
+        message: `Не хватает на обязательства ${rubles(mandatoryGaps.nextGapMinor)} на следующий период: закладывайте средства заранее.`,
+        amountMinor: formatMinorUnits(mandatoryGaps.nextGapMinor),
         envelopeId: null,
         periodId: null,
         balanceMinor: null,
@@ -429,6 +460,8 @@ export class DashboardV2ApplicationService {
       currentBalanceMinor: formatMinorUnits(mainBalance),
       mandatoryBalanceMinor: formatMinorUnits(mandatoryBalance),
       mandatoryDueMinor: formatMinorUnits(due),
+      mandatoryDueCurrentMinor: formatMinorUnits(dueCurrent),
+      mandatoryDueNextMinor: formatMinorUnits(due - dueCurrent),
       otherProtectedMinor: formatMinorUnits(otherProtected),
       spendable: needsSetup
         ? { state: 'NEEDS_PERIOD_SETUP', amountMinor: null }
@@ -437,6 +470,8 @@ export class DashboardV2ApplicationService {
       freeToAssignMinor: formatMinorUnits(result.freeToAssign),
       unbackedMinor: formatMinorUnits(result.unbackedAssignments),
       mandatoryGapMinor: formatMinorUnits(result.mandatoryGap),
+      mandatoryGapCurrentMinor: formatMinorUnits(mandatoryGaps.currentGapMinor),
+      mandatoryGapNextMinor: formatMinorUnits(mandatoryGaps.nextGapMinor),
       period: { start: period.start, end: period.end, periodId: periodRow?.id ?? null },
       cycle: { start: cycle.start, end: cycle.end },
       asOf,

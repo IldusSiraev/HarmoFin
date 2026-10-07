@@ -28,6 +28,8 @@ const base = (): FundingPreviewState => ({
     { envelopeId: 'e2', periodId: 'p', fundedMinor: 2n, spentMinor: 1n },
   ],
   mandatoryDueMinor: 4_000_000n,
+  mandatoryDueCurrentMinor: 4_000_000n,
+  mandatoryDueNextMinor: 0n,
   rules: [
     {
       envelopeId: 'e1',
@@ -54,6 +56,8 @@ describe('computePreviewHash', () => {
   it('changes with any state input', () => {
     const hash = computePreviewHash(base());
     expect(computePreviewHash({ ...base(), mandatoryDueMinor: 1n })).not.toBe(hash);
+    expect(computePreviewHash({ ...base(), mandatoryDueCurrentMinor: 1n })).not.toBe(hash);
+    expect(computePreviewHash({ ...base(), mandatoryDueNextMinor: 9n })).not.toBe(hash);
     expect(computePreviewHash({ ...base(), selectedDraftPeriodIds: [] })).not.toBe(hash);
     expect(
       computePreviewHash({

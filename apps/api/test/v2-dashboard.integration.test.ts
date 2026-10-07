@@ -327,7 +327,7 @@ describe('v2 dashboard summary (P01)', () => {
     expect(after.spendable).toEqual({ state: 'READY', amountMinor: '6500000' });
   });
 
-  it('просроченный и завтрашний платёж следующего периода защищены до дохода; ожидаемый доход и дальний горизонт нет', async () => {
+  it('просроченный платёж защищает «Можно потратить», платёж следующего периода — прогноз и не вычитается', async () => {
     const w = await world(8_000_000n);
     const period = await addPeriod(
       w,
@@ -340,21 +340,91 @@ describe('v2 dashboard summary (P01)', () => {
     await assign(w, w.mainEnvelopeId, period, 6_500_000n);
     const lastDay = '2026-03-14';
     const overdue = await occurrence(w, 500_000n, '2026-02-28');
-    const tomorrow = await occurrence(w, 3_000_000n, NEXT_PERIOD_START);
+    const nextPeriodDue = await occurrence(w, 3_000_000n, NEXT_PERIOD_START);
     await occurrence(w, 9_900_000n, '2026-04-02'); // beyond the next period: not protected
     await occurrence(w, 5_000_000n, NEXT_PERIOD_START, { planType: 'INCOME' }); // expected income
 
     const summary = await service.summary(w.userId, w.budgetId, lastDay);
     expect(summary.period).toMatchObject(PERIOD);
     expect(summary.mandatoryDueMinor).toBe('3500000');
-    // cash 80k - due 35k = 45k < period balance 65k
-    expect(summary.spendable).toEqual({ state: 'READY', amountMinor: '4500000' });
-    expect(summary.mandatoryGapMinor).toBe('3500000');
+    // cash 80k - due current 0.5k = 7.5k > period balance 6.5k; the next-period 3k is forecast only
+    expect(summary.spendable).toEqual({ state: 'READY', amountMinor: '6500000' });
+    expect(summary.mandatoryGapMinor).toBe('500000');
+    expect(summary.mandatoryDueCurrentMinor).toBe('500000');
+    expect(summary.mandatoryDueNextMinor).toBe('3000000');
+    expect(summary.mandatoryGapCurrentMinor).toBe('500000');
+    expect(summary.mandatoryGapNextMinor).toBe('3000000');
     expect(summary.cashMinor).toBe('8000000');
     expect(summary.upcoming).toEqual([
       { occurrenceId: overdue, scheduledOn: '2026-02-28', unpaidMinor: '500000' },
-      { occurrenceId: tomorrow, scheduledOn: NEXT_PERIOD_START, unpaidMinor: '3000000' },
+      { occurrenceId: nextPeriodDue, scheduledOn: NEXT_PERIOD_START, unpaidMinor: '3000000' },
     ]);
+  });
+
+  it('предупреждение MANDATORY_GAP: INFO, когда нехватка только в следующем периоде', async () => {
+    const w = await world(5_000_000n);
+    await occurrence(w, 2_000_000n, '2026-03-20');
+
+    const summary = await service.summary(w.userId, w.budgetId, ASOF);
+    expect(summary.mandatoryDueMinor).toBe('2000000');
+    expect(summary.mandatoryDueCurrentMinor).toBe('0');
+    expect(summary.mandatoryDueNextMinor).toBe('2000000');
+    expect(summary.mandatoryGapMinor).toBe('0');
+    expect(summary.mandatoryGapCurrentMinor).toBe('0');
+    expect(summary.mandatoryGapNextMinor).toBe('2000000');
+    expect(summary.warnings).toContainEqual(
+      expect.objectContaining({
+        kind: 'COVERAGE',
+        code: 'MANDATORY_GAP',
+        level: 'INFO',
+        amountMinor: '2000000',
+      }),
+    );
+  });
+
+  it('регрессия §8: 45 500 на счетах, 31 615 к оплате, 46 000 следующий => можно потратить 13 885', async () => {
+    // Живые числа владельца: на счетах 45 500, баланс «Обязательных» 31 615, к оплате по
+    // текущему горизонту (просроченные + текущий) 31 615, следующий период 46 000 (итого 77 615).
+    // «Можно потратить» = 45 500 − max(31 615, 31 615) = 13 885; остаток главного периода 13 885
+    // не превышает защиту, поэтому лимитом является cash после защиты. Остальные назначения — 0.
+    // Разложение нехватки (mandatorySliceGaps): totalGap = 77 615 − 31 615 = 46 000;
+    // currentGap = max(0, 31 615 − 31 615) = 0; nextGap = 46 000 — только предупреждение INFO.
+    const w = await world(4_550_000n);
+    const period = await addPeriod(
+      w,
+      w.mainEnvelopeId,
+      PERIOD.start,
+      PERIOD.end,
+      'CONFIRMED',
+      1_388_500n,
+    );
+    await assign(w, w.mainEnvelopeId, period, 1_388_500n);
+    await assign(w, w.mandatoryEnvelopeId, null, 3_161_500n);
+    await occurrence(w, 1_161_500n, '2026-02-28'); // просроченный: входит в текущий горизонт
+    await occurrence(w, 2_000_000n, '2026-03-12'); // текущий период
+    await occurrence(w, 4_600_000n, NEXT_PERIOD_START); // следующий период: прогноз, в защиту не входит
+
+    const summary = await service.summary(w.userId, w.budgetId, ASOF);
+    expect(summary.spendable).toEqual({ state: 'READY', amountMinor: '1388500' });
+    expect(summary.cashMinor).toBe('4550000');
+    expect(summary.mandatoryBalanceMinor).toBe('3161500');
+    expect(summary.mandatoryDueMinor).toBe('7761500');
+    expect(summary.mandatoryDueCurrentMinor).toBe('3161500');
+    expect(summary.mandatoryDueNextMinor).toBe('4600000');
+    expect(summary.mandatoryGapMinor).toBe('0');
+    expect(summary.mandatoryGapCurrentMinor).toBe('0');
+    expect(summary.mandatoryGapNextMinor).toBe('4600000');
+    expect(summary.otherProtectedMinor).toBe('0');
+    expect(summary.freeToAssignMinor).toBe('0');
+    expect(summary.unbackedMinor).toBe('0');
+    expect(summary.warnings).toContainEqual(
+      expect.objectContaining({
+        kind: 'COVERAGE',
+        code: 'MANDATORY_GAP',
+        level: 'INFO',
+        amountMinor: '4600000',
+      }),
+    );
   });
 
   it('учитываются только CONFIRMED: черновик, отмена, удаление и удалённое назначение не влияют', async () => {
@@ -654,6 +724,10 @@ type DashboardBody = {
   spendable: { state: string; amountMinor: string | null };
   suggestedTarget: string | null;
   dueMayBeIncomplete: boolean;
+  mandatoryDueCurrentMinor: string;
+  mandatoryDueNextMinor: string;
+  mandatoryGapCurrentMinor: string;
+  mandatoryGapNextMinor: string;
   accounts: Array<{ id: string; name: string; balanceMinor: string }>;
   protectedAssignments: Array<Record<string, unknown>>;
   warnings: Array<Record<string, unknown>>;
@@ -734,10 +808,15 @@ describe('v2 dashboard HTTP contract (P02)', () => {
     const body = (await getDashboard(w)).json<DashboardBody>();
     expect(body.spendable).toEqual({ state: 'READY', amountMinor: '5500000' });
     expect(body.period.periodId).toBe(period);
+    expect(body.mandatoryDueCurrentMinor).toBe('4500000');
+    expect(body.mandatoryDueNextMinor).toBe('0');
+    expect(body.mandatoryGapCurrentMinor).toBe('1000000');
+    expect(body.mandatoryGapNextMinor).toBe('0');
     expect(body.warnings).toContainEqual(
       expect.objectContaining({
         kind: 'COVERAGE',
         code: 'MANDATORY_GAP',
+        level: 'ALERT',
         amountMinor: '1000000',
         message: expect.stringContaining('Не хватает на обязательства'),
         actionPath: expect.stringMatching(/^\/app\//),

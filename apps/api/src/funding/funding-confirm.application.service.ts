@@ -34,7 +34,12 @@ export type FundingConfirmResult = {
   };
 };
 
-type ParsedLine = { envelopeId: string; periodId: string | null; amountMinor: bigint };
+type ParsedLine = {
+  envelopeId: string;
+  periodId: string | null;
+  amountMinor: bigint;
+  lineId?: string;
+};
 
 const positive = (value: bigint) => (value > 0n ? value : 0n);
 
@@ -104,7 +109,12 @@ export class FundingConfirmApplicationService {
       if (amountMinor === 0n) {
         throw validationFailed('Сумма назначения должна быть больше нуля.', 'lines');
       }
-      return { envelopeId: line.envelopeId, periodId: line.periodId ?? null, amountMinor };
+      return {
+        envelopeId: line.envelopeId,
+        periodId: line.periodId ?? null,
+        amountMinor,
+        ...(line.lineId !== undefined ? { lineId: line.lineId } : {}),
+      };
     });
     const targetIds = [...new Set(input.confirmPeriodTargets)];
 
@@ -135,6 +145,7 @@ export class FundingConfirmApplicationService {
             line.envelopeId,
             line.periodId,
             line.amountMinor.toString(),
+            line.lineId ?? null,
           ]),
         }),
       )
@@ -172,6 +183,7 @@ export class FundingConfirmApplicationService {
               overrides: input.lines.map((line) => ({
                 envelopeId: line.envelopeId,
                 ...(line.periodId ? { periodId: line.periodId } : {}),
+                ...(line.lineId !== undefined ? { lineId: line.lineId } : {}),
                 amount: line.amount,
               })),
               confirmPeriodTargets: targetIds,

@@ -12,13 +12,15 @@ export type SpendableInput = {
   cash: bigint;
   current: bigint;
   mandatory: bigint;
-  mandatoryDue: bigint;
+  /** Unpaid mandatory due inside the protection horizon (overdue + current period only; next is forecast). */
+  mandatoryDueCurrent: bigint;
   otherBalances: bigint[];
 };
 
 export type SpendableResult = {
   spendableNow: bigint;
   mandatoryProtected: bigint;
+  /** Uncovered part of the current-period need (overdue + current): max(0, dueCurrent − mandatory). Next period not included. */
   mandatoryGap: bigint;
   freeToAssign: bigint;
   unbackedAssignments: bigint;
@@ -51,7 +53,7 @@ export function calculateSpendable(input: SpendableInput): SpendableResult {
   const cash = readMinorUnits(input.cash);
   const current = max0(readMinorUnits(input.current));
   const mandatory = max0(readMinorUnits(input.mandatory));
-  const due = max0(readMinorUnits(input.mandatoryDue));
+  const due = max0(readMinorUnits(input.mandatoryDueCurrent));
   const otherBalances: bigint[] = [];
   for (const balance of input.otherBalances) {
     otherBalances.push(readMinorUnits(balance));

@@ -18,6 +18,15 @@ export class FundingPreviewOverrideDto {
     description: 'Сумма строки: десятичная строка, до 2 знаков; 0 убирает строку.',
   })
   amount!: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    minLength: 1,
+    maxLength: 128,
+    description:
+      'Идентификатор строки из preview: точное совпадение с серверной строкой. Свободная форма; строка без совпадения добавляется как новая.',
+  })
+  lineId?: string;
 }
 
 export class FundingPreviewRequest {
@@ -72,6 +81,17 @@ export class FundingPreviewLineDto {
   @ApiProperty({ type: String, format: 'uuid', nullable: true })
   periodId!: string | null;
 
+  @ApiPropertyOptional({
+    type: String,
+    minLength: 1,
+    maxLength: 128,
+    nullable: true,
+    example: '{envelopeId}||MANDATORY_CURRENT',
+    description:
+      'Идентификатор строки: точное совпадение при overrides и confirm. Обязательным слайсам сервер присваивает канонические id; прочие строки — null.',
+  })
+  lineId?: string | null;
+
   @ApiProperty({ type: String, example: '4000000' })
   suggestedMinor!: string;
 }
@@ -109,6 +129,21 @@ export class FundingPreviewResponse {
 
   @ApiProperty({
     type: String,
+    example: '3000000',
+    description: 'Обязательные платежи в срезе asOf..cycleEndInclusive — текущий период, minor.',
+  })
+  mandatoryDueCurrentMinor!: string;
+
+  @ApiProperty({
+    type: String,
+    example: '1000000',
+    description:
+      'Обязательные платежи в срезе cycleEndExclusive..nextPeriodEndInclusive — следующий период, minor.',
+  })
+  mandatoryDueNextMinor!: string;
+
+  @ApiProperty({
+    type: String,
     minLength: 64,
     maxLength: 64,
     description: 'sha256 состояния источника, балансов, правил, выбора и строк пользователя.',
@@ -137,6 +172,15 @@ export class FundingConfirmLineDto {
     description: 'Положительная сумма в рублях: десятичная строка, до 2 знаков.',
   })
   amount!: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    minLength: 1,
+    maxLength: 128,
+    description:
+      'Идентификатор строки из preview: точное совпадение. Без него сервер сопоставляет строку по envelopeId/periodId; обязательная строка с несовпавшим id — 400.',
+  })
+  lineId?: string;
 }
 
 export class FundingConfirmRequest {

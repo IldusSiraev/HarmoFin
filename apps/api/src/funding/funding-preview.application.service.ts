@@ -18,7 +18,11 @@ import {
   type EnvelopePeriodRecord,
   FundingRuleRepository,
 } from '../envelope-plans/funding-rule.repository.js';
-import { mandatoryFundingGap } from '../obligations/mandatory-due.domain.js';
+import {
+  mandatoryFundingGap,
+  mandatoryLineId,
+  mandatorySliceGaps,
+} from '../obligations/mandatory-due.domain.js';
 import { MandatoryDueRepository } from '../obligations/mandatory-due.repository.js';
 import { PlanOccurrenceRepository } from '../plans/plan-occurrence.repository.js';
 import { RegularPlanRepository } from '../plans/regular-plan.repository.js';
@@ -42,7 +46,13 @@ export type FundingPreviewInput = {
   sourceKind: FundingSourceKind;
   incomeTransactionId?: string | undefined;
   overrides?:
-    Array<{ envelopeId: string; periodId?: string | undefined; amount: string }> | undefined;
+    | Array<{
+        envelopeId: string;
+        periodId?: string | undefined;
+        lineId?: string | undefined;
+        amount: string;
+      }>
+    | undefined;
   /** Draft period ids the user keeps selected; omitted means every draft is selected. */
   confirmPeriodTargets?: string[] | undefined;
 };
@@ -55,21 +65,54 @@ export type FundingPreviewBody = {
     targetMinor: string;
     selectedForConfirmation: boolean;
   }>;
-  lines: Array<{ envelopeId: string; periodId: string | null; suggestedMinor: string }>;
+  lines: Array<{
+    envelopeId: string;
+    periodId: string | null;
+    /** Stable id of a suggestion line, null for plain lines. */
+    lineId: string | null;
+    suggestedMinor: string;
+  }>;
   remainingMinor: string;
   mandatoryGapMinor: string;
+  /** Unpaid mandatory slice of the current period (includes overdue). */
+  mandatoryDueCurrentMinor: string;
+  /** Unpaid mandatory slice of the next period. */
+  mandatoryDueNextMinor: string;
   previewHash: string;
   errors: Array<{ code: string; detail: string }>;
 };
 
 export type FundingPreviewComputation = { body: FundingPreviewBody; state: FundingPreviewState };
 
-type Line = { envelopeId: string; periodId: string | null; amountMinor: bigint };
+type Line = {
+  envelopeId: string;
+  periodId: string | null;
+  amountMinor: bigint;
+  lineId?: string;
+};
 
 const dateValue = (value: string) => new Date(`${value}T00:00:00.000Z`);
 const isoDate = (value: Date) => value.toISOString().slice(0, 10);
 const positive = (value: bigint) => (value > 0n ? value : 0n);
 const lineKey = (envelopeId: string, periodId: string | null) => `${envelopeId}|${periodId ?? ''}`;
+
+/**
+ * Whether an override targets a suggestion line. With `lineId`: exact id match only. Without it
+ * (legacy key `envelopeId|periodId`): the line without an id, or the mandatory current slice whose
+ * legacy key collides with the next one.
+ */
+function lineMatchesOverride(
+  line: Line,
+  overrideLineId: string | undefined,
+  legacyKey: string,
+): boolean {
+  if (overrideLineId !== undefined) return line.lineId === overrideLineId;
+  if (lineKey(line.envelopeId, line.periodId) !== legacyKey) return false;
+  return (
+    line.lineId === undefined ||
+    line.lineId === mandatoryLineId(line.envelopeId, 'MANDATORY_CURRENT')
+  );
+}
 
 function addDays(value: string, days: number): string {
   return isoDate(new Date(dateValue(value).getTime() + days * DAY_MS));
@@ -246,8 +289,14 @@ export class FundingPreviewApplicationService {
       }
     }
 
-    // Mandatory need (R02 contract: caller holds the budget lock).
-    const dueMinor = await this.mandatory.mandatoryDue(tx, budgetId, today, nextPeriod.end);
+    // Mandatory need (R02 contract: caller holds the budget lock), split current/next slices.
+    const dueSlices = await this.mandatory.mandatoryDue(
+      tx,
+      budgetId,
+      today,
+      currentPeriod.end,
+      nextPeriod.end,
+    );
 
     const balanceRows = await this.balances.allBalances(tx, budgetId, asOfDate);
     const cash = await this.assignments.cashAt(tx, budgetId, asOfDate);
@@ -257,7 +306,12 @@ export class FundingPreviewApplicationService {
       .filter((row) => envelopeById.get(row.envelopeId)?.envelopeType === 'MANDATORY_EXPENSES')
       .filter((row) => !envelopeById.get(row.envelopeId)?.archivedAt)
       .reduce((sum, row) => sum + row.balance, 0n);
-    const mandatoryGap = mandatoryFundingGap(dueMinor, mandatoryBalance);
+    const mandatoryGap = mandatoryFundingGap(dueSlices.totalMinor, mandatoryBalance);
+    const mandatoryGaps = mandatorySliceGaps(
+      dueSlices.currentSliceMinor,
+      dueSlices.nextSliceMinor,
+      mandatoryBalance,
+    );
 
     let incomeAssigned = 0n;
     let assignedByEnvelope = new Map<string, bigint>();
@@ -290,7 +344,9 @@ export class FundingPreviewApplicationService {
       balanceRows.find((row) => row.envelopeId === envelopeId && row.periodId === periodId)
         ?.funded ?? 0n;
 
-    // Ordered rules for the engine.
+    // Ordered rules for the engine. The first SUM_OF_PLANS mandatory rule gets two lines in
+    // place of one: the current-period slice (including overdue) with the rule's priority, and the
+    // next-period slice which sorts after every normal line via `slotAfterPeriod`.
     const orderedRules: FundingRuleInput[] = [];
     let mandatoryNeedGiven = false;
     const sortedRules = [...ruleRows].sort(
@@ -307,10 +363,21 @@ export class FundingPreviewApplicationService {
       const fromThisIncome = assignedByEnvelope.get(envelope.id) ?? 0n;
 
       if (rule.type === 'SUM_OF_PLANS') {
-        if (envelope.envelopeType !== 'MANDATORY_EXPENSES') continue;
-        const need = mandatoryNeedGiven ? 0n : mandatoryGap;
+        if (envelope.envelopeType !== 'MANDATORY_EXPENSES' || mandatoryNeedGiven) continue;
         mandatoryNeedGiven = true;
-        orderedRules.push({ ...base, kind: 'SUM_OF_PLANS', needMinor: need });
+        orderedRules.push({
+          ...base,
+          kind: 'SUM_OF_PLANS',
+          needMinor: mandatoryGaps.currentGapMinor,
+          lineId: mandatoryLineId(envelope.id, 'MANDATORY_CURRENT'),
+        });
+        orderedRules.push({
+          ...base,
+          kind: 'SUM_OF_PLANS',
+          needMinor: mandatoryGaps.nextGapMinor,
+          lineId: mandatoryLineId(envelope.id, 'MANDATORY_NEXT'),
+          slotAfterPeriod: true,
+        });
       } else if (rule.type === 'FIXED_PER_PERIOD') {
         const row = periodRows.get(envelope.id);
         if (!row || row.targetMinor === null) continue;
@@ -378,15 +445,31 @@ export class FundingPreviewApplicationService {
         throw unprocessable('PERIOD_NOT_ALLOWED', 'У этого конверта нет периодов.');
       }
       const key = lineKey(envelope.id, periodId);
-      if (seenOverrides.has(key)) {
+      if (seenOverrides.has(override.lineId ?? key)) {
         throw validationFailed('Строка конверта указана дважды.', 'overrides');
       }
-      seenOverrides.add(key);
+      seenOverrides.add(override.lineId ?? key);
       const amountMinor = parseDecimalToMinorUnits(override.amount, RUB_SCALE, false);
-      overrideStates.push({ envelopeId: envelope.id, periodId, amountMinor });
-      const existing = lines.find((line) => lineKey(line.envelopeId, line.periodId) === key);
+      overrideStates.push({
+        envelopeId: envelope.id,
+        periodId,
+        amountMinor,
+        ...(override.lineId !== undefined ? { lineId: override.lineId } : {}),
+      });
+      const existing = lines.find((line) => lineMatchesOverride(line, override.lineId, key));
       if (existing) existing.amountMinor = amountMinor;
-      else lines.push({ envelopeId: envelope.id, periodId, amountMinor });
+      else {
+        const lineId =
+          periodId === null && envelope.envelopeType === 'MANDATORY_EXPENSES'
+            ? mandatoryLineId(envelope.id, 'MANDATORY_CURRENT')
+            : undefined;
+        lines.push({
+          envelopeId: envelope.id,
+          periodId,
+          amountMinor,
+          ...(lineId !== undefined ? { lineId } : {}),
+        });
+      }
     }
     const finalLines = lines.filter((line) => line.amountMinor > 0n);
     const total = finalLines.reduce((sum, line) => sum + line.amountMinor, 0n);
@@ -435,7 +518,9 @@ export class FundingPreviewApplicationService {
         fundedMinor: row.funded,
         spentMinor: row.spent,
       })),
-      mandatoryDueMinor: dueMinor,
+      mandatoryDueMinor: dueSlices.totalMinor,
+      mandatoryDueCurrentMinor: dueSlices.currentSliceMinor,
+      mandatoryDueNextMinor: dueSlices.nextSliceMinor,
       rules: ruleRows.map((rule) => ({
         envelopeId: rule.envelopeId,
         type: rule.type,
@@ -467,10 +552,13 @@ export class FundingPreviewApplicationService {
         lines: finalLines.map((line) => ({
           envelopeId: line.envelopeId,
           periodId: line.periodId,
+          lineId: line.lineId ?? null,
           suggestedMinor: formatMinorUnits(line.amountMinor),
         })),
         remainingMinor: formatMinorUnits(remaining),
         mandatoryGapMinor: formatMinorUnits(mandatoryGap),
+        mandatoryDueCurrentMinor: formatMinorUnits(dueSlices.currentSliceMinor),
+        mandatoryDueNextMinor: formatMinorUnits(dueSlices.nextSliceMinor),
         previewHash: computePreviewHash(state),
         errors,
       },

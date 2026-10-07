@@ -48,8 +48,8 @@ let mandatoryEnvelopeId: string;
 let customEnvelopeId: string;
 let otherEnvelopeId: string;
 
-const due = (asOf: string, end: string, budgetId = owner().budgetId) =>
-  prisma.$transaction((tx) => repo.mandatoryDue(tx, budgetId, asOf, end));
+const due = (asOf: string, currentEnd: string, nextEnd: string, budgetId = owner().budgetId) =>
+  prisma.$transaction((tx) => repo.mandatoryDue(tx, budgetId, asOf, currentEnd, nextEnd));
 const planTotal = (from: string, to: string, budgetId = owner().budgetId) =>
   prisma.$transaction((tx) => repo.mandatoryPlanTotal(tx, budgetId, from, to));
 
@@ -238,7 +238,7 @@ describe('v2 потребность обязательных (R02)', () => {
     await occurrence('2026-10-02', 4_000_000n);
     const first = await pay(rent, 'md-rent', '35000.00', true);
     expect(first.occurrence).toMatchObject({ status: 'DUE', unpaidMinor: '500000' });
-    expect(await due('2026-09-24', '2026-10-09')).toBe(4_500_000n);
+    expect((await due('2026-09-24', '2026-10-09', '2026-10-09')).totalMinor).toBe(4_500_000n);
   });
 
   it('садик 3000, финальная оплата 2000 (willPayMore=false): due 0, баланс обязательных хранит 1000', async () => {
@@ -263,7 +263,7 @@ describe('v2 потребность обязательных (R02)', () => {
     const id = await occurrence('2026-09-20', 300_000n);
     const res = await pay(id, 'md-daycare', '2000.00', false);
     expect(res.occurrence.status).toBe('COMPLETED');
-    expect(await due('2026-09-24', '2026-10-09')).toBe(0n);
+    expect((await due('2026-09-24', '2026-10-09', '2026-10-09')).totalMinor).toBe(0n);
     expect(await envelopeBalance()).toBe(before + 100_000n);
   });
 
@@ -276,14 +276,14 @@ describe('v2 потребность обязательных (R02)', () => {
     await occurrence('2026-10-03', 600_000n, { status: 'COMPLETED' });
     await occurrence('2026-10-03', 500_000n, { status: 'CANCELLED' });
     await occurrence('2026-10-03', 400_000n, { envelopeId: customEnvelopeId });
-    expect(await due('2026-09-24', '2026-10-09')).toBe(300_000n);
+    expect((await due('2026-09-24', '2026-10-09', '2026-10-09')).totalMinor).toBe(300_000n);
   });
 
   it('отменённая или удалённая операция оплаты не уменьшает потребность', async () => {
     const id = await occurrence('2026-10-02', 1_000_000n);
     await pay(id, 'md-cancelled', '3000.00', true);
     await pay(id, 'md-deleted', '2000.00', true);
-    expect(await due('2026-10-01', '2026-10-09')).toBe(500_000n);
+    expect((await due('2026-10-01', '2026-10-09', '2026-10-09')).totalMinor).toBe(500_000n);
     const links = await prisma.planPayment.findMany({
       where: { budgetId: owner().budgetId, occurrenceId: id },
       include: { transaction: true },
@@ -293,19 +293,19 @@ describe('v2 потребность обязательных (R02)', () => {
       where: { id: links[0]!.transactionId },
       data: { status: 'CANCELLED', cancelledAt: new Date() },
     });
-    expect(await due('2026-10-01', '2026-10-09')).toBe(700_000n);
+    expect((await due('2026-10-01', '2026-10-09', '2026-10-09')).totalMinor).toBe(700_000n);
     await prisma.transaction.update({
       where: { id: links[1]!.transactionId },
       data: { status: 'DELETED', deletedAt: new Date(), preDeleteStatus: 'CONFIRMED' },
     });
-    expect(await due('2026-10-01', '2026-10-09')).toBe(1_000_000n);
+    expect((await due('2026-10-01', '2026-10-09', '2026-10-09')).totalMinor).toBe(1_000_000n);
   });
 
   it('переплата одного occurrence не уменьшает потребность других', async () => {
     const a = await occurrence('2026-10-02', 100_000n);
     await occurrence('2026-10-03', 200_000n);
     await pay(a, 'md-over', '1500.00', true);
-    expect(await due('2026-10-01', '2026-10-09')).toBe(200_000n);
+    expect((await due('2026-10-01', '2026-10-09', '2026-10-09')).totalMinor).toBe(200_000n);
   });
 
   it('материализует новый период под вызовом без worker', async () => {
@@ -327,8 +327,8 @@ describe('v2 потребность обязательных (R02)', () => {
         updatedByUserId: owner().userId,
       },
     });
-    expect(await due('2026-10-01', '2026-10-09')).toBe(4_000_000n);
-    expect(await due('2026-10-01', '2026-10-09')).toBe(4_000_000n);
+    expect((await due('2026-10-01', '2026-10-09', '2026-10-09')).totalMinor).toBe(4_000_000n);
+    expect((await due('2026-10-01', '2026-10-09', '2026-10-09')).totalMinor).toBe(4_000_000n);
     expect(await prisma.planOccurrence.count({ where: { planId } })).toBe(1);
     await prisma.regularPlan.update({ where: { id: planId }, data: { isActive: false } });
   });
@@ -350,14 +350,31 @@ describe('v2 потребность обязательных (R02)', () => {
   it('изолирует бюджеты', async () => {
     await occurrence('2026-09-01', 777_000n, { user: ctx.other! });
     await occurrence('2026-10-02', 100_000n);
-    expect(await due('2026-10-01', '2026-10-09')).toBe(100_000n);
-    expect(await due('2026-10-01', '2026-10-09', ctx.other!.budgetId)).toBe(777_000n);
+    expect((await due('2026-10-01', '2026-10-09', '2026-10-09')).totalMinor).toBe(100_000n);
+    expect(
+      (await due('2026-10-01', '2026-10-09', '2026-10-09', ctx.other!.budgetId)).totalMinor,
+    ).toBe(777_000n);
     expect(await planTotal('2026-10-01', '2026-10-31', ctx.other!.budgetId)).toBe(0n);
   });
 
   it('отклоняет невалидные даты', async () => {
-    await expect(due('2026-10-01; DROP', '2026-10-09')).rejects.toThrow();
+    await expect(due('2026-10-01; DROP', '2026-10-09', '2026-10-09')).rejects.toThrow();
     await expect(planTotal('2026-10-01', '10/31/2026')).rejects.toThrow();
+  });
+
+  it('разбивает потребность на слайсы: просроченный и текущий период — текущий, следующий — отдельный, вне горизонта не входит', async () => {
+    await occurrence('2026-09-20', 200_000n); // просроченные — текущий слайс
+    await occurrence('2026-10-05', 100_000n, { status: 'PENDING' }); // текущий период
+    await occurrence('2026-10-14', 300_000n); // граница текущего периода включительно
+    await occurrence('2026-10-15', 500_000n); // следующий период
+    await occurrence('2026-10-31', 100_000n); // конец горизонта включительно
+    await occurrence('2026-11-01', 999_900n); // вне горизонта — не входит
+    const slices = await due('2026-10-01', '2026-10-14', '2026-10-31');
+    expect(slices).toEqual({
+      totalMinor: 1_200_000n,
+      currentSliceMinor: 600_000n,
+      nextSliceMinor: 600_000n,
+    });
   });
 });
 

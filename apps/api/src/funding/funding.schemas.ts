@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 const uuid = z.string().uuid();
 const decimalAmount = z.string().min(1).max(64);
+/** Suggestion line identifier (`envelopeId||slice`, middle component empty); optional, additive. */
+const lineId = z.string().min(1).max(128);
 
 export const fundingPreviewSchema = z
   .object({
@@ -9,7 +11,14 @@ export const fundingPreviewSchema = z
     incomeTransactionId: uuid.optional(),
     overrides: z
       .array(
-        z.object({ envelopeId: uuid, periodId: uuid.optional(), amount: decimalAmount }).strict(),
+        z
+          .object({
+            envelopeId: uuid,
+            periodId: uuid.optional(),
+            lineId: lineId.optional(),
+            amount: decimalAmount,
+          })
+          .strict(),
       )
       .max(100)
       .optional(),
@@ -55,7 +64,14 @@ export const fundingConfirmSchema = z
     confirmPeriodTargets: z.array(uuid).max(100),
     lines: z
       .array(
-        z.object({ envelopeId: uuid, periodId: uuid.optional(), amount: decimalAmount }).strict(),
+        z
+          .object({
+            envelopeId: uuid,
+            periodId: uuid.optional(),
+            lineId: lineId.optional(),
+            amount: decimalAmount,
+          })
+          .strict(),
       )
       .max(100),
   })

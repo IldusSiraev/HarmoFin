@@ -55,12 +55,12 @@ describe('calculateSpendable', () => {
   const spendableCases: ReadonlyArray<[string, SpendableInput, SpendableResult]> = [
     [
       'zero boundary: no cash and no balances',
-      { cash: 0n, current: 0n, mandatory: 0n, mandatoryDue: 0n, otherBalances: [] },
+      { cash: 0n, current: 0n, mandatory: 0n, mandatoryDueCurrent: 0n, otherBalances: [] },
       allZeros,
     ],
     [
       'spec example: due exceeds mandatory, gap visible, spendable capped by cash after protection',
-      { cash: 100n, current: 65n, mandatory: 35n, mandatoryDue: 45n, otherBalances: [] },
+      { cash: 100n, current: 65n, mandatory: 35n, mandatoryDueCurrent: 45n, otherBalances: [] },
       {
         spendableNow: 55n,
         mandatoryProtected: 45n,
@@ -70,8 +70,19 @@ describe('calculateSpendable', () => {
       },
     ],
     [
+      'next period is forecast only: empty current-period due leaves the full period balance spendable',
+      { cash: 100n, current: 50n, mandatory: 0n, mandatoryDueCurrent: 0n, otherBalances: [] },
+      {
+        spendableNow: 50n,
+        mandatoryProtected: 0n,
+        mandatoryGap: 0n,
+        freeToAssign: 50n,
+        unbackedAssignments: 0n,
+      },
+    ],
+    [
       'mandatory balance covering due: no gap, spendable limited by current balance',
-      { cash: 200n, current: 50n, mandatory: 80n, mandatoryDue: 30n, otherBalances: [] },
+      { cash: 200n, current: 50n, mandatory: 80n, mandatoryDueCurrent: 30n, otherBalances: [] },
       {
         spendableNow: 50n,
         mandatoryProtected: 80n,
@@ -82,12 +93,12 @@ describe('calculateSpendable', () => {
     ],
     [
       'negative current balance -10 creates no free cash',
-      { cash: 0n, current: -10n, mandatory: 0n, mandatoryDue: 0n, otherBalances: [] },
+      { cash: 0n, current: -10n, mandatory: 0n, mandatoryDueCurrent: 0n, otherBalances: [] },
       allZeros,
     ],
     [
       'negative other balance is not protected and does not increase spendable',
-      { cash: 100n, current: 65n, mandatory: 0n, mandatoryDue: 0n, otherBalances: [-10n] },
+      { cash: 100n, current: 65n, mandatory: 0n, mandatoryDueCurrent: 0n, otherBalances: [-10n] },
       {
         spendableNow: 65n,
         mandatoryProtected: 0n,
@@ -98,7 +109,13 @@ describe('calculateSpendable', () => {
     ],
     [
       'protected savings 20 caps spendable without deducting unassigned wish 20',
-      { cash: 50n, current: 65n, mandatory: 0n, mandatoryDue: 0n, otherBalances: [20n, -20n] },
+      {
+        cash: 50n,
+        current: 65n,
+        mandatory: 0n,
+        mandatoryDueCurrent: 0n,
+        otherBalances: [20n, -20n],
+      },
       {
         spendableNow: 30n,
         mandatoryProtected: 0n,
@@ -109,7 +126,7 @@ describe('calculateSpendable', () => {
     ],
     [
       'cash shortage: spendable capped by protected cash, unbacked assignments visible',
-      { cash: 50n, current: 80n, mandatory: 0n, mandatoryDue: 0n, otherBalances: [] },
+      { cash: 50n, current: 80n, mandatory: 0n, mandatoryDueCurrent: 0n, otherBalances: [] },
       {
         spendableNow: 50n,
         mandatoryProtected: 0n,
@@ -130,7 +147,7 @@ describe('calculateSpendable', () => {
         cash: 10_000_000n,
         current: 6_500_000n,
         mandatory: 3_500_000n,
-        mandatoryDue: 4_500_000n,
+        mandatoryDueCurrent: 4_500_000n,
         otherBalances: [],
       }).spendableNow,
     ).toBe(5_500_000n);
@@ -153,14 +170,14 @@ describe('overflow guard (PostgreSQL BIGINT range)', () => {
       cash: 0n,
       current: 0n,
       mandatory: 0n,
-      mandatoryDue: 0n,
+      mandatoryDueCurrent: 0n,
       otherBalances: [],
       ...overrides,
     });
     expect(() => calculateSpendable(spendable({ cash: above }))).toThrow(V2MoneyOverflowError);
     expect(() => calculateSpendable(spendable({ current: below }))).toThrow(V2MoneyOverflowError);
     expect(() => calculateSpendable(spendable({ mandatory: above }))).toThrow(V2MoneyOverflowError);
-    expect(() => calculateSpendable(spendable({ mandatoryDue: below }))).toThrow(
+    expect(() => calculateSpendable(spendable({ mandatoryDueCurrent: below }))).toThrow(
       V2MoneyOverflowError,
     );
     expect(() => calculateSpendable(spendable({ otherBalances: [above] }))).toThrow(
@@ -177,7 +194,7 @@ describe('overflow guard (PostgreSQL BIGINT range)', () => {
         cash: 0n,
         current: BIGINT_MAX,
         mandatory: 1n,
-        mandatoryDue: 0n,
+        mandatoryDueCurrent: 0n,
         otherBalances: [],
       }),
     ).toThrow(V2MoneyOverflowError);
@@ -186,7 +203,7 @@ describe('overflow guard (PostgreSQL BIGINT range)', () => {
         cash: 0n,
         current: 0n,
         mandatory: 0n,
-        mandatoryDue: 0n,
+        mandatoryDueCurrent: 0n,
         otherBalances: [BIGINT_MAX, 1n],
       }),
     ).toThrow(V2MoneyOverflowError);
@@ -201,7 +218,7 @@ describe('overflow guard (PostgreSQL BIGINT range)', () => {
         cash: BIGINT_MAX,
         current: BIGINT_MAX,
         mandatory: 0n,
-        mandatoryDue: 0n,
+        mandatoryDueCurrent: 0n,
         otherBalances: [],
       }).spendableNow,
     ).toBe(BIGINT_MAX);
@@ -218,7 +235,7 @@ describe('non-bigint money input', () => {
         cash: 1 as unknown as bigint,
         current: 0n,
         mandatory: 0n,
-        mandatoryDue: 0n,
+        mandatoryDueCurrent: 0n,
         otherBalances: [],
       }),
     ).toThrow(TypeError);
@@ -227,7 +244,7 @@ describe('non-bigint money input', () => {
         cash: 0n,
         current: 0n,
         mandatory: 0n,
-        mandatoryDue: 0n,
+        mandatoryDueCurrent: 0n,
         otherBalances: [1n, 1.5 as unknown as bigint],
       }),
     ).toThrow(TypeError);

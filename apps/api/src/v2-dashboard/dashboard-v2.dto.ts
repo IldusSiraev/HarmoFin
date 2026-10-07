@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 const MONEY = '^-?\\d+$';
 
@@ -31,7 +31,8 @@ export class DashboardV2SpendableResponse {
     type: String,
     pattern: MONEY,
     nullable: true,
-    description: 'Главное число «Можно потратить» в minor units; null при NEEDS_PERIOD_SETUP.',
+    description:
+      'Главное число «Можно потратить» в minor units; защита только по текущему горизонту (просроченные + текущий период), следующий период не вычитается; null при NEEDS_PERIOD_SETUP.',
   })
   amountMinor!: string | null;
 }
@@ -83,6 +84,14 @@ export class DashboardV2WarningResponse {
     enum: ['PERIOD_LEFTOVER', 'PERIOD_DEFICIT', 'MANDATORY_GAP', 'CASH_SHORTFALL'],
   })
   code!: 'PERIOD_LEFTOVER' | 'PERIOD_DEFICIT' | 'MANDATORY_GAP' | 'CASH_SHORTFALL';
+
+  @ApiPropertyOptional({
+    type: String,
+    enum: ['ALERT', 'INFO'],
+    description:
+      'Только для MANDATORY_GAP: ALERT, если деньги нужны на текущий период (включая просроченные); INFO, если только на следующий. Прочие предупреждения без этого поля.',
+  })
+  level?: 'ALERT' | 'INFO';
 
   @ApiProperty({ type: String, description: 'Текстовый статус с суммой и действием.' })
   message!: string;
@@ -242,7 +251,8 @@ export class DashboardV2Response {
   @ApiProperty({
     type: String,
     format: 'date',
-    description: 'Конец горизонта защиты обязательств.',
+    description:
+      'Конец горизонта расчёта и прогноза (конец следующего периода); защита «Можно потратить» действует только до конца текущего периода (просроченные + текущий).',
   })
   horizonEnd!: string;
 
@@ -269,6 +279,22 @@ export class DashboardV2Response {
   @ApiProperty({ type: String, pattern: MONEY })
   mandatoryDueMinor!: string;
 
+  @ApiProperty({
+    type: String,
+    pattern: MONEY,
+    description:
+      'Из mandatoryDueMinor: платежи со сроком не позже конца текущего периода — входят в горизонт защиты.',
+  })
+  mandatoryDueCurrentMinor!: string;
+
+  @ApiProperty({
+    type: String,
+    pattern: MONEY,
+    description:
+      'Остаток mandatoryDueMinor: платежи следующего периода — прогноз, не входят в горизонт защиты.',
+  })
+  mandatoryDueNextMinor!: string;
+
   @ApiProperty({ type: String, pattern: MONEY })
   otherProtectedMinor!: string;
 
@@ -278,8 +304,29 @@ export class DashboardV2Response {
   @ApiProperty({ type: String, pattern: MONEY })
   unbackedMinor!: string;
 
-  @ApiProperty({ type: String, pattern: MONEY })
+  @ApiProperty({
+    type: String,
+    pattern: MONEY,
+    description:
+      'Непокрытая часть обязательных платежей текущего горизонта (просроченные + текущий период); следующий период не входит.',
+  })
   mandatoryGapMinor!: string;
+
+  @ApiProperty({
+    type: String,
+    pattern: MONEY,
+    description:
+      'Непокрытая часть обязательных платежей текущего горизонта (просроченные + текущий период); следующий период не входит.',
+  })
+  mandatoryGapCurrentMinor!: string;
+
+  @ApiProperty({
+    type: String,
+    pattern: MONEY,
+    description:
+      'Непокрытая часть обязательных платежей следующего периода; прогноз, не входит в «Можно потратить» и не входит в горизонт защиты.',
+  })
+  mandatoryGapNextMinor!: string;
 
   @ApiProperty({
     type: Boolean,

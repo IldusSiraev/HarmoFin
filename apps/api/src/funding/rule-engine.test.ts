@@ -115,6 +115,62 @@ describe('suggestFunding', () => {
     expect(mk(5_000n)).toEqual([]);
   });
 
+  it('lineId возвращается в строке; строка без lineId не содержит поля', () => {
+    const lines = suggestFunding({
+      available: 1_000n,
+      incomeAmount: null,
+      orderedRules: [
+        rule({ envelopeId: 'mandatory', needMinor: 400n, lineId: 'm||MANDATORY_CURRENT' }),
+        rule({ envelopeId: 'current', periodId: 'p1', priority: 2, needMinor: 600n }),
+      ],
+    });
+    expect(lines.map((l) => `${l.envelopeId}:${l.amountMinor}:${l.lineId ?? '-'}`)).toEqual([
+      'mandatory:400:m||MANDATORY_CURRENT',
+      'current:600:-',
+    ]);
+  });
+
+  it('слот slotAfterPeriod идёт после обычных строк даже с меньшим приоритетом', () => {
+    const lines = suggestFunding({
+      available: 400n,
+      incomeAmount: null,
+      orderedRules: [
+        rule({
+          envelopeId: 'next',
+          priority: 1,
+          needMinor: 100n,
+          lineId: 'm||MANDATORY_NEXT',
+          slotAfterPeriod: true,
+        }),
+        rule({ envelopeId: 'cur', periodId: 'p1', priority: 0, needMinor: 200n }),
+        rule({
+          envelopeId: 'mandatory',
+          priority: 2,
+          needMinor: 100n,
+          lineId: 'm||MANDATORY_CURRENT',
+        }),
+      ],
+    });
+    expect(lines.map((l) => `${l.envelopeId}:${l.amountMinor}`)).toEqual([
+      'cur:200',
+      'mandatory:100',
+      'next:100',
+    ]);
+    expect(lines[2]?.lineId).toBe('m||MANDATORY_NEXT');
+  });
+
+  it('нулевая потребность не даёт строки, даже если задан lineId', () => {
+    const lines = suggestFunding({
+      available: 100n,
+      incomeAmount: null,
+      orderedRules: [
+        rule({ envelopeId: 'm', needMinor: 0n, lineId: 'm||MANDATORY_NEXT' }),
+        rule({ envelopeId: 'c', priority: 2, needMinor: 50n }),
+      ],
+    });
+    expect(lines).toEqual([{ envelopeId: 'c', periodId: null, amountMinor: 50n }]);
+  });
+
   it('orders by priority, envelopeId, then periodId deterministically', () => {
     const rules = [
       rule({ envelopeId: 'b', priority: 1, needMinor: 1n }),

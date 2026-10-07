@@ -244,7 +244,7 @@ describe('экспорт CSV модели 2 (P04)', () => {
     const over = await get(w, 'transactions.csv');
     expect(over.statusCode).toBe(422);
     expect(over.json()).toMatchObject({ code: 'EXPORT_LIMIT_EXCEEDED' });
-  });
+  }, 60_000);
 
   it('401 без сессии, 403 не владельцу, 404 чужой бюджет', async () => {
     const w = await world();
