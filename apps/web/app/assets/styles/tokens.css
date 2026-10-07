@@ -85,6 +85,10 @@
   --hf-color-text: var(--hf-color-slate-900);
   --hf-color-text-muted: var(--hf-color-slate-500);
   --hf-color-text-subtle: var(--hf-color-slate-500);
+  /* One level deeper than muted: keeps the hierarchy below body text while
+     reaching 4.5:1 on white (muted slate-500 does not, in the reviewer's
+     render measurements). */
+  --hf-color-text-secondary: #445565;
   --hf-color-border: rgb(13 27 42 / 8%);
   --hf-color-border-strong: rgb(13 27 42 / 18%);
   --hf-color-focus-ring: var(--hf-color-brand-active);
@@ -93,6 +97,10 @@
   --hf-color-action-primary: var(--hf-color-brand);
   --hf-color-action-primary-hover: var(--hf-color-brand-hover);
   --hf-color-action-primary-active: var(--hf-color-brand-active);
+  /* Text-link variant: brand teal only reaches 3.1:1 on white, short of the
+     4.5:1 a normal-size link needs; this darker teal keeps the hue without
+     touching brand fills, borders or focus outlines. */
+  --hf-color-action-primary-text: #0b6e67;
   --hf-color-action-brand: var(--hf-color-brand);
   --hf-color-action-brand-hover: var(--hf-color-brand-hover);
   --hf-color-action-brand-active: var(--hf-color-brand-active);
@@ -111,7 +119,10 @@
   --hf-color-status-danger: var(--hf-color-danger-strong);
   --hf-color-status-danger-background: var(--hf-color-danger-soft);
   --hf-color-status-danger-bright: #e15c5c;
-  --hf-color-text-danger: var(--hf-color-danger-strong);
+  /* Kept off --hf-color-danger-strong so error text reaches 4.5:1 on white
+     without darkening danger buttons, borders and status icons. The value
+     matches the existing danger-strong-hover palette colour. */
+  --hf-color-text-danger: #b33636;
   --hf-color-border-danger: var(--hf-color-danger-strong);
   --hf-color-overlay: rgb(13 27 42 / 48%);
   --hf-z-index-tooltip: 150;
@@ -172,6 +183,14 @@
   --hf-color-primary-strong: #6fb1e6;
   --hf-color-primary-strong-hover: #4f97d1;
   --hf-color-status-warning: #f0a94e;
+
+  /* AA (4.5:1) text-level roles on the #10203a surface: the light-theme
+     values of these three fall too far short on the dark surface, so they
+     get brighter / deeper dark-only variants. Filled accent tokens stay
+     shared between themes. */
+  --hf-color-text-danger: #f79a93;
+  --hf-color-text-secondary: #aebccd;
+  --hf-color-action-primary-text: #4dc9c1;
 
   --hf-color-brand-soft: rgb(27 163 156 / 18%);
   --hf-color-primary-soft: rgb(111 177 230 / 16%);

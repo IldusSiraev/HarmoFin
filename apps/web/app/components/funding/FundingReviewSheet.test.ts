@@ -116,6 +116,57 @@ describe('FundingReviewSheet', () => {
     ]);
   });
 
+  it('keeps the two mandatory slice rows of one envelope distinct with lineId payloads', async () => {
+    const lineA = `${ENV_A}||MANDATORY_CURRENT`;
+    const lineB = `${ENV_A}||MANDATORY_NEXT`;
+    const token = (id: string): string => id.replace(/[^A-Za-z0-9-]+/g, '-');
+    const wrapper = mountSheet({
+      previewLines: [
+        {
+          envelopeId: ENV_A,
+          lineId: lineA,
+          periodId: null,
+          suggestedMinor: '4000000',
+          name: 'Обязательные — текущий период',
+        },
+        {
+          envelopeId: ENV_A,
+          lineId: lineB,
+          periodId: null,
+          suggestedMinor: '1000050',
+          name: 'Обязательные — следующий период',
+        },
+      ],
+      mandatoryDueCurrentMinor: '4000000',
+      mandatoryDueNextMinor: '1000050',
+    });
+
+    const inputA = wrapper.get(`[data-testid="funding-amount-${token(lineA)}"]`);
+    const inputB = wrapper.get(`[data-testid="funding-amount-${token(lineB)}"]`);
+    expect(inputA.attributes('aria-label')).toBe(
+      'Сумма для конверта Обязательные — текущий период',
+    );
+    expect(inputB.attributes('aria-label')).toBe(
+      'Сумма для конверта Обязательные — следующий период',
+    );
+
+    await inputA.setValue('5');
+    await inputA.trigger('change');
+    expect(wrapper.emitted('changeLine')?.[0]).toEqual([
+      { envelopeId: ENV_A, lineId: lineA, amount: '5' },
+    ]);
+
+    expect(wrapper.get('[data-testid="funding-due-breakdown"]').text()).toContain('К оплате');
+  });
+
+  it('hides the due breakdown when both slices are zero or absent', () => {
+    const zeros = mountSheet({ mandatoryDueCurrentMinor: '0', mandatoryDueNextMinor: '0' });
+    expect(zeros.find('[data-testid="funding-due-breakdown"]').exists()).toBe(false);
+
+    const absent = mountSheet();
+    expect(absent.find('[data-testid="funding-due-breakdown"]').exists()).toBe(false);
+  });
+
   it('rejects malformed input next to the field without emitting', async () => {
     const wrapper = mountSheet();
     const input = wrapper.get(`[data-testid="funding-amount-${ENV_A}"]`);

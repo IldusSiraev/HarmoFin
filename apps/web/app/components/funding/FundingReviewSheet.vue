@@ -35,6 +35,8 @@ export interface FundingSheetError {
 
 export interface FundingChangeLinePayload {
   envelopeId: string;
+  /** Present only for rows the server identified by lineId (two-slice mandatory). */
+  lineId?: string;
   periodId?: string;
   amount: string;
 }
@@ -47,12 +49,19 @@ const props = withDefaults(
     previewLines: FundingSheetLine[];
     remainingMinor: string;
     mandatoryGapMinor: string;
+    mandatoryDueCurrentMinor?: string | undefined;
+    mandatoryDueNextMinor?: string | undefined;
     pending: boolean;
     error: FundingSheetError | null;
     currency?: string;
     scale?: number;
   }>(),
-  { currency: 'RUB', scale: 2 },
+  {
+    currency: 'RUB',
+    scale: 2,
+    mandatoryDueCurrentMinor: undefined,
+    mandatoryDueNextMinor: undefined,
+  },
 );
 
 const emit = defineEmits<{
@@ -82,8 +91,18 @@ function toDecimalText(minor: string): string {
   return props.scale === 0 ? whole : `${whole}.${padded.slice(cut)}`;
 }
 
+function lineIdOf(line: FundingSheetLine): string | null {
+  return line.lineId == null ? null : line.lineId;
+}
+
 function lineKey(line: FundingSheetLine): string {
-  return `${line.envelopeId}:${line.periodId ?? ''}`;
+  return lineIdOf(line) ?? `${line.envelopeId}:${line.periodId ?? ''}`;
+}
+
+/** Short token so test ids and aria ids stay unique for two-slice mandatory rows. */
+function lineToken(line: FundingSheetLine): string {
+  const id = lineIdOf(line);
+  return id == null ? line.envelopeId : id.replace(/[^A-Za-z0-9-]+/g, '-');
 }
 
 const drafts = reactive<Record<string, string>>({});
@@ -110,19 +129,25 @@ function lineName(line: FundingSheetLine): string {
 
 function emitLine(line: FundingSheetLine, amount: string): void {
   const payload: FundingChangeLinePayload = { envelopeId: line.envelopeId, amount };
+  const id = lineIdOf(line);
+  if (id !== null) payload.lineId = id;
   if (line.periodId !== null) payload.periodId = line.periodId;
   emit('changeLine', payload);
 }
 
-function commitDraft(line: FundingSheetLine): void {
+function commitDraft(line: FundingSheetLine, event?: Event): void {
   const key = lineKey(line);
-  const text = (drafts[key] ?? '').trim();
+  // The field value in the DOM wins: a commit without a preceding 'input'
+  // event (Enter, programmatic write) must not resend the stale draft.
+  const field = (event?.target ?? null) as HTMLInputElement | null;
+  const text = (field?.value ?? drafts[key] ?? '').trim();
   if (!AMOUNT_PATTERN.test(text)) {
     localErrors[key] =
       text === '' ? 'Введите сумму' : 'Введите сумму числом, не более двух знаков после запятой';
     return;
   }
   delete localErrors[key];
+  drafts[key] = text;
   emitLine(line, text.replace(',', '.'));
 }
 
@@ -138,6 +163,11 @@ function applyHint(line: FundingSheetLine, minor: string | undefined): void {
 const isStale = computed(() => props.error?.code === 'PREVIEW_STALE');
 const isExcess = computed(() => props.remainingMinor.startsWith('-'));
 const hasGap = computed(() => /^[1-9]/.test(props.mandatoryGapMinor));
+const hasDueBreakdown = computed(
+  () =>
+    (props.mandatoryDueCurrentMinor !== undefined && props.mandatoryDueCurrentMinor !== '0') ||
+    (props.mandatoryDueNextMinor !== undefined && props.mandatoryDueNextMinor !== '0'),
+);
 const hasLineError = computed(() =>
   props.previewLines.some((line) => lineError(line) !== undefined),
 );
@@ -233,22 +263,22 @@ function handleConfirm(): void {
               type="text"
               inputmode="decimal"
               autocomplete="off"
-              :data-testid="`funding-amount-${line.envelopeId}`"
+              :data-testid="`funding-amount-${lineToken(line)}`"
               :aria-label="`Сумма для конверта ${lineName(line)}`"
               :aria-invalid="lineError(line) !== undefined ? 'true' : undefined"
               :aria-describedby="
                 lineError(line) !== undefined ? `funding-err-${lineKey(line)}` : undefined
               "
               :disabled="pending"
-              @change="commitDraft(line)"
-              @keydown.enter.prevent="commitDraft(line)"
+              @change="commitDraft(line, $event)"
+              @keydown.enter.prevent="commitDraft(line, $event)"
             />
           </div>
           <p
             v-if="lineError(line) !== undefined"
             :id="`funding-err-${lineKey(line)}`"
             class="funding-sheet__field-error"
-            :data-testid="`funding-line-error-${line.envelopeId}`"
+            :data-testid="`funding-line-error-${lineToken(line)}`"
           >
             <AlertTriangle :size="14" aria-hidden="true" />
             {{ lineError(line) }}
@@ -262,7 +292,7 @@ function handleConfirm(): void {
               variant="tertiary"
               size="sm"
               :disabled="pending"
-              :data-testid="`funding-to-target-${line.envelopeId}`"
+              :data-testid="`funding-to-target-${lineToken(line)}`"
               @click="applyHint(line, line.toTargetMinor)"
             >
               До нужной суммы
@@ -272,7 +302,7 @@ function handleConfirm(): void {
               variant="tertiary"
               size="sm"
               :disabled="pending"
-              :data-testid="`funding-all-remaining-${line.envelopeId}`"
+              :data-testid="`funding-all-remaining-${lineToken(line)}`"
               @click="applyHint(line, line.allRemainingMinor)"
             >
               Весь остаток
@@ -301,6 +331,14 @@ function handleConfirm(): void {
           </span>
           <span v-if="hasGap" class="funding-sheet__status" data-testid="funding-gap">
             Не хватает на обязательства: {{ money(mandatoryGapMinor) }}
+          </span>
+          <span
+            v-if="hasDueBreakdown"
+            class="funding-sheet__muted funding-sheet__muted--deep"
+            data-testid="funding-due-breakdown"
+          >
+            К оплате: текущий период {{ money(mandatoryDueCurrentMinor ?? '0') }}; следующий период
+            {{ money(mandatoryDueNextMinor ?? '0') }}
           </span>
         </div>
         <p class="funding-sheet__muted">
@@ -347,6 +385,12 @@ function handleConfirm(): void {
   margin: 0;
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-small);
+}
+
+/* Due amounts are money, not decoration: one level deeper than muted keeps
+   the row at 4.5:1 in both themes. */
+.funding-sheet__muted--deep {
+  color: var(--hf-color-text-secondary);
 }
 
 .funding-sheet__amount {

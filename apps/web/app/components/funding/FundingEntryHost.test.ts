@@ -184,6 +184,81 @@ describe('FundingEntryHost', () => {
     });
   });
 
+  it('sends distinct lineIds for the two mandatory rows and keeps their inputs separate', async () => {
+    const lineA = `${ENV}||MANDATORY_CURRENT`;
+    const lineB = `${ENV}||MANDATORY_NEXT`;
+    const token = (id: string): string => id.replace(/[^A-Za-z0-9-]+/g, '-');
+    const twoLines = (minorA: string, minorB: string) =>
+      previewBody({
+        lines: [
+          { envelopeId: ENV, lineId: lineA, periodId: null, suggestedMinor: minorA },
+          { envelopeId: ENV, lineId: lineB, periodId: null, suggestedMinor: minorB },
+        ],
+        remainingMinor: '0',
+      });
+    mocks.v2.previewFunding.mockResolvedValue(twoLines('400050', '599950'));
+
+    mountHost();
+    useFundingEntry().offer({ sourceKind: 'INCOME', incomeTransactionId: INCOME });
+    await flushPromises();
+
+    expect(mocks.v2.previewFunding).toHaveBeenLastCalledWith(BUDGET, {
+      sourceKind: 'INCOME',
+      incomeTransactionId: INCOME,
+      overrides: [
+        { envelopeId: ENV, lineId: lineA, amount: '4000.50' },
+        { envelopeId: ENV, lineId: lineB, amount: '5999.50' },
+      ],
+      confirmPeriodTargets: [PERIOD],
+    });
+
+    const inputA = document.querySelector<HTMLInputElement>(
+      `[data-testid="funding-amount-${token(lineA)}"]`,
+    );
+    const inputB = document.querySelector<HTMLInputElement>(
+      `[data-testid="funding-amount-${token(lineB)}"]`,
+    );
+    expect(inputA).not.toBeNull();
+    expect(inputB).not.toBeNull();
+    expect(inputA!.getAttribute('aria-label')).toBe(
+      'Сумма для конверта Обязательные — текущий период',
+    );
+    expect(inputB!.getAttribute('aria-label')).toBe(
+      'Сумма для конверта Обязательные — следующий период',
+    );
+
+    // The server echo of the edit comes back through the same two rows.
+    mocks.v2.previewFunding.mockResolvedValue(twoLines('7000', '599950'));
+    inputA!.value = '70';
+    inputA!.dispatchEvent(new Event('change', { bubbles: true }));
+    await flushPromises();
+
+    expect(mocks.v2.previewFunding).toHaveBeenLastCalledWith(BUDGET, {
+      sourceKind: 'INCOME',
+      incomeTransactionId: INCOME,
+      overrides: [
+        { envelopeId: ENV, lineId: lineA, amount: '70' },
+        { envelopeId: ENV, lineId: lineB, amount: '5999.50' },
+      ],
+      confirmPeriodTargets: [PERIOD],
+    });
+
+    click('funding-confirm');
+    await flushPromises();
+    const [budget, body] = mocks.v2.confirmFunding.mock.calls[0] as [string, unknown, string];
+    expect(budget).toBe(BUDGET);
+    expect(body).toEqual({
+      sourceKind: 'INCOME',
+      incomeTransactionId: INCOME,
+      previewHash: 'hash-1',
+      confirmPeriodTargets: [PERIOD],
+      lines: [
+        { envelopeId: ENV, lineId: lineA, amount: '70.00' },
+        { envelopeId: ENV, lineId: lineB, amount: '5999.50' },
+      ],
+    });
+  });
+
   it('re-previews on the server with decimal overrides when a line changes and rotates the key', async () => {
     mountHost();
     useFundingEntry().offer({ sourceKind: 'INCOME', incomeTransactionId: INCOME });

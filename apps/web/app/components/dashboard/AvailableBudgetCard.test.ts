@@ -21,6 +21,10 @@ const v2Base = {
   freeToAssignMinor: '0',
   unbackedMinor: '0',
   mandatoryGapMinor: '1000000',
+  mandatoryDueCurrentMinor: '800000',
+  mandatoryDueNextMinor: '200000',
+  mandatoryGapCurrentMinor: '800000',
+  mandatoryGapNextMinor: '200000',
   dueMayBeIncomplete: false,
   nearestObligations: [],
   periodStats: {

@@ -56,8 +56,23 @@ const envelopeNames = computed(
   () => new Map(reference.envelopePlans.value.map((envelope) => [envelope.id, envelope.name])),
 );
 
-function lineKey(envelopeId: string, periodId: string | null | undefined): string {
-  return `${envelopeId}:${periodId ?? ''}`;
+type LineIdentifiable = {
+  lineId?: string | null;
+  envelopeId: string;
+  periodId?: string | null;
+};
+
+// Server row id wins: the two mandatory slices of one envelope share an id.
+function lineKey(line: LineIdentifiable): string {
+  return line.lineId ?? `${line.envelopeId}:${line.periodId ?? ''}`;
+}
+
+// Distinguishes the two mandatory slice rows so inputs stay labeled uniquely.
+function lineLabel(line: LineIdentifiable): string {
+  const name = envelopeNames.value.get(line.envelopeId) ?? 'Конверт';
+  if (line.lineId?.endsWith('||MANDATORY_CURRENT')) return `${name} — текущий период`;
+  if (line.lineId?.endsWith('||MANDATORY_NEXT')) return `${name} — следующий период`;
+  return name;
 }
 
 // "400050" -> "4000.50": the same decimal text the server accepts in overrides.
@@ -71,6 +86,7 @@ function minorToDecimal(minor: string): string {
 function linesToInputs(lines: FundingPreviewResponse['lines']): FundingLineInput[] {
   return lines.map((line) => ({
     envelopeId: line.envelopeId,
+    ...(line.lineId !== null ? { lineId: line.lineId } : {}),
     ...(line.periodId !== null ? { periodId: line.periodId } : {}),
     amount: minorToDecimal(line.suggestedMinor),
   }));
@@ -244,7 +260,7 @@ async function reload(overrides?: FundingLineInput[], targets?: string[]): Promi
 function changeLine(payload: FundingChangeLinePayload): void {
   const current = preview.value;
   if (!current) return;
-  const key = lineKey(payload.envelopeId, payload.periodId);
+  const key = lineKey(payload);
   // The server drops a zero line from the preview but would re-suggest it on
   // confirm, so "nothing here" is expressed with Later, not with a zero.
   if (ZERO_AMOUNT.test(payload.amount)) {
@@ -254,15 +270,20 @@ function changeLine(payload: FundingChangeLinePayload): void {
     };
     return;
   }
-  const overrides = linesToInputs(current.lines).filter(
-    (line) => lineKey(line.envelopeId, line.periodId) !== key,
+  // Replace the edited row in place, matched by lineId, so the server's row
+  // order and the identities of the untouched rows survive the recompute.
+  void reload(
+    linesToInputs(current.lines).map((line): FundingLineInput => {
+      if (lineKey(line) !== key) return line;
+      return {
+        envelopeId: payload.envelopeId,
+        ...(payload.lineId !== undefined ? { lineId: payload.lineId } : {}),
+        ...(payload.periodId !== undefined ? { periodId: payload.periodId } : {}),
+        amount: payload.amount,
+      };
+    }),
+    selectedTargets(current),
   );
-  overrides.push({
-    envelopeId: payload.envelopeId,
-    ...(payload.periodId !== undefined ? { periodId: payload.periodId } : {}),
-    amount: payload.amount,
-  });
-  void reload(overrides, selectedTargets(current));
 }
 
 function togglePeriodTarget(payload: { periodId: string; selected: boolean }): void {
@@ -320,8 +341,8 @@ async function confirm(): Promise<void> {
 const sheetLines = computed(() =>
   (preview.value?.lines ?? []).map((line) => ({
     ...line,
-    name: envelopeNames.value.get(line.envelopeId) ?? 'Конверт',
-    error: lineErrors.value[lineKey(line.envelopeId, line.periodId)],
+    name: lineLabel(line),
+    error: lineErrors.value[lineKey(line)],
   })),
 );
 
@@ -344,6 +365,8 @@ watch(
     :preview-lines="sheetLines"
     :remaining-minor="preview?.remainingMinor ?? '0'"
     :mandatory-gap-minor="preview?.mandatoryGapMinor ?? '0'"
+    :mandatory-due-current-minor="preview?.mandatoryDueCurrentMinor"
+    :mandatory-due-next-minor="preview?.mandatoryDueNextMinor"
     :pending="pending"
     :error="error"
     @change-line="changeLine"

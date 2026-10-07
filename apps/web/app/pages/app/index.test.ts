@@ -91,6 +91,10 @@ describe('dashboard page', () => {
     freeToAssignMinor: '0',
     unbackedMinor: '0',
     mandatoryGapMinor: '1000000',
+    mandatoryDueCurrentMinor: '800000',
+    mandatoryDueNextMinor: '200000',
+    mandatoryGapCurrentMinor: '800000',
+    mandatoryGapNextMinor: '200000',
     dueMayBeIncomplete: false,
     nearestObligations: [
       { occurrenceId: 'occ-1', name: 'Ипотека', scheduledOn: '2026-10-26', unpaidMinor: '3597300' },
@@ -131,6 +135,7 @@ describe('dashboard page', () => {
         periodId: null,
         balanceMinor: null,
         actionPath: '/app/envelopes?cover=mandatory',
+        level: 'ALERT',
       },
     ],
     onboarding: {

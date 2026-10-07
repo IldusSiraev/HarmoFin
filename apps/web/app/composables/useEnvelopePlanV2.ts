@@ -17,6 +17,8 @@ export type PlanRecurrenceV2 = 'ONE_TIME' | 'MONTHLY' | 'EVERY_N_MONTHS' | 'YEAR
 
 export interface FundingLineInput {
   envelopeId: string;
+  /** Server row identifier for two-slice mandatory rows; echo the preview value only. */
+  lineId?: string;
   periodId?: string;
   /** Decimal rubles, e.g. "1500.50". */
   amount: string;
@@ -37,8 +39,16 @@ export interface FundingPreviewResponse {
     targetMinor: string;
     selectedForConfirmation: boolean;
   }>;
-  lines: Array<{ envelopeId: string; periodId: string | null; suggestedMinor: string }>;
+  lines: Array<{
+    envelopeId: string;
+    /** Identifies a preview row for the next call; mandatory rows carry slice suffix. */
+    lineId?: string | null;
+    periodId: string | null;
+    suggestedMinor: string;
+  }>;
   remainingMinor: string;
+  mandatoryDueCurrentMinor: string;
+  mandatoryDueNextMinor: string;
   mandatoryGapMinor: string;
   previewHash: string;
   errors: Array<{ code: string; detail: string }>;
@@ -207,10 +217,14 @@ export interface DashboardV2Response {
   currentBalanceMinor: string;
   mandatoryBalanceMinor: string;
   mandatoryDueMinor: string;
+  mandatoryDueCurrentMinor: string;
+  mandatoryDueNextMinor: string;
   otherProtectedMinor: string;
   freeToAssignMinor: string;
   unbackedMinor: string;
   mandatoryGapMinor: string;
+  mandatoryGapCurrentMinor: string;
+  mandatoryGapNextMinor: string;
   dueMayBeIncomplete: boolean;
   upcoming: Array<{ occurrenceId: string; scheduledOn: string; unpaidMinor: string }>;
   accounts: Array<{ id: string; name: string; balanceMinor: string }>;
@@ -229,6 +243,8 @@ export interface DashboardV2Response {
     envelopeId: string | null;
     periodId: string | null;
     balanceMinor: string | null;
+    /** Only for MANDATORY_GAP: ALERT if money is needed for the current period, INFO otherwise. */
+    level?: 'ALERT' | 'INFO';
     actionPath: string;
   }>;
   onboarding: {

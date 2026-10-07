@@ -9,6 +9,8 @@ defineOptions({ name: 'DashboardWarnings' });
 type WarningRow = {
   key: string;
   kind: 'balance' | 'income';
+  /** MANDATORY_GAP only: ALERT needs money now, INFO only for the next period; absent otherwise. */
+  level: 'ALERT' | 'INFO' | null;
   text: string;
   href: string;
   actionLabel: string;
@@ -32,6 +34,8 @@ const rows = computed<WarningRow[]>(() =>
   props.v2Warnings.map((warning, index) => ({
     key: `${warning.code}-${warning.periodId ?? warning.envelopeId ?? index}`,
     kind: warning.code === 'PERIOD_LEFTOVER' ? 'income' : 'balance',
+    // A missing level means the current period is affected: render it as ALERT.
+    level: warning.code === 'MANDATORY_GAP' ? (warning.level ?? 'ALERT') : null,
     text: warning.message,
     href: warning.actionPath,
     actionLabel: V2_ACTION_LABELS[warning.code],
@@ -51,12 +55,18 @@ const rows = computed<WarningRow[]>(() =>
     <ul class="dashboard-warnings__list">
       <li v-for="row in rows" :key="row.key" class="dashboard-warnings__row">
         <TriangleAlert
-          v-if="row.kind === 'balance'"
+          v-if="row.kind === 'balance' && row.level !== 'INFO'"
           class="dashboard-warnings__icon dashboard-warnings__icon--danger"
           :size="20"
           aria-hidden="true"
         />
-        <Info v-else class="dashboard-warnings__icon" :size="20" aria-hidden="true" />
+        <Info
+          v-else
+          class="dashboard-warnings__icon"
+          :class="{ 'dashboard-warnings__icon--info': row.level === 'INFO' }"
+          :size="20"
+          aria-hidden="true"
+        />
 
         <span class="dashboard-warnings__text">{{ row.text }}</span>
         <NuxtLink :to="row.href" class="dashboard-warnings__link">{{ row.actionLabel }}</NuxtLink>
@@ -107,6 +117,11 @@ const rows = computed<WarningRow[]>(() =>
   color: var(--hf-color-status-danger);
 }
 
+/* Not color-only: INFO also swaps the alert triangle for the info icon. */
+.dashboard-warnings__icon--info {
+  color: var(--hf-color-status-info);
+}
+
 .dashboard-warnings__text {
   flex: 1 1 12rem;
   min-width: 0;
@@ -116,7 +131,8 @@ const rows = computed<WarningRow[]>(() =>
   display: inline-flex;
   align-items: center;
   min-height: 2.75rem;
-  color: var(--hf-color-action-primary);
+  /* Text-grade teal: brand action-primary falls short of 4.5:1 as a 16px link. */
+  color: var(--hf-color-action-primary-text);
   font-weight: var(--hf-font-weight-medium);
 }
 </style>
