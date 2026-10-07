@@ -1,10 +1,12 @@
+const CONTRACT_PREFIXES = ['/api/v1/', '/api/v2/'];
+
 export function lintDocument(document) {
   const issues = [];
   const seenOperationIds = new Set();
 
   for (const [pathKey, pathItem] of Object.entries(document.paths ?? {})) {
-    if (!pathKey.startsWith('/api/v1/')) {
-      issues.push(`Path "${pathKey}" is outside the /api/v1 contract prefix.`);
+    if (!CONTRACT_PREFIXES.some((prefix) => pathKey.startsWith(prefix))) {
+      issues.push(`Path "${pathKey}" is outside the /api/v1 or /api/v2 contract prefix.`);
     }
 
     for (const [method, operation] of Object.entries(pathItem ?? {})) {
