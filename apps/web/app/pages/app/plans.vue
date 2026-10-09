@@ -699,7 +699,9 @@ function errorMessage(exception: unknown) {
         </UiButton>
       </template>
       <template #content>
-        <p v-if="statusText" class="plans-page__status" role="status" data-testid="plans-status">{{ statusText }}</p>
+        <p v-if="statusText" class="plans-page__status" role="status" data-testid="plans-status">
+          {{ statusText }}
+        </p>
         <p v-if="error" class="plans-page__error" role="alert">{{ error }}</p>
         <p v-if="loading">Загрузка планов…</p>
         <div v-else-if="budget" class="plans-page__stack">
