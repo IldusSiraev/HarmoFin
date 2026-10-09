@@ -139,7 +139,12 @@ test('v2: partial income assignment, rent in two parts and a smaller kindergarte
   const offer = page.getByRole('dialog', { name: 'Назначить деньги' });
   await expect(offer).toBeVisible();
   await expect(offer.getByTestId('funding-source')).toHaveText(/^30\s000,00/);
-  const line = offer.getByTestId(`funding-amount-${mandatory.id}`);
+  // A mandatory current-slice line is keyed by the canonical lineId
+  // `<envelopeId>||MANDATORY_CURRENT` (see `mandatoryLineId` in the API); the web
+  // sheet renders the input as `funding-amount-<sanitized lineId>`
+  // (see lineToken in FundingReviewSheet.vue).
+  const mandatoryLineToken = `${mandatory.id}||MANDATORY_CURRENT`.replace(/[^A-Za-z0-9-]+/g, '-');
+  const line = offer.getByTestId(`funding-amount-${mandatoryLineToken}`);
   await line.fill(ASSIGNED_TYPED);
   await line.press('Enter');
   await expect(offer.getByTestId('funding-remaining')).toContainText(/^5\s000,00/);
