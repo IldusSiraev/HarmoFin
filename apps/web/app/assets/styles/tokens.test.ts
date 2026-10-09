@@ -143,7 +143,7 @@ describe('design tokens', () => {
         const srgb = channel / 255;
         return srgb <= 0.03928 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
       });
-      return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+      return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
     }
 
     function contrast(foreground: string, background: string): number {
