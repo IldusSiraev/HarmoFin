@@ -28,5 +28,17 @@
     "module": "effect",
     "reason": "AsyncLocalStorage context loss under concurrent RPC load. Reviewed 2026-09-10: transitive dependency of Prisma CLI config (devDependency/build-time only), not used at API/worker runtime.",
     "trackedIn": "docs/superpowers/plans/2026-09-09-stage-7-production-readiness.md"
+  },
+  {
+    "ghsa": "GHSA-vfj7-8cjw-p6xm",
+    "module": "braces",
+    "reason": "Stack exhaustion on deeply nested patterns; no patched version published. Reviewed 2026-10-13: transitive dependency of Nuxt build tooling (nitro-server), never receives untrusted input at API/worker runtime.",
+    "trackedIn": "docs/superpowers/plans/2026-09-09-stage-7-production-readiness.md"
+  },
+  {
+    "ghsa": "GHSA-86w9-cpqp-85rv",
+    "module": "node-forge",
+    "reason": "RSA PKCS#1 v1.5 signature verification flaw; no patched version published. Reviewed 2026-10-13: transitive dependency of Nuxt dev/build tooling (@nuxt/cli), not used for signature verification and not shipped in the runtime bundle.",
+    "trackedIn": "docs/superpowers/plans/2026-09-09-stage-7-production-readiness.md"
   }
 ]
