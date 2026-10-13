@@ -38,17 +38,23 @@ export default defineConfig({
   use: {
     baseURL: webBaseUrl,
     browserName: 'chromium',
+    // Temporary diagnostics for the CI-only ERR_ABORTED on the first dev-server visit.
+    trace: 'retain-on-failure',
   },
   webServer: [
     {
       command: 'pnpm --filter @harmofin/api dev',
       url: `${apiOrigin}/api/v1/health/live`,
+      stdout: 'pipe',
+      stderr: 'pipe',
       env: { ...process.env, ...testEnvironment },
       reuseExistingServer: !process.env.CI,
     },
     {
       command: 'pnpm --filter @harmofin/web dev',
       url: `${webOrigin}/register`,
+      stdout: 'pipe',
+      stderr: 'pipe',
       env: { ...process.env, ...testEnvironment },
       reuseExistingServer: !process.env.CI,
     },

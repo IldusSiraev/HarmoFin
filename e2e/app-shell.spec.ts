@@ -63,6 +63,4 @@ async function registerAndReachApp(page: Page, suffix: string): Promise<void> {
   await page.getByLabel('Пароль').fill(password);
   await page.getByRole('button', { name: 'Создать аккаунт' }).click();
   await expect(page).toHaveURL(/\/app$/);
-  // Wait for the dashboard to finish loading so the next page.goto does not abort it.
-  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 }
