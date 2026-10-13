@@ -18,6 +18,13 @@ CVE-2026-73566
 CVE-2026-40345
 CVE-2026-32887
 
+# braces and node-forge reach the migrate image through the full workspace node_modules
+# (Nuxt build tooling). No patched version is published; same advisories are excepted in
+# scripts/ci/security-exceptions.json (GHSA-vfj7-8cjw-p6xm, GHSA-86w9-cpqp-85rv).
+# Reviewed 2026-10-13: not reachable from the migrate entrypoint (prisma migrate deploy).
+CVE-2026-93687
+CVE-2026-85393
+
 # Base image OS package. Reviewed 2026-09-10: tracked for next base image
 # digest refresh, not exploitable via HarmoFin's HTTP/worker surface.
 CVE-2026-14456
