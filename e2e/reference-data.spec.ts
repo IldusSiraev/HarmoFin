@@ -130,6 +130,8 @@ async function registerAndReachApp(page: import('@playwright/test').Page): Promi
   await page.getByLabel('Пароль').fill(password);
   await page.getByRole('button', { name: 'Создать аккаунт' }).click();
   await expect(page).toHaveURL(/\/app$/);
+  // Wait for the dashboard to finish loading so the next page.goto does not abort it.
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 }
 
 async function waitForHydration(page: import('@playwright/test').Page): Promise<void> {
