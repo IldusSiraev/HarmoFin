@@ -35,6 +35,10 @@ ENV NODE_ENV=production
 
 RUN addgroup --system app && adduser --system --ingroup app app
 
+# Runtime stages start node directly; npm and npx are never invoked. Dropping them removes
+# the npm-bundled copies of brace-expansion, undici and http-cache-semantics from the image.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 USER app
 
 FROM runtime-base AS web
