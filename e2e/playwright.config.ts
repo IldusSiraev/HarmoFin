@@ -3,7 +3,9 @@ import { apiOrigin, apiPort, webBaseUrl, webOrigin } from './env';
 
 const testEnvironment = {
   NODE_ENV: 'test',
-  DATABASE_URL: 'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin',
+  DATABASE_URL:
+    process.env.DATABASE_URL ??
+    'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin',
   WEB_ORIGIN: webOrigin,
   WEB_BASE_URL: webBaseUrl,
   API_URL: apiOrigin,

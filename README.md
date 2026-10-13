@@ -119,6 +119,8 @@ pnpm test:integration
 pnpm test:e2e
 ```
 
+При локальном запуске `pnpm test:integration` выполняет интеграционные тесты против disposable-БД `harmofin_v22_test`: команда сама выводит её из `DATABASE_URL` в `.env`, заменяя только имя базы (сервер и учётные данные не меняются). Если файла `.env` нет, используется стандартный локальный адрес с той же заменой имени БД. Явно установленный `DATABASE_URL` всегда имеет приоритет, а рабочая база `harmofin` этой командой не затрагивается. Если disposable-БД ещё не создана, выполните разовый шаг: `docker compose -f infra/compose/local.yml exec -T postgres createdb -U harmofin_local harmofin_v22_test`.
+
 ## Функциональность v1
 
 Реализованы:
