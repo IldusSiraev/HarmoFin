@@ -22,6 +22,8 @@ export default defineConfig({
   // Runs before the webServer entries: kill stale (unresponsive) dev-server
   // listeners left by previous local runs so the fresh servers can bind.
   globalSetup: './preflight',
+  // Explicit so CI can upload traces from a known path (see Upload Playwright traces).
+  outputDir: './test-results',
   timeout: 60_000,
   // These specs run against a dev server, so the first visit to a route pays
   // for on-demand compilation — the analytics page, which pulls in echarts,
