@@ -33,8 +33,7 @@ await app.init();
 const server = app.getHttpAdapter().getInstance();
 await server.ready();
 const response = await server.inject({ method: 'GET', url: '/openapi.json' });
-process.stdout.write(response.body);
-process.exit(0);
+process.stdout.write(response.body, () => process.exit(0));
 `;
 
 const result = execFileSync(
