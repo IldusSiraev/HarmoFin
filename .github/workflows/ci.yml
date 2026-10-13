@@ -117,15 +117,6 @@ jobs:
       - name: Run browser tests
         run: pnpm test:e2e
 
-      - name: Upload Playwright traces
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: playwright-traces-${{ github.sha }}
-          path: e2e/test-results
-          if-no-files-found: ignore
-          retention-days: 7
-
       - name: Validate local Compose configuration
         run: docker compose -f infra/compose/local.yml config --quiet
 
