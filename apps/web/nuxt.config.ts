@@ -40,6 +40,9 @@ export default defineNuxtConfig({
     },
   },
   vite: {
+    // Pre-bundle echarts at dev-server start: discovering it on the first analytics-bound
+    // navigation re-optimizes deps and reloads the page, aborting in-flight navigations.
+    optimizeDeps: { include: ['echarts'] },
     build: {
       rollupOptions: {
         output: {
