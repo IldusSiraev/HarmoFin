@@ -22,7 +22,19 @@ test('accepts a well-formed document', () => {
   assert.deepEqual(lintDocument(baseDocument()), []);
 });
 
-test('flags a path outside the /api/v1 prefix', () => {
+test('accepts a /api/v2 path', () => {
+  const document = baseDocument({
+    paths: {
+      '/api/v2/health/live': {
+        get: { operationId: 'healthLiveV2', responses: { 200: { description: 'ok' } } },
+      },
+    },
+  });
+
+  assert.deepEqual(lintDocument(document), []);
+});
+
+test('flags a path outside the contract prefixes', () => {
   const document = baseDocument({
     paths: {
       '/legacy/health': {

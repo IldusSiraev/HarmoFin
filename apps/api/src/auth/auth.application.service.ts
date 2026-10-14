@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 
+import { newBudgetModelData } from '../common/plan-model/new-budget-model.js';
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
 import type { ApiConfig } from '../config/env.js';
 import { MetricsRegistry } from '../observability/observability.js';
@@ -88,6 +89,7 @@ export class AuthApplicationService {
           id: budgetId,
           workspaceId: workspace.id,
           name: input.budgetName ?? 'Семейный бюджет',
+          ...newBudgetModelData(now),
         },
         select: { id: true, name: true, primaryCurrency: true },
       });
@@ -371,7 +373,12 @@ export class AuthApplicationService {
       id: string;
       name: string;
       role: string;
-      budgets: Array<{ id: string; name: string; primaryCurrency: string }>;
+      budgets: Array<{
+        id: string;
+        name: string;
+        primaryCurrency: string;
+        planModelVersion: number;
+      }>;
     }>;
   }> {
     const user = await this.repository.findUserById(userId);
@@ -391,7 +398,7 @@ export class AuthApplicationService {
               name: true,
               budgets: {
                 where: { status: 'ACTIVE' },
-                select: { id: true, name: true, primaryCurrency: true },
+                select: { id: true, name: true, primaryCurrency: true, planModelVersion: true },
               },
             },
           },

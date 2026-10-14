@@ -13,6 +13,14 @@ export interface ApiEventLogger {
     durationMs: number;
     errorCode?: string;
   }): void;
+  unhandledError(fields: {
+    requestId: string;
+    method: string;
+    route: string;
+    errorName: string;
+    errorCode?: string;
+    stack?: string;
+  }): void;
 }
 
 export function createApiLogger(config: ApiConfig): LoggerService & ApiEventLogger {
@@ -83,5 +91,16 @@ class SafeApiLogger implements LoggerService, ApiEventLogger {
     errorCode?: string;
   }): void {
     this.logger.info({ event: 'request_outcome', ...fields }, 'Request completed');
+  }
+
+  unhandledError(fields: {
+    requestId: string;
+    method: string;
+    route: string;
+    errorName: string;
+    errorCode?: string;
+    stack?: string;
+  }): void {
+    this.logger.error({ event: 'unhandled_error', ...fields }, 'Unhandled server error');
   }
 }

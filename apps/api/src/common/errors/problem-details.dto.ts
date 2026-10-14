@@ -36,6 +36,13 @@ export class ProblemDetailsResponse {
   @ApiPropertyOptional({ type: [String], format: 'uuid' })
   allocationIds?: string[];
 
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    description: 'ID зависимых назначений дохода при SOURCE_EXHAUSTED.',
+  })
+  assignmentIds?: string[];
+
   @ApiPropertyOptional({ type: Number, minimum: 1 })
   allocationCount?: number;
 }

@@ -15,6 +15,7 @@ const workspaceId = randomUUID();
 const budgetId = randomUUID();
 const categoryId = randomUUID();
 const accountId = randomUUID();
+const envelopeId = randomUUID();
 const planId = randomUUID();
 
 const handler = new PlanOccurrenceHandler(prisma);
@@ -35,7 +36,14 @@ describe('plan occurrence worker handler', () => {
     });
     await prisma.workspace.create({ data: { id: workspaceId, ownerId: userId, name: 'Worker' } });
     await prisma.budget.create({
-      data: { id: budgetId, workspaceId, name: 'Бюджет worker', timezone: 'Europe/Moscow' },
+      data: {
+        id: budgetId,
+        workspaceId,
+        name: 'Бюджет worker',
+        timezone: 'Europe/Moscow',
+        planModelVersion: 2,
+        planModelActivatedOn: new Date('2026-02-01T00:00:00.000Z'),
+      },
     });
     await prisma.account.create({
       data: {
@@ -51,8 +59,18 @@ describe('plan occurrence worker handler', () => {
       data: {
         id: categoryId,
         budgetId,
-        name: 'Доход worker',
-        categoryType: 'INCOME',
+        name: 'Расход worker',
+        categoryType: 'EXPENSE',
+        displayOrder: 0,
+      },
+    });
+    await prisma.envelope.create({
+      data: {
+        id: envelopeId,
+        budgetId,
+        name: 'Обязательные worker',
+        envelopeType: 'MANDATORY_EXPENSES',
+        startingBalanceMinor: 0n,
         displayOrder: 0,
       },
     });
@@ -61,14 +79,15 @@ describe('plan occurrence worker handler', () => {
         id: planId,
         workspaceId,
         budgetId,
-        name: 'Зарплата',
-        planType: 'INCOME',
+        name: 'Аренда',
+        planType: 'EXPENSE',
         amountMinor: 100_000n,
         anchorOn: new Date('2026-01-31T00:00:00.000Z'),
         startOn: new Date('2026-01-31T00:00:00.000Z'),
         recurrence: 'MONTHLY',
         accountId,
         categoryId,
+        envelopeId,
         createdByUserId: userId,
         updatedByUserId: userId,
       },
@@ -88,6 +107,7 @@ describe('plan occurrence worker handler', () => {
     await prisma.transaction.deleteMany({ where: { budgetId } });
     await prisma.account.deleteMany({ where: { budgetId } });
     await prisma.category.deleteMany({ where: { budgetId } });
+    await prisma.envelope.deleteMany({ where: { budgetId } });
     await prisma.budget.delete({ where: { id: budgetId } });
     await prisma.workspace.delete({ where: { id: workspaceId } });
     await prisma.user.delete({ where: { id: userId } });
@@ -144,7 +164,7 @@ describe('plan occurrence worker handler', () => {
     });
   });
 
-  it('materializes bounded occurrences idempotently and transitions due records without balances', async () => {
+  it('materializes bounded occurrences idempotently and creates due records without balances', async () => {
     const now = new Date('2026-02-28T12:00:00.000Z');
 
     await handler.execute(now, budgetId);
@@ -162,6 +182,6 @@ describe('plan occurrence worker handler', () => {
     expect(await prisma.transaction.count({ where: { budgetId } })).toBe(0);
     expect(
       await prisma.auditEvent.count({ where: { budgetId, entityType: 'plan_occurrence' } }),
-    ).toBe(3);
+    ).toBe(2);
   });
 });

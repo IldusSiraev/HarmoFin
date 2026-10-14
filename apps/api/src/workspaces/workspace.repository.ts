@@ -1,3 +1,4 @@
+import { newBudgetModelData } from '../common/plan-model/new-budget-model.js';
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
 import { PrismaService } from '../database/prisma.service.js';
 
@@ -53,7 +54,12 @@ export class WorkspaceRepository {
         data: { id: createUuidV7(), workspaceId: workspace.id, userId, role: 'OWNER' },
       });
       const budget = await tx.budget.create({
-        data: { id: createUuidV7(), workspaceId: workspace.id, name: input.budgetName },
+        data: {
+          id: createUuidV7(),
+          workspaceId: workspace.id,
+          name: input.budgetName,
+          ...newBudgetModelData(),
+        },
         select: { id: true, name: true, primaryCurrency: true },
       });
       await tx.auditEvent.create({

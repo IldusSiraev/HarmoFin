@@ -10,8 +10,9 @@ const props = withDefaults(
     accent?: 'danger' | 'success' | 'info';
     currencySymbol?: string;
     error?: string | undefined;
+    hideStepper?: boolean;
   }>(),
-  { accent: 'info', currencySymbol: '₽', error: undefined },
+  { accent: 'info', currencySymbol: '₽', error: undefined, hideStepper: false },
 );
 
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
@@ -59,7 +60,7 @@ function step(delta: 1 | -1): void {
         @input="handleInput"
       />
       <span class="amount-field__currency" aria-hidden="true">{{ currencySymbol }}</span>
-      <span class="amount-field__steppers">
+      <span v-if="!hideStepper" class="amount-field__steppers">
         <button type="button" aria-label="Увеличить сумму" @click="step(1)">
           <ChevronUp :size="16" aria-hidden="true" />
         </button>

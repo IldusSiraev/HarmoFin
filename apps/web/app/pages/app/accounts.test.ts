@@ -28,6 +28,8 @@ vi.mock('../../composables/useBudgetReferenceData.js', () => ({
 }));
 
 import AccountsPage from './accounts.vue';
+import { ApiRequestError } from '../../composables/useApiClient.js';
+import { useFundingEntry } from '../../composables/useFundingEntry.js';
 import { useToast } from '../../composables/useToast.js';
 
 const account = {
@@ -103,6 +105,48 @@ describe('accounts page', () => {
     await flushPromises();
 
     expect(wrapper.get('[data-hydrated]').attributes('data-hydrated')).toBe('true');
+  });
+
+  async function createWithBalance(balance: string): Promise<void> {
+    mocks.api.createAccount.mockResolvedValue(account);
+    mocks.api.listAccounts.mockResolvedValue([account]);
+    wrapper = mountPage();
+    await flushPromises();
+    await wrapper.get('[data-action="create-account"]').trigger('click');
+    await flushPromises();
+    const fill = (name: string, value: string) => {
+      const input = document.querySelector(`input[name="${name}"]`) as HTMLInputElement;
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    fill('name', 'Основной счёт');
+    fill('startingBalance', balance);
+    fill('accountingStartDate', '2026-09-03');
+    await flushPromises();
+    document
+      .querySelector('form[data-account-form]')
+      ?.dispatchEvent(new Event('submit', { bubbles: true }));
+    await flushPromises();
+  }
+
+  it('offers the optional opening assignment for a v2 budget with a non-zero starting balance', async () => {
+    useFundingEntry().dismiss();
+    const budget = (mocks.auth.currentData.value as { workspaces: Array<{ budgets: object[] }> })
+      .workspaces[0]!.budgets[0] as Record<string, unknown>;
+    budget.planModelVersion = 2;
+
+    await createWithBalance('1000');
+
+    expect(useFundingEntry().request.value?.source).toEqual({ sourceKind: 'OPENING' });
+  });
+
+  it('offers nothing for a zero starting balance', async () => {
+    useFundingEntry().dismiss();
+    const budget = (mocks.auth.currentData.value as { workspaces: Array<{ budgets: object[] }> })
+      .workspaces[0]!.budgets[0] as Record<string, unknown>;
+    budget.planModelVersion = 2;
+    await createWithBalance('0');
+    expect(useFundingEntry().request.value).toBeNull();
   });
 
   it('creates account from decimal text and refreshes server-confirmed card', async () => {
@@ -196,6 +240,28 @@ describe('accounts page', () => {
     await wrapper.get('[data-confirm="archive-account"]').trigger('click');
     await flushPromises();
     expect(mocks.api.archiveAccount).toHaveBeenCalledWith('budget-id', 'account-id');
+  });
+
+  it('closes the confirm dialog and explains a refused archive of an account with balance', async () => {
+    mocks.api.listAccounts.mockResolvedValue([account]);
+    mocks.api.archiveAccount.mockRejectedValue(
+      new ApiRequestError(409, {
+        code: 'ACCOUNT_HAS_BALANCE',
+        detail: 'Счёт нельзя архивировать: на нём есть остаток.',
+      }),
+    );
+    wrapper = mountPage();
+
+    await flushPromises();
+    await wrapper.get('[data-testid="account-card-select"]').trigger('click');
+    await wrapper.get('[data-testid="account-drawer-archive"]').trigger('click');
+    await wrapper.get('[data-confirm="archive-account"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('[data-confirm-dialog]').exists()).toBe(false);
+    const toast = useToast().toasts.value.at(-1);
+    expect(toast?.tone).toBe('error');
+    expect(toast?.description).toContain('есть остаток');
   });
 
   it('offers transfer with selected active account', async () => {

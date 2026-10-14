@@ -17,31 +17,46 @@ beforeEach(() => {
 
 describe('useOperationFilters', () => {
   it('reads the current query', () => {
-    route.query = { accountId: 'account-id', type: 'EXPENSE', search: 'кафе' };
+    route.query = { accountId: 'account-id', type: 'EXPENSE', from: '2026-09-01' };
 
     const { filters } = useOperationFilters();
 
     expect(filters.value.accountId).toBe('account-id');
     expect(filters.value.type).toBe('EXPENSE');
-    expect(filters.value.search).toBe('кафе');
+    expect(filters.value.from).toBe('2026-09-01');
   });
 
-  it('defaults to newest first without filters', () => {
-    const { filters, activeCount, isGrouped } = useOperationFilters();
+  it('starts without filters', () => {
+    const { activeCount, toListInput } = useOperationFilters();
 
-    expect(filters.value.sortBy).toBe('occurredOn');
-    expect(filters.value.sortDirection).toBe('desc');
     expect(activeCount.value).toBe(0);
-    expect(isGrouped.value).toBe(true);
+    expect(toListInput()).toEqual({});
   });
 
-  it('counts active filters without counting sorting', () => {
-    route.query = { accountId: 'account-id', status: 'DRAFT', sortBy: 'amount' };
+  it('counts every active filter', () => {
+    route.query = { accountId: 'account-id', status: 'DRAFT', to: '2026-09-30' };
 
-    const { activeCount, isGrouped } = useOperationFilters();
+    const { activeCount } = useOperationFilters();
 
-    expect(activeCount.value).toBe(2);
-    expect(isGrouped.value).toBe(false);
+    expect(activeCount.value).toBe(3);
+  });
+
+  it('drops values from old links that the v2 API would reject', () => {
+    route.query = {
+      status: 'all',
+      type: 'TRANSFER',
+      search: 'кафе',
+      sortBy: 'amount',
+      cycleStart: '2026-09-01',
+      periodStart: '2026-09-01',
+      planId: 'plan-id',
+      accountId: 'account-id',
+    };
+
+    const { toListInput, activeCount } = useOperationFilters();
+
+    expect(toListInput()).toEqual({ accountId: 'account-id' });
+    expect(activeCount.value).toBe(1);
   });
 
   it('writes a changed filter into the query', async () => {
@@ -68,7 +83,7 @@ describe('useOperationFilters', () => {
   });
 
   it('resets everything back to the defaults', async () => {
-    route.query = { accountId: 'account-id', type: 'INCOME', sortBy: 'amount' };
+    route.query = { accountId: 'account-id', type: 'INCOME' };
     const { filters, reset, activeCount } = useOperationFilters();
 
     reset();
@@ -76,21 +91,30 @@ describe('useOperationFilters', () => {
 
     expect(filters.value.accountId).toBe('');
     expect(filters.value.type).toBe('');
-    expect(filters.value.sortBy).toBe('occurredOn');
     expect(activeCount.value).toBe(0);
   });
 
-  it('builds the list input the API expects', () => {
-    route.query = { accountId: 'account-id', search: 'кафе', status: 'DRAFT' };
+  it('builds the list input the v2 API expects', () => {
+    route.query = {
+      accountId: 'account-id',
+      status: 'DRAFT',
+      type: 'INCOME',
+      from: '2026-09-01',
+      to: '2026-09-30',
+      categoryId: 'category-id',
+      envelopeId: 'envelope-id',
+    };
 
     const { toListInput } = useOperationFilters();
 
     expect(toListInput()).toEqual({
       accountId: 'account-id',
-      search: 'кафе',
       status: 'DRAFT',
-      sortBy: 'occurredOn',
-      sortDirection: 'desc',
+      type: 'INCOME',
+      from: '2026-09-01',
+      to: '2026-09-30',
+      categoryId: 'category-id',
+      envelopeId: 'envelope-id',
     });
   });
 });

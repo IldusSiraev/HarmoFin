@@ -40,6 +40,12 @@ export default defineNuxtConfig({
     },
   },
   vite: {
+    // Pre-bundle every runtime dependency at dev-server start: discovering one on a later
+    // navigation re-optimizes deps and fully reloads the page, aborting in-flight navigations
+    // and form submits (e2e ERR_ABORTED / stuck on /register).
+    optimizeDeps: {
+      include: ['@lucide/vue', '@vuepic/vue-datepicker', 'date-fns', 'date-fns/locale', 'echarts'],
+    },
     build: {
       rollupOptions: {
         output: {

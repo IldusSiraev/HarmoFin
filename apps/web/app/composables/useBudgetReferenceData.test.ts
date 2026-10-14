@@ -77,105 +77,6 @@ describe('useReferenceDataForm', () => {
   });
 });
 
-const transaction = {
-  id: 'transaction-id',
-  budgetId: 'budget-id',
-  transactionType: 'EXPENSE' as const,
-  status: 'DRAFT' as const,
-  amountMinor: '12345',
-  currency: 'RUB' as const,
-  scale: 2 as const,
-  occurredOn: '2026-09-04',
-  accountId: 'account-id',
-  categoryId: 'category-id',
-  envelopeId: 'envelope-id',
-  sourceDescription: null,
-  merchantName: 'Магазин',
-  isPlanned: false,
-  comment: null,
-  confirmedAt: null,
-  cancelledAt: null,
-  deletedAt: null,
-  accountCurrentBalanceMinor: '100000',
-  envelopeCurrentBalanceMinor: '50000',
-  unallocatedMinor: '0',
-  allocationProposal: null,
-};
-
-describe('reports API client', () => {
-  it('requests typed plan/fact report without changing canonical values', async () => {
-    const response = {
-      key: 'plan-vs-actual' as const,
-      rows: [
-        {
-          planId: 'plan-id',
-          planName: 'Ипотека',
-          planType: 'EXPENSE' as const,
-          plannedMinor: '300000',
-          actualMinor: '170000',
-          varianceMinor: '-130000',
-          plannedOccurrenceCount: 2,
-          confirmedOccurrenceCount: 1,
-          journalFilters: { planId: 'plan-id', status: 'CONFIRMED' as const },
-        },
-      ],
-    };
-    const request = vi.fn().mockResolvedValue(response);
-    const data = createBudgetReferenceData({ request, requestBlob: vi.fn() });
-
-    const report = await data.getReport('budget-id', 'plan-vs-actual');
-
-    expect(request).toHaveBeenCalledWith('/api/v1/budgets/budget-id/reports/plan-vs-actual');
-    expect(report).toEqual(response);
-  });
-});
-
-describe('CSV export API client', () => {
-  it('downloads CSV with journal filters but without pagination', async () => {
-    const request = vi.fn();
-    const requestBlob = vi.fn().mockResolvedValue(new Blob(['csv']));
-    const data = createBudgetReferenceData({ request, requestBlob });
-
-    await data.downloadTransactionsCsv('budget-id', {
-      search: 'магазин',
-      limit: 25,
-      cursor: 'cursor-value',
-      status: 'CONFIRMED',
-      sortBy: 'amount',
-      sortDirection: 'asc',
-    });
-
-    expect(requestBlob).toHaveBeenCalledWith(
-      '/api/v1/budgets/budget-id/exports/transactions.csv?search=%D0%BC%D0%B0%D0%B3%D0%B0%D0%B7%D0%B8%D0%BD&status=CONFIRMED&sortBy=amount&sortDirection=asc',
-    );
-  });
-});
-
-describe('plans API client', () => {
-  it('creates an occurrence draft with an idempotency key', async () => {
-    const request = vi.fn().mockResolvedValue(transaction);
-    const data = createBudgetReferenceData({ request, requestBlob: vi.fn() });
-
-    await data.createPlanOccurrenceDraft('budget-id', 'occurrence-id', 'draft-key');
-
-    expect(request).toHaveBeenCalledWith(
-      '/api/v1/budgets/budget-id/plans/occurrences/occurrence-id/create-draft',
-      { method: 'POST', headers: { 'Idempotency-Key': 'draft-key' } },
-    );
-  });
-
-  it('forwards a scheduled-date range when listing occurrences', async () => {
-    const request = vi.fn().mockResolvedValue({ items: [] });
-    const data = createBudgetReferenceData({ request, requestBlob: vi.fn() });
-
-    await data.listPlanOccurrences('budget-id', { from: '2026-09-01', to: '2026-09-30' });
-
-    expect(request).toHaveBeenCalledWith(
-      '/api/v1/budgets/budget-id/plans/occurrences?from=2026-09-01&to=2026-09-30',
-    );
-  });
-});
-
 describe('notifications API client', () => {
   it('marks notification read with idempotency key', async () => {
     const request = vi.fn().mockResolvedValue({});
@@ -190,76 +91,41 @@ describe('notifications API client', () => {
   });
 });
 
-describe('operations API client', () => {
-  it('sends idempotency key and unchanged decimal amount', async () => {
-    const request = vi.fn().mockResolvedValue(transaction);
-    const data = createBudgetReferenceData({ request, requestBlob: vi.fn() });
+describe('removed legacy-model calls', () => {
+  it('exposes no envelope balance, transfer parts, reallocation, plan or dashboard-summary calls', () => {
+    const data = createBudgetReferenceData({ request: vi.fn(), requestBlob: vi.fn() });
 
-    await data.createTransaction(
-      'budget-id',
-      {
-        transactionType: 'EXPENSE',
-        status: 'DRAFT',
-        amount: '123.45',
-        occurredOn: '2026-09-04',
-        accountId: 'account-id',
-        categoryId: 'category-id',
-        envelopeId: 'envelope-id',
-        merchantName: 'Магазин',
-        isPlanned: false,
-      },
-      'key-1',
-    );
-
-    expect(request).toHaveBeenCalledWith('/api/v1/budgets/budget-id/transactions', {
-      method: 'POST',
-      headers: { 'Idempotency-Key': 'key-1' },
-      body: expect.any(String),
-    });
-    expect(JSON.parse(request.mock.calls[0]?.[1].body)).toMatchObject({ amount: '123.45' });
-  });
-});
-
-describe('transfers API client', () => {
-  it('sends transfer parts and idempotency key to transfer endpoint', async () => {
-    const request = vi.fn().mockResolvedValue({});
-    const data = createBudgetReferenceData({ request, requestBlob: vi.fn() });
-
-    await data.createTransfer(
-      'budget-id',
-      {
-        status: 'CONFIRMED',
-        total: '1000.00',
-        occurredOn: '2026-09-05',
-        sourceAccountId: 'source-account',
-        destinationAccountId: 'destination-account',
-        parts: [{ sourceEnvelopeId: 'envelope-id', amount: '1000.00' }],
-      },
-      'transfer-key',
-    );
-
-    expect(request).toHaveBeenCalledWith('/api/v1/budgets/budget-id/transfers', {
-      method: 'POST',
-      headers: { 'Idempotency-Key': 'transfer-key' },
-      body: expect.any(String),
-    });
+    for (const removed of [
+      'getReport',
+      'getDashboardSummary',
+      'initializeTemplate',
+      'getEnvelopesSummary',
+      'listEnvelopes',
+      'getEnvelopeBalanceSummary',
+      'createEnvelope',
+      'createTransfer',
+      'listTransfers',
+      'createEnvelopeReallocation',
+      'listRegularPlans',
+      'createPlanOccurrenceDraft',
+      'createTransaction',
+    ]) {
+      expect(data).not.toHaveProperty(removed);
+    }
   });
 });
 
 describe('reference summaries API client', () => {
-  it('reads both reference summaries with the status the screen shows', async () => {
+  it('reads the accounts summary with the status the screen shows', async () => {
     const request = vi
       .fn()
       .mockResolvedValue({ currency: 'RUB', scale: 2, totalMinor: '150000', count: 2 });
     const data = createBudgetReferenceData({ request, requestBlob: vi.fn() });
 
     await data.getAccountsSummary('budget-id', 'archived');
-    await data.getEnvelopesSummary('budget-id');
 
-    expect(request).toHaveBeenNthCalledWith(
-      1,
+    expect(request).toHaveBeenCalledWith(
       '/api/v1/budgets/budget-id/accounts/summary?status=archived',
     );
-    expect(request).toHaveBeenNthCalledWith(2, '/api/v1/budgets/budget-id/envelopes/summary');
   });
 });

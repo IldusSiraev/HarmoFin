@@ -16,6 +16,7 @@ import UiModal from '../../components/ui/Modal.vue';
 import UiSelect from '../../components/ui/Select.vue';
 import UiSkeleton from '../../components/ui/Skeleton.vue';
 import UiStatus from '../../components/ui/Status.vue';
+import { ApiRequestError } from '../../composables/useApiClient.js';
 import { useAuth } from '../../composables/useAuth.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import {
@@ -27,6 +28,7 @@ import {
   type UpdateAccountInput,
   useBudgetReferenceData,
 } from '../../composables/useBudgetReferenceData.js';
+import { useFundingEntry } from '../../composables/useFundingEntry.js';
 import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js';
 import { useToast } from '../../composables/useToast.js';
 
@@ -47,6 +49,7 @@ const route = useRoute();
 const api = useBudgetReferenceData();
 const formHelper = useReferenceDataForm(accountFields);
 const { push } = useToast();
+const funding = useFundingEntry();
 const accounts = ref<AccountDto[]>([]);
 const summary = ref<ReferenceSummaryDto | null>(null);
 const detailed = ref<AccountDto | null>(null);
@@ -172,6 +175,11 @@ function optionalText(value: string) {
   return value.trim() || null;
 }
 
+// Text check only (no arithmetic): is there a non-zero, non-negative amount.
+function hasPositiveAmount(value: string): boolean {
+  return /^\+?\d*\.?\d*$/.test(value) && /[1-9]/.test(value);
+}
+
 async function saveAccount() {
   const id = budgetId.value;
   if (!id) return;
@@ -223,6 +231,9 @@ async function saveAccount() {
       await loadAccounts();
       statusMessage.value = 'Счёт создан.';
       push({ tone: 'success', title: 'Счёт создан' });
+      // Envelope Plan v2.2: initial money may be assigned, but only if the user
+      // wants to; the account and its balance are already saved either way.
+      if (hasPositiveAmount(input.startingBalance)) funding.offer({ sourceKind: 'OPENING' });
     }
     cancelForm();
   } catch (error) {
@@ -243,6 +254,13 @@ function cancelArchive() {
   if (!archiving.value) archiveTarget.value = null;
 }
 
+function archiveErrorMessage(error: unknown): string {
+  if (error instanceof ApiRequestError && error.problem.code === 'ACCOUNT_HAS_BALANCE') {
+    return 'Счёт нельзя архивировать: на нём есть остаток. Переведите остаток на другой счёт и повторите.';
+  }
+  return 'Не удалось выполнить действие. Повторите попытку.';
+}
+
 async function confirmArchive() {
   const id = budgetId.value;
   const target = archiveTarget.value;
@@ -255,8 +273,12 @@ async function confirmArchive() {
     await loadAccounts();
     statusMessage.value = 'Счёт перемещён в архив.';
     push({ tone: 'success', title: 'Счёт перемещён в архив' });
-  } catch {
-    statusMessage.value = 'Не удалось выполнить действие. Повторите попытку.';
+  } catch (error) {
+    // A refused archive must not leave the modal dialog covering the page.
+    archiveTarget.value = null;
+    const summary = archiveErrorMessage(error);
+    statusMessage.value = summary;
+    push({ tone: 'error', title: 'Не удалось архивировать счёт', description: summary });
   } finally {
     archiving.value = false;
   }

@@ -5,52 +5,6 @@ export class CreateBudgetRequest {
   name!: string;
 }
 
-export class UpdateBudgetRequest {
-  @ApiProperty({ type: String, minLength: 1, maxLength: 120, required: false })
-  name?: string;
-
-  @ApiProperty({
-    type: String,
-    minLength: 1,
-    maxLength: 64,
-    example: 'Europe/Moscow',
-    required: false,
-  })
-  timezone?: string;
-
-  @ApiProperty({ type: Number, minimum: 1, maximum: 28, required: false })
-  cycleStartDay?: number;
-
-  @ApiProperty({ type: Number, minimum: 1, maximum: 27, required: false })
-  periodBoundaryOffset?: number;
-
-  @ApiProperty({ type: Boolean, required: false })
-  allowNegativeBalance?: boolean;
-
-  @ApiProperty({ type: Boolean, required: false })
-  incomeAllocationRuleEnabled?: boolean;
-
-  @ApiProperty({ type: String, format: 'uuid', required: false })
-  incomeAllocationSourceCategoryId?: string;
-
-  @ApiProperty({ type: String, format: 'uuid', required: false })
-  incomeAllocationTargetEnvelopeId?: string;
-}
-
-export class ReferenceTemplateResponse {
-  @ApiProperty({ type: [String] })
-  createdCategoryKeys!: string[];
-
-  @ApiProperty({ type: [String] })
-  existingCategoryKeys!: string[];
-
-  @ApiProperty({ type: [String] })
-  createdEnvelopeKeys!: string[];
-
-  @ApiProperty({ type: [String] })
-  existingEnvelopeKeys!: string[];
-}
-
 export class BudgetDetailResponse {
   @ApiProperty({ type: String, format: 'uuid' })
   id!: string;

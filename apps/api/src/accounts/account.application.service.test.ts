@@ -32,6 +32,7 @@ describe('AccountApplicationService', () => {
       ownerId,
       expect.objectContaining({ budgetId, startingBalanceMinor: -100n }),
       undefined,
+      undefined, // v1 budget (planModelVersion !== 2): no unbacked-money guard
     );
   });
 
@@ -138,14 +139,14 @@ describe('AccountApplicationService', () => {
 
   function accountInput(overrides: Partial<CreateAccountInput> = {}): CreateAccountInput {
     return {
-      name: 'Основной счёт',
+      name: '�������� ����',
       accountType: 'BANK_ACCOUNT',
-      bankName: 'Банк',
+      bankName: '����',
       lastFourDigits: '1234',
       currency: 'RUB',
       startingBalance: '0.00',
       accountingStartDate: '2026-09-01',
-      comment: 'Не попадёт в аудит',
+      comment: '�� ������ � �����',
       ...overrides,
     };
   }
@@ -154,15 +155,15 @@ describe('AccountApplicationService', () => {
     return {
       id: '00000000-0000-4000-8000-000000000004',
       budgetId,
-      name: 'Основной счёт',
+      name: '�������� ����',
       accountType: AccountType.BANK_ACCOUNT,
-      bankName: 'Банк',
+      bankName: '����',
       lastFourDigits: '1234',
       currency: 'RUB',
       scale: 2,
       startingBalanceMinor: 0n,
       accountingStartDate: new Date('2026-09-01T00:00:00.000Z'),
-      comment: 'Не попадёт в аудит',
+      comment: '�� ������ � �����',
       archivedAt: null,
       currentBalanceMinor: 0n,
       ...overrides,

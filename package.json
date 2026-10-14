@@ -13,7 +13,7 @@
     "format:check": "prettier --check .",
     "typecheck": "pnpm --recursive --if-present typecheck",
     "test": "pnpm --recursive --if-present test",
-    "test:integration": "pnpm db:migrate && pnpm --filter @harmofin/api test:integration",
+    "test:integration": "node scripts/test/integration.mjs",
     "db:generate": "pnpm --filter @harmofin/api exec prisma generate --schema ../../prisma/schema.prisma",
     "db:migrate:dev": "node --env-file-if-exists=.env ./apps/api/node_modules/prisma/build/index.js migrate dev --schema prisma/schema.prisma",
     "db:migrate": "node --env-file-if-exists=.env ./apps/api/node_modules/prisma/build/index.js migrate deploy --schema prisma/schema.prisma",

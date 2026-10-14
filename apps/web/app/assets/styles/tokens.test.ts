@@ -117,6 +117,61 @@ describe('design tokens', () => {
     expect(luminance(hexOf('--hf-color-slate-50'))).toBeLessThan(0.2);
   });
 
+  it('keeps WCAG AA contrast between text-level tokens and the surface, in both themes', () => {
+    const lightBlockMatch = tokens.match(/:root\s*\{([\s\S]*?)\}/);
+    expect(lightBlockMatch).not.toBeNull();
+    const lightBlock = lightBlockMatch![1]!;
+    const darkBlockMatch = tokens.match(/\[data-theme=['"]dark['"]\]\s*\{([\s\S]*?)\}/);
+    expect(darkBlockMatch).not.toBeNull();
+    const darkBlock = darkBlockMatch![1]!;
+
+    function hexOf(block: string, name: string): string {
+      const match = block.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`));
+      expect(
+        match,
+        `expected ${name} to be set to a literal hex colour in this theme block`,
+      ).not.toBeNull();
+      return match![1]!;
+    }
+
+    // The real WCAG 2.x relative luminance (sRGB linearization + Rec. 709
+    // coefficients). Unlike the cheap approximation in the dark-theme test
+    // above, this one is what the formal 4.5:1 AA ratio is defined over.
+    function relativeLuminance(hex: string): number {
+      const value = Number.parseInt(hex.slice(1), 16);
+      const channels = [(value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff].map((channel) => {
+        const srgb = channel / 255;
+        return srgb <= 0.03928 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
+    }
+
+    function contrast(foreground: string, background: string): number {
+      const a = relativeLuminance(foreground);
+      const b = relativeLuminance(background);
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    }
+
+    const cases: [string, string, number][] = [
+      [lightBlock, '--hf-color-text-danger', 6.0],
+      [lightBlock, '--hf-color-text-secondary', 4.5],
+      [lightBlock, '--hf-color-action-primary-text', 4.5],
+      [darkBlock, '--hf-color-text-danger', 4.5],
+      [darkBlock, '--hf-color-text-secondary', 4.5],
+      [darkBlock, '--hf-color-action-primary-text', 4.5],
+    ];
+
+    for (const [block, name, minimum] of cases) {
+      const foreground = hexOf(block, name);
+      const surface = hexOf(block, '--hf-color-surface');
+      const ratio = contrast(foreground, surface);
+      expect(
+        ratio,
+        `expected ${name} (${foreground}) on ${surface} to reach at least ${minimum}:1`,
+      ).toBeGreaterThanOrEqual(minimum);
+    }
+  });
+
   it('has no dangling --hf-color- references left unmapped after the rewrite', () => {
     const definedTokens = new Set(
       Array.from(tokens.matchAll(/(--hf-color-[a-zA-Z0-9-]+)\s*:/g)).map((match) => match[1]),

@@ -5,6 +5,7 @@ import type { Http2ServerRequest } from 'node:http2';
 import fastifyCookie from '@fastify/cookie';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyRateLimit from '@fastify/rate-limit';
+import { VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -38,14 +39,19 @@ export async function createApiApp(config: ApiConfig): Promise<NestFastifyApplic
   await app.register(fastifyHelmet);
   await app.register(fastifyRateLimit, { global: false });
 
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix('api');
+  app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
   app.enableCors({
     origin: config.webOrigin,
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
   });
   app.useGlobalFilters(
-    new ProblemDetailsFilter(createErrorReporter(config.errorReportingEndpoint)),
+    new ProblemDetailsFilter(
+      createErrorReporter(config.errorReportingEndpoint),
+      (fields) => logger.unhandledError(fields),
+      config.nodeEnv !== 'production',
+    ),
   );
   app.useGlobalGuards(new OriginGuard(config));
   registerObservabilityHooks(app.getHttpAdapter().getInstance(), app.get(MetricsRegistry), logger);

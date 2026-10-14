@@ -3,7 +3,9 @@ import { apiOrigin, apiPort, webBaseUrl, webOrigin } from './env';
 
 const testEnvironment = {
   NODE_ENV: 'test',
-  DATABASE_URL: 'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin',
+  DATABASE_URL:
+    process.env.DATABASE_URL ??
+    'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin',
   WEB_ORIGIN: webOrigin,
   WEB_BASE_URL: webBaseUrl,
   API_URL: apiOrigin,
@@ -17,6 +19,9 @@ const testEnvironment = {
 export default defineConfig({
   testDir: '.',
   testMatch: '*.spec.ts',
+  // Runs before the webServer entries: kill stale (unresponsive) dev-server
+  // listeners left by previous local runs so the fresh servers can bind.
+  globalSetup: './preflight',
   timeout: 60_000,
   // These specs run against a dev server, so the first visit to a route pays
   // for on-demand compilation — the analytics page, which pulls in echarts,

@@ -1,97 +1,67 @@
 <script setup lang="ts">
+import type { PlansCalendarTotals } from '../../composables/useEnvelopePlanV2.js';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 
 defineOptions({ name: 'PlanKpiRow' });
 
-defineProps<{
-  plannedIncomeMinor: string;
-  plannedExpenseMinor: string;
-  balanceMinor: string;
-  totalPlans: number;
-}>();
+defineProps<{ totals: PlansCalendarTotals }>();
 </script>
 
 <template>
-  <div class="plan-kpi-row">
-    <article class="plan-kpi-row__tile">
-      <p class="plan-kpi-row__label">Плановые доходы</p>
-      <FinanceMoney
-        class="plan-kpi-row__value plan-kpi-row__value--income"
-        :minor-units="plannedIncomeMinor"
-        currency="RUB"
-        :scale="2"
-      />
-    </article>
-    <article class="plan-kpi-row__tile">
-      <p class="plan-kpi-row__label">Плановые расходы</p>
-      <FinanceMoney
-        class="plan-kpi-row__value plan-kpi-row__value--expense"
-        :minor-units="`-${plannedExpenseMinor}`"
-        currency="RUB"
-        :scale="2"
-      />
-    </article>
-    <article class="plan-kpi-row__tile">
-      <p class="plan-kpi-row__label">Баланс</p>
-      <FinanceMoney
-        class="plan-kpi-row__value"
-        :minor-units="balanceMinor"
-        currency="RUB"
-        :scale="2"
-      />
-    </article>
-    <article class="plan-kpi-row__tile">
-      <p class="plan-kpi-row__label">Всего планов</p>
-      <span class="plan-kpi-row__value">{{ totalPlans }}</span>
-    </article>
-  </div>
+  <section class="kpi-row" aria-label="План месяца">
+    <div class="kpi-row__tile" data-testid="kpi-planned-income">
+      <p class="kpi-row__label">Плановые доходы</p>
+      <FinanceMoney :minor-units="totals.plannedIncomeMinor" currency="RUB" :scale="2" />
+      <p class="kpi-row__note">План месяца, не факт</p>
+    </div>
+    <div class="kpi-row__tile" data-testid="kpi-planned-expense">
+      <p class="kpi-row__label">Плановые расходы</p>
+      <FinanceMoney :minor-units="totals.plannedExpenseMinor" currency="RUB" :scale="2" />
+      <p class="kpi-row__note">План месяца, не факт</p>
+    </div>
+    <div class="kpi-row__tile" data-testid="kpi-balance">
+      <p class="kpi-row__label">Баланс</p>
+      <FinanceMoney :minor-units="totals.balanceMinor" currency="RUB" :scale="2" />
+      <p class="kpi-row__note">Плановые доходы минус расходы</p>
+    </div>
+    <div class="kpi-row__tile" data-testid="kpi-total-plans">
+      <p class="kpi-row__label">Всего планов</p>
+      <p class="kpi-row__count">{{ totals.activePlanCount }}</p>
+      <p class="kpi-row__note">Активные платежи и доходы</p>
+    </div>
+  </section>
 </template>
 
 <style scoped>
-.plan-kpi-row {
+.kpi-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--hf-space-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--hf-space-3);
 }
-.plan-kpi-row__tile {
+.kpi-row__tile {
   display: grid;
-  min-width: 0;
   gap: var(--hf-space-1);
-  padding: var(--hf-card-padding);
-  border-radius: var(--hf-card-radius);
+  padding: var(--hf-space-3) var(--hf-space-4);
+  border: 1px solid var(--hf-color-border);
+  border-radius: var(--hf-radius-lg);
   background: var(--hf-color-surface);
-  box-shadow: var(--hf-shadow-card);
+  box-shadow: var(--hf-shadow-sm);
 }
-.plan-kpi-row__label {
+.kpi-row__label,
+.kpi-row__note {
   margin: 0;
   color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-caption);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: var(--hf-font-size-small);
 }
-.plan-kpi-row__value {
-  min-width: 0;
-  font-size: 1.5rem;
+.kpi-row__count {
+  margin: 0;
+  font-size: var(--hf-font-size-body);
   font-weight: var(--hf-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
 }
-.plan-kpi-row__value--income {
-  color: var(--hf-color-status-success);
-}
-.plan-kpi-row__value--expense {
-  color: var(--hf-color-status-danger);
-}
-@media (max-width: 47.9375rem) {
-  .plan-kpi-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-/* Intl.NumberFormat('ru-RU') joins the thousands groups and the currency
-   symbol with non-breaking spaces, so a large value like "-36 000,00 ₽"
-   can't wrap — it needs a wide enough tile instead. Two tiles per row don't
-   leave room for that on a phone, so drop to one column below tablet width. */
-@media (max-width: 30rem) {
-  .plan-kpi-row {
-    grid-template-columns: 1fr;
+@media (min-width: 64rem) {
+  .kpi-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 </style>

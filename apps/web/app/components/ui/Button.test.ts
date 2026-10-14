@@ -126,4 +126,34 @@ describe('UiButton', () => {
 
     expect(wrapper.emitted('click')).toBeUndefined();
   });
+
+  it('keeps a caller aria-describedby when there is no tooltip', () => {
+    const wrapper = mount(UiButton, {
+      attrs: { 'aria-describedby': 'hint-id' },
+      slots: { default: 'Далее' },
+    });
+    expect(wrapper.get('button').attributes('aria-describedby')).toBe('hint-id');
+  });
+
+  it('merges the tooltip id with a caller aria-describedby', async () => {
+    const wrapper = mount(UiButton, {
+      props: { tooltip: 'Подсказка' },
+      attrs: { 'aria-describedby': 'hint-id' },
+      slots: { default: 'Далее' },
+    });
+    await wrapper.get('.ui-tooltip').trigger('focusin');
+    const tooltipId = wrapper.get('[role="tooltip"]').attributes('id');
+    expect(wrapper.get('button').attributes('aria-describedby')).toBe(`${tooltipId} hint-id`);
+  });
+
+  it('uses only the tooltip id when no caller aria-describedby is set', async () => {
+    const wrapper = mount(UiButton, {
+      props: { tooltip: 'Подсказка' },
+      slots: { default: 'Далее' },
+    });
+    await wrapper.get('.ui-tooltip').trigger('focusin');
+    expect(wrapper.get('button').attributes('aria-describedby')).toBe(
+      wrapper.get('[role="tooltip"]').attributes('id'),
+    );
+  });
 });

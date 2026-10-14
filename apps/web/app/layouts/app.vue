@@ -6,6 +6,7 @@ import AppHeader from '../components/app/AppHeader.vue';
 import AppMobileMenu from '../components/app/AppMobileMenu.vue';
 import AppOperationDialogs from '../components/app/AppOperationDialogs.vue';
 import AppSidebar from '../components/app/AppSidebar.vue';
+import FundingEntryHost from '../components/funding/FundingEntryHost.vue';
 import UiToastStack from '../components/ui/ToastStack.vue';
 
 defineOptions({ name: 'AppLayout' });
@@ -31,6 +32,7 @@ const mobileMenuOpen = ref(false);
     <AppMobileMenu :open="mobileMenuOpen" @close="mobileMenuOpen = false" />
     <AppBottomNav @more="mobileMenuOpen = true" />
     <AppOperationDialogs />
+    <FundingEntryHost />
     <UiToastStack />
   </div>
 </template>

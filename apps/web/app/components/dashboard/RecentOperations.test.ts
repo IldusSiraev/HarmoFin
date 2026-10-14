@@ -5,33 +5,30 @@ const mocks = vi.hoisted(() => ({ navigateTo: vi.fn() }));
 vi.mock('#imports', () => ({ navigateTo: mocks.navigateTo }));
 
 import RecentOperations from './RecentOperations.vue';
-import type { CategoryDto, TransactionDto } from '../../composables/useBudgetReferenceData.js';
+import type { CategoryDto } from '../../composables/useBudgetReferenceData.js';
+import type { TransactionJournalV2Item } from '../../composables/useEnvelopePlanV2.js';
 
-const transaction = (id: string): TransactionDto =>
-  ({
-    id,
-    budgetId: 'budget-id',
-    transactionType: 'EXPENSE',
-    status: 'CONFIRMED',
-    amountMinor: '245000',
-    currency: 'RUB',
-    scale: 2,
-    occurredOn: '2026-09-14',
-    accountId: 'account-id',
-    categoryId: 'category-id',
-    envelopeId: null,
-    sourceDescription: null,
-    merchantName: 'Супермаркет',
-    isPlanned: false,
-    comment: null,
-    confirmedAt: null,
-    cancelledAt: null,
-    deletedAt: null,
-    accountCurrentBalanceMinor: '0',
-    envelopeCurrentBalanceMinor: null,
-    unallocatedMinor: '0',
-    allocationProposal: null,
-  }) as TransactionDto;
+const transaction = (id: string): TransactionJournalV2Item => ({
+  id,
+  budgetId: 'budget-id',
+  accountingModelVersion: 2,
+  transactionType: 'EXPENSE',
+  status: 'CONFIRMED',
+  amountMinor: '245000',
+  currency: 'RUB',
+  occurredOn: '2026-09-14',
+  accountId: 'account-id',
+  categoryId: 'category-id',
+  envelopeId: null,
+  sourceDescription: null,
+  merchantName: 'Супермаркет',
+  comment: null,
+  planOccurrenceIds: [],
+  confirmedAt: null,
+  cancelledAt: null,
+  deletedAt: null,
+  createdAt: '2026-09-14T10:00:00.000Z',
+});
 
 const categories = [
   { id: 'category-id', name: 'Продукты', templateKey: 'expense-groceries' },

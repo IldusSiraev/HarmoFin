@@ -16,6 +16,7 @@ import {
   ApiCookieAuth,
   ApiCreatedResponse,
   ApiOkResponse,
+  ApiOperation,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -133,12 +134,35 @@ export class AccountController {
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   archive(
     @Param('budgetId') budgetId: string,
     @Param('accountId') accountId: string,
     @Req() request: AuthenticatedRequest,
   ) {
     return this.service.archive(contextOf(request).userId, budgetId, accountId, request.id);
+  }
+
+  @Post('budgets/:budgetId/accounts/:accountId/restore')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiOperation({
+    summary: 'Восстановление архивированного счёта',
+    description:
+      'Возвращает архивированный счёт в активное состояние. Доступно только в модели плана v2; ' +
+      'счёт должен быть в архиве. Остаток на счёте при восстановлении не проверяется.',
+  })
+  @ApiOkResponse({ type: AccountResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  restore(
+    @Param('budgetId') budgetId: string,
+    @Param('accountId') accountId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.restore(contextOf(request).userId, budgetId, accountId, request.id);
   }
 }
 

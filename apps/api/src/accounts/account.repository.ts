@@ -44,6 +44,14 @@ export interface AccountUpdateData {
   comment?: string | null;
 }
 
+// Optional hooks the application service hooks into the repository transaction:
+// before runs under the budget lock before the mutation, after runs immediately
+// after the mutation, both inside the same transaction.
+export interface AccountMutationGuard {
+  before?: (tx: Prisma.TransactionClient) => Promise<void> | void;
+  after?: (tx: Prisma.TransactionClient) => Promise<void> | void;
+}
+
 export class AccountRepository {
   constructor(
     private readonly prisma: PrismaService,
@@ -57,6 +65,8 @@ export class AccountRepository {
         id: true,
         workspaceId: true,
         allowNegativeBalance: true,
+        timezone: true,
+        planModelVersion: true,
         workspace: {
           select: {
             memberships: { where: { userId, isActive: true }, select: { role: true }, take: 1 },
@@ -99,18 +109,22 @@ export class AccountRepository {
     userId: string,
     input: AccountCreateData,
     requestId?: string,
+    guard?: AccountMutationGuard,
   ): Promise<AccountRecord | null> {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const budget = await tx.budget.findFirst({
           where: activeOwnerBudgetWhere(userId, input.budgetId),
-          select: { workspaceId: true },
+          select: { workspaceId: true, planModelVersion: true },
         });
         if (!budget) return null;
+        if (budget.planModelVersion === 2) await lockBudget(tx, input.budgetId);
+        await guard?.before?.(tx);
         const account = await tx.account.create({
           data: { id: createUuidV7(), ...input },
           select: accountSelect,
         });
+        await guard?.after?.(tx);
         await tx.auditEvent.create({
           data: {
             id: createUuidV7(),
@@ -138,6 +152,7 @@ export class AccountRepository {
     accountId: string,
     input: AccountUpdateData,
     requestId?: string,
+    guard?: AccountMutationGuard,
   ): Promise<AccountRecord | null> {
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -153,13 +168,16 @@ export class AccountRepository {
         if (!current) return null;
         const budget = await tx.budget.findUniqueOrThrow({
           where: { id: budgetId },
-          select: { workspaceId: true },
+          select: { workspaceId: true, planModelVersion: true },
         });
+        if (budget.planModelVersion === 2) await lockBudget(tx, budgetId);
+        await guard?.before?.(tx);
         const account = await tx.account.update({
           where: { id: accountId },
           data: input,
           select: accountSelect,
         });
+        await guard?.after?.(tx);
         await tx.auditEvent.create({
           data: {
             id: createUuidV7(),
@@ -187,6 +205,7 @@ export class AccountRepository {
     budgetId: string,
     accountId: string,
     requestId?: string,
+    guard?: AccountMutationGuard,
   ): Promise<AccountRecord | null> {
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.account.findFirst({
@@ -195,14 +214,18 @@ export class AccountRepository {
       });
       if (!current) return null;
       if (current.archivedAt) return this.withCurrentBalance(tx, current);
+      const budget = await tx.budget.findUniqueOrThrow({
+        where: { id: budgetId },
+        select: { workspaceId: true, planModelVersion: true },
+      });
+      if (budget.planModelVersion === 2) {
+        await lockBudget(tx, budgetId);
+        await guard?.before?.(tx);
+      }
       const account = await tx.account.update({
         where: { id: accountId },
         data: { archivedAt: new Date() },
         select: accountSelect,
-      });
-      const budget = await tx.budget.findUniqueOrThrow({
-        where: { id: budgetId },
-        select: { workspaceId: true },
       });
       await tx.auditEvent.create({
         data: {
@@ -213,6 +236,52 @@ export class AccountRepository {
           entityType: 'account',
           entityId: account.id,
           action: 'ARCHIVED',
+          source: 'API',
+          requestId: requestId ?? null,
+          oldValues: auditValues(current),
+          newValues: auditValues(account),
+        },
+      });
+      return this.withCurrentBalance(tx, account);
+    });
+  }
+
+  async restore(
+    userId: string,
+    budgetId: string,
+    accountId: string,
+    requestId?: string,
+  ): Promise<AccountRecord | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.account.findFirst({
+        where: {
+          id: accountId,
+          budgetId,
+          archivedAt: { not: null },
+          budget: activeOwnerBudgetWhere(userId, budgetId),
+        },
+        select: accountSelect,
+      });
+      if (!current) return null;
+      const budget = await tx.budget.findUniqueOrThrow({
+        where: { id: budgetId },
+        select: { workspaceId: true, planModelVersion: true },
+      });
+      if (budget.planModelVersion === 2) await lockBudget(tx, budgetId);
+      const account = await tx.account.update({
+        where: { id: accountId },
+        data: { archivedAt: null },
+        select: accountSelect,
+      });
+      await tx.auditEvent.create({
+        data: {
+          id: createUuidV7(),
+          actorUserId: userId,
+          workspaceId: budget.workspaceId,
+          budgetId,
+          entityType: 'account',
+          entityId: account.id,
+          action: 'RESTORED',
           source: 'API',
           requestId: requestId ?? null,
           oldValues: auditValues(current),
@@ -239,6 +308,12 @@ export class AccountRepository {
       currentBalanceMinor: await this.balances.accountBalance(tx, account.budgetId, account.id),
     };
   }
+}
+
+async function lockBudget(tx: Prisma.TransactionClient, budgetId: string): Promise<void> {
+  await tx.$queryRaw<{ id: string }[]>`
+    SELECT "id" FROM "budgets" WHERE "id" = ${budgetId}::uuid FOR UPDATE
+  `;
 }
 
 function activeBudgetWhere(userId: string, budgetId: string) {

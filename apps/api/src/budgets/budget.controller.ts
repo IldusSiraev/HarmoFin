@@ -1,15 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  Inject,
-  Param,
-  Patch,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Post, Req, UseGuards } from '@nestjs/common';
 import {
   ApiBody,
   ApiCookieAuth,
@@ -26,18 +15,8 @@ import type { RequestContext } from '../common/request-context/request-context.j
 import { CsrfGuard } from '../common/security/csrf.guard.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import { BudgetApplicationService } from './budget.application.service.js';
-import {
-  BudgetDetailResponse,
-  CreateBudgetRequest,
-  ReferenceTemplateResponse,
-  UpdateBudgetRequest,
-} from './budget.dto.js';
-import {
-  createBudgetSchema,
-  type CreateBudgetInput,
-  type UpdateBudgetInput,
-  updateBudgetSchema,
-} from './budget.schemas.js';
+import { BudgetDetailResponse, CreateBudgetRequest } from './budget.dto.js';
+import { createBudgetSchema, type CreateBudgetInput } from './budget.schemas.js';
 
 type AuthenticatedRequest = FastifyRequest & { authContext?: RequestContext };
 
@@ -83,40 +62,6 @@ export class BudgetController {
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   get(@Param('budgetId') budgetId: string, @Req() request: AuthenticatedRequest) {
     return this.service.get(contextOf(request).userId, budgetId);
-  }
-
-  @Patch('budgets/:budgetId')
-  @UseGuards(CsrfGuard)
-  @ApiBody({ type: UpdateBudgetRequest })
-  @ApiOkResponse({ type: BudgetDetailResponse })
-  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
-  update(
-    @Param('budgetId') budgetId: string,
-    @Body(new ZodValidationPipe(updateBudgetSchema)) input: UpdateBudgetInput,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.service.update(contextOf(request).userId, budgetId, input, request.id);
-  }
-
-  @Post('budgets/:budgetId/reference-template')
-  @HttpCode(200)
-  @UseGuards(CsrfGuard)
-  @ApiOkResponse({ type: ReferenceTemplateResponse })
-  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
-  initializeReferenceTemplate(
-    @Param('budgetId') budgetId: string,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.service.initializeReferenceTemplate(
-      contextOf(request).userId,
-      budgetId,
-      request.id,
-    );
   }
 }
 

@@ -1,5 +1,11 @@
+<script lang="ts">
+// Open modals, last one on top: only the top modal reacts to the keyboard and
+// the page scroll lock is released when the last one closes.
+const openModals: symbol[] = [];
+</script>
+
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, watch } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 defineOptions({ name: 'UiModal' });
 
@@ -22,17 +28,72 @@ function handleBackdropClick(event: MouseEvent) {
   }
 }
 
+const dialog = ref<HTMLElement | null>(null);
+let previouslyFocused: HTMLElement | null = null;
+
+function focusable(): HTMLElement[] {
+  if (!dialog.value) return [];
+  return [
+    ...dialog.value.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    ),
+  ].filter((element) => !element.hasAttribute('disabled'));
+}
+
+const self = Symbol('modal');
+
+function ownsKeyboard(event: KeyboardEvent): boolean {
+  if (event.defaultPrevented) return false;
+  if (openModals[openModals.length - 1] !== self) return false;
+  // A native dialog (e.g. a confirmation) stacked on top owns the keys.
+  return document.querySelector('dialog[open]') === null;
+}
+
 function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') handleClose();
+  if (!ownsKeyboard(event)) return;
+  if (event.key === 'Escape') {
+    handleClose();
+    return;
+  }
+  if (event.key !== 'Tab') return;
+  const items = focusable();
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (first === undefined || last === undefined) {
+    event.preventDefault();
+    dialog.value?.focus();
+    return;
+  }
+  const active = document.activeElement;
+  const inside = dialog.value?.contains(active) ?? false;
+  if (event.shiftKey && (active === first || active === dialog.value || !inside)) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && (active === last || !inside)) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function release() {
+  const index = openModals.indexOf(self);
+  if (index !== -1) openModals.splice(index, 1);
+  document.removeEventListener('keydown', handleKeydown);
+  if (openModals.length === 0) document.body.style.overflow = '';
 }
 
 function syncModalState(isOpen: boolean) {
   if (isOpen) {
+    previouslyFocused = document.activeElement as HTMLElement | null;
+    if (!openModals.includes(self)) openModals.push(self);
     document.body.style.overflow = 'hidden';
     document.addEventListener('keydown', handleKeydown);
+    // Focus lands on the dialog itself so a long body is not skipped over.
+    void nextTick(() => dialog.value?.focus());
   } else {
-    document.body.style.overflow = '';
-    document.removeEventListener('keydown', handleKeydown);
+    release();
+    if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    previouslyFocused = null;
   }
 }
 
@@ -42,17 +103,21 @@ onMounted(() => {
 
 watch(() => props.open, syncModalState);
 
-onBeforeUnmount(() => {
-  document.removeEventListener('keydown', handleKeydown);
-  document.body.style.overflow = '';
-});
+onBeforeUnmount(release);
 </script>
 
 <template>
   <Teleport to="body">
     <Transition name="modal">
       <div v-if="open" class="modal-backdrop" @click="handleBackdropClick">
-        <div class="modal" role="dialog" :aria-label="title" aria-modal="true">
+        <div
+          ref="dialog"
+          class="modal"
+          role="dialog"
+          :aria-label="title"
+          aria-modal="true"
+          tabindex="-1"
+        >
           <div class="modal__header">
             <slot name="header">
               <h2 class="modal__title">{{ title }}</h2>
@@ -71,7 +136,7 @@ onBeforeUnmount(() => {
           <div class="modal__content">
             <slot />
           </div>
-          <div class="modal__footer"><slot name="footer" /></div>
+          <div v-if="$slots['footer']" class="modal__footer"><slot name="footer" /></div>
         </div>
       </div>
     </Transition>
@@ -95,6 +160,8 @@ onBeforeUnmount(() => {
   width: 100%;
   max-width: 40rem;
   max-height: 90vh;
+  display: flex;
+  flex-direction: column;
   border-radius: var(--hf-card-radius);
   background: var(--hf-color-surface);
   box-shadow:
@@ -107,6 +174,7 @@ onBeforeUnmount(() => {
   .modal {
     max-width: none;
     max-height: 100vh;
+    max-height: 100dvh;
     border-radius: 0;
   }
 
@@ -115,8 +183,13 @@ onBeforeUnmount(() => {
   }
 }
 
+.modal:focus {
+  outline: none;
+}
+
 .modal__header {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: var(--hf-space-4);
@@ -157,21 +230,19 @@ onBeforeUnmount(() => {
 
 .modal__content {
   padding: var(--hf-space-6);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
-  max-height: calc(90vh - 5rem);
-}
-
-@media (max-width: 767px) {
-  .modal__content {
-    max-height: calc(100vh - 5rem);
-  }
 }
 
 .modal__footer {
   display: flex;
+  flex: none;
   justify-content: flex-end;
   gap: var(--hf-space-2);
-  padding-top: var(--hf-space-3);
+  padding: var(--hf-space-3) var(--hf-space-6);
+  border-top: 1px solid var(--hf-color-border);
+  background: var(--hf-color-surface);
 }
 
 .modal-enter-active,

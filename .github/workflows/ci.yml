@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NODE_ENV: test
-      DATABASE_URL: postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin
+      DATABASE_URL: postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin_v22_test
       WEB_ORIGIN: http://localhost:3000
       WEB_BASE_URL: http://localhost:3000
       API_URL: http://localhost:3001
@@ -28,13 +28,13 @@ jobs:
       postgres:
         image: postgres:18-alpine
         env:
-          POSTGRES_DB: harmofin
+          POSTGRES_DB: harmofin_v22_test
           POSTGRES_USER: harmofin_local
           POSTGRES_PASSWORD: harmofin_local
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U harmofin_local -d harmofin"
+          --health-cmd "pg_isready -U harmofin_local -d harmofin_v22_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12

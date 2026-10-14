@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
+import { DEFAULT_CATEGORIES } from '../src/v2-template/default-categories.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ?? 'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin';
@@ -26,23 +27,7 @@ let ownerWorkspaceId: string;
 let ownerBudgetId: string;
 let otherBudgetId: string;
 
-const incomeKeys = [
-  'income-salary',
-  'income-advance',
-  'income-bonus',
-  'income-cashback',
-  'income-deposit-interest',
-];
-const envelopeKeys = [
-  'envelope-current-10-24',
-  'envelope-current-25-9',
-  'envelope-mandatory',
-  'envelope-vacation',
-  'envelope-car',
-  'envelope-free',
-];
-
-describe('reference template API', () => {
+describe('reference data API', () => {
   beforeAll(async () => {
     app = await createApiApp(
       loadApiConfig({
@@ -68,6 +53,7 @@ describe('reference template API', () => {
     ownerBudgetId = owner.budget.id;
     ownerCookie = owner.cookie;
     ownerCsrf = owner.csrfToken;
+    await seedDefaultCategories(ownerBudgetId);
     const other = await register(otherEmail);
     otherId = other.user.id;
     otherBudgetId = other.budget.id;
@@ -91,11 +77,6 @@ describe('reference template API', () => {
     });
     expect(document.components.schemas.ProblemDetailsResponse).toBeDefined();
 
-    const template = operation(document, '/api/v1/budgets/{budgetId}/reference-template', 'post');
-    expectAuthenticated(template);
-    expectResponseSchema(template, '200', reference('ReferenceTemplateResponse'));
-    expectProblemDetails(template, ['401', '403', '404']);
-
     for (const resource of [
       {
         collectionPath: '/api/v1/budgets/{budgetId}/accounts',
@@ -103,7 +84,7 @@ describe('reference template API', () => {
         response: 'AccountResponse',
         create: 'CreateAccountRequest',
         update: 'UpdateAccountRequest',
-        archiveErrors: ['401', '403', '404'],
+        archiveErrors: ['401', '403', '404', '409'],
       },
       {
         collectionPath: '/api/v1/budgets/{budgetId}/categories',
@@ -112,14 +93,6 @@ describe('reference template API', () => {
         create: 'CreateCategoryRequest',
         update: 'UpdateCategoryRequest',
         archiveErrors: ['400', '401', '403', '404'],
-      },
-      {
-        collectionPath: '/api/v1/budgets/{budgetId}/envelopes',
-        itemPath: '/api/v1/budgets/{budgetId}/envelopes/{envelopeId}',
-        response: 'EnvelopeResponse',
-        create: 'CreateEnvelopeRequest',
-        update: 'UpdateEnvelopeRequest',
-        archiveErrors: ['401', '403', '404'],
       },
     ] as const) {
       const list = operation(document, resource.collectionPath, 'get');
@@ -149,43 +122,15 @@ describe('reference template API', () => {
       expectResponseSchema(archive, '200', reference(resource.response));
       expectProblemDetails(archive, resource.archiveErrors);
     }
-  });
 
-  it('creates exact defaults and a safe template audit event', async () => {
-    const response = await initializeTemplate(ownerBudgetId, ownerCookie, ownerCsrf);
-
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({
-      createdCategoryKeys: expect.arrayContaining(incomeKeys),
-      createdEnvelopeKeys: expect.arrayContaining(envelopeKeys),
-      existingCategoryKeys: [],
-      existingEnvelopeKeys: [],
-    });
-    expect(
-      await prisma.category.findMany({
-        where: { budgetId: ownerBudgetId },
-        orderBy: { displayOrder: 'asc' },
-      }),
-    ).toHaveLength(58);
-    expect(
-      await prisma.category.findFirst({
-        where: { budgetId: ownerBudgetId, name: 'Кэшбэк', categoryType: 'INCOME' },
-      }),
-    ).not.toBeNull();
-    expect(
-      await prisma.category.findFirst({
-        where: { budgetId: ownerBudgetId, name: 'Проценты по вкладам', categoryType: 'INCOME' },
-      }),
-    ).not.toBeNull();
-    expect(await prisma.envelope.count({ where: { budgetId: ownerBudgetId } })).toBe(6);
-    const audit = await prisma.auditEvent.findFirst({
-      where: { budgetId: ownerBudgetId, action: 'REFERENCE_TEMPLATE_INITIALIZED' },
-      orderBy: { createdAt: 'desc' },
-    });
-    expect(audit?.newValues).toMatchObject({
-      createdCategoryKeys: expect.arrayContaining(['income-cashback']),
-    });
-    expect(JSON.stringify(audit?.newValues)).not.toContain('comment');
+    const restore = operation(
+      document,
+      '/api/v1/budgets/{budgetId}/accounts/{accountId}/restore',
+      'post',
+    );
+    expectAuthenticated(restore);
+    expectResponseSchema(restore, '200', reference('AccountResponse'));
+    expectProblemDetails(restore, ['401', '403', '404', '409']);
   });
 
   it('assigns an icon to every default leaf category and none to groups', async () => {
@@ -269,20 +214,16 @@ describe('reference template API', () => {
     expect(noOrigin.json()).toMatchObject({ code: 'ORIGIN_REQUIRED' });
     expect(missingCsrf.json()).toMatchObject({ code: 'CSRF_INVALID' });
 
-    const settings = await server.inject({
-      method: 'PATCH',
-      url: `/api/v1/budgets/${ownerBudgetId}`,
-      headers: { origin, 'x-csrf-token': ownerCsrf },
-      cookies: { harmofin_session: ownerCookie },
-      payload: { allowNegativeBalance: true },
+    await prisma.budget.update({
+      where: { id: ownerBudgetId },
+      data: { allowNegativeBalance: true },
     });
-    expect(settings.statusCode).toBe(200);
 
-    const updated = await updateAccount(account.id, { startingBalance: '-1.00' });
+    const updated = await updateAccount(account.id, { startingBalance: '1.00' });
     expect(updated.statusCode).toBe(200);
     expect(updated.json()).toMatchObject({
-      startingBalanceMinor: '-100',
-      currentBalanceMinor: '-100',
+      startingBalanceMinor: '100',
+      currentBalanceMinor: '100',
     });
 
     const editorRole = await prisma.workspaceMembership.updateMany({
@@ -311,6 +252,8 @@ describe('reference template API', () => {
     expect(foreign.statusCode).toBe(404);
     expect(foreignList.statusCode).toBe(404);
 
+    // Archiving a non-zero account is refused for model 2 budgets, so empty it first.
+    await prisma.account.update({ where: { id: account.id }, data: { startingBalanceMinor: 0n } });
     const archived = await archiveAccount(account.id);
     const archivedAgain = await archiveAccount(account.id);
     expect(archived.statusCode).toBe(200);
@@ -645,289 +588,6 @@ describe('reference template API', () => {
     expect(rename.statusCode).toBe(200);
   });
 
-  it('creates, updates, archives and scopes envelopes', async () => {
-    const defaults = await listEnvelopes('active');
-    expect(defaults.statusCode).toBe(200);
-    expect(defaults.json()).toHaveLength(6);
-
-    const negativePlanned = await createEnvelope({ monthlyPlannedAmount: '-0.01' });
-    const negativeTarget = await createEnvelope({ targetAmount: '-0.01' });
-    const dateWithoutTarget = await createEnvelope({ targetDate: '2027-01-01' });
-    expect(negativePlanned.statusCode).toBe(400);
-    expect(negativePlanned.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
-    expect(negativeTarget.statusCode).toBe(400);
-    expect(dateWithoutTarget.statusCode).toBe(400);
-    expect(dateWithoutTarget.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
-
-    const types = [
-      'CURRENT_EXPENSES',
-      'MANDATORY_EXPENSES',
-      'SAVINGS_GOAL',
-      'RESERVE',
-      'FREE_MONEY',
-      'CUSTOM',
-    ];
-    const created = await Promise.all(
-      types.map((envelopeType, index) =>
-        createEnvelope({
-          name: `Конверт API ${envelopeType}`,
-          envelopeType,
-          startingBalance: index === 0 ? '-90071992547409.93' : '0.01',
-          monthlyPlannedAmount: index === 0 ? '500.50' : null,
-          targetAmount: index === 0 ? '1000.00' : null,
-          targetDate: index === 0 ? '2027-01-01' : null,
-          displayOrder: 100 + index,
-        }),
-      ),
-    );
-    for (const response of created) expect(response.statusCode).toBe(201);
-
-    const envelope = created[0]!.json<{
-      id: string;
-      startingBalanceMinor: string;
-      currentBalanceMinor: string;
-      monthlyPlannedAmountMinor: string | null;
-      targetAmountMinor: string | null;
-      targetDate: string | null;
-    }>();
-    expect(envelope).toMatchObject({
-      startingBalanceMinor: '-9007199254740993',
-      currentBalanceMinor: '-9007199254740993',
-      monthlyPlannedAmountMinor: '50050',
-      targetAmountMinor: '100000',
-      targetDate: '2027-01-01',
-    });
-    expect((await getEnvelope(envelope.id)).statusCode).toBe(200);
-    expect((await listEnvelopes('active')).json()).toEqual(
-      expect.arrayContaining(
-        types.map((envelopeType) => expect.objectContaining({ envelopeType })),
-      ),
-    );
-
-    const duplicate = await createEnvelope({
-      name: 'Конверт API CURRENT_EXPENSES',
-      envelopeType: 'CUSTOM',
-    });
-    expect(duplicate.statusCode).toBe(409);
-    expect(duplicate.json()).toMatchObject({ code: 'REFERENCE_NAME_CONFLICT' });
-
-    const targetDateRemoved = await updateEnvelope(envelope.id, { targetDate: null });
-    expect(targetDateRemoved.statusCode).toBe(200);
-    expect(targetDateRemoved.json()).toMatchObject({
-      targetAmountMinor: '100000',
-      targetDate: null,
-    });
-    const targetDateRestored = await updateEnvelope(envelope.id, { targetDate: '2028-01-01' });
-    expect(targetDateRestored.statusCode).toBe(200);
-    const targetAmountRemovedTooSoon = await updateEnvelope(envelope.id, { targetAmount: null });
-    expect(targetAmountRemovedTooSoon.statusCode).toBe(400);
-    expect(targetAmountRemovedTooSoon.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
-    const targetDateRemovedAgain = await updateEnvelope(envelope.id, { targetDate: null });
-    expect(targetDateRemovedAgain.statusCode).toBe(200);
-    const targetAmountRemoved = await updateEnvelope(envelope.id, { targetAmount: null });
-    expect(targetAmountRemoved.statusCode).toBe(200);
-    expect(targetAmountRemoved.json()).toMatchObject({ targetAmountMinor: null, targetDate: null });
-
-    const noOrigin = await server.inject({
-      method: 'PATCH',
-      url: `/api/v1/budgets/${ownerBudgetId}/envelopes/${envelope.id}`,
-      cookies: { harmofin_session: ownerCookie },
-      payload: { displayOrder: 200 },
-    });
-    const missingCsrf = await server.inject({
-      method: 'PATCH',
-      url: `/api/v1/budgets/${ownerBudgetId}/envelopes/${envelope.id}`,
-      headers: { origin },
-      cookies: { harmofin_session: ownerCookie },
-      payload: { displayOrder: 200 },
-    });
-    expect(noOrigin.json()).toMatchObject({ code: 'ORIGIN_REQUIRED' });
-    expect(missingCsrf.json()).toMatchObject({ code: 'CSRF_INVALID' });
-
-    const foreignEnvelope = await prisma.envelope.create({
-      data: {
-        id: randomUUID(),
-        budgetId: otherBudgetId,
-        name: 'Чужой конверт API',
-        envelopeType: 'CUSTOM',
-        startingBalanceMinor: 0n,
-        displayOrder: 0,
-      },
-    });
-    const foreignId = await getEnvelope(foreignEnvelope.id);
-    const other = await login(otherEmail);
-    const foreignBudget = await server.inject({
-      method: 'GET',
-      url: `/api/v1/budgets/${ownerBudgetId}/envelopes/${envelope.id}`,
-      cookies: { harmofin_session: other.cookie },
-    });
-    const foreignList = await server.inject({
-      method: 'GET',
-      url: `/api/v1/budgets/${ownerBudgetId}/envelopes`,
-      cookies: { harmofin_session: other.cookie },
-    });
-    expect(foreignId.statusCode).toBe(404);
-    expect(foreignBudget.statusCode).toBe(404);
-    expect(foreignList.statusCode).toBe(404);
-
-    const editorRole = await prisma.workspaceMembership.updateMany({
-      where: { userId: ownerId, workspaceId: ownerWorkspaceId },
-      data: { role: 'EDITOR' },
-    });
-    expect(editorRole.count).toBe(1);
-    const editorResponse = await createEnvelope({ name: 'Недоступный конверт API' });
-    await prisma.workspaceMembership.updateMany({
-      where: { userId: ownerId, workspaceId: ownerWorkspaceId },
-      data: { role: 'OWNER' },
-    });
-    expect(editorResponse.statusCode).toBe(403);
-
-    const viewerRole = await prisma.workspaceMembership.updateMany({
-      where: { userId: ownerId, workspaceId: ownerWorkspaceId },
-      data: { role: 'VIEWER' },
-    });
-    expect(viewerRole.count).toBe(1);
-    const viewerResponse = await createEnvelope({ name: 'Конверт только для просмотра API' });
-    await prisma.workspaceMembership.updateMany({
-      where: { userId: ownerId, workspaceId: ownerWorkspaceId },
-      data: { role: 'OWNER' },
-    });
-    expect(viewerResponse.statusCode).toBe(403);
-
-    const archived = await archiveEnvelope(envelope.id);
-    const archivedAgain = await archiveEnvelope(envelope.id);
-    expect(archived.statusCode).toBe(200);
-    expect(archivedAgain.statusCode).toBe(200);
-    expect((await listEnvelopes('archived')).json()).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: envelope.id })]),
-    );
-    expect((await listEnvelopes('all')).json()).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: envelope.id })]),
-    );
-    expect(
-      await prisma.auditEvent.count({
-        where: {
-          budgetId: ownerBudgetId,
-          entityType: 'envelope',
-          entityId: envelope.id,
-          action: 'ARCHIVED',
-        },
-      }),
-    ).toBe(1);
-
-    const audit = await prisma.auditEvent.findFirstOrThrow({
-      where: { budgetId: ownerBudgetId, entityType: 'envelope', entityId: envelope.id },
-      orderBy: { createdAt: 'desc' },
-    });
-    expect(JSON.stringify(audit.oldValues)).not.toContain('comment');
-    expect(JSON.stringify(audit.newValues)).not.toContain('comment');
-    expect(JSON.stringify(audit.newValues)).not.toContain('currentBalanceMinor');
-
-    const reused = await createEnvelope({
-      name: 'Конверт API CURRENT_EXPENSES',
-      envelopeType: 'CURRENT_EXPENSES',
-    });
-    expect(reused.statusCode).toBe(201);
-  });
-
-  it('never duplicates or resurrects manually archived defaults', async () => {
-    const vacation = await prisma.envelope.findFirstOrThrow({
-      where: { budgetId: ownerBudgetId, templateKey: 'envelope-vacation' },
-    });
-    await prisma.envelope.update({ where: { id: vacation.id }, data: { archivedAt: new Date() } });
-
-    const response = await initializeTemplate(ownerBudgetId, ownerCookie, ownerCsrf);
-
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({
-      createdCategoryKeys: [],
-      existingCategoryKeys: expect.arrayContaining(incomeKeys),
-      createdEnvelopeKeys: [],
-      existingEnvelopeKeys: expect.arrayContaining(envelopeKeys),
-    });
-    expect(
-      await prisma.envelope.count({
-        where: { budgetId: ownerBudgetId, templateKey: 'envelope-vacation' },
-      }),
-    ).toBe(1);
-    expect(
-      (await prisma.envelope.findUniqueOrThrow({ where: { id: vacation.id } })).archivedAt,
-    ).not.toBeNull();
-  });
-
-  it('returns 403 for an accessible non-owner and 404 for another budget', async () => {
-    await prisma.workspaceMembership.updateMany({
-      where: { userId: ownerId, workspaceId: ownerWorkspaceId },
-      data: { role: 'EDITOR' },
-    });
-    const editorResponse = await initializeTemplate(ownerBudgetId, ownerCookie, ownerCsrf);
-    await prisma.workspaceMembership.updateMany({
-      where: { userId: ownerId, workspaceId: ownerWorkspaceId },
-      data: { role: 'OWNER' },
-    });
-    const other = await login(otherEmail);
-    const foreignResponse = await initializeTemplate(ownerBudgetId, other.cookie, other.csrfToken);
-
-    expect(editorResponse.statusCode).toBe(403);
-    expect(editorResponse.json()).toMatchObject({ code: 'FORBIDDEN' });
-    expect(foreignResponse.statusCode).toBe(404);
-    expect(foreignResponse.json()).toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
-  });
-
-  it('adopts a pre-existing category or envelope with a default name instead of duplicating it', async () => {
-    // The database enforces case-insensitive name uniqueness per budget, so a default whose
-    // name the user (or an older template revision) already used must reuse that row rather
-    // than fail the whole transaction.
-    const conflictBudget = await prisma.budget.create({
-      data: { id: randomUUID(), workspaceId: ownerWorkspaceId, name: `Конфликт ${randomUUID()}` },
-    });
-    const preexistingCategory = await prisma.category.create({
-      data: {
-        id: randomUUID(),
-        budgetId: conflictBudget.id,
-        name: 'Зарплата',
-        categoryType: 'INCOME',
-        displayOrder: 0,
-      },
-    });
-    const preexistingEnvelope = await prisma.envelope.create({
-      data: {
-        id: randomUUID(),
-        budgetId: conflictBudget.id,
-        name: 'Отпуск',
-        envelopeType: 'SAVINGS_GOAL',
-        startingBalanceMinor: 0n,
-        displayOrder: 0,
-      },
-    });
-
-    const response = await initializeTemplate(conflictBudget.id, ownerCookie, ownerCsrf);
-
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({
-      createdCategoryKeys: expect.not.arrayContaining(['income-group-salary']),
-      existingCategoryKeys: expect.arrayContaining(['income-group-salary']),
-      createdEnvelopeKeys: expect.not.arrayContaining(['envelope-vacation']),
-      existingEnvelopeKeys: expect.arrayContaining(['envelope-vacation']),
-    });
-    expect(
-      await prisma.category.count({ where: { budgetId: conflictBudget.id, name: 'Зарплата' } }),
-    ).toBe(1);
-    expect(
-      await prisma.category.findUniqueOrThrow({ where: { id: preexistingCategory.id } }),
-    ).toMatchObject({ templateKey: 'income-group-salary' });
-    expect(
-      await prisma.envelope.count({ where: { budgetId: conflictBudget.id, name: 'Отпуск' } }),
-    ).toBe(1);
-    expect(
-      await prisma.envelope.findUniqueOrThrow({ where: { id: preexistingEnvelope.id } }),
-    ).toMatchObject({ templateKey: 'envelope-vacation' });
-    const advance = await prisma.category.findFirstOrThrow({
-      where: { budgetId: conflictBudget.id, templateKey: 'income-advance' },
-    });
-    expect(advance.parentId).toBe(preexistingCategory.id);
-  });
-
   it('persists an icon value directly on the category row', async () => {
     const created = await prisma.category.create({
       data: {
@@ -1129,66 +789,26 @@ async function archiveAccount(accountId: string) {
   });
 }
 
-async function createEnvelope(overrides: Record<string, unknown> = {}) {
-  return server.inject({
-    method: 'POST',
-    url: `/api/v1/budgets/${ownerBudgetId}/envelopes`,
-    headers: { origin, 'x-csrf-token': ownerCsrf },
-    cookies: { harmofin_session: ownerCookie },
-    payload: {
-      name: 'Конверт API',
-      envelopeType: 'CUSTOM',
-      currency: 'RUB',
-      startingBalance: '0.00',
-      displayOrder: 0,
-      comment: 'Личный комментарий',
-      ...overrides,
-    },
-  });
-}
-
-async function listEnvelopes(status: 'active' | 'archived' | 'all') {
-  return server.inject({
-    method: 'GET',
-    url: `/api/v1/budgets/${ownerBudgetId}/envelopes?status=${status}`,
-    cookies: { harmofin_session: ownerCookie },
-  });
-}
-
-async function getEnvelope(envelopeId: string) {
-  return server.inject({
-    method: 'GET',
-    url: `/api/v1/budgets/${ownerBudgetId}/envelopes/${envelopeId}`,
-    cookies: { harmofin_session: ownerCookie },
-  });
-}
-
-async function updateEnvelope(envelopeId: string, payload: Record<string, unknown>) {
-  return server.inject({
-    method: 'PATCH',
-    url: `/api/v1/budgets/${ownerBudgetId}/envelopes/${envelopeId}`,
-    headers: { origin, 'x-csrf-token': ownerCsrf },
-    cookies: { harmofin_session: ownerCookie },
-    payload,
-  });
-}
-
-async function archiveEnvelope(envelopeId: string) {
-  return server.inject({
-    method: 'POST',
-    url: `/api/v1/budgets/${ownerBudgetId}/envelopes/${envelopeId}/archive`,
-    headers: { origin, 'x-csrf-token': ownerCsrf },
-    cookies: { harmofin_session: ownerCookie },
-  });
-}
-
-async function initializeTemplate(budgetId: string, cookie: string, csrfToken: string) {
-  return server.inject({
-    method: 'POST',
-    url: `/api/v1/budgets/${budgetId}/reference-template`,
-    headers: { origin, 'x-csrf-token': csrfToken },
-    cookies: { harmofin_session: cookie },
-  });
+/** Test fixture: the default category tree the removed v1 template endpoint used to create. */
+async function seedDefaultCategories(budgetId: string): Promise<void> {
+  const ids = new Map<string, string>();
+  for (const category of DEFAULT_CATEGORIES) {
+    const id = randomUUID();
+    ids.set(category.templateKey, id);
+    await prisma.category.create({
+      data: {
+        id,
+        budgetId,
+        name: category.name,
+        categoryType: category.categoryType,
+        templateKey: category.templateKey,
+        parentId: category.parentTemplateKey ? ids.get(category.parentTemplateKey)! : null,
+        comment: category.comment,
+        icon: category.icon,
+        displayOrder: category.displayOrder,
+      },
+    });
+  }
 }
 
 async function register(email: string) {

@@ -14,6 +14,7 @@ interface ApplicationErrorBody {
   fieldErrors?: unknown;
   allocationIds?: unknown;
   allocationCount?: unknown;
+  assignmentIds?: unknown;
 }
 
 interface FieldError {
@@ -26,9 +27,24 @@ export interface ErrorReporter {
   report(error: unknown, context?: unknown): Promise<boolean>;
 }
 
+export interface UnhandledErrorFields {
+  requestId: string;
+  method: string;
+  route: string;
+  errorName: string;
+  errorCode?: string;
+  stack?: string;
+}
+
+export type UnhandledErrorSink = (fields: UnhandledErrorFields) => void;
+
 @Catch()
 export class ProblemDetailsFilter implements ExceptionFilter {
-  constructor(private readonly errorReporter?: ErrorReporter) {}
+  constructor(
+    private readonly errorReporter?: ErrorReporter,
+    private readonly onUnhandled?: UnhandledErrorSink,
+    private readonly includeStack = false,
+  ) {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const context = host.switchToHttp();
@@ -56,16 +72,39 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       ...(isStringArray(applicationError.allocationIds)
         ? { allocationIds: applicationError.allocationIds }
         : {}),
+      ...(isStringArray(applicationError.assignmentIds)
+        ? { assignmentIds: applicationError.assignmentIds }
+        : {}),
       ...(isNonNegativeInteger(applicationError.allocationCount)
         ? { allocationCount: applicationError.allocationCount }
         : {}),
     };
 
     if (status >= 500) {
+      this.logUnhandled(exception, request, requestId);
       void this.errorReporter?.report(exception, { requestId, route: request?.url, status });
     }
 
     reply.type('application/problem+json').status(status).send(problem);
+  }
+
+  /** Server errors must be diagnosable from the API log; the client still gets a generic body. */
+  private logUnhandled(exception: unknown, request: FastifyRequest, requestId: string): void {
+    if (!this.onUnhandled) return;
+    try {
+      const error = exception instanceof Error ? exception : undefined;
+      const code = (exception as { code?: unknown } | null)?.code;
+      this.onUnhandled({
+        requestId,
+        method: request?.method ?? '',
+        route: request?.routeOptions?.url ?? request?.url?.split('?')[0] ?? '',
+        errorName: error?.name ?? 'UnknownError',
+        ...(typeof code === 'string' ? { errorCode: code } : {}),
+        ...(this.includeStack && error?.stack ? { stack: error.stack } : {}),
+      });
+    } catch {
+      // logging must never change the HTTP outcome
+    }
   }
 }
 

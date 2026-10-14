@@ -160,6 +160,41 @@ describe('auth API', () => {
     expect(missingUser.json()).toMatchObject({ code: 'INVALID_CREDENTIALS' });
   });
 
+  it('exposes planModelVersion per budget in /me and follows the stored model', async () => {
+    const login = await server.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      headers: { origin },
+      payload: { email, password },
+    });
+    const cookie = login.cookies.find((item) => item.name === 'harmofin_session')?.value ?? '';
+    type MeBody = {
+      workspaces: Array<{ budgets: Array<{ id: string; planModelVersion: number }> }>;
+    };
+    const readBudgets = async () => {
+      const me = await server.inject({
+        method: 'GET',
+        url: '/api/v1/me',
+        cookies: { harmofin_session: cookie },
+      });
+      expect(me.statusCode).toBe(200);
+      return me.json<MeBody>().workspaces.flatMap((workspace) => workspace.budgets);
+    };
+
+    const before = await readBudgets();
+    expect(before.length).toBeGreaterThan(0);
+    expect(before.every((budget) => budget.planModelVersion === 2)).toBe(true);
+
+    const budgetId = before[0]?.id ?? '';
+    await prisma.budget.update({ where: { id: budgetId }, data: { planModelVersion: 1 } });
+    try {
+      const after = await readBudgets();
+      expect(after.find((budget) => budget.id === budgetId)?.planModelVersion).toBe(1);
+    } finally {
+      await prisma.budget.update({ where: { id: budgetId }, data: { planModelVersion: 2 } });
+    }
+  });
+
   it('requires CSRF for logout and revokes session after valid logout', async () => {
     const login = await server.inject({
       method: 'POST',

@@ -1,42 +1,55 @@
 import { flushPromises, mount } from '@vue/test-utils';
+import { ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const api = {
+// The journal reads and writes only the v2 API. The v1 reference client keeps
+// just the model-agnostic audit route, so anything else would throw on this mock.
+const v1 = {
+  listTransactionAudit: vi.fn(),
+};
+const v2 = {
   listTransactions: vi.fn(),
-  getDashboardSummary: vi.fn(),
-  downloadTransactionsCsv: vi.fn(),
   getTransaction: vi.fn(),
-  listAccounts: vi.fn(),
-  listCategories: vi.fn(),
-  listEnvelopes: vi.fn(),
-  createTransaction: vi.fn(),
   updateTransaction: vi.fn(),
-  confirmTransaction: vi.fn(),
-  cancelTransaction: vi.fn(),
   deleteTransaction: vi.fn(),
   restoreTransaction: vi.fn(),
-  deleteTransactionWithAllocations: vi.fn(),
-  listTransactionAllocations: vi.fn(),
-  listTransactionAudit: vi.fn(),
-  createIncomeAllocation: vi.fn(),
-  restoreIncomeAllocation: vi.fn(),
+  exportTransactions: vi.fn(),
 };
 const auth = {
   currentData: {
-    value: {
-      user: { email: 'owner@harmofin.test' },
-      workspaces: [
-        { role: 'OWNER', budgets: [{ id: 'budget-id', name: 'Бюджет', primaryCurrency: 'RUB' }] },
-      ],
-    } as {
+    value: null as {
       user: { email: string };
       workspaces: Array<{
         role: string;
-        budgets: Array<{ id: string; name: string; primaryCurrency: string }>;
+        budgets: Array<{
+          id: string;
+          name: string;
+          primaryCurrency: string;
+          planModelVersion: number;
+        }>;
       }>;
     } | null,
   },
   loadMe: vi.fn(),
+};
+const reference = {
+  accounts: ref([{ value: 'account-id', label: 'Основная карта' }]),
+  categories: ref([
+    {
+      id: 'category-id',
+      budgetId: 'budget-id',
+      templateKey: null,
+      name: 'Продукты',
+      categoryType: 'EXPENSE',
+      parentId: null,
+      displayOrder: 0,
+      comment: null,
+      icon: null,
+      archivedAt: null,
+    },
+  ]),
+  envelopes: ref([{ value: 'envelope-id', label: 'Текущие' }]),
+  load: vi.fn(),
 };
 
 const { routeQuery } = vi.hoisted(() => ({ routeQuery: {} as Record<string, string> }));
@@ -49,7 +62,14 @@ vi.mock('#imports', () => ({
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => auth }));
 vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  useBudgetReferenceData: () => api,
+  useBudgetReferenceData: () => v1,
+}));
+vi.mock('../../composables/useEnvelopePlanV2.js', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useEnvelopePlanV2: () => v2,
+}));
+vi.mock('../../composables/useOperationReferenceData.js', () => ({
+  useOperationReferenceData: () => reference,
 }));
 
 import { ApiRequestError } from '../../composables/useApiClient.js';
@@ -57,91 +77,121 @@ import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 import { useToast } from '../../composables/useToast.js';
 import OperationsPage from './operations.vue';
 
-const draftExpense = {
-  id: 'transaction-id',
+const expense = {
+  id: '00000000-0000-4000-8000-000000000001',
   budgetId: 'budget-id',
+  accountingModelVersion: 2,
   transactionType: 'EXPENSE',
-  status: 'DRAFT',
+  status: 'CONFIRMED',
   amountMinor: '125000',
   currency: 'RUB',
-  scale: 2,
   occurredOn: '2026-09-05',
   accountId: 'account-id',
   categoryId: 'category-id',
   envelopeId: 'envelope-id',
   sourceDescription: null,
   merchantName: 'Магазин',
-  isPlanned: false,
   comment: null,
-  confirmedAt: null,
+  planOccurrenceIds: [],
+  confirmedAt: '2026-09-05T00:00:00.000Z',
   cancelledAt: null,
   deletedAt: null,
-  accountCurrentBalanceMinor: '0',
-  envelopeCurrentBalanceMinor: '0',
-  unallocatedMinor: '0',
-  allocationProposal: null,
+  createdAt: '2026-09-05T00:00:00.000Z',
 };
+const lifecycle = (status: string) => ({
+  id: expense.id,
+  status,
+  warnings: [],
+  occurrences: [],
+});
 
-describe('operations page', () => {
+describe('operations page (v2 journal)', () => {
   let wrapper: ReturnType<typeof mount> | null = null;
 
-  const mountPage = (props = {}) => {
-    wrapper = mount(OperationsPage, {
-      attachTo: document.body,
-      ...props,
-    });
+  const mountPage = () => {
+    wrapper = mount(OperationsPage, { attachTo: document.body });
     return wrapper;
+  };
+  const withItems = (...items: Array<Record<string, unknown>>) =>
+    v2.listTransactions.mockResolvedValue({ items, nextCursor: null });
+  const openRowAction = async (testId: string) => {
+    await wrapper!.get('[data-testid="action-menu-trigger"]').trigger('click');
+    await wrapper!.get(`[data-testid="${testId}"]`).trigger('click');
+  };
+  const confirmDialog = async () => {
+    await wrapper!.get('[data-confirm]').trigger('click');
+    await flushPromises();
+  };
+  const submitEditForm = async (comment: string) => {
+    const input = document.querySelector('input[name="comment"]') as HTMLInputElement;
+    input.value = comment;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+    const form = document.querySelector('.operation-form') as HTMLFormElement;
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flushPromises();
   };
 
   beforeEach(() => {
     auth.currentData.value = {
       user: { email: 'owner@harmofin.test' },
       workspaces: [
-        { role: 'OWNER', budgets: [{ id: 'budget-id', name: 'Бюджет', primaryCurrency: 'RUB' }] },
+        {
+          role: 'OWNER',
+          budgets: [
+            { id: 'budget-id', name: 'Бюджет', primaryCurrency: 'RUB', planModelVersion: 2 },
+          ],
+        },
       ],
     };
     vi.clearAllMocks();
     useOperationDialogs().close();
     for (const key of Object.keys(routeQuery)) delete routeQuery[key];
-    api.listTransactions.mockResolvedValue({ items: [], nextCursor: null });
-    api.getTransaction.mockResolvedValue(null);
-    api.listAccounts.mockResolvedValue([]);
-    api.listCategories.mockResolvedValue([]);
-    api.listEnvelopes.mockResolvedValue([]);
-    api.listTransactionAllocations.mockResolvedValue([]);
-    api.listTransactionAudit.mockResolvedValue([]);
-    api.getDashboardSummary.mockResolvedValue({
-      period: { id: 'FIRST', start: '2026-09-10', end: '2026-09-24' },
-    });
+    v2.listTransactions.mockResolvedValue({ items: [], nextCursor: null });
+    v2.getTransaction.mockResolvedValue(expense);
+    v1.listTransactionAudit.mockResolvedValue([]);
+    reference.load.mockResolvedValue(undefined);
     useToast().clear();
   });
 
   afterEach(() => {
-    if (wrapper) {
-      wrapper.unmount();
-    }
+    wrapper?.unmount();
+    wrapper = null;
   });
 
-  it('loads server journal and opens the shared type picker from the create button', async () => {
+  it('reads the journal from the v2 API and opens the shared type picker from the create button', async () => {
     mountPage();
     await flushPromises();
 
-    expect(api.listTransactions).toHaveBeenCalledWith('budget-id', {
-      sortBy: 'occurredOn',
-      sortDirection: 'desc',
-    });
-    // The type picker and quick-add forms live in the layout's shared
-    // AppOperationDialogs, not in this page — see AppOperationDialogs.test.ts
-    // for that flow. Here we only need proof the button asks for it.
+    expect(v2.listTransactions).toHaveBeenCalledWith('budget-id', {});
     await wrapper!.get('[data-action="create-operation"]').trigger('click');
-
     expect(useOperationDialogs().openDialog.value).toBe('choose');
+  });
+
+  it('sends the chosen filters in the API vocabulary', async () => {
+    routeQuery.status = 'DRAFT';
+    routeQuery.from = '2026-09-01';
+    mountPage();
+    await flushPromises();
+    expect(v2.listTransactions).toHaveBeenLastCalledWith('budget-id', {
+      status: 'DRAFT',
+      from: '2026-09-01',
+    });
+
+    await wrapper!.get('[data-testid="type-tab-EXPENSE"]').trigger('click');
+    await flushPromises();
+
+    expect(v2.listTransactions).toHaveBeenLastCalledWith('budget-id', {
+      type: 'EXPENSE',
+      status: 'DRAFT',
+      from: '2026-09-01',
+    });
   });
 
   it('reloads the journal after the shared quick-add dialog closes', async () => {
     mountPage();
     await flushPromises();
-    expect(api.listTransactions).toHaveBeenCalledTimes(1);
+    expect(v2.listTransactions).toHaveBeenCalledTimes(1);
 
     const dialogs = useOperationDialogs();
     dialogs.openOperation('EXPENSE');
@@ -149,32 +199,209 @@ describe('operations page', () => {
     dialogs.close();
     await flushPromises();
 
-    expect(api.listTransactions).toHaveBeenCalledTimes(2);
+    expect(v2.listTransactions).toHaveBeenCalledTimes(2);
   });
 
-  it('lets owner download CSV with current journal filters', async () => {
-    routeQuery.status = 'CONFIRMED';
-    routeQuery.sortBy = 'amount';
-    api.downloadTransactionsCsv.mockResolvedValue(new Blob(['csv']));
+  it('lists operations as rows grouped by day and pages with the cursor', async () => {
+    v2.listTransactions.mockResolvedValueOnce({ items: [expense], nextCursor: 'cursor-1' });
+    v2.listTransactions.mockResolvedValueOnce({
+      items: [{ ...expense, id: '00000000-0000-4000-8000-000000000002', occurredOn: '2026-09-04' }],
+      nextCursor: null,
+    });
+    mountPage();
+    await flushPromises();
+    expect(wrapper!.findAll('[data-testid="operation-group-label"]').length).toBeGreaterThan(0);
+    expect(wrapper!.findAll('[data-testid="list-row-select"]')).toHaveLength(1);
+
+    const more = wrapper!.findAll('button').find((button) => button.text() === 'Показать ещё');
+    await more!.trigger('click');
+    await flushPromises();
+
+    expect(v2.listTransactions).toHaveBeenLastCalledWith('budget-id', { cursor: 'cursor-1' });
+    expect(wrapper!.findAll('[data-testid="list-row-select"]')).toHaveLength(2);
+    expect(wrapper!.findAll('button').some((button) => button.text() === 'Показать ещё')).toBe(
+      false,
+    );
+  });
+
+  it('opens the drawer from a row and reads the audit from the model-agnostic route', async () => {
+    withItems(expense);
+    mountPage();
+    await flushPromises();
+
+    await wrapper!.get('[data-testid="list-row-select"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper!.find('[data-testid="drawer"]').exists()).toBe(true);
+    expect(v1.listTransactionAudit).toHaveBeenCalledWith('budget-id', expense.id);
+  });
+
+  it('opens the drawer for the operation named in the query through the v2 read', async () => {
+    routeQuery.operationId = expense.id;
+    mountPage();
+    await flushPromises();
+
+    expect(v2.getTransaction).toHaveBeenCalledWith('budget-id', expense.id);
+    expect(wrapper!.find('[data-testid="drawer"]').exists()).toBe(true);
+  });
+
+  it('announces a load failure in Russian and retries', async () => {
+    v2.listTransactions.mockRejectedValueOnce(new Error('network'));
+    mountPage();
+    await flushPromises();
+
+    expect(wrapper!.get('[role="alert"]').text()).toContain('Не удалось загрузить операции');
+
+    const retry = wrapper!.findAll('button').find((button) => button.text() === 'Повторить');
+    await retry!.trigger('click');
+    await flushPromises();
+
+    expect(v2.listTransactions).toHaveBeenCalledTimes(2);
+  });
+
+  it('edits a field through PATCH with only that field, after a confirmation', async () => {
+    withItems(expense);
+    v2.updateTransaction.mockResolvedValue(lifecycle('CONFIRMED'));
+    mountPage();
+    await flushPromises();
+
+    await openRowAction('row-edit');
+    await flushPromises();
+    expect((document.querySelector('input[name="amount"]') as HTMLInputElement).value).toBe(
+      '1250.00',
+    );
+    await submitEditForm('Заметка');
+    await confirmDialog();
+
+    expect(v2.updateTransaction).toHaveBeenCalledWith(
+      'budget-id',
+      expense.id,
+      { comment: 'Заметка' },
+      expect.any(String),
+    );
+    expect(useToast().toasts.value.at(-1)?.title).toBe('Операция обновлена');
+    expect(v2.listTransactions).toHaveBeenCalledTimes(2);
+    expect(document.querySelector('.operation-form')).toBeNull();
+  });
+
+  it('keeps the form open and shows field-level and form-level errors on a rejected edit', async () => {
+    withItems(expense);
+    v2.updateTransaction.mockRejectedValue(
+      new ApiRequestError(400, {
+        code: 'VALIDATION_FAILED',
+        detail: 'technical',
+        fieldErrors: [{ field: 'amount', message: 'Сумма должна быть больше нуля.', code: 'x' }],
+      }),
+    );
+    mountPage();
+    await flushPromises();
+
+    await openRowAction('row-edit');
+    await flushPromises();
+    await submitEditForm('Заметка');
+    await confirmDialog();
+
+    expect(document.body.textContent).toContain('Сумма должна быть больше нуля.');
+    expect(document.body.textContent).toContain('Проверьте введённые данные.');
+    expect(document.body.textContent).not.toContain('technical');
+    expect(document.querySelector('.operation-form')).not.toBeNull();
+  });
+
+  it('retries a failed edit with the same key, and a changed edit with a new one', async () => {
+    withItems(expense);
+    v2.updateTransaction.mockRejectedValue(new Error('network'));
+    mountPage();
+    await flushPromises();
+
+    await openRowAction('row-edit');
+    await flushPromises();
+    await submitEditForm('Заметка');
+    await confirmDialog();
+    await submitEditForm('Заметка');
+    await confirmDialog();
+    await submitEditForm('Другая заметка');
+    await confirmDialog();
+
+    const keys = v2.updateTransaction.mock.calls.map((call) => call[3]);
+    expect(keys[0]).toBe(keys[1]);
+    expect(keys[2]).not.toBe(keys[1]);
+  });
+
+  it('deletes through the v2 API once even when the confirmation is clicked twice', async () => {
+    withItems(expense);
+    v2.deleteTransaction.mockResolvedValue(lifecycle('DELETED'));
+    mountPage();
+    await flushPromises();
+
+    await openRowAction('row-delete');
+    const button = wrapper!.get('[data-confirm]');
+    await Promise.all([button.trigger('click'), button.trigger('click')]);
+    await flushPromises();
+
+    expect(v2.deleteTransaction).toHaveBeenCalledTimes(1);
+    expect(v2.deleteTransaction).toHaveBeenCalledWith('budget-id', expense.id, expect.any(String));
+    expect(useToast().toasts.value.at(-1)?.title).toBe('Операция удалена');
+    expect(v2.listTransactions).toHaveBeenCalledTimes(2);
+  });
+
+  it('says in Russian why an income with assignments cannot be deleted', async () => {
+    withItems({ ...expense, transactionType: 'INCOME', envelopeId: null });
+    v2.deleteTransaction.mockRejectedValue(
+      new ApiRequestError(409, { code: 'SOURCE_EXHAUSTED', detail: 'technical' }),
+    );
+    mountPage();
+    await flushPromises();
+
+    await openRowAction('row-delete');
+    await confirmDialog();
+
+    const toast = useToast().toasts.value.at(-1);
+    expect(toast?.tone).toBe('error');
+    expect(toast?.description).toContain('На этот доход назначены средства');
+  });
+
+  it('restores a deleted operation through the v2 API', async () => {
+    routeQuery.status = 'DELETED';
+    withItems({ ...expense, status: 'DELETED', deletedAt: '2026-09-06T00:00:00.000Z' });
+    v2.restoreTransaction.mockResolvedValue(lifecycle('CONFIRMED'));
+    mountPage();
+    await flushPromises();
+
+    await openRowAction('row-restore');
+    await confirmDialog();
+
+    expect(v2.restoreTransaction).toHaveBeenCalledWith('budget-id', expense.id, expect.any(String));
+    expect(useToast().toasts.value.at(-1)?.title).toBe('Операция восстановлена');
+  });
+
+  it('shows no leftovers of the old model: no unallocated banner, no confirm or cancel', async () => {
+    withItems({ ...expense, transactionType: 'INCOME', envelopeId: null, status: 'DRAFT' });
+    mountPage();
+    await flushPromises();
+
+    await wrapper!.get('[data-testid="action-menu-trigger"]').trigger('click');
+
+    expect(wrapper!.text()).not.toContain('Не распределено');
+    expect(wrapper!.find('[data-testid="row-confirm"]').exists()).toBe(false);
+    expect(wrapper!.find('[data-testid="row-cancel"]').exists()).toBe(false);
+    expect(wrapper!.find('[data-testid="row-edit"]').exists()).toBe(true);
+  });
+
+  it('lets the owner download the v2 CSV export', async () => {
+    v2.exportTransactions.mockResolvedValue(new Blob(['csv']));
     mountPage();
     await flushPromises();
 
     await wrapper!.get('[data-action="download-csv"]').trigger('click');
     await flushPromises();
 
-    expect(api.downloadTransactionsCsv).toHaveBeenCalledWith('budget-id', {
-      status: 'CONFIRMED',
-      sortBy: 'amount',
-      sortDirection: 'desc',
-    });
+    expect(v2.exportTransactions).toHaveBeenCalledWith('budget-id');
+    expect(wrapper!.get('[role="status"]').text()).toContain('Экспорт CSV подготовлен');
   });
 
-  it('announces CSV download error to owner', async () => {
-    api.downloadTransactionsCsv.mockRejectedValue(
-      new ApiRequestError(422, {
-        code: 'EXPORT_LIMIT_EXCEEDED',
-        detail: 'Сузьте фильтры журнала.',
-      }),
+  it('announces a CSV download error to the owner', async () => {
+    v2.exportTransactions.mockRejectedValue(
+      new ApiRequestError(422, { code: 'EXPORT_LIMIT_EXCEEDED', detail: 'technical' }),
     );
     mountPage();
     await flushPromises();
@@ -185,310 +412,16 @@ describe('operations page', () => {
     expect(wrapper!.get('[role="alert"]').text()).toContain('Не удалось скачать CSV');
   });
 
-  it('hides CSV download from editor', async () => {
-    auth.currentData.value = {
-      user: { email: 'editor@harmofin.test' },
-      workspaces: [
-        { role: 'EDITOR', budgets: [{ id: 'budget-id', name: 'Бюджет', primaryCurrency: 'RUB' }] },
-      ],
-    };
+  it('hides CSV download from an editor', async () => {
+    auth.currentData.value!.workspaces[0]!.role = 'EDITOR';
     mountPage();
     await flushPromises();
 
     expect(wrapper!.find('[data-action="download-csv"]').exists()).toBe(false);
   });
 
-  it('preloads draft from draftId query into operation editor', async () => {
-    routeQuery.draftId = '00000000-0000-4000-8000-000000000001';
-    api.getTransaction.mockResolvedValue({
-      id: '00000000-0000-4000-8000-000000000001',
-      budgetId: 'budget-id',
-      transactionType: 'INCOME',
-      status: 'DRAFT',
-      amountMinor: '10000',
-      currency: 'RUB',
-      scale: 2,
-      occurredOn: '2026-09-10',
-      accountId: 'account-id',
-      categoryId: 'category-id',
-      envelopeId: null,
-      sourceDescription: 'Доход по плану',
-      merchantName: null,
-      isPlanned: true,
-      comment: null,
-      confirmedAt: null,
-      cancelledAt: null,
-      deletedAt: null,
-      accountCurrentBalanceMinor: '0',
-      envelopeCurrentBalanceMinor: null,
-      unallocatedMinor: '10000',
-      allocationProposal: null,
-    });
-    mountPage();
-    await flushPromises();
-
-    expect(api.getTransaction).toHaveBeenCalledWith(
-      'budget-id',
-      '00000000-0000-4000-8000-000000000001',
-    );
-    expect(document.body.textContent).toContain('Сохранить изменения');
-    const amountInput = document.querySelector('input[name="amount"]') as HTMLInputElement;
-    expect(amountInput?.value).toBe('100.00');
-  });
-
-  it('does not reopen the draft editor after saving it once (post-save reload)', async () => {
-    routeQuery.draftId = '00000000-0000-4000-8000-000000000001';
-    api.getTransaction.mockResolvedValue({
-      id: '00000000-0000-4000-8000-000000000001',
-      budgetId: 'budget-id',
-      transactionType: 'INCOME',
-      status: 'DRAFT',
-      amountMinor: '10000',
-      currency: 'RUB',
-      scale: 2,
-      occurredOn: '2026-09-10',
-      accountId: 'account-id',
-      categoryId: 'category-id',
-      envelopeId: null,
-      sourceDescription: 'Доход по плану',
-      merchantName: null,
-      isPlanned: true,
-      comment: null,
-      confirmedAt: null,
-      cancelledAt: null,
-      deletedAt: null,
-      accountCurrentBalanceMinor: '0',
-      envelopeCurrentBalanceMinor: null,
-      unallocatedMinor: '10000',
-      allocationProposal: null,
-    });
-    api.updateTransaction.mockResolvedValue(undefined);
-    mountPage();
-    await flushPromises();
-
-    expect(api.getTransaction).toHaveBeenCalledTimes(1);
-    expect(document.body.textContent).toContain('Сохранить изменения');
-
-    const amountInput = document.querySelector('input[name="amount"]') as HTMLInputElement;
-    amountInput.value = '150.00';
-    amountInput.dispatchEvent(new Event('input', { bubbles: true }));
-    amountInput.dispatchEvent(new Event('change', { bubbles: true }));
-    await flushPromises();
-
-    const form = document.querySelector('.operation-form') as HTMLFormElement;
-    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    await flushPromises();
-
-    const confirmButton = wrapper!
-      .findAll('button')
-      .find((button) => button.text() === 'Подтвердить');
-    await confirmButton!.trigger('click');
-    await flushPromises();
-
-    expect(api.updateTransaction).toHaveBeenCalledTimes(1);
-    // runConfirmation()'s 'update' branch clears formOpen AND selectedTransaction, then
-    // reloads. draftId is still in the URL and the (mocked) transaction is still DRAFT,
-    // so without the preloadedDraftId guard this reload would reopen the same edit
-    // modal in a loop.
-    expect(api.getTransaction).toHaveBeenCalledTimes(1);
-    expect(document.body.textContent).not.toContain('Сохранить изменения');
-  });
-
-  it('hides a rejected generic allocation proposal without creating allocation', async () => {
-    api.listTransactions.mockResolvedValue({
-      items: [
-        {
-          id: 'income-id',
-          budgetId: 'budget-id',
-          transactionType: 'INCOME',
-          status: 'CONFIRMED',
-          amountMinor: '1200000',
-          currency: 'RUB',
-          scale: 2,
-          occurredOn: '2026-09-04',
-          accountId: 'account-id',
-          categoryId: 'category-id',
-          envelopeId: null,
-          sourceDescription: null,
-          merchantName: null,
-          isPlanned: false,
-          comment: null,
-          confirmedAt: '2026-09-04T00:00:00.000Z',
-          cancelledAt: null,
-          deletedAt: null,
-          accountCurrentBalanceMinor: '1200000',
-          envelopeCurrentBalanceMinor: null,
-          unallocatedMinor: '1200000',
-          allocationProposal: {
-            targetEnvelopeId: 'envelope-id',
-            amountMinor: '1200000',
-            currency: 'RUB',
-            scale: 2,
-          },
-        },
-      ],
-      nextCursor: null,
-    });
-    mountPage();
-    await flushPromises();
-
-    await wrapper!.get('[data-testid="list-row-select"]').trigger('click');
-    await flushPromises();
-
-    await wrapper!.get('.allocation-form button:last-child').trigger('click');
-    await flushPromises();
-
-    expect(wrapper!.text()).not.toContain('Применить предложение');
-    expect(api.createIncomeAllocation).not.toHaveBeenCalled();
-  });
-
-  it('preloads edit form for selected operation', async () => {
-    api.listTransactions.mockResolvedValue({
-      items: [
-        {
-          id: 'expense-id',
-          budgetId: 'budget-id',
-          transactionType: 'EXPENSE',
-          status: 'CONFIRMED',
-          amountMinor: '125000',
-          currency: 'RUB',
-          scale: 2,
-          occurredOn: '2026-09-05',
-          accountId: 'account-id',
-          categoryId: 'category-id',
-          envelopeId: 'envelope-id',
-          sourceDescription: null,
-          merchantName: 'Магазин',
-          isPlanned: false,
-          comment: null,
-          confirmedAt: '2026-09-05T00:00:00.000Z',
-          cancelledAt: null,
-          deletedAt: null,
-          accountCurrentBalanceMinor: '0',
-          envelopeCurrentBalanceMinor: '0',
-          unallocatedMinor: '0',
-          allocationProposal: null,
-        },
-      ],
-      nextCursor: null,
-    });
-    mountPage();
-    await flushPromises();
-
-    await wrapper!.get('[data-testid="action-menu-trigger"]').trigger('click');
-    await wrapper!.get('[data-testid="row-edit"]').trigger('click');
-    await flushPromises();
-
-    const amountInput = document.querySelector('input[name="amount"]') as HTMLInputElement;
-    expect(amountInput?.value).toBe('1250.00');
-    expect(document.body.textContent).toContain('Сохранить изменения');
-  });
-
-  it('opens the drawer for the operation named in the query', async () => {
-    routeQuery.operationId = '00000000-0000-4000-8000-000000000009';
-    api.getTransaction.mockResolvedValue({
-      ...draftExpense,
-      id: '00000000-0000-4000-8000-000000000009',
-      status: 'CONFIRMED',
-    });
-    mountPage();
-    await flushPromises();
-
-    expect(api.getTransaction).toHaveBeenCalledWith(
-      'budget-id',
-      '00000000-0000-4000-8000-000000000009',
-    );
-    expect(wrapper!.find('[data-testid="drawer"]').exists()).toBe(true);
-  });
-
-  it('lists operations as rows grouped by day', async () => {
-    api.listTransactions.mockResolvedValue({ items: [draftExpense], nextCursor: null });
-    mountPage();
-    await flushPromises();
-
-    expect(wrapper!.findAll('[data-testid="operation-group-label"]').length).toBeGreaterThan(0);
-    expect(wrapper!.findAll('[data-testid="list-row-select"]').length).toBe(1);
-  });
-
-  it('fills the period chip from the cycle the server computed', async () => {
-    mountPage();
-    await flushPromises();
-
-    await wrapper!.get('[data-testid="chip-periodStart"]').trigger('click');
-
-    expect(wrapper!.get('[data-testid="chip-option-periodStart-2026-09-10"]').text()).toBe(
-      'Текущий период (10.09 – 24.09)',
-    );
-    expect(wrapper!.find('[data-testid="chip-option-periodStart-2026-09-09"]').text()).toBe(
-      'Прошлый период',
-    );
-  });
-
-  it('opens the drawer from a row', async () => {
-    api.listTransactions.mockResolvedValue({ items: [draftExpense], nextCursor: null });
-    mountPage();
-    await flushPromises();
-
-    await wrapper!.get('[data-testid="list-row-select"]').trigger('click');
-    await flushPromises();
-
-    expect(wrapper!.find('[data-testid="drawer"]').exists()).toBe(true);
-  });
-
-  it('confirms a draft from the row menu through the confirmation dialog', async () => {
-    api.listTransactions.mockResolvedValue({ items: [draftExpense], nextCursor: null });
-    api.confirmTransaction.mockResolvedValue({ ...draftExpense, status: 'CONFIRMED' });
-    mountPage();
-    await flushPromises();
-
-    await wrapper!.get('[data-testid="action-menu-trigger"]').trigger('click');
-    await wrapper!.get('[data-testid="row-confirm"]').trigger('click');
-    await wrapper!.get('[data-confirm]').trigger('click');
-    await flushPromises();
-
-    expect(api.confirmTransaction).toHaveBeenCalledWith(
-      'budget-id',
-      'transaction-id',
-      expect.any(String),
-    );
-    expect(useToast().toasts.value.at(-1)?.title).toBe('Операция подтверждена');
-  });
-
-  it('asks how to handle allocations before deleting an income and then deletes once', async () => {
-    const income = { ...draftExpense, transactionType: 'INCOME', status: 'CONFIRMED' };
-    api.listTransactions.mockResolvedValue({ items: [income], nextCursor: null });
-    api.deleteTransaction.mockRejectedValue(
-      new ApiRequestError(409, {
-        code: 'INCOME_HAS_CONFIRMED_ALLOCATIONS',
-        detail: 'У дохода есть подтверждённые распределения.',
-      }),
-    );
-    api.deleteTransactionWithAllocations.mockResolvedValue({ ...income, status: 'DELETED' });
-    mountPage();
-    await flushPromises();
-
-    await wrapper!.get('[data-testid="action-menu-trigger"]').trigger('click');
-    await wrapper!.get('[data-testid="row-delete"]').trigger('click');
-    await wrapper!.get('[data-confirm]').trigger('click');
-    await flushPromises();
-
-    // The choice dialog replaces the failed deletion, and answering it must not
-    // ask for a third confirmation.
-    const choice = wrapper!.findAll('[data-confirm]').at(-1);
-    await choice!.trigger('click');
-    await flushPromises();
-
-    expect(api.deleteTransactionWithAllocations).toHaveBeenCalledWith(
-      'budget-id',
-      'transaction-id',
-      { allocationResolution: 'DELETE' },
-      expect.any(String),
-    );
-    expect(useToast().toasts.value.at(-1)?.title).toBe('Операция удалена');
-  });
-
   it('shows skeletons while the first page is loading', async () => {
-    api.listTransactions.mockReturnValueOnce(new Promise(() => {}));
+    v2.listTransactions.mockReturnValueOnce(new Promise(() => {}));
     mountPage();
     await wrapper!.vm.$nextTick();
 
@@ -497,7 +430,6 @@ describe('operations page', () => {
   });
 
   it('separates an empty result from an empty journal', async () => {
-    api.listTransactions.mockResolvedValue({ items: [], nextCursor: null });
     mountPage();
     await flushPromises();
     expect(wrapper!.text()).toContain('Операций пока нет');
@@ -514,6 +446,6 @@ describe('operations page', () => {
     await flushPromises();
 
     expect(wrapper!.text()).toContain('Бюджет не выбран');
-    expect(api.listTransactions).not.toHaveBeenCalled();
+    expect(v2.listTransactions).not.toHaveBeenCalled();
   });
 });
