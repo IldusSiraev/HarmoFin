@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import * as echarts from 'echarts';
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, shallowRef, watch } from 'vue';
 
 import type { GenericReportDto } from '../../composables/useBudgetReferenceData.js';
 import ReportTable from './ReportTable.vue';
 
 const props = defineProps<{ report: GenericReportDto }>();
-const chartElement = ref<HTMLElement | null>(null);
+const chartElement = shallowRef<HTMLElement | null>(null);
 let chart: echarts.ECharts | null = null;
 
 function rowLabel(row: Record<string, unknown>) {

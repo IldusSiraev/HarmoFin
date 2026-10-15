@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, ref, type Ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref, shallowRef, type Ref } from 'vue';
 
 import { prefersReducedMotion } from './useCountUp.js';
 
@@ -7,7 +7,7 @@ export function useRevealOnScroll(): {
   revealed: Ref<boolean>;
   animating: Ref<boolean>;
 } {
-  const target = ref<HTMLElement | null>(null);
+  const target = shallowRef<HTMLElement | null>(null);
   const revealed = ref(false);
   const animating = ref(false);
   let observer: IntersectionObserver | null = null;
