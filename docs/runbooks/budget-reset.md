@@ -29,6 +29,71 @@
 
 Перед запуском на рабочей базе проверьте хост и имя базы в `DATABASE_URL`.
 
+## Запуск на production-сервере (Docker Compose)
+
+Production работает в Docker Compose под проектом `harmofin-production`; приложение лежит в `~/harmofin`, БД в контейнере `harmofin-production-postgres-1`. На хосте нет `psql`, поэтому скрипт передаётся в `psql` внутри контейнера через stdin. Файл скрипта правится на лету через `sed`, сам он в репозитории остаётся с заглушкой. Подставляется только строка присваивания `target_email`: заглушка также встречается в проверке `IF ... = 'owner@example.com'`, и заменять её там нельзя, иначе проверка сломается.
+
+Email должен быть без символов `'`, `&`, `|` и `\`. Все команды выполняются на сервере под пользователем `deploy`.
+
+1. **Положите скрипт на сервер.** Со своей машины, из корня репозитория:
+
+   ```bash
+   scp docs/runbooks/budget-reset.sql deploy@<хост>:~/harmofin/budget-reset.sql
+   ```
+
+2. **Сделайте backup.** Креды берутся из самого контейнера, env-файл не нужен:
+
+   ```bash
+   docker exec harmofin-production-postgres-1 sh -c 'pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB"' > ~/harmofin/before-budget-reset-$(date +%F-%H%M).dump
+   ```
+
+   Проверьте, что файл не пустой (`ls -lh ~/harmofin/*.dump`). Порядок восстановления: `database-restore.md`.
+
+3. **Остановите API и worker**, чтобы они не писали в бюджет. Web и Caddy можно оставить:
+
+   ```bash
+   docker stop harmofin-production-api-1 harmofin-production-worker-1
+   ```
+
+4. **Dry-run.** Задайте email и запустите. `commit_changes` остаётся `false`, в базе ничего не изменится:
+
+   ```bash
+   EMAIL='user@example.com'
+   sed "s|^\(  target_email   text    := \)'owner@example.com';|\1'${EMAIL}';|" ~/harmofin/budget-reset.sql \
+     | docker exec -i harmofin-production-postgres-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f -'
+   ```
+
+   Прочитайте вывод по разделу «Как читать dry-run» ниже. Нормальный итог: строки `NOTICE: обработано в ...` и в конце ошибка `DRY RUN: изменения откатены`. Любая другая ошибка означает, что изменений нет, переходить к шагу 5 нельзя.
+
+5. **Коммит.** Та же команда, но с `commit_changes := true`:
+
+   ```bash
+   EMAIL='user@example.com'
+   sed -e "s|^\(  target_email   text    := \)'owner@example.com';|\1'${EMAIL}';|" \
+       -e "s|^\(  commit_changes boolean := \)false;|\1true;|" ~/harmofin/budget-reset.sql \
+     | docker exec -i harmofin-production-postgres-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f -'
+   ```
+
+   Ошибки `DRY RUN` в этот раз быть не должно, блок завершается успешно.
+
+6. **Запустите API и worker обратно:**
+
+   ```bash
+   docker start harmofin-production-api-1 harmofin-production-worker-1
+   ```
+
+   Проверьте, что оба контейнера `healthy` (`docker ps`), войдите под этим пользователем: бюджет должен быть пустым, без счетов, конвертов и операций.
+
+7. **Уберите скрипт с сервера:**
+
+   ```bash
+   rm ~/harmofin/budget-reset.sql
+   ```
+
+   Дамп из шага 2 оставьте до тех пор, пока владелец не подтвердит результат.
+
+Если на шаге 5 что-то пошло не так (пользователь не найден, бюджетов не один, превышено ожидание блокировки), транзакция откатывается целиком, данные не меняются. Если сброс прошёл, но он был нежелателен, восстановление возможно только из дампа шага 2 по `database-restore.md`.
+
 ## Как читать dry-run
 
 Каждая строка `NOTICE: обработано в <таблица> ...: N` показывает, сколько строк удалит скрипт (для `audit_events_detached` отвяжет). Последняя строка `NOTICE: budgets: plan_model_version=2, plan_model_activated_on=...` показывает новую дату активации. Затем всегда следует ошибка `DRY RUN: изменения откатены`: это нормальный результат, в базе ничего не изменилось. При `commit_changes := true` ошибки нет, блок завершается успешно.
