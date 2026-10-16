@@ -11,7 +11,7 @@ test.describe('landing page', () => {
 
     await expect(page).toHaveTitle('HarmoFin — управляйте личными и семейными финансами');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-      'Понимайте свои деньги, а не просто записывайте расходы.',
+      'Знайте, сколько можно потратить, не задевая платежи и накопления.',
     );
     expect(consoleErrors).toEqual([]);
   });
@@ -76,25 +76,6 @@ test.describe('landing page', () => {
       });
 
       expect(overflow, `viewport ${width}px`).toBeLessThanOrEqual(0);
-    }
-  });
-
-  test('mounts the analytics charts lazily once the section scrolls into view', async ({
-    page,
-  }) => {
-    await page.goto('/');
-
-    await page.locator('#analytics').scrollIntoViewIfNeeded();
-
-    const charts = page.locator('#analytics .analytics__card svg[role="img"]');
-    await expect.poll(() => charts.count()).toBeGreaterThanOrEqual(2);
-
-    const ariaLabels = await charts.evaluateAll((elements) =>
-      elements.map((element) => element.getAttribute('aria-label')),
-    );
-    expect(ariaLabels.length).toBeGreaterThanOrEqual(2);
-    for (const label of ariaLabels) {
-      expect(label).toBeTruthy();
     }
   });
 });

@@ -11,7 +11,7 @@ describe('SecuritySection', () => {
     expect(wrapper.get('h2').text()).toBe('Ваши финансовые данные — только ваши.');
     expect(wrapper.findAll('h3').map((heading) => heading.text())).toEqual([
       'Защищённый доступ',
-      'Изоляция бюджета',
+      'Ваш бюджет — только ваш',
       'История изменений',
     ]);
   });

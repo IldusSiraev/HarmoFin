@@ -9,7 +9,7 @@ describe('FaqSection', () => {
     const buttons = wrapper.findAll('[data-testid="faq-question"]');
 
     expect(wrapper.get('section').attributes('id')).toBe('faq');
-    expect(buttons).toHaveLength(6);
+    expect(buttons).toHaveLength(8);
     expect(buttons[0]?.attributes('aria-expanded')).toBe('false');
     expect(buttons[0]?.attributes('aria-controls')).toBe('faq-panel-what-is');
     expect(wrapper.find('#faq-panel-what-is').exists()).toBe(false);
@@ -25,7 +25,7 @@ describe('FaqSection', () => {
     expect(button?.attributes('aria-expanded')).toBe('true');
     expect(panel.attributes('role')).toBe('region');
     expect(panel.attributes('aria-labelledby')).toBe('faq-question-what-is');
-    expect(panel.text()).toContain('веб-приложение для управления личным и семейным бюджетом');
+    expect(panel.text()).toContain('Веб-приложение для личного и семейного бюджета');
   });
 
   it('keeps at most one question open', async () => {

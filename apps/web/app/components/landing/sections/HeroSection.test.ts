@@ -15,10 +15,12 @@ describe('HeroSection', () => {
 
     const headings = wrapper.findAll('h1');
     expect(headings).toHaveLength(1);
-    expect(headings[0]?.text()).toBe('Понимайте свои деньги, а не просто записывайте расходы.');
-    expect(wrapper.text()).toContain('Управляйте личными и семейными финансами');
+    expect(headings[0]?.text()).toBe(
+      'Знайте, сколько можно потратить, не задевая платежи и накопления.',
+    );
+    expect(wrapper.text()).toContain('Бюджет для семьи, пары или одного человека');
     expect(wrapper.text()).toContain(
-      'HarmoFin показывает, сколько денег у вас есть, на что они уже предназначены и сколько можно потратить прямо сейчас.',
+      'Деньги лежат на счетах, а конверты показывают, на что они отложены. HarmoFin считает, сколько из них свободно для трат прямо сейчас.',
     );
   });
 
@@ -34,7 +36,7 @@ describe('HeroSection', () => {
     const wrapper = mount(HeroSection, { global: { stubs: { NuxtLink: NuxtLinkStub } } });
 
     expect(wrapper.text()).toContain('Без сложных таблиц');
-    expect(wrapper.text()).toContain('Адаптивный интерфейс');
-    expect(wrapper.text()).toContain('Без банковской привязки на старте');
+    expect(wrapper.text()).toContain('Удобно с телефона');
+    expect(wrapper.text()).toContain('Без привязки к банку');
   });
 });

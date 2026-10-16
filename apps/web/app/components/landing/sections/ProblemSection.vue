@@ -28,7 +28,9 @@ const icons = [Wallet, CalendarClock, PiggyBank];
       </LandingCard>
     </div>
 
-    <LandingCallout text="HarmoFin разделяет деньги не только по счетам, но и по назначению." />
+    <LandingCallout
+      text="HarmoFin делит деньги не только по счетам, но и по конвертам: на что они отложены."
+    />
   </LandingSection>
 </template>
 
