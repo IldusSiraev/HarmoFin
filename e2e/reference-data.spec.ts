@@ -13,13 +13,10 @@ test('owner creates, edits and archives an account through server-confirmed data
   await page.getByLabel('Название счёта').fill('Основной счёт');
   await page.getByLabel('Начальный баланс').fill('1 234,50');
   await page.getByLabel('Дата начала учёта').pressSequentially('04092026');
-  // A positive opening balance makes the app offer "Назначить деньги" (a drawer).
-  const fundingPreview = page.waitForResponse(
-    (response) =>
-      response.url().includes('/funding/preview') && response.request().method() === 'POST',
-  );
+  // Before the first assignment no "Назначить деньги" dialog opens after saving.
   await page.getByRole('button', { name: 'Сохранить счёт' }).click();
-  await dismissFundingOffer(page, fundingPreview);
+  await expect(page.getByTestId('toast-stack')).toContainText('Счёт создан');
+  await expect(page.getByRole('dialog', { name: 'Назначить деньги' })).toHaveCount(0);
   await expect(accountCard(page, 'Основной счёт')).toBeVisible();
   await expect(page.getByText(/1.*234.*50/).first()).toBeVisible();
 
@@ -108,18 +105,6 @@ function accountCard(page: import('@playwright/test').Page, name: string) {
   return page
     .getByTestId('account-card-select')
     .filter({ has: page.locator('.account-card__name', { hasText: new RegExp(`^${name}$`) }) });
-}
-
-// The opening-money offer is a drawer; postpone it so it cannot cover the page.
-async function dismissFundingOffer(
-  page: import('@playwright/test').Page,
-  preview: Promise<import('@playwright/test').Response>,
-): Promise<void> {
-  if (!(await preview).ok()) return; // no offer is shown when the preview fails
-  const later = page.getByTestId('funding-later');
-  await expect(later).toBeVisible({ timeout: 15_000 });
-  await later.click();
-  await expect(page.getByRole('dialog', { name: 'Назначить деньги' })).toHaveCount(0);
 }
 
 async function registerAndReachApp(page: import('@playwright/test').Page): Promise<void> {

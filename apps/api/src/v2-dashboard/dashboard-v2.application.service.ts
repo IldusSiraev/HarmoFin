@@ -90,6 +90,7 @@ export type DashboardV2Summary = {
     needsOpeningAssignment: boolean;
     needsPeriodSetup: boolean;
     hasMandatoryPlans: boolean;
+    mandatoryPlansDeclined: boolean;
   };
 };
 
@@ -512,6 +513,7 @@ export class DashboardV2ApplicationService {
         needsOpeningAssignment: cash > 0n && !hasAssignments,
         needsPeriodSetup: needsSetup,
         hasMandatoryPlans: await repo.hasMandatoryPlans(tx, budgetId, mandatoryIds),
+        mandatoryPlansDeclined: await repo.mandatoryPlansDeclined(tx, budgetId, workspaceId),
       },
     };
   }

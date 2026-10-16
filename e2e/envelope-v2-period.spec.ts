@@ -106,12 +106,10 @@ for (const [label, viewport, theme] of [
         );
         if (!mandatory) throw new Error('Envelope "Обязательные" is missing');
 
-        // Account with 100 000; the opening offer is postponed.
+        // Account with 100 000; no assignment dialog before the first assignment.
         await createAccount(page, 'Основная карта', '100 000,00');
-        const offer = page.getByRole('dialog', { name: 'Назначить деньги' });
-        await expect(offer).toBeVisible();
-        await page.keyboard.press('Escape');
-        await expect(offer).toBeHidden();
+        await expect(page.getByTestId('toast-stack')).toContainText('Счёт создан');
+        await expect(page.getByRole('dialog', { name: 'Назначить деньги' })).toHaveCount(0);
         const before = await getJson<Dashboard>(page, `${base}/dashboard`);
         expect(before.cashMinor).toBe('10000000');
         expect(before.freeToAssignMinor).toBe('10000000');

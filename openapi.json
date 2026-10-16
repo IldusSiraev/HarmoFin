@@ -979,6 +979,10 @@
           "hasMandatoryPlans": {
             "type": "boolean"
           },
+          "mandatoryPlansDeclined": {
+            "description": "Владелец указал в онбординге, что обязательных платежей нет.",
+            "type": "boolean"
+          },
           "needsOpeningAssignment": {
             "description": "Есть деньги на счетах, но ни одного подтверждённого назначения.",
             "type": "boolean"
@@ -992,7 +996,8 @@
           "hasAccounts",
           "needsOpeningAssignment",
           "needsPeriodSetup",
-          "hasMandatoryPlans"
+          "hasMandatoryPlans",
+          "mandatoryPlansDeclined"
         ],
         "type": "object"
       },
@@ -11020,6 +11025,86 @@
         ],
         "summary": "Пропустить обязательство без оплат",
         "tags": ["obligations (v2)"]
+      }
+    },
+    "/api/v2/budgets/{budgetId}/onboarding/no-mandatory-plans": {
+      "post": {
+        "description": "Отмечает один раз, что в бюджете нет обязательных платежей: шаг «Обязательные платежи» чек-листа считается выполненным (dashboard.onboarding.mandatoryPlansDeclined=true). Денег не двигает, планов не создаёт и не удаляет. Повтор и вызов после уже сделанной отметки — 204 без изменений и без второго audit. Только OWNER. Коды: 400 VALIDATION_FAILED, 401, 403 FORBIDDEN|CSRF_INVALID, 404 RESOURCE_NOT_FOUND, 409 IDEMPOTENCY_CONFLICT|MODEL_VERSION_MISMATCH.",
+        "operationId": "OnboardingV2Controller_declineMandatoryPlans_v2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Отметка сохранена или уже была сохранена."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": "VALIDATION_FAILED."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": "FORBIDDEN: не OWNER; CSRF_INVALID."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND: бюджет не найден или чужой."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": "IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH."
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Онбординг: обязательных платежей нет",
+        "tags": ["onboarding (v2)"]
       }
     },
     "/api/v2/budgets/{budgetId}/periods/{periodId}/confirm-target": {

@@ -28,6 +28,7 @@ import {
   type UpdateAccountInput,
   useBudgetReferenceData,
 } from '../../composables/useBudgetReferenceData.js';
+import { useEnvelopePlanV2 } from '../../composables/useEnvelopePlanV2.js';
 import { useFundingEntry } from '../../composables/useFundingEntry.js';
 import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js';
 import { useToast } from '../../composables/useToast.js';
@@ -50,6 +51,7 @@ const api = useBudgetReferenceData();
 const formHelper = useReferenceDataForm(accountFields);
 const { push } = useToast();
 const funding = useFundingEntry();
+const v2 = useEnvelopePlanV2();
 const accounts = ref<AccountDto[]>([]);
 const summary = ref<ReferenceSummaryDto | null>(null);
 const detailed = ref<AccountDto | null>(null);
@@ -180,6 +182,17 @@ function hasPositiveAmount(value: string): boolean {
   return /^\+?\d*\.?\d*$/.test(value) && /[1-9]/.test(value);
 }
 
+// The opening assignment opens right away only once the initial setup is over:
+// before the first assignment the checklist leads to it after the mandatory
+// payments and the period plan. The server decides; a failed read never opens it.
+async function initialSetupPending(budgetId: string): Promise<boolean> {
+  try {
+    return (await v2.getDashboard(budgetId)).onboarding.needsOpeningAssignment;
+  } catch {
+    return true;
+  }
+}
+
 async function saveAccount() {
   const id = budgetId.value;
   if (!id) return;
@@ -230,10 +243,21 @@ async function saveAccount() {
       await api.createAccount(id, input);
       await loadAccounts();
       statusMessage.value = 'Счёт создан.';
-      push({ tone: 'success', title: 'Счёт создан' });
       // Envelope Plan v2.2: initial money may be assigned, but only if the user
       // wants to; the account and its balance are already saved either way.
-      if (hasPositiveAmount(input.startingBalance)) funding.offer({ sourceKind: 'OPENING' });
+      const offerAssignment =
+        hasPositiveAmount(input.startingBalance) && !(await initialSetupPending(id));
+      push({
+        tone: 'success',
+        title: 'Счёт создан',
+        ...(hasPositiveAmount(input.startingBalance) && !offerAssignment
+          ? {
+              description:
+                'Распределить деньги по конвертам можно на шаге «Назначить имеющиеся деньги» на главной.',
+            }
+          : {}),
+      });
+      if (offerAssignment) funding.offer({ sourceKind: 'OPENING' });
     }
     cancelForm();
   } catch (error) {

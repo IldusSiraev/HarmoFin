@@ -107,12 +107,10 @@ test('v2: partial income assignment, rent in two parts and a smaller kindergarte
   );
   if (!mandatory) throw new Error('Envelope "Обязательные" is missing');
 
-  // 1. Account with opening money: the offer is postponed with Escape.
+  // 1. Account with opening money: no assignment dialog before the first assignment.
   await createAccount(page, 'Основная карта', OPENING_TYPED);
-  const openingOffer = page.getByRole('dialog', { name: 'Назначить деньги' });
-  await expect(openingOffer).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(openingOffer).toBeHidden();
+  await expect(page.getByTestId('toast-stack')).toContainText('Счёт создан');
+  await expect(page.getByRole('dialog', { name: 'Назначить деньги' })).toHaveCount(0);
   const postponed = await getJson<Dashboard>(page, `${base}/dashboard`);
   expect(postponed.cashMinor).toBe('2000000');
   expect(postponed.freeToAssignMinor).toBe('2000000');

@@ -45,6 +45,7 @@ const v2Base = {
     needsOpeningAssignment: false,
     needsPeriodSetup: false,
     hasMandatoryPlans: true,
+    mandatoryPlansDeclined: false,
   },
 };
 

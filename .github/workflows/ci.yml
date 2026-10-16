@@ -9,21 +9,146 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same pull request supersedes the running check; main runs
+# are grouped by commit so every merged revision is checked to completion.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_ENV: test
+  DATABASE_URL: postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin_v22_test
+  WEB_ORIGIN: http://localhost:3000
+  WEB_BASE_URL: http://localhost:3000
+  API_URL: http://localhost:3001
+  API_PORT: 3001
+  AUTH_TOKEN_HASH_SECRET: test-only-secret-with-at-least-32-bytes
+  SMTP_HOST: 127.0.0.1
+  SMTP_PORT: 1025
+  MAIL_FROM: no-reply@harmofin.test
+  SEED_DEMO_PASSWORD: local-demo-password-10
+
 jobs:
-  quality:
+  static:
     runs-on: ubuntu-latest
-    env:
-      NODE_ENV: test
-      DATABASE_URL: postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin_v22_test
-      WEB_ORIGIN: http://localhost:3000
-      WEB_BASE_URL: http://localhost:3000
-      API_URL: http://localhost:3001
-      API_PORT: 3001
-      AUTH_TOKEN_HASH_SECRET: test-only-secret-with-at-least-32-bytes
-      SMTP_HOST: 127.0.0.1
-      SMTP_PORT: 1025
-      MAIL_FROM: no-reply@harmofin.test
-      SEED_DEMO_PASSWORD: local-demo-password-10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build applications
+        run: pnpm build
+
+      - name: Validate local Compose configuration
+        run: docker compose -f infra/compose/local.yml config --quiet
+
+      - name: Validate production Compose configuration
+        run: docker compose --env-file infra/env/staging.example -f infra/compose/production.yml config --quiet
+
+      - name: Run production topology checks
+        run: node --test infra/docker/production-topology.test.mjs
+
+      - name: Run OpenAPI script unit tests
+        run: node --test scripts/openapi/*.test.mjs scripts/ci/*.test.mjs
+
+      - name: Generate OpenAPI document
+        run: node scripts/openapi/generate.mjs openapi.head.json
+
+      # The checkout is shallow and has no origin/main, so the baseline branch is
+      # fetched explicitly. A pull request without a baseline must fail: comparing
+      # the head document with itself would hide breaking /api/v1 changes.
+      - name: Fetch main OpenAPI baseline
+        run: |
+          base_ref="${GITHUB_BASE_REF:-main}"
+          if git fetch --no-tags --depth=1 origin "$base_ref" &&
+            git show FETCH_HEAD:openapi.json > openapi.base.json; then
+            echo "OpenAPI baseline: origin/$base_ref $(git rev-parse --short FETCH_HEAD)"
+          elif [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            echo "::error::OpenAPI baseline openapi.json not found on origin/$base_ref"
+            exit 1
+          else
+            echo "::warning::OpenAPI baseline unavailable; checking head document only"
+            cp openapi.head.json openapi.base.json
+          fi
+
+      - name: Check OpenAPI contract
+        run: node scripts/openapi/check.mjs openapi.head.json openapi.base.json
+
+      - name: Run dependency security audit
+        run: node scripts/ci/run-dependency-audit.mjs
+
+      - name: Upload OpenAPI contract artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: openapi-contract-${{ github.sha }}
+          path: openapi.head.json
+          retention-days: 30
+
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+
+      # apps/web/tsconfig.json extends the generated .nuxt/tsconfig.json.
+      - name: Prepare Nuxt types
+        run: pnpm --filter @harmofin/web exec nuxt prepare
+
+      - name: Run unit tests
+        run: pnpm test
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: harmofin_v22_test
+          POSTGRES_USER: harmofin_local
+          POSTGRES_PASSWORD: harmofin_local
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U harmofin_local -d harmofin_v22_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 5s
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+
+      - name: Apply migration to blank database
+        run: pnpm db:migrate
+
+      - name: Seed database twice
+        run: pnpm db:seed && pnpm db:seed
+
+      - name: Repeat migration on existing data
+        run: pnpm db:migrate
+
+      - name: Run integration tests
+        run: pnpm test:integration
+
+  e2e:
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:18-alpine
@@ -50,66 +175,18 @@ jobs:
           --health-timeout 5s
           --health-retries 12
           --health-start-period 5s
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
 
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Activate pnpm
-        run: corepack prepare pnpm@11.24.0 --activate
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
-
-      - name: Cache pnpm store
-        uses: actions/cache@v6
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Generate Prisma client
-        run: pnpm db:generate
-
-      - name: Check formatting
-        run: pnpm format:check
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Apply migration to blank database
+      - name: Apply migration
         run: pnpm db:migrate
 
-      - name: Seed database twice
-        run: pnpm db:seed && pnpm db:seed
-
-      - name: Repeat migration on existing data
-        run: pnpm db:migrate
-
-      - name: Run unit tests
-        run: pnpm test
-
-      - name: Run integration tests
-        run: pnpm test:integration
-
-      - name: Build applications
-        run: pnpm build
+      - name: Seed database
+        run: pnpm db:seed
 
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
@@ -117,45 +194,12 @@ jobs:
       - name: Run browser tests
         run: pnpm test:e2e
 
-      - name: Validate local Compose configuration
-        run: docker compose -f infra/compose/local.yml config --quiet
-
-      - name: Validate production Compose configuration
-        run: docker compose --env-file infra/env/staging.example -f infra/compose/production.yml config --quiet
-
-      - name: Run production topology checks
-        run: node --test infra/docker/production-topology.test.mjs
-
-      - name: Run OpenAPI script unit tests
-        run: node --test scripts/openapi/*.test.mjs scripts/ci/*.test.mjs
-
-      - name: Generate OpenAPI document
-        run: node scripts/openapi/generate.mjs openapi.head.json
-
-      - name: Fetch main OpenAPI baseline
-        run: git show origin/main:openapi.json > openapi.base.json || cp openapi.head.json openapi.base.json
-
-      - name: Check OpenAPI contract
-        run: node scripts/openapi/check.mjs openapi.head.json openapi.base.json
-
-      - name: Run dependency security audit
-        run: node scripts/ci/run-dependency-audit.mjs
-
-      - name: Upload OpenAPI contract artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: openapi-contract-${{ github.sha }}
-          path: openapi.head.json
-          retention-days: 30
-
   image-scan:
-    needs: quality
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    strategy:
-      matrix:
-        target: [web, api, worker, migrate]
+    env:
+      TAG: ${{ github.sha }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -163,42 +207,69 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build ${{ matrix.target }} image
-        uses: docker/build-push-action@v7
+      # One bake session builds the shared dependencies/build stages once for all
+      # four targets. Only migrate exports cache: its graph already contains every
+      # shared stage, so a single export covers the whole build.
+      - name: Build images
+        uses: docker/bake-action@59cb1203cd42bcefd40a1b6d73b589e48c86040e # v7.5.0
         with:
-          context: .
-          file: infra/docker/Dockerfile
-          target: ${{ matrix.target }}
-          tags: harmofin-${{ matrix.target }}:${{ github.sha }}
+          source: .
+          files: infra/docker/docker-bake.hcl
           load: true
-          cache-from: type=gha,scope=${{ matrix.target }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.target }}
+          set: |
+            *.cache-from=type=gha,scope=ci
+            migrate.cache-to=type=gha,mode=max,scope=ci
 
       # SBOM/vulnerability scanners are run as pinned-digest containers, not
       # marketplace Actions, after aquasecurity/trivy-action tags 0.0.1-0.34.2
       # were compromised to exfiltrate CI secrets (only 0.35.0+/SHA pins were safe).
-      - name: Generate SBOM
+      - name: Generate SBOMs and scan images
+        env:
+          SYFT_IMAGE: anchore/syft@sha256:b8c170b8e51bfc4779ec3ef4399942c57290f5ce76a9c3af564c9d00d4946a6b
+          TRIVY_IMAGE: aquasec/trivy@sha256:26245f364b6f5d223003dc344ec1eb5eb8439052bfecb31d79aeba0c74344b3a
         run: |
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "$PWD:/out" \
-            anchore/syft@sha256:b8c170b8e51bfc4779ec3ef4399942c57290f5ce76a9c3af564c9d00d4946a6b \
-            harmofin-${{ matrix.target }}:${{ github.sha }} \
-            -o spdx-json=/out/sbom-${{ matrix.target }}.spdx.json
+          set -euo pipefail
+          targets=(web api worker migrate)
+          mkdir -p trivy-cache
 
-      - name: Scan image for vulnerabilities
-        run: |
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "$PWD/scripts/ci/.trivyignore:/.trivyignore:ro" \
-            aquasec/trivy@sha256:26245f364b6f5d223003dc344ec1eb5eb8439052bfecb31d79aeba0c74344b3a \
-            image --severity HIGH,CRITICAL --ignorefile /.trivyignore --exit-code 1 \
-            harmofin-${{ matrix.target }}:${{ github.sha }}
+          # Download the vulnerability DB once so the parallel scans share it.
+          docker run --rm -v "$PWD/trivy-cache:/root/.cache/trivy" "$TRIVY_IMAGE" image --download-db-only
+
+          scan() {
+            local image="harmofin-$1:$TAG"
+            docker run --rm \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "$PWD:/out" \
+              "$SYFT_IMAGE" "$image" -o "spdx-json=/out/sbom-$1.spdx.json" &&
+            docker run --rm \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "$PWD/trivy-cache:/root/.cache/trivy" \
+              -v "$PWD/scripts/ci/.trivyignore:/.trivyignore:ro" \
+              "$TRIVY_IMAGE" image --skip-db-update \
+              --severity HIGH,CRITICAL --ignorefile /.trivyignore --exit-code 1 "$image"
+          }
+
+          pids=()
+          for target in "${targets[@]}"; do
+            scan "$target" > "scan-$target.log" 2>&1 &
+            pids+=($!)
+          done
+
+          status=0
+          for i in "${!targets[@]}"; do
+            target="${targets[$i]}"
+            if wait "${pids[$i]}"; then result=passed; else result=failed; status=1; fi
+            echo "::group::$target scan $result"
+            cat "scan-$target.log"
+            echo "::endgroup::"
+            if [ "$result" = failed ]; then echo "::error::Image scan failed for $target"; fi
+          done
+          exit "$status"
 
       - name: Upload SBOM artifact
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: sbom-${{ matrix.target }}-${{ github.sha }}
-          path: sbom-${{ matrix.target }}.spdx.json
+          name: sbom-${{ github.sha }}
+          path: sbom-*.spdx.json
           retention-days: 30

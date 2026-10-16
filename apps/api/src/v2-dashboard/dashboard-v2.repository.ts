@@ -332,4 +332,17 @@ export class DashboardV2Repository {
     });
     return found !== null;
   }
+
+  /** True once the owner stated in onboarding that the budget has no mandatory payments. */
+  async mandatoryPlansDeclined(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    workspaceId: string,
+  ): Promise<boolean> {
+    const found = await tx.budget.findFirst({
+      where: { id: budgetId, workspaceId, onboardingNoMandatoryPlansAt: { not: null } },
+      select: { id: true },
+    });
+    return found !== null;
+  }
 }
