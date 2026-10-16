@@ -171,14 +171,13 @@ for (const [label, viewport] of [
       expect(afterRepeat.envelopeNames).toEqual(afterFirst.envelopeNames);
       expect(afterRepeat.categoryCount).toBe(afterFirst.categoryCount);
 
-      // 7. Account with opening money, no income: the offer can be postponed.
+      // 7. Account with opening money, no income: no assignment dialog during the
+      // initial setup; the toast points to the checklist step instead.
       await createAccount(page, 'Основная карта', OPENING_TYPED);
-      const offer = page.getByRole('dialog', { name: 'Назначить деньги' });
-      await expect(offer).toBeVisible();
-      await expect(offer.getByTestId('funding-source')).toHaveText(/^7\s000,00/);
-      await tabTo(page, offer.getByTestId('funding-later'));
-      await page.keyboard.press('Enter');
-      await expect(offer).toBeHidden();
+      await expect(page.getByTestId('toast-stack')).toContainText(
+        'Распределить деньги по конвертам можно на шаге «Назначить имеющиеся деньги» на главной.',
+      );
+      await expect(page.getByRole('dialog', { name: 'Назначить деньги' })).toHaveCount(0);
 
       const postponed = await snapshot(page, budgetId);
       expect(postponed.dashboard.cashMinor).toBe(OPENING_MINOR);
@@ -188,7 +187,37 @@ for (const [label, viewport] of [
       expect(postponed.dashboard.onboarding.needsOpeningAssignment).toBe(true);
 
       await page.goto('/app');
+      await expect(page.getByTestId('onboarding-step')).toHaveCount(5);
+      expect(
+        await page
+          .getByTestId('onboarding-step')
+          .evaluateAll((rows) => rows.map((row) => row.getAttribute('data-step'))),
+      ).toEqual([
+        'categoriesSeeded',
+        'hasAccounts',
+        'hasMandatoryPlans',
+        'periodSetup',
+        'openingAssignment',
+      ]);
+      await page.getByTestId('onboarding-mandatory-decline').click();
+      await expect(
+        page.locator('[data-step="hasMandatoryPlans"] [data-testid="onboarding-step-done"]'),
+      ).toBeVisible();
       await expect(page.locator('[data-action="onboarding-assign-money"]')).toBeVisible();
+
+      // Confirming the template's proposed period target does not move money;
+      // it only unblocks the "Можно потратить" calculation for the period.
+      const confirmTargetResponse = page.waitForResponse(
+        (response) =>
+          /\/periods\/[^/]+\/confirm-target$/.test(response.url()) &&
+          response.request().method() === 'POST',
+      );
+      await page.getByTestId('onboarding-target-confirm').click();
+      expect((await confirmTargetResponse).status()).toBe(200);
+      await expect(
+        page.locator('[data-step="periodSetup"] [data-testid="onboarding-step-done"]'),
+      ).toBeVisible();
+
       await page.locator('[data-action="toggle-breakdown"]').click();
       await expect(page.getByText('Свободно для назначения', { exact: true })).toBeVisible();
 
@@ -221,6 +250,11 @@ for (const [label, viewport] of [
       expect(assigned.dashboard.cashMinor).toBe(OPENING_MINOR);
       expect(assigned.dashboard.freeToAssignMinor).toBe(FREE_AFTER_ASSIGN_MINOR);
       expect(assigned.envelopeNames).toEqual(afterRepeat.envelopeNames);
+
+      // All five steps are done now (categories, account, mandatory declined,
+      // period confirmed, assignment exists): the checklist disappears.
+      await page.goto('/app');
+      await expect(page.getByTestId('onboarding-checklist')).toHaveCount(0);
     });
   });
 }

@@ -144,6 +144,7 @@ describe('dashboard page', () => {
       needsOpeningAssignment: false,
       needsPeriodSetup: false,
       hasMandatoryPlans: true,
+      mandatoryPlansDeclined: false,
     },
   };
   const stubs = { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } };

@@ -253,6 +253,7 @@ export interface DashboardV2Response {
     needsOpeningAssignment: boolean;
     needsPeriodSetup: boolean;
     hasMandatoryPlans: boolean;
+    mandatoryPlansDeclined: boolean;
   };
 }
 
@@ -965,6 +966,8 @@ export function useEnvelopePlanV2() {
         {},
         idempotencyKey,
       ),
+    declineMandatoryPlans: (budgetId: string, idempotencyKey: string) =>
+      postKeyed<void>(`${base(budgetId)}/onboarding/no-mandatory-plans`, {}, idempotencyKey),
     payObligation: (
       budgetId: string,
       occurrenceId: string,

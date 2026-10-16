@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
     updateAccount: vi.fn(),
     archiveAccount: vi.fn(),
   },
+  v2: { getDashboard: vi.fn() },
   route: { path: '/app/accounts', query: {} as Record<string, string> },
   navigateTo: vi.fn(),
 }));
@@ -26,6 +27,7 @@ vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => mocks.auth }));
 vi.mock('../../composables/useBudgetReferenceData.js', () => ({
   useBudgetReferenceData: () => mocks.api,
 }));
+vi.mock('../../composables/useEnvelopePlanV2.js', () => ({ useEnvelopePlanV2: () => mocks.v2 }));
 
 import AccountsPage from './accounts.vue';
 import { ApiRequestError } from '../../composables/useApiClient.js';
@@ -90,6 +92,7 @@ describe('accounts page', () => {
       totalMinor: '150000',
       count: 2,
     });
+    mocks.v2.getDashboard.mockResolvedValue({ onboarding: { needsOpeningAssignment: false } });
     useToast().clear();
   });
 
@@ -129,7 +132,7 @@ describe('accounts page', () => {
     await flushPromises();
   }
 
-  it('offers the optional opening assignment for a v2 budget with a non-zero starting balance', async () => {
+  it('offers the opening assignment once money has been assigned before', async () => {
     useFundingEntry().dismiss();
     const budget = (mocks.auth.currentData.value as { workspaces: Array<{ budgets: object[] }> })
       .workspaces[0]!.budgets[0] as Record<string, unknown>;
@@ -138,6 +141,7 @@ describe('accounts page', () => {
     await createWithBalance('1000');
 
     expect(useFundingEntry().request.value?.source).toEqual({ sourceKind: 'OPENING' });
+    expect(mocks.v2.getDashboard).toHaveBeenCalledWith('budget-id');
   });
 
   it('offers nothing for a zero starting balance', async () => {
@@ -147,6 +151,31 @@ describe('accounts page', () => {
     budget.planModelVersion = 2;
     await createWithBalance('0');
     expect(useFundingEntry().request.value).toBeNull();
+    expect(mocks.v2.getDashboard).not.toHaveBeenCalled();
+  });
+
+  it('does not open the assignment during the initial setup and points to the checklist', async () => {
+    useFundingEntry().dismiss();
+    mocks.v2.getDashboard.mockResolvedValue({ onboarding: { needsOpeningAssignment: true } });
+
+    await createWithBalance('1000');
+
+    expect(useFundingEntry().request.value).toBeNull();
+    const toast = useToast().toasts.value.at(-1);
+    expect(toast?.title).toBe('Счёт создан');
+    expect(toast?.description).toBe(
+      'Распределить деньги по конвертам можно на шаге «Назначить имеющиеся деньги» на главной.',
+    );
+  });
+
+  it('does not open the assignment when the onboarding status cannot be read', async () => {
+    useFundingEntry().dismiss();
+    mocks.v2.getDashboard.mockRejectedValue(new Error('network'));
+
+    await createWithBalance('1000');
+
+    expect(useFundingEntry().request.value).toBeNull();
+    expect(useToast().toasts.value.at(-1)?.title).toBe('Счёт создан');
   });
 
   it('creates account from decimal text and refreshes server-confirmed card', async () => {

@@ -32,7 +32,7 @@ const emit = defineEmits<{
   hostsTarget: [hosts: boolean];
 }>();
 
-type StepAction = 'template' | 'assign' | 'target' | 'link';
+type StepAction = 'template' | 'assign' | 'target' | 'mandatory' | 'link';
 
 type Step = {
   key: string;
@@ -106,9 +106,32 @@ function periodStep(status: V2Onboarding): Step {
   };
 }
 
+const MONEY_STEP_WARNING =
+  'Сначала добавьте обязательные платежи — иначе на них ничего не будет отложено.';
+
+function mandatoryStep(status: V2Onboarding): Step {
+  const done = status.hasMandatoryPlans || status.mandatoryPlansDeclined;
+  return {
+    key: 'hasMandatoryPlans',
+    title: 'Обязательные платежи',
+    description:
+      status.mandatoryPlansDeclined && !status.hasMandatoryPlans
+        ? 'Обязательных платежей нет. Если появятся, добавьте их в «Планах».'
+        : 'Добавьте регулярные обязательные платежи: аренду, коммунальные услуги, кредиты. Из них складывается сумма, которую нужно отложить в «Обязательные».',
+    href: '/app/plans',
+    linkLabel: 'Перейти',
+    action: done ? 'link' : 'mandatory',
+    done,
+  };
+}
+
 const steps = computed<Step[]>(() => {
   const status = v2Status.value;
   if (!status) return [];
+  const mandatory = mandatoryStep(status);
+  const assignDone = status.hasAccounts && !status.needsOpeningAssignment;
+  const assignBase =
+    'Распределите деньги со счетов по конвертам или оставьте свободными: это можно сделать позже.';
   return [
     {
       key: 'categoriesSeeded',
@@ -120,7 +143,6 @@ const steps = computed<Step[]>(() => {
       action: 'template',
       done: status.categoriesSeeded,
     },
-    periodStep(status),
     {
       key: 'hasAccounts',
       title: 'Счета',
@@ -130,24 +152,17 @@ const steps = computed<Step[]>(() => {
       action: 'link',
       done: status.hasAccounts,
     },
+    mandatory,
+    periodStep(status),
     {
       key: 'openingAssignment',
       title: 'Назначить имеющиеся деньги',
       description:
-        'Распределите деньги со счетов по конвертам или оставьте свободными: это можно сделать позже.',
+        !assignDone && !mandatory.done ? `${assignBase} ${MONEY_STEP_WARNING}` : assignBase,
       href: '/app/accounts',
       linkLabel: 'Перейти',
       action: 'assign',
-      done: status.hasAccounts && !status.needsOpeningAssignment,
-    },
-    {
-      key: 'hasMandatoryPlans',
-      title: 'Обязательные платежи',
-      description: 'Добавьте регулярные обязательные платежи, чтобы видеть, что нужно оплатить.',
-      href: '/app/plans',
-      linkLabel: 'Перейти',
-      action: 'link',
-      done: status.hasMandatoryPlans,
+      done: assignDone,
     },
   ];
 });
@@ -231,6 +246,28 @@ async function decideTarget(kind: 'confirm' | 'reject'): Promise<void> {
     targetError.value = v2ErrorMessage(error, 'Не удалось выполнить действие. Попробуйте ещё раз.');
   } finally {
     targetPending.value = false;
+  }
+}
+
+// One Idempotency-Key per decline attempt: a retry after a failure reuses it.
+let declineKey: string | null = null;
+const declinePending = ref(false);
+const declineError = ref('');
+
+async function declineMandatoryPlans(): Promise<void> {
+  if (declinePending.value) return;
+  declinePending.value = true;
+  declineError.value = '';
+  try {
+    declineKey ??= crypto.randomUUID();
+    await v2.declineMandatoryPlans(props.budgetId, declineKey);
+    declineKey = null;
+    decisionNotice.value = 'Шаг «Обязательные платежи» пропущен.';
+    await loadV2Status();
+  } catch (error) {
+    declineError.value = v2ErrorMessage(error, 'Не удалось сохранить. Попробуйте ещё раз.');
+  } finally {
+    declinePending.value = false;
   }
 }
 </script>
@@ -324,6 +361,15 @@ async function decideTarget(kind: 'confirm' | 'reject'): Promise<void> {
                 {{ targetError }}
               </span>
             </template>
+            <span
+              v-if="step.action === 'mandatory' && declineError"
+              class="onboarding-checklist__error"
+              role="alert"
+              data-testid="onboarding-mandatory-error"
+            >
+              <AlertTriangle :size="14" aria-hidden="true" />
+              {{ declineError }}
+            </span>
           </span>
 
           <div v-if="step.action === 'target'" class="onboarding-checklist__actions">
@@ -344,6 +390,26 @@ async function decideTarget(kind: 'confirm' | 'reject'): Promise<void> {
               @click="decideTarget('reject')"
             >
               Отклонить
+            </UiButton>
+          </div>
+
+          <div v-else-if="step.action === 'mandatory'" class="onboarding-checklist__actions">
+            <UiButton
+              variant="tertiary"
+              size="sm"
+              :to="step.href"
+              data-testid="onboarding-mandatory-add"
+            >
+              Добавить платёж
+            </UiButton>
+            <UiButton
+              variant="secondary"
+              size="sm"
+              :loading="declinePending"
+              data-testid="onboarding-mandatory-decline"
+              @click="declineMandatoryPlans"
+            >
+              У меня их нет
             </UiButton>
           </div>
 

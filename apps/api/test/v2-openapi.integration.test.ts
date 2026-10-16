@@ -54,6 +54,7 @@ const EXPECTED_V2: Array<[Method, string]> = [
   ['post', '/api/v2/budgets/{budgetId}/cycle-change/confirm'],
   ['get', '/api/v2/budgets/{budgetId}/reference-template/preview'],
   ['post', '/api/v2/budgets/{budgetId}/reference-template/apply'],
+  ['post', '/api/v2/budgets/{budgetId}/onboarding/no-mandatory-plans'],
   ['get', '/api/v2/budgets/{budgetId}/envelopes'],
   ['post', '/api/v2/budgets/{budgetId}/envelopes'],
   ['get', '/api/v2/budgets/{budgetId}/envelopes/{envelopeId}'],
@@ -535,9 +536,10 @@ describe('v2 OpenAPI contract (P06)', () => {
       if (wrong.statusCode !== 403 || wrong.json<{ code?: string }>().code !== 'CSRF_INVALID') {
         bad.push(`${label(op)} неверный токен -> ${wrong.statusCode}`);
       }
-      // Positive control: с валидным токеном запрос доходит дальше guard (400/404/409/422...).
+      // Positive control: с валидным токеном запрос доходит дальше guard (204/400/404/409/422...).
       const valid = await send(a.csrfToken);
-      if (valid.statusCode === 401 || valid.json<{ code?: string }>().code === 'CSRF_INVALID') {
+      const validCode = valid.body ? valid.json<{ code?: string }>().code : undefined;
+      if (valid.statusCode === 401 || validCode === 'CSRF_INVALID') {
         bad.push(
           `${label(op)} с валидным токеном -> ${valid.statusCode} ${valid.body.slice(0, 80)}`,
         );

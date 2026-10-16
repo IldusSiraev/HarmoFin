@@ -785,11 +785,26 @@ describe('v2 dashboard HTTP contract (P02)', () => {
       'categoriesSeeded',
       'hasAccounts',
       'hasMandatoryPlans',
+      'mandatoryPlansDeclined',
       'needsOpeningAssignment',
       'needsPeriodSetup',
     ]);
     expect(body.onboarding.needsPeriodSetup).toBe(true);
     expect(body.onboarding.hasAccounts).toBe(true);
+  });
+
+  it('mandatoryPlansDeclined отражает отказ от обязательных платежей', async () => {
+    const w = await world(5_000_000n);
+    const before = (await getDashboard(w)).json<DashboardBody>();
+    expect(before.onboarding.mandatoryPlansDeclined).toBe(false);
+
+    await prisma.budget.update({
+      where: { id: w.budgetId },
+      data: { onboardingNoMandatoryPlansAt: new Date() },
+    });
+    const after = (await getDashboard(w)).json<DashboardBody>();
+    expect(after.onboarding.mandatoryPlansDeclined).toBe(true);
+    expect(after.onboarding.hasMandatoryPlans).toBe(false);
   });
 
   it('предупреждение об ограничении: текстовый статус, сумма и действие (нехватка на обязательства)', async () => {

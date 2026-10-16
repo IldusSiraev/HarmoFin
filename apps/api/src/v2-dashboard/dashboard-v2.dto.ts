@@ -135,6 +135,12 @@ export class DashboardV2OnboardingResponse {
 
   @ApiProperty({ type: Boolean })
   hasMandatoryPlans!: boolean;
+
+  @ApiProperty({
+    type: Boolean,
+    description: 'Владелец указал в онбординге, что обязательных платежей нет.',
+  })
+  mandatoryPlansDeclined!: boolean;
 }
 
 export class DashboardV2UpcomingResponse {

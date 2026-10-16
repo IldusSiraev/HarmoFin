@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
     applyTemplate: vi.fn(),
     confirmPeriodTarget: vi.fn(),
     rejectPeriodTarget: vi.fn(),
+    declineMandatoryPlans: vi.fn(),
   },
 }));
 
@@ -60,6 +61,7 @@ const v2Onboarding = {
   needsOpeningAssignment: true,
   needsPeriodSetup: true,
   hasMandatoryPlans: false,
+  mandatoryPlansDeclined: false,
 };
 const match = {
   matchedBy: null,
@@ -123,6 +125,131 @@ describe('OnboardingChecklist', () => {
     });
   });
 
+  it('orders the steps: accounts, mandatory payments, period plan, then money', async () => {
+    const { wrapper } = mountChecklist();
+    await flushPromises();
+
+    expect(
+      wrapper.findAll('[data-testid="onboarding-step"]').map((row) => row.attributes('data-step')),
+    ).toEqual([
+      'categoriesSeeded',
+      'hasAccounts',
+      'hasMandatoryPlans',
+      'periodSetup',
+      'openingAssignment',
+    ]);
+  });
+
+  describe('mandatory payments step', () => {
+    const mandatoryRow = (wrapper: ReturnType<typeof mountChecklist>['wrapper']) =>
+      wrapper.get('[data-step="hasMandatoryPlans"]');
+
+    it('offers to add a payment or to state there are none', async () => {
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+
+      const row = mandatoryRow(wrapper);
+      expect(row.get('[data-testid="onboarding-mandatory-add"]').attributes('href')).toBe(
+        '/app/plans',
+      );
+      expect(row.get('[data-testid="onboarding-mandatory-decline"]').text()).toBe('У меня их нет');
+    });
+
+    it('counts the step done when the owner declined mandatory payments', async () => {
+      mocks.v2.getDashboard.mockResolvedValue(
+        dashboard({ ...v2Onboarding, mandatoryPlansDeclined: true }),
+      );
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+
+      const row = mandatoryRow(wrapper);
+      expect(row.find('[data-testid="onboarding-step-done"]').exists()).toBe(true);
+      expect(row.text()).toContain('Обязательных платежей нет.');
+      expect(row.find('[data-testid="onboarding-mandatory-decline"]').exists()).toBe(false);
+    });
+
+    it('declines on click, rereads the status and announces it', async () => {
+      mocks.v2.declineMandatoryPlans.mockResolvedValue(undefined);
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+      mocks.v2.getDashboard.mockResolvedValue(
+        dashboard({ ...v2Onboarding, mandatoryPlansDeclined: true }),
+      );
+
+      await mandatoryRow(wrapper)
+        .get('[data-testid="onboarding-mandatory-decline"]')
+        .trigger('click');
+      await flushPromises();
+
+      expect(mocks.v2.declineMandatoryPlans).toHaveBeenCalledWith('budget-1', expect.any(String));
+      expect(mocks.v2.getDashboard).toHaveBeenCalledTimes(2);
+      expect(wrapper.get('[data-testid="onboarding-notice"]').text()).toBe(
+        'Шаг «Обязательные платежи» пропущен.',
+      );
+      expect(mandatoryRow(wrapper).find('[data-testid="onboarding-step-done"]').exists()).toBe(
+        true,
+      );
+    });
+
+    it('shows the error, keeps the step open and reuses the key on retry', async () => {
+      mocks.v2.declineMandatoryPlans.mockRejectedValueOnce(new Error('network'));
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+
+      const button = () =>
+        mandatoryRow(wrapper).get('[data-testid="onboarding-mandatory-decline"]');
+      await button().trigger('click');
+      await flushPromises();
+
+      expect(
+        mandatoryRow(wrapper).get('[data-testid="onboarding-mandatory-error"]').text(),
+      ).toContain('Не удалось');
+      expect(mandatoryRow(wrapper).find('[data-testid="onboarding-step-done"]').exists()).toBe(
+        false,
+      );
+
+      mocks.v2.declineMandatoryPlans.mockResolvedValueOnce(undefined);
+      await button().trigger('click');
+      await flushPromises();
+      const [first, second] = mocks.v2.declineMandatoryPlans.mock.calls;
+      expect(second![1]).toBe(first![1]);
+    });
+
+    it('sends a single request for a double click while pending', async () => {
+      let resolve: () => void = () => {};
+      mocks.v2.declineMandatoryPlans.mockReturnValue(
+        new Promise<void>((done) => {
+          resolve = done;
+        }),
+      );
+      const { wrapper } = mountChecklist();
+      await flushPromises();
+
+      const button = mandatoryRow(wrapper).get('[data-testid="onboarding-mandatory-decline"]');
+      await button.trigger('click');
+      await button.trigger('click');
+      resolve();
+      await flushPromises();
+
+      expect(mocks.v2.declineMandatoryPlans).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('warns on the money step until mandatory payments are settled', async () => {
+    const { wrapper } = mountChecklist();
+    await flushPromises();
+    const warning =
+      'Сначала добавьте обязательные платежи — иначе на них ничего не будет отложено.';
+    expect(wrapper.get('[data-step="openingAssignment"]').text()).toContain(warning);
+
+    mocks.v2.getDashboard.mockResolvedValue(
+      dashboard({ ...v2Onboarding, hasMandatoryPlans: true }),
+    );
+    useFundingEntry().markConfirmed();
+    await flushPromises();
+    expect(wrapper.get('[data-step="openingAssignment"]').text()).not.toContain(warning);
+  });
+
   it('opens the shared template preview from the first step', async () => {
     const { wrapper } = mountChecklist();
     await flushPromises();
@@ -156,6 +283,7 @@ describe('OnboardingChecklist', () => {
         needsOpeningAssignment: false,
         needsPeriodSetup: false,
         hasMandatoryPlans: true,
+        mandatoryPlansDeclined: false,
       }),
     );
     const { wrapper } = mountChecklist();
@@ -185,6 +313,7 @@ describe('OnboardingChecklist', () => {
         needsOpeningAssignment: false,
         needsPeriodSetup: true,
         hasMandatoryPlans: false,
+        mandatoryPlansDeclined: false,
       }),
     );
     const { wrapper } = mountChecklist();
