@@ -37,7 +37,7 @@ const emit = defineEmits<{
 const planV2 = useEnvelopePlanV2();
 
 const KIND_LABELS: Record<EnvelopeHistoryItem['kind'], string> = {
-  ASSIGNMENT: 'Назначение',
+  ASSIGNMENT: 'Распределение',
   MOVEMENT: 'Перенос',
   SPENDING: 'Расход',
 };
@@ -93,7 +93,7 @@ function toggleDeleted(): void {
 }
 
 const scopeLabel = computed(() =>
-  props.envelope ? (PLAN_SCOPE_LABELS[props.envelope.envelopeType] ?? 'Пользовательская') : '',
+  props.envelope ? (PLAN_SCOPE_LABELS[props.envelope.envelopeType] ?? 'Свой конверт') : '',
 );
 const slotLabel = computed(() =>
   props.envelope?.periodSlot ? PLAN_SLOT_LABELS[props.envelope.periodSlot] : null,
@@ -138,7 +138,7 @@ const operationsLink = computed(() =>
           <dd>{{ slotLabel }}</dd>
         </div>
         <div>
-          <dt>Назначено</dt>
+          <dt>Отложено</dt>
           <dd><FinanceMoney :minor-units="envelope.fundedMinor" currency="RUB" :scale="2" /></dd>
         </div>
         <div>
@@ -167,7 +167,7 @@ const operationsLink = computed(() =>
         aria-labelledby="plan-history-title"
       >
         <h3 id="plan-history-title" class="plan-drawer__section-title">
-          {{ showDeleted ? 'Отменённые записи' : 'Назначения, переносы и расходы' }}
+          {{ showDeleted ? 'Отменённые записи' : 'Распределения, переносы и расходы' }}
         </h3>
         <p v-if="showDeleted" class="plan-drawer__caption">
           Только для чтения: эти записи отменены и не влияют на остаток.
@@ -216,7 +216,7 @@ const operationsLink = computed(() =>
         data-testid="plan-drawer-reassign"
         @click="emit('reassign', envelope)"
       >
-        Переназначить
+        Переложить
       </UiButton>
       <UiButton
         v-if="!envelope.archivedAt"

@@ -253,7 +253,7 @@ async function saveAccount() {
         ...(hasPositiveAmount(input.startingBalance) && !offerAssignment
           ? {
               description:
-                'Распределить деньги по конвертам можно на шаге «Назначить имеющиеся деньги» на главной.',
+                'Распределить деньги по конвертам можно на главной, в мастере «Начало работы».',
             }
           : {}),
       });

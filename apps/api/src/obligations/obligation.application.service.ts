@@ -83,28 +83,29 @@ function parseDate(value: string): Date {
 function notOpen(): ConflictException {
   return new ConflictException({
     code: 'OCCURRENCE_NOT_OPEN',
-    detail: 'Обязательство уже закрыто, пропущено или отменено.',
+    detail: 'Платёж уже закрыт, пропущен или отменён.',
   });
 }
 
 function notPayable(): ConflictException {
   return new ConflictException({
     code: 'OCCURRENCE_NOT_PAYABLE',
-    detail: 'Обязательство нельзя оплатить: нужен активный план расхода с обязательным конвертом.',
+    detail:
+      'Платёж нельзя оплатить: нужен активный план расхода из конверта обязательных платежей.',
   });
 }
 
 function hasPayments(): ConflictException {
   return new ConflictException({
     code: 'OCCURRENCE_HAS_PAYMENTS',
-    detail: 'У обязательства есть подтверждённые оплаты; его нельзя пропустить.',
+    detail: 'У платежа есть подтверждённые оплаты; его нельзя пропустить.',
   });
 }
 
 function noPayments(): ConflictException {
   return new ConflictException({
     code: 'OCCURRENCE_HAS_NO_PAYMENTS',
-    detail: 'Закрыть можно только обязательство хотя бы с одной подтверждённой оплатой.',
+    detail: 'Закрыть можно только платёж хотя бы с одной подтверждённой оплатой.',
   });
 }
 
@@ -300,7 +301,7 @@ export class ObligationApplicationService {
     if (assignment.balance < 0n) {
       warnings.push({
         code: 'ENVELOPE_BALANCE_INSUFFICIENT',
-        detail: 'Назначение конверта меньше расхода; оплата проведена.',
+        detail: 'В конверте отложено меньше, чем расход; оплата проведена.',
       });
     }
 

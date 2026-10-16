@@ -320,7 +320,7 @@ export class ObligationPlanApplicationService {
     });
     const occurrenceId = await this.planData.findOccurrenceIdAt(tx, budgetId, plan.id, start);
     if (input.recurrence === 'ONE_TIME' && !occurrenceId) {
-      throw validationFailed('Для разового платежа не удалось создать обязательство.');
+      throw validationFailed('Не удалось создать разовый платёж.');
     }
     return { ...this.planView(plan), occurrenceId, occurrencesCreated: created };
   }

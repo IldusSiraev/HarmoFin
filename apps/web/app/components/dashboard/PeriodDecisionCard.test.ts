@@ -257,7 +257,7 @@ describe('PeriodDecisionCard', () => {
     await wrapper.get('[data-testid="target-confirm"]').trigger('click');
     await flushPromises();
 
-    expect(wrapper.get('[data-testid="target-error"]').text()).toContain('План периода уже');
+    expect(wrapper.get('[data-testid="target-error"]').text()).toContain('Лимит на период уже');
     expect(wrapper.emitted('changed')).toBeUndefined();
 
     await wrapper.get('[data-testid="target-confirm"]').trigger('click');
@@ -386,7 +386,7 @@ describe('PeriodDecisionCard', () => {
     await flushPromises();
 
     const text = wrapper.text().replace(/\s/g, ' ');
-    expect(text).toContain('Предложенный план периода');
+    expect(text).toContain('Предложенный лимит на период');
     expect(text).toContain('50 000,00 ₽');
     expect(v2Api.confirmPeriodTarget).not.toHaveBeenCalled();
 

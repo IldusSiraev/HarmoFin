@@ -19,10 +19,14 @@ function formatScheduledOn(iso: string): string {
 <template>
   <section class="upcoming-obligations" aria-labelledby="upcoming-obligations-title">
     <header class="upcoming-obligations__header">
-      <h2 id="upcoming-obligations-title" class="upcoming-obligations__title">Обязательства</h2>
-      <UiMoreLink to="/app/plans" aria-label="Все: Обязательства">Все</UiMoreLink>
+      <h2 id="upcoming-obligations-title" class="upcoming-obligations__title">
+        Обязательные платежи
+      </h2>
+      <UiMoreLink to="/app/plans" aria-label="Все: Обязательные платежи">Все</UiMoreLink>
     </header>
-    <p v-if="items.length === 0" class="upcoming-obligations__empty">Ближайших обязательств нет.</p>
+    <p v-if="items.length === 0" class="upcoming-obligations__empty">
+      Ближайших обязательных платежей нет.
+    </p>
     <ul v-else>
       <li v-for="item in items" :key="item.occurrenceId">
         <p class="upcoming-obligations__date">{{ formatScheduledOn(item.scheduledOn) }}</p>

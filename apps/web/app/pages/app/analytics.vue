@@ -150,9 +150,9 @@ const reportOptions = [
   { value: 'incomes-by-cycle', label: 'Доходы по циклам' },
   { value: 'net-cash-flow', label: 'Доходы минус расходы' },
   { value: 'account-balances', label: 'Остатки счетов' },
-  { value: 'savings-goals', label: 'Цели накоплений (назначено)' },
+  { value: 'savings-goals', label: 'Цели накоплений (отложено)' },
   { value: 'plan-vs-actual', label: 'План и факт' },
-  { value: 'assignment-movements', label: 'Назначения и переносы' },
+  { value: 'assignment-movements', label: 'Распределения и переносы' },
 ];
 
 function activeFilterCount() {

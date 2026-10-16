@@ -53,7 +53,7 @@ const TYPE_LABELS: Record<FundingRuleType, string> = {
   PERCENT_OF_INCOME: 'Процент от дохода',
 };
 const TYPE_HINTS: Record<FundingRuleType, string> = {
-  MANUAL: 'Сумма предлагается только вручную при назначении.',
+  MANUAL: 'Сумма предлагается только вручную при распределении.',
   SUM_OF_PLANS: 'Потребность считает сервер по планам обязательных платежей.',
   FIXED_PER_PERIOD:
     'Цель периода: подтверждается отдельно, пока не подтверждена — это предложение.',
@@ -267,7 +267,7 @@ async function saveRule(): Promise<void> {
   try {
     await v2.updateFundingRule(props.budgetId, envelope.id, body, attemptKey('rule', body));
     attempts.delete('rule');
-    ruleStatus.value = 'Правило сохранено. Назначения и остатки не изменились.';
+    ruleStatus.value = 'Правило сохранено. Распределения и остатки не изменились.';
     emit('changed', 'Правило пополнения сохранено.');
   } catch (error) {
     if (applyFieldErrors(error)) {
@@ -361,7 +361,7 @@ async function submitSuggestion(enabled: boolean): Promise<void> {
     await v2.updateIncomeCategorySuggestion(props.budgetId, body, attemptKey('suggestion', body));
     attempts.delete('suggestion');
     suggestionStatus.value = enabled
-      ? 'Предложение сохранено. Деньги не назначены: назначение подтверждается отдельно.'
+      ? 'Предложение сохранено. Деньги не распределены: распределение подтверждается отдельно.'
       : 'Предложение отключено.';
     emit('changed', enabled ? 'Предложение для дохода сохранено.' : 'Предложение отключено.');
   } catch (error) {
@@ -531,7 +531,7 @@ function requestClose(): void {
           </UiButton>
         </div>
         <p class="rule-sheet__muted">
-          Изменение правила не меняет назначения, остатки и подтверждённую цель периода.
+          Изменение правила не меняет распределения, остатки и подтверждённую цель периода.
         </p>
       </section>
 
@@ -555,7 +555,7 @@ function requestClose(): void {
             <p class="rule-sheet__warning" role="note" data-testid="target-consequence">
               <AlertTriangle :size="16" aria-hidden="true" />
               Внимание: подтверждённая цель текущего периода изменится на указанную сумму.
-              Назначения и остаток конверта не изменятся.
+              Распределения и остаток конверта не изменятся.
             </p>
             <label class="rule-sheet__field">
               <span>Новая цель периода, ₽</span>
@@ -620,7 +620,7 @@ function requestClose(): void {
         <h3 id="suggestion-heading" class="rule-sheet__heading">Предложение для дохода</h3>
         <p class="rule-sheet__muted">
           При поступлении дохода выбранной категории сервер предложит направить его в этот конверт.
-          Это только настройка: назначения не создаются, решение вы подтверждаете сами. Новое
+          Это только настройка: распределения не создаются, решение вы подтверждаете сами. Новое
           предложение заменяет прежнее.
         </p>
         <label class="rule-sheet__field">

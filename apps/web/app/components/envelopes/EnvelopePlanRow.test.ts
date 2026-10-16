@@ -23,7 +23,7 @@ describe('EnvelopePlanRow', () => {
     const wrapper = mount(EnvelopePlanRow, { props: { envelope: base } });
 
     const text = plain(wrapper.text());
-    expect(text).toContain('Назначено 40 000');
+    expect(text).toContain('Отложено 40 000');
     expect(text).toContain('Потрачено 12 000');
     expect(text).toContain('Осталось');
     expect(text).toContain('28 000');
@@ -65,9 +65,9 @@ describe('EnvelopePlanRow', () => {
 
   it('marks a highlighted row with a text label', () => {
     const wrapper = mount(EnvelopePlanRow, {
-      props: { envelope: base, highlight: 'Нужно назначить' },
+      props: { envelope: base, highlight: 'Нужно пополнить' },
     });
 
-    expect(wrapper.text()).toContain('Нужно назначить');
+    expect(wrapper.text()).toContain('Нужно пополнить');
   });
 });

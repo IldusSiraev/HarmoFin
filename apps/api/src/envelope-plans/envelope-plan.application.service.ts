@@ -69,7 +69,7 @@ function validationFailed(detail: string): BadRequestException {
 function mandatoryExists(): ConflictException {
   return new ConflictException({
     code: 'MANDATORY_ENVELOPE_EXISTS',
-    detail: 'Обязательный конверт уже существует для бюджета.',
+    detail: 'Конверт обязательных платежей уже существует для бюджета.',
   });
 }
 

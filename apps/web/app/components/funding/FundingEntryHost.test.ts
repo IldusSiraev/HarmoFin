@@ -129,7 +129,7 @@ describe('FundingEntryHost', () => {
 
     const toast = useToast().toasts.value.at(-1);
     expect(toast?.title).toBe('Деньги остались свободными');
-    expect(toast?.description).toContain('Свободно для назначения');
+    expect(toast?.description).toContain('Не распределено');
     useToast().clear();
   });
 

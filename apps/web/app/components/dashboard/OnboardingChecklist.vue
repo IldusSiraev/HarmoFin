@@ -73,7 +73,7 @@ function periodStep(status: V2Onboarding): Step {
   if (proposal.value && !done) {
     return {
       key: 'periodSetup',
-      title: 'Подтвердите план периода',
+      title: 'Подтвердите лимит на период',
       description: `Шаблон предложил сумму на обычные траты периода. Пока вы её не подтвердите, «Можно потратить» не считается. «Отклонить» — задать лимит самостоятельно. ${CYCLE_NOTE}`,
       href: '/app/envelopes',
       linkLabel: 'Перейти',
@@ -87,8 +87,8 @@ function periodStep(status: V2Onboarding): Step {
       title: 'Лимит на текущий период',
       description:
         status.needsOpeningAssignment || !status.hasAccounts
-          ? 'План периода подтверждён. Деньги появятся в нём, когда вы назначите их конвертам: это шаг «Назначить имеющиеся деньги».'
-          : 'План периода подтверждён.',
+          ? 'Лимит на период подтверждён. Деньги появятся в нём, когда вы распределите их по конвертам: это шаг «Распределить деньги по конвертам».'
+          : 'Лимит на период подтверждён.',
       href: '/app/envelopes',
       linkLabel: 'Открыть конверты',
       action: 'link',
@@ -156,7 +156,7 @@ const steps = computed<Step[]>(() => {
     periodStep(status),
     {
       key: 'openingAssignment',
-      title: 'Назначить имеющиеся деньги',
+      title: 'Распределить деньги по конвертам',
       description:
         !assignDone && !mandatory.done ? `${assignBase} ${MONEY_STEP_WARNING}` : assignBase,
       href: '/app/accounts',
@@ -239,7 +239,7 @@ async function decideTarget(kind: 'confirm' | 'reject'): Promise<void> {
     // The decision is done: never offer it again, even if the reread fails.
     proposal.value = null;
     decisionNotice.value =
-      kind === 'confirm' ? 'План периода подтверждён.' : 'План периода отклонён.';
+      kind === 'confirm' ? 'Лимит на период подтверждён.' : 'Лимит на период отклонён.';
     await loadV2Status();
     emit('targetDecided');
   } catch (error) {
@@ -429,7 +429,7 @@ async function declineMandatoryPlans(): Promise<void> {
             data-action="onboarding-assign-money"
             @click="offerOpeningAssignment"
           >
-            Назначить деньги
+            Распределить деньги
           </UiButton>
           <UiButton v-else variant="tertiary" size="sm" :to="step.href">
             {{ step.linkLabel }}

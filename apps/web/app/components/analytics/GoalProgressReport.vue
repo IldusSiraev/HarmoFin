@@ -22,7 +22,7 @@ function progressText(row: GoalProgressRowDto) {
   <section class="goal-progress" aria-labelledby="goal-progress-title">
     <div class="goal-progress__heading">
       <h2 id="goal-progress-title">Цели накоплений</h2>
-      <p>Назначено на цель: назначенный остаток конверта. Это не деньги на счёте.</p>
+      <p>Отложено на цель: остаток конверта. Это не деньги на счёте.</p>
     </div>
     <p v-if="rows.length === 0" class="goal-progress__empty">Нет активных целей накоплений.</p>
     <div
@@ -54,7 +54,7 @@ function progressText(row: GoalProgressRowDto) {
                 :aria-valuetext="progressText(row)"
               />
               <span class="goal-progress__amounts">
-                Назначено:
+                Отложено:
                 <FinanceMoney :minor-units="row.currentMinor" currency="RUB" :scale="2" />
                 из
                 <FinanceMoney :minor-units="row.targetMinor" currency="RUB" :scale="2" />

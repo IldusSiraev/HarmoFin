@@ -109,7 +109,7 @@ for (const [label, viewport, theme] of [
         // Account with 100 000; no assignment dialog before the first assignment.
         await createAccount(page, 'Основная карта', '100 000,00');
         await expect(page.getByTestId('toast-stack')).toContainText('Счёт создан');
-        await expect(page.getByRole('dialog', { name: 'Назначить деньги' })).toHaveCount(0);
+        await expect(page.getByRole('dialog', { name: 'Распределить деньги' })).toHaveCount(0);
         const before = await getJson<Dashboard>(page, `${base}/dashboard`);
         expect(before.cashMinor).toBe('10000000');
         expect(before.freeToAssignMinor).toBe('10000000');

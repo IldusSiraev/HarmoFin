@@ -495,7 +495,7 @@ describe('v2 funding preview (R03b)', () => {
     expect(body.errors).toEqual([
       {
         code: 'OVERRIDES_EXCEED_SOURCE',
-        detail: 'Сумма назначений больше доступных средств источника.',
+        detail: 'Сумма распределений больше, чем доступно в источнике.',
       },
     ]);
   });

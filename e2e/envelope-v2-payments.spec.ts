@@ -110,7 +110,7 @@ test('v2: partial income assignment, rent in two parts and a smaller kindergarte
   // 1. Account with opening money: no assignment dialog before the first assignment.
   await createAccount(page, 'Основная карта', OPENING_TYPED);
   await expect(page.getByTestId('toast-stack')).toContainText('Счёт создан');
-  await expect(page.getByRole('dialog', { name: 'Назначить деньги' })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Распределить деньги' })).toHaveCount(0);
   const postponed = await getJson<Dashboard>(page, `${base}/dashboard`);
   expect(postponed.cashMinor).toBe('2000000');
   expect(postponed.freeToAssignMinor).toBe('2000000');
@@ -134,7 +134,7 @@ test('v2: partial income assignment, rent in two parts and a smaller kindergarte
   await expect(page.getByTestId('toast-stack')).toContainText('Операция сохранена');
 
   // 3. The panel offers a part; assign only a part of the income, keep the rest free.
-  const offer = page.getByRole('dialog', { name: 'Назначить деньги' });
+  const offer = page.getByRole('dialog', { name: 'Распределить деньги' });
   await expect(offer).toBeVisible();
   await expect(offer.getByTestId('funding-source')).toHaveText(/^30\s000,00/);
   // A mandatory current-slice line is keyed by the canonical lineId
@@ -164,7 +164,7 @@ test('v2: partial income assignment, rent in two parts and a smaller kindergarte
   await page.goto('/app/plans');
   const rentRow = page.getByTestId(`obligation-row-${rentId}`);
   await expect(rentRow).toBeVisible();
-  const paySheet = page.getByRole('dialog', { name: 'Оплатить обязательство' });
+  const paySheet = page.getByRole('dialog', { name: 'Оплатить платёж' });
 
   await page.getByTestId(`obligation-pay-${kindergartenId}`).click();
   await expect(paySheet).toBeVisible();

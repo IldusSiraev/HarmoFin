@@ -8,7 +8,7 @@ defineOptions({ name: 'GoalsSection' });
 <template>
   <LandingSection
     section-id="goals"
-    eyebrow="Накопительные цели"
+    eyebrow="Цели накоплений"
     title="Откладывайте на важное, не смешивая его с повседневными расходами."
     description="Деньги на ремонт остаются деньгами на ремонт. Фонд автомобиля не смешивается с текущими расходами."
   >

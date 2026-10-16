@@ -178,7 +178,7 @@ function handleSubmit(): void {
 </script>
 
 <template>
-  <UiDrawer :open="open" title="Оплатить обязательство" @close="emit('close')">
+  <UiDrawer :open="open" title="Оплатить платёж" @close="emit('close')">
     <form id="obligation-pay-form" class="pay-sheet" novalidate @submit.prevent="handleSubmit">
       <section class="pay-sheet__head" aria-label="План">
         <p class="pay-sheet__name">{{ occurrence.name }}</p>
@@ -227,7 +227,7 @@ function handleSubmit(): void {
         <span>
           <span class="pay-sheet__switch-title">Будет доплата</span>
           <span class="pay-sheet__muted">
-            Обязательство останется открытым. Доплату вы внесёте отдельной оплатой.
+            Платёж останется открытым. Доплату вы внесёте отдельной оплатой.
           </span>
         </span>
       </label>

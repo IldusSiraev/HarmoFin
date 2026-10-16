@@ -137,7 +137,7 @@ describe('useOperationMutations (v2)', () => {
     await remove('budget-id', { ...transaction, transactionType: 'INCOME' });
 
     expect(useToast().toasts.value.at(-1)?.description).toContain(
-      'На этот доход назначены средства',
+      'Деньги этого дохода распределены по конвертам',
     );
   });
 

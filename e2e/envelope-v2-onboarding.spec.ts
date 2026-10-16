@@ -175,9 +175,9 @@ for (const [label, viewport] of [
       // initial setup; the toast points to the checklist step instead.
       await createAccount(page, 'Основная карта', OPENING_TYPED);
       await expect(page.getByTestId('toast-stack')).toContainText(
-        'Распределить деньги по конвертам можно на шаге «Назначить имеющиеся деньги» на главной.',
+        'Распределить деньги по конвертам можно на главной, в мастере «Начало работы».',
       );
-      await expect(page.getByRole('dialog', { name: 'Назначить деньги' })).toHaveCount(0);
+      await expect(page.getByRole('dialog', { name: 'Распределить деньги' })).toHaveCount(0);
 
       const postponed = await snapshot(page, budgetId);
       expect(postponed.dashboard.cashMinor).toBe(OPENING_MINOR);
@@ -219,7 +219,7 @@ for (const [label, viewport] of [
       ).toBeVisible();
 
       await page.locator('[data-action="toggle-breakdown"]').click();
-      await expect(page.getByText('Свободно для назначения', { exact: true })).toBeVisible();
+      await expect(page.getByText('Не распределено', { exact: true })).toBeVisible();
 
       // 8. Assign from free money without any income.
       const mandatory = afterRepeat.envelopes.find((item) => item.name === 'Обязательные');

@@ -56,9 +56,9 @@ describe('FundingReviewSheet', () => {
   it('shows the source amount, remaining, period target and row actions', () => {
     const text = norm(mountSheet().text());
 
-    expect(text).toContain('Осталось назначить');
+    expect(text).toContain('Осталось распределить');
     expect(text).toContain('80 000,00');
-    expect(text).toContain('Принять план периода');
+    expect(text).toContain('Принять лимит на период');
     expect(text).toContain('65 000,00');
     expect(text).toContain('До нужной суммы');
     expect(text).toContain('Весь остаток');
@@ -222,7 +222,7 @@ describe('FundingReviewSheet', () => {
 
     expect(intro).toContain('пока свободны');
     expect(intro).toContain('никуда не переводятся');
-    expect(intro).toContain('Назначить предложенное');
+    expect(intro).toContain('Распределить как предложено');
     expect(intro).toContain('Позже');
   });
 
@@ -249,13 +249,13 @@ describe('FundingReviewSheet', () => {
   it('disables confirm and states the excess in words on OVERRIDES_EXCEED_SOURCE', async () => {
     const wrapper = mountSheet({
       remainingMinor: '-50000',
-      error: { code: 'OVERRIDES_EXCEED_SOURCE', detail: 'Назначено больше, чем доступно.' },
+      error: { code: 'OVERRIDES_EXCEED_SOURCE', detail: 'Распределено больше, чем доступно.' },
     });
 
     expect(wrapper.get('[data-testid="funding-confirm"]').attributes('disabled')).toBeDefined();
     expect(wrapper.text()).toContain('Превышение');
     expect(wrapper.text()).toContain('500,00');
-    expect(wrapper.text()).toContain('Назначено больше, чем доступно.');
+    expect(wrapper.text()).toContain('Распределено больше, чем доступно.');
     await wrapper.get('[data-testid="funding-confirm"]').trigger('click');
     expect(wrapper.emitted('confirm')).toBeUndefined();
   });
@@ -305,7 +305,7 @@ describe('FundingReviewSheet', () => {
     const wrapper = mountSheet({ mandatoryGapMinor: '400000' });
 
     expect(wrapper.get('[data-testid="funding-gap"]').text()).toContain(
-      'Не хватает на обязательства',
+      'Не хватает на обязательные платежи',
     );
     expect(norm(wrapper.get('[data-testid="funding-gap"]').text())).toContain('4 000,00');
   });
@@ -326,7 +326,7 @@ describe('FundingReviewSheet', () => {
 
   it('moves focus into the dialog on open and back to the opener on close', async () => {
     const opener = document.createElement('button');
-    opener.textContent = 'Назначить';
+    opener.textContent = 'Распределить';
     document.body.appendChild(opener);
     opener.focus();
 

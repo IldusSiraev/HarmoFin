@@ -62,14 +62,14 @@ function sourceExhausted(): ConflictException {
   return new ConflictException({
     code: 'SOURCE_EXHAUSTED',
     detail:
-      'На этот доход уже назначены все подтверждённые средства; уменьшите суммы строк или отмените существующие назначения.',
+      'Все деньги этого дохода уже распределены; уменьшите суммы строк или отмените существующие распределения.',
   });
 }
 
 function insufficientFunds(): ConflictException {
   return new ConflictException({
     code: 'ASSIGNMENT_UNBACKED',
-    detail: 'Назначению не хватает подтверждённых наличных средств бюджета.',
+    detail: 'На счетах не хватает денег для такого распределения.',
   });
 }
 
@@ -107,7 +107,7 @@ export class FundingConfirmApplicationService {
     const parsed: ParsedLine[] = input.lines.map((line) => {
       const amountMinor = parseDecimalToMinorUnits(line.amount, RUB_SCALE, false);
       if (amountMinor === 0n) {
-        throw validationFailed('Сумма назначения должна быть больше нуля.', 'lines');
+        throw validationFailed('Сумма распределения должна быть больше нуля.', 'lines');
       }
       return {
         envelopeId: line.envelopeId,

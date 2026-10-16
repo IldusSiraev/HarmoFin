@@ -129,7 +129,7 @@ describe('dashboard page', () => {
       {
         kind: 'COVERAGE',
         code: 'MANDATORY_GAP',
-        message: 'Не хватает на обязательства 10 000,00 ₽.',
+        message: 'Не хватает на обязательные платежи 10 000,00 ₽.',
         amountMinor: '1000000',
         envelopeId: null,
         periodId: null,
@@ -210,7 +210,7 @@ describe('dashboard page', () => {
     expect(text).toContain('Ремонт');
     expect(text).toContain('533 002,43 ₽');
     expect(normalize(wrapper.get('[data-testid="envelopes-unassigned"]').text())).toContain(
-      'Не назначено 52 155,31 ₽',
+      'Не распределено 52 155,31 ₽',
     );
   });
 
@@ -252,7 +252,7 @@ describe('dashboard page', () => {
     const wrapper = mount(DashboardPage, { global: { stubs } });
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Настройте лимит периода');
+    expect(wrapper.text()).toContain('Настройте лимит на период');
     expect(normalize(wrapper.text())).not.toMatch(/(^|[^\d,])0,00 ₽/);
   });
 
@@ -322,7 +322,7 @@ describe('dashboard page', () => {
     const wrapper = mount(DashboardPage, { global: { stubs } });
     await flushPromises();
 
-    expect(normalize(wrapper.text())).toContain('Предложенный план периода');
+    expect(normalize(wrapper.text())).toContain('Предложенный лимит на период');
     expect(v2Api.confirmPeriodTarget).not.toHaveBeenCalled();
     await wrapper.get('[data-testid="target-confirm"]').trigger('click');
     await flushPromises();

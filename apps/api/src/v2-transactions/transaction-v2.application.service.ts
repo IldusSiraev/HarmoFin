@@ -113,7 +113,7 @@ function parseDate(value: string): Date {
 function mandatoryPaymentRequired(): ConflictException {
   return new ConflictException({
     code: 'MANDATORY_PAYMENT_REQUIRED',
-    detail: 'Расход из обязательного конверта проводится только как оплата обязательства.',
+    detail: 'Расход из конверта обязательных платежей проводится только как оплата платежа.',
   });
 }
 
@@ -135,7 +135,7 @@ function sourceExhausted(assignmentIds: string[]): ConflictException {
   return new ConflictException({
     code: 'SOURCE_EXHAUSTED',
     detail:
-      'На этот доход назначены средства: сначала уменьшите или отмените перечисленные назначения.',
+      'Деньги этого дохода распределены по конвертам: сначала уменьшите или отмените перечисленные распределения.',
     assignmentIds,
   });
 }
@@ -143,7 +143,7 @@ function sourceExhausted(assignmentIds: string[]): ConflictException {
 function assignmentUnbacked(): ConflictException {
   return new ConflictException({
     code: 'ASSIGNMENT_UNBACKED',
-    detail: 'Изменение нарушает покрытие назначений: непокрытая часть вырастет.',
+    detail: 'После изменения на счетах не хватит денег для уже распределённых сумм.',
   });
 }
 
@@ -425,7 +425,7 @@ export class TransactionV2ApplicationService {
       if (assignment.balance < 0n) {
         warnings.push({
           code: 'ENVELOPE_BALANCE_INSUFFICIENT',
-          detail: 'Назначение конверта меньше расхода; операция проведена.',
+          detail: 'В конверте отложено меньше, чем расход; операция проведена.',
         });
       }
     }
@@ -981,7 +981,7 @@ export class TransactionV2ApplicationService {
       ? [
           {
             code: 'ENVELOPE_BALANCE_INSUFFICIENT',
-            detail: 'Назначение конверта меньше расхода; операция проведена.',
+            detail: 'В конверте отложено меньше, чем расход; операция проведена.',
           },
         ]
       : [];

@@ -13,10 +13,10 @@ test('owner creates, edits and archives an account through server-confirmed data
   await page.getByLabel('Название счёта').fill('Основной счёт');
   await page.getByLabel('Начальный баланс').fill('1 234,50');
   await page.getByLabel('Дата начала учёта').pressSequentially('04092026');
-  // Before the first assignment no "Назначить деньги" dialog opens after saving.
+  // Before the first assignment no "Распределить деньги" dialog opens after saving.
   await page.getByRole('button', { name: 'Сохранить счёт' }).click();
   await expect(page.getByTestId('toast-stack')).toContainText('Счёт создан');
-  await expect(page.getByRole('dialog', { name: 'Назначить деньги' })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Распределить деньги' })).toHaveCount(0);
   await expect(accountCard(page, 'Основной счёт')).toBeVisible();
   await expect(page.getByText(/1.*234.*50/).first()).toBeVisible();
 

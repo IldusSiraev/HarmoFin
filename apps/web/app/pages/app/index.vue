@@ -297,7 +297,7 @@ async function loadDashboard() {
                 class="dashboard-unassigned"
                 data-testid="envelopes-unassigned"
               >
-                Не назначено
+                Не распределено
                 <FinanceMoney
                   :minor-units="dashboardV2.freeToAssignMinor"
                   currency="RUB"

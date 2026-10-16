@@ -183,10 +183,7 @@ const transferDestinationOptions = computed(() =>
 );
 
 // An expense does not need an envelope; "" is the explicit "no assignment".
-const envelopeOptions = computed(() => [
-  { value: '', label: 'Без назначения' },
-  ...props.envelopes,
-]);
+const envelopeOptions = computed(() => [{ value: '', label: 'Без конверта' }, ...props.envelopes]);
 const mandatorySelected = computed(
   () => activeType.value === 'EXPENSE' && props.mandatoryEnvelopeIds.includes(operation.envelopeId),
 );

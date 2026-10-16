@@ -149,7 +149,15 @@ describe('экспорт CSV модели 2 (P04)', () => {
     const lines = rows(csv);
     const header = lines[0]!.split(';');
     expect(header).toEqual(
-      expect.arrayContaining(['Вид источника', 'Период с', 'Период по', 'Сумма (коп.)', 'Статус']),
+      expect.arrayContaining([
+        'Вид источника',
+        'Период с',
+        'Период по',
+        'Сумма (коп.)',
+        'Статус',
+        'Тип распределения',
+        'Конверт',
+      ]),
     );
     const assignment = lines.find((line) => line.startsWith(w.assignmentId))!.split(';');
     expect(assignment).toEqual(

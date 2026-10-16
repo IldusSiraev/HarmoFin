@@ -229,7 +229,7 @@ async function confirm(): Promise<void> {
   if (needsDestination.value && isPeriodEnvelope(destination.value)) {
     destinationPeriodId = periodsOf(destination.value).find((item) => item.current)?.periodId;
     if (destinationPeriodId === undefined) {
-      destinationError.value = `У конверта «${destination.value?.name ?? ''}» нет текущего периода. Сначала назначьте в него деньги кнопкой «Назначить» на главной.`;
+      destinationError.value = `У конверта «${destination.value?.name ?? ''}» нет текущего периода. Сначала распределите в него деньги кнопкой «Распределить» на главной.`;
       focusById('move-destination');
       return;
     }
@@ -272,11 +272,9 @@ async function confirm(): Promise<void> {
   }
 }
 
-const title = computed(() =>
-  props.mode === 'archive' ? 'Куда направить остаток' : 'Переназначить',
-);
+const title = computed(() => (props.mode === 'archive' ? 'Куда направить остаток' : 'Переложить'));
 const confirmLabel = computed(() =>
-  props.mode === 'archive' ? 'Перенести и архивировать' : 'Переназначить',
+  props.mode === 'archive' ? 'Перенести и архивировать' : 'Переложить',
 );
 
 defineExpose({ confirm });

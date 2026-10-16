@@ -10,7 +10,7 @@ describe('HelpPage', () => {
     const text = mount(HelpPage).text();
 
     expect(text).toContain('Как пользоваться HarmoFin');
-    for (const term of ['На счетах', 'Назначено', 'Свободно для назначения', 'Можно потратить']) {
+    for (const term of ['На счетах', 'Отложено', 'Не распределено', 'Можно потратить']) {
       expect(text).toContain(term);
     }
     expect(text).not.toContain('Разбить перевод на несколько конвертов');
@@ -23,7 +23,7 @@ describe('HelpPage', () => {
     const wrapper = mount(HelpPage);
 
     expect(wrapper.findAll('summary').length).toBeGreaterThan(0);
-    expect(wrapper.text()).toContain('Двигает ли перевод между счетами назначения?');
+    expect(wrapper.text()).toContain('Меняет ли перевод между счетами распределение по конвертам?');
   });
 
   it('covers savings, overpayment, transfers, expected income, horizon, cycle and timezone', () => {
@@ -32,9 +32,9 @@ describe('HelpPage', () => {
     expect(text).toContain('Садик');
     expect(text).toContain('3 000');
     expect(text).toContain('доплата');
-    expect(text).toContain('Перевод между счетами не двигает назначения');
+    expect(text).toContain('Перевод между счетами не меняет распределение по конвертам');
     expect(text).toContain('Ожидаемый доход не входит в «На счетах»');
-    expect(text).toContain('горизонт');
+    expect(text).toContain('Учитываются ближайшие обязательные платежи');
     expect(text).toContain('будущего периода');
     expect(text).toContain('TIMEZONE_CHANGE_REQUIRES_RECONCILIATION');
   });

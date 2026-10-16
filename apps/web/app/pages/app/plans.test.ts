@@ -708,7 +708,7 @@ describe('plans page', () => {
     await flushPromises();
 
     const errorText = wrapper.get('[data-testid="pay-error"]').text();
-    expect(errorText).toContain('уже закрыто');
+    expect(errorText).toContain('уже закрыт');
     expect(errorText).not.toContain('raw english detail');
 
     await wrapper.get('[data-testid="pay-submit"]').trigger('click');
