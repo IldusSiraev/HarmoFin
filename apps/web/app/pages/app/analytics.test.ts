@@ -96,7 +96,7 @@ describe('analytics page', () => {
     const text = flat(wrapper.text());
     expect(v2.getReport).toHaveBeenCalledWith('budget-id', 'savings-goals', {});
     expect(text).toContain('Отпуск');
-    expect(text).toContain('Назначено');
+    expect(text).toContain('Отложено');
     expect(text).toContain('12 345,00');
     expect(wrapper.find('progress').attributes('value')).toBe('247');
   });
@@ -115,7 +115,7 @@ describe('analytics page', () => {
     expect(v2.exportTransactions).toHaveBeenCalledWith('budget-id');
     expect(v2.exportAssignments).toHaveBeenCalledWith('budget-id');
     expect(wrapper.text()).toContain('Скачать операции (CSV)');
-    expect(wrapper.text()).toContain('Скачать назначения (CSV)');
+    expect(wrapper.text()).toContain('Скачать распределения (CSV)');
   });
 
   it('hides exports from non-owners and explains why', async () => {

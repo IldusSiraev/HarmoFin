@@ -325,7 +325,7 @@ export class FundingPreviewApplicationService {
       if (await this.assignments.hasConfirmedFact(tx, budgetId, asOfDate)) {
         throw unprocessable(
           'OPENING_NOT_AVAILABLE',
-          'Начальное назначение (OPENING) доступно только до первой подтверждённой операции бюджета. Используйте FREE.',
+          'Начальное распределение (OPENING) доступно только до первой подтверждённой операции бюджета. Используйте FREE.',
         );
       }
     }
@@ -426,7 +426,10 @@ export class FundingPreviewApplicationService {
       const envelope = envelopeById.get(override.envelopeId);
       if (!envelope) throw resourceNotFound();
       if (envelope.archivedAt) {
-        throw unprocessable('ENVELOPE_ARCHIVED', 'Архивированный конверт не принимает назначения.');
+        throw unprocessable(
+          'ENVELOPE_ARCHIVED',
+          'Конверт в архиве: в него нельзя распределить деньги.',
+        );
       }
       let periodId: string | null = null;
       if (envelope.periodSlot) {
@@ -477,7 +480,7 @@ export class FundingPreviewApplicationService {
     if (remaining < 0n) {
       errors.push({
         code: 'OVERRIDES_EXCEED_SOURCE',
-        detail: 'Сумма назначений больше доступных средств источника.',
+        detail: 'Сумма распределений больше, чем доступно в источнике.',
       });
       remaining = 0n;
     }

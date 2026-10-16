@@ -36,8 +36,8 @@ async function createAccount(page: Page, name: string, balance: string): Promise
   await page.getByLabel('Название счёта').fill(name);
   await page.getByLabel('Начальный баланс').fill(balance);
   await page.getByLabel('Дата начала учёта').pressSequentially('04092026');
-  // Before the first assignment no "Назначить деньги" dialog opens after saving.
+  // Before the first assignment no "Распределить деньги" dialog opens after saving.
   await page.getByRole('button', { name: 'Сохранить счёт' }).click();
-  await expect(page.getByRole('dialog', { name: 'Назначить деньги' })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Распределить деньги' })).toHaveCount(0);
   await expect(page.getByTestId('account-card-select').first()).toBeVisible();
 }

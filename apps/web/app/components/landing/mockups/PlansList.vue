@@ -9,7 +9,7 @@ defineOptions({ name: 'PlansList' });
 <template>
   <div class="plans-list">
     <div class="plans-list__card">
-      <h3 class="plans-list__title">Ближайшие обязательства</h3>
+      <h3 class="plans-list__title">Ближайшие обязательные платежи</h3>
       <ul class="plans-list__items">
         <li
           v-for="plan in upcomingPlans.items"
@@ -26,7 +26,7 @@ defineOptions({ name: 'PlansList' });
 
     <div class="plans-list__reserve">
       <LandingMetric
-        label="На обязательства"
+        label="На обязательные платежи"
         :value="formatLandingMoney(upcomingPlans.reservedMinor)"
         caption="Плановый остаток зарезервирован"
       />

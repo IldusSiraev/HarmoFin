@@ -122,9 +122,9 @@ const payOccurrence = computed(() => payTarget.value ?? EMPTY_PAY_OCCURRENCE);
 const linkedOccurrenceId = ref<string | null>(null);
 let linkApplied = false;
 const PAY_ERROR_TEXT: Record<string, string> = {
-  OCCURRENCE_NOT_OPEN: 'Обязательство уже закрыто, пропущено или отменено. Обновите список.',
-  OCCURRENCE_NOT_PAYABLE: 'Этот план нельзя оплатить: у него нет обязательного конверта.',
-  OCCURRENCE_HAS_PAYMENTS: 'По обязательству уже есть оплаты, пропустить его нельзя.',
+  OCCURRENCE_NOT_OPEN: 'Платёж уже закрыт, пропущен или отменён. Обновите список.',
+  OCCURRENCE_NOT_PAYABLE: 'Этот план нельзя оплатить: у него нет конверта обязательных платежей.',
+  OCCURRENCE_HAS_PAYMENTS: 'По этому платежу уже есть оплаты, пропустить его нельзя.',
   INSUFFICIENT_BALANCE: 'На выбранном счёте недостаточно средств.',
   IDEMPOTENCY_CONFLICT: 'Данные оплаты изменились. Проверьте форму и повторите.',
   MODEL_VERSION_MISMATCH: 'Этот бюджет работает по другой модели планов. Обновите страницу.',
@@ -830,8 +830,8 @@ function errorMessage(exception: unknown) {
 
     <UiConfirmDialog
       :open="confirmation !== null"
-      title="Пропустить обязательство?"
-      description="Обязательство будет пропущено и перестанет защищать деньги на счетах."
+      title="Пропустить платёж?"
+      description="Платёж будет пропущен, и деньги под него больше не будут удерживаться."
       confirm-label="Подтвердить"
       cancel-label="Отмена"
       variant="primary"

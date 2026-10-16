@@ -357,7 +357,7 @@ describe('operations page (v2 journal)', () => {
 
     const toast = useToast().toasts.value.at(-1);
     expect(toast?.tone).toBe('error');
-    expect(toast?.description).toContain('На этот доход назначены средства');
+    expect(toast?.description).toContain('Деньги этого дохода распределены по конвертам');
   });
 
   it('restores a deleted operation through the v2 API', async () => {

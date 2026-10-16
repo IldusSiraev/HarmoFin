@@ -11,7 +11,7 @@ defineOptions({ name: 'IncomeAllocationSection' });
     section-id="allocation"
     eyebrow="Распределение дохода"
     title="Получили деньги — сразу понимаете, куда они пойдут."
-    description="Одно поступление можно разложить по нескольким назначениям: деньги расходятся по конвертам, а доход в отчётах остаётся одним."
+    description="Одно поступление можно распределить по нескольким конвертам, а доход в отчётах остаётся одним."
   >
     <div class="allocation-section__layout">
       <AllocationFlow class="allocation-section__flow" />

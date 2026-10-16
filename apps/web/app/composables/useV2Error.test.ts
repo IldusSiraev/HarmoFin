@@ -34,6 +34,6 @@ describe('v2ErrorMessage journal codes', () => {
     expect(v2ErrorMessage(error, 'fallback', { SOURCE_EXHAUSTED: 'свой текст' })).toBe(
       'свой текст',
     );
-    expect(v2ErrorMessage(error, 'fallback')).toContain('Источник уже полностью назначен');
+    expect(v2ErrorMessage(error, 'fallback')).toContain('Эти деньги уже распределены');
   });
 });

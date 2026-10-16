@@ -833,7 +833,7 @@ describe('v2 dashboard HTTP contract (P02)', () => {
         code: 'MANDATORY_GAP',
         level: 'ALERT',
         amountMinor: '1000000',
-        message: expect.stringContaining('Не хватает на обязательства'),
+        message: expect.stringContaining('Не хватает на обязательные платежи'),
         actionPath: expect.stringMatching(/^\/app\//),
       }),
     );

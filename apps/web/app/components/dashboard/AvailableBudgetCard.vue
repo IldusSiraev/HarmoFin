@@ -64,9 +64,10 @@ const breakdownOpen = ref(false);
     <h2 id="available-budget-title" class="available-budget__label">Можно потратить</h2>
 
     <template v-if="needsSetup">
-      <p class="available-budget__invite">Настройте лимит периода</p>
+      <p class="available-budget__invite">Настройте лимит на период</p>
       <p class="available-budget__caption">
-        Пока лимит не задан, безопасный остаток не показываем: это не ноль, а отсутствие плана.
+        Пока лимит не задан, сумму «Можно потратить» не показываем: это не ноль, а отсутствие
+        лимита.
       </p>
       <NuxtLink to="/app/envelopes" class="available-budget__link">Настроить лимит</NuxtLink>
     </template>
@@ -108,19 +109,19 @@ const breakdownOpen = ref(false);
       class="available-budget__caption"
       data-testid="available-budget-empty-hint"
     >
-      Деньги в конверте периода закончились или ещё не назначены, поэтому «Можно потратить» равно
+      Деньги в конверте периода закончились или ещё не распределены, поэтому «Можно потратить» равно
       нулю.
       {{
         dashboard.onboarding.hasAccounts
-          ? 'Назначьте деньги конверту периода.'
-          : 'Добавьте счёт и назначьте деньги конверту периода.'
+          ? 'Распределите деньги в конверт периода.'
+          : 'Добавьте счёт и распределите деньги в конверт периода.'
       }}
       <NuxtLink to="/app/accounts" class="available-budget__link">Перейти к счетам</NuxtLink>
     </p>
 
     <p v-if="hasFreeMoney" class="available-budget__free" data-testid="available-budget-free-row">
       <span>
-        Свободно для назначения
+        Не распределено
         <FinanceMoney :minor-units="dashboard.freeToAssignMinor" currency="RUB" :scale="2" />
       </span>
       <UiButton
@@ -129,7 +130,7 @@ const breakdownOpen = ref(false);
         data-action="assign-free-money"
         @click="emit('assign')"
       >
-        Назначить
+        Распределить
       </UiButton>
     </p>
 
@@ -149,7 +150,7 @@ const breakdownOpen = ref(false);
     </p>
 
     <p v-if="dashboard.dueMayBeIncomplete" class="available-budget__caption">
-      К оплате может быть неполным: часть обязательств за горизонтом ещё не видна.
+      Сумма может быть неполной: более поздние платежи пока не учтены.
     </p>
 
     <button
@@ -176,16 +177,16 @@ const breakdownOpen = ref(false);
           </dd>
         </div>
         <div>
-          <dt>К оплате по обязательствам {{ horizonLabel }}</dt>
+          <dt>К оплате {{ horizonLabel }}</dt>
           <dd>
             <FinanceMoney :minor-units="dashboard.mandatoryDueMinor" currency="RUB" :scale="2" />
           </dd>
         </div>
       </dl>
-      <h3 class="available-budget__group">Защищено обязательствами и накоплениями</h3>
+      <h3 class="available-budget__group">Уже отложено на платежи и накопления</h3>
       <dl class="available-budget__list">
         <div>
-          <dt>Назначено на обязательства</dt>
+          <dt>Отложено на обязательные платежи</dt>
           <dd>
             <FinanceMoney
               :minor-units="dashboard.mandatoryBalanceMinor"
@@ -201,7 +202,7 @@ const breakdownOpen = ref(false);
           </dd>
         </div>
         <div>
-          <dt>Свободно для назначения</dt>
+          <dt>Не распределено</dt>
           <dd>
             <FinanceMoney :minor-units="dashboard.freeToAssignMinor" currency="RUB" :scale="2" />
           </dd>

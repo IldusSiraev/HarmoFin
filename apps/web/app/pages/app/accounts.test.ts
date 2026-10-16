@@ -164,7 +164,7 @@ describe('accounts page', () => {
     const toast = useToast().toasts.value.at(-1);
     expect(toast?.title).toBe('Счёт создан');
     expect(toast?.description).toBe(
-      'Распределить деньги по конвертам можно на шаге «Назначить имеющиеся деньги» на главной.',
+      'Распределить деньги по конвертам можно на главной, в мастере «Начало работы».',
     );
   });
 

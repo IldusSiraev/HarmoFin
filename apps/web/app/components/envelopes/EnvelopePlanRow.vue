@@ -28,7 +28,7 @@ defineEmits<{ select: [] }>();
 const icon = computed(() => planIcon(props.envelope));
 const subtitle = computed(() =>
   [
-    PLAN_SCOPE_LABELS[props.envelope.envelopeType] ?? 'Пользовательская',
+    PLAN_SCOPE_LABELS[props.envelope.envelopeType] ?? 'Свой конверт',
     props.envelope.periodSlot ? PLAN_SLOT_LABELS[props.envelope.periodSlot] : null,
   ]
     .filter((part): part is string => Boolean(part))
@@ -51,7 +51,7 @@ const rowLabel = computed(() => {
   const e = props.envelope;
   const parts = [
     `Открыть конверт «${e.name}»`,
-    `назначено ${money(e.fundedMinor)}`,
+    `отложено ${money(e.fundedMinor)}`,
     `потрачено ${money(e.spentMinor)}`,
     `осталось ${money(e.balanceMinor)}`,
   ];
@@ -72,7 +72,7 @@ const rowLabel = computed(() => {
     <span class="plan-row__muted" data-testid="plan-row-scope">{{ scopeNote }}</span>
     <span class="plan-row__facts">
       <span
-        >Назначено <FinanceMoney :minor-units="envelope.fundedMinor" currency="RUB" :scale="2"
+        >Отложено <FinanceMoney :minor-units="envelope.fundedMinor" currency="RUB" :scale="2"
       /></span>
       <span
         >Потрачено <FinanceMoney :minor-units="envelope.spentMinor" currency="RUB" :scale="2"

@@ -13,7 +13,7 @@ const spentPercent = computed(() => {
 });
 
 const rows = computed(() => [
-  { label: 'Лимит периода', value: formatLandingMoney(heroBudget.periodLimitMinor) },
+  { label: 'Лимит на период', value: formatLandingMoney(heroBudget.periodLimitMinor) },
   { label: 'Потрачено', value: formatLandingMoney(heroBudget.spentMinor) },
   { label: 'Средний лимит', value: `${formatLandingMoney(heroBudget.dailyAverageMinor)} / день` },
 ]);

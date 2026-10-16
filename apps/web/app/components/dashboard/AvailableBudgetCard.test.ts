@@ -76,8 +76,8 @@ describe('AvailableBudgetCard', () => {
     const wrapper = mount(AvailableBudgetCard, { props: { dashboard }, global: { stubs } });
     const hint = wrapper.get('[data-testid="available-budget-empty-hint"]');
 
-    expect(hint.text()).toContain('Деньги в конверте периода закончились или ещё не назначены');
-    expect(hint.text()).toContain('Добавьте счёт и назначьте деньги конверту периода');
+    expect(hint.text()).toContain('Деньги в конверте периода закончились или ещё не распределены');
+    expect(hint.text()).toContain('Добавьте счёт и распределите деньги в конверт периода');
     expect(hint.get('a').attributes('href')).toBe('/app/accounts');
   });
 
@@ -91,7 +91,7 @@ describe('AvailableBudgetCard', () => {
     const wrapper = mount(AvailableBudgetCard, { props: { dashboard }, global: { stubs } });
     const hint = wrapper.get('[data-testid="available-budget-empty-hint"]');
 
-    expect(hint.text()).toContain('Назначьте деньги конверту периода');
+    expect(hint.text()).toContain('Распределите деньги в конверт периода');
     expect(hint.text()).not.toContain('Добавьте счёт');
   });
 
@@ -129,7 +129,7 @@ describe('AvailableBudgetCard', () => {
     const wrapper = mount(AvailableBudgetCard, { props: { dashboard }, global: { stubs } });
     const row = wrapper.get('[data-testid="available-budget-free-row"]');
 
-    expect(normalize(row.text())).toContain('Свободно для назначения');
+    expect(normalize(row.text())).toContain('Не распределено');
     expect(normalize(row.text())).toContain('52 155,31 ₽');
     await row.get('[data-action="assign-free-money"]').trigger('click');
 
@@ -155,7 +155,7 @@ describe('AvailableBudgetCard', () => {
     });
     const text = normalize(wrapper.text());
 
-    expect(text).toContain('Настройте лимит периода');
+    expect(text).toContain('Настройте лимит на период');
     expect(text).not.toMatch(/(^|[^\d,])0,00 ₽/);
     expect(wrapper.get('a[href="/app/envelopes"]')).toBeTruthy();
   });
@@ -184,12 +184,12 @@ describe('AvailableBudgetCard', () => {
       props: { dashboard: { ...v2Base, dueMayBeIncomplete: true } },
       global: { stubs },
     });
-    expect(normalize(wrapper.text())).toContain('К оплате может быть неполным');
-    expect(wrapper.text()).not.toContain('Защищено обязательствами и накоплениями');
+    expect(normalize(wrapper.text())).toContain('Сумма может быть неполной');
+    expect(wrapper.text()).not.toContain('Уже отложено на платежи и накопления');
 
     await wrapper.get('[data-action="toggle-breakdown"]').trigger('click');
     const text = normalize(wrapper.text());
-    expect(text).toContain('Защищено обязательствами и накоплениями');
+    expect(text).toContain('Уже отложено на платежи и накопления');
     expect(text).toContain('На счетах');
     expect(text).toContain('100 000,00 ₽');
   });
@@ -221,7 +221,7 @@ describe('AvailableBudgetCard breakdown markup', () => {
     expect(wrapper.find('a[href="/app/plans"]').exists()).toBe(false);
 
     await wrapper.get('[data-action="toggle-breakdown"]').trigger('click');
-    expect(normalize(wrapper.text())).toContain('К оплате по обязательствам до 20 октября');
+    expect(normalize(wrapper.text())).toContain('К оплате до 20 октября');
   });
 
   it('shows the period figures and days left from the server', () => {

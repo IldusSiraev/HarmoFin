@@ -110,19 +110,20 @@ function sourceFields(
 // anything else a generic line.
 const ERROR_TEXT: Record<string, string> = {
   PREVIEW_STALE: 'Данные изменились, предложение устарело. Обновите его, чтобы продолжить.',
-  OVERRIDES_EXCEED_SOURCE: 'Назначено больше, чем доступно. Уменьшите суммы.',
-  SOURCE_EXHAUSTED: 'Эти деньги уже назначены. Обновите предложение.',
-  ASSIGNMENT_UNBACKED: 'Недостаточно свободных денег для такого назначения.',
-  IDEMPOTENCY_CONFLICT: 'Это назначение уже обрабатывается. Обновите предложение.',
-  MODEL_VERSION_MISMATCH: 'Для этого бюджета назначение недоступно.',
-  OPENING_NOT_AVAILABLE: 'Начальное назначение уже недоступно. Назначьте свободные деньги позже.',
-  ENVELOPE_ARCHIVED: 'Конверт в архиве и не принимает назначения.',
+  OVERRIDES_EXCEED_SOURCE: 'Распределено больше, чем доступно. Уменьшите суммы.',
+  SOURCE_EXHAUSTED: 'Эти деньги уже распределены. Обновите предложение.',
+  ASSIGNMENT_UNBACKED: 'Недостаточно свободных денег для такого распределения.',
+  IDEMPOTENCY_CONFLICT: 'Это распределение уже обрабатывается. Обновите предложение.',
+  MODEL_VERSION_MISMATCH: 'Для этого бюджета распределение недоступно.',
+  OPENING_NOT_AVAILABLE:
+    'Начальное распределение уже недоступно. Распределите свободные деньги позже.',
+  ENVELOPE_ARCHIVED: 'Конверт в архиве: в него нельзя распределить деньги.',
   PERIOD_REQUIRED: 'Для этого конверта нужен период.',
   PERIOD_NOT_ALLOWED: 'У этого конверта нет периодов.',
   VALIDATION_FAILED: 'Проверьте суммы: они должны быть больше нуля.',
-  FORBIDDEN: 'Назначать деньги может только владелец бюджета.',
+  FORBIDDEN: 'Распределять деньги может только владелец бюджета.',
 };
-const GENERIC_ERROR = 'Не удалось назначить деньги. Повторите попытку или нажмите «Позже».';
+const GENERIC_ERROR = 'Не удалось распределить деньги. Повторите попытку или нажмите «Позже».';
 
 function sheetError(code: string): FundingSheetError {
   return { code, detail: ERROR_TEXT[code] ?? GENERIC_ERROR };
@@ -190,8 +191,8 @@ async function start(request: FundingEntryRequest): Promise<void> {
     if (!quiet) {
       push({
         tone: 'error',
-        title: 'Не удалось подготовить назначение',
-        description: 'Деньги сохранены. Назначить их можно позже.',
+        title: 'Не удалось подготовить распределение',
+        description: 'Деньги сохранены. Распределить их можно позже.',
       });
     }
     close();
@@ -207,7 +208,7 @@ function later(): void {
   push({
     tone: 'info',
     title: 'Деньги остались свободными',
-    description: 'Назначить их можно позже: на главной, в строке «Свободно для назначения».',
+    description: 'Распределить их можно позже: на главной, в строке «Не распределено».',
   });
 }
 
@@ -250,7 +251,7 @@ async function reload(overrides?: FundingLineInput[], targets?: string[]): Promi
     if (mine !== generation) return;
     error.value = toSheetError(cause) ?? {
       code: 'PREVIEW_FAILED',
-      detail: 'Не удалось пересчитать назначение. Повторите попытку.',
+      detail: 'Не удалось пересчитать распределение. Повторите попытку.',
     };
   } finally {
     if (mine === generation) pending.value = false;
@@ -315,7 +316,7 @@ async function confirm(): Promise<void> {
     const result = await v2.confirmFunding(request.budgetId, body, idempotencyKey);
     // The server did assign the money: report it even if the panel has moved
     // on; the generation check only guards the panel state.
-    push({ tone: 'success', title: 'Деньги назначены' });
+    push({ tone: 'success', title: 'Деньги распределены' });
     entry.markConfirmed();
     emit('confirmed', result);
     if (mine === generation) close();
@@ -328,7 +329,7 @@ async function confirm(): Promise<void> {
       // Network/5xx: keep the panel and the same key so a retry cannot duplicate.
       push({
         tone: 'error',
-        title: 'Не удалось назначить деньги',
+        title: 'Не удалось распределить деньги',
         description: 'Повторите попытку: повторное нажатие не создаст дубль.',
       });
     }

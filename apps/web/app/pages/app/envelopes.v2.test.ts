@@ -158,7 +158,7 @@ describe('envelopes page, plan model v2', () => {
     await flushPromises();
 
     const text = normalize(wrapper.text());
-    expect(text).toContain('Назначено');
+    expect(text).toContain('Отложено');
     expect(text).toContain('Потрачено');
     expect(text).toContain('Осталось');
     expect(text).toContain('28 000');
@@ -177,9 +177,11 @@ describe('envelopes page, plan model v2', () => {
 
     const row = wrapper.get('[data-testid="envelope-row-env-save"]');
     expect(normalize(row.text())).toContain('50 000');
-    expect(row.text()).toContain('Накопительный');
+    expect(row.text()).toContain('Остаток не сбрасывается при смене периода');
     expect(row.text()).toContain('не сбрасывается');
-    expect(wrapper.get('[data-testid="envelope-row-env-mand"]').text()).toContain('Обязательный');
+    expect(wrapper.get('[data-testid="envelope-row-env-mand"]').text()).toContain(
+      'Обязательные платежи',
+    );
   });
 
   it('asks where to send a positive balance before archiving, then moves and archives', async () => {
@@ -417,7 +419,7 @@ describe('envelopes page, plan model v2', () => {
     await flushPromises();
 
     expect(normalize(document.body.textContent ?? '')).toContain(
-      'может быть только один активный обязательный конверт',
+      'может быть только один активный конверт обязательных платежей',
     );
   });
 
@@ -425,7 +427,7 @@ describe('envelopes page, plan model v2', () => {
     mocks.route.query = { leftoverPeriod: 'period-old' };
     const first = mountPage();
     await flushPromises();
-    expect(first.get('[data-testid="envelopes-action-note"]').text()).toContain('Переназначить');
+    expect(first.get('[data-testid="envelopes-action-note"]').text()).toContain('Переложить');
     expect(mocks.v2.move).not.toHaveBeenCalled();
     first.unmount();
 
@@ -934,10 +936,10 @@ describe('envelopes page, plan model v2', () => {
     await flushPromises();
 
     expect(wrapper.get('[data-testid="envelope-row-env-mand"]').text()).toContain(
-      'Нужно назначить',
+      'Нужно пополнить',
     );
     expect(wrapper.get('[data-testid="envelope-row-env-repair"]').text()).not.toContain(
-      'Нужно назначить',
+      'Нужно пополнить',
     );
   });
 

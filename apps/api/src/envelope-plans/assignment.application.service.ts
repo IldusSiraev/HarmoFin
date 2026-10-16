@@ -46,7 +46,7 @@ function validationFailed(detail: string): BadRequestException {
 function insufficientFunds(): ConflictException {
   return new ConflictException({
     code: 'ASSIGNMENT_UNBACKED',
-    detail: 'Назначению не хватает подтверждённых наличных средств бюджета.',
+    detail: 'На счетах не хватает денег для такого распределения.',
   });
 }
 
@@ -54,7 +54,7 @@ function sourceExhausted(): ConflictException {
   return new ConflictException({
     code: 'SOURCE_EXHAUSTED',
     detail:
-      'На этот доход уже назначены все подтверждённые средства; уменьшите или отмените существующие назначения.',
+      'Все деньги этого дохода уже распределены; уменьшите или отмените существующие распределения.',
   });
 }
 
@@ -111,7 +111,7 @@ export class AssignmentApplicationService {
   ): Promise<AssignFreeResult> {
     const amountMinor = parseDecimalToMinorUnits(input.amount, RUB_SCALE, false);
     if (amountMinor === 0n) {
-      throw validationFailed('Сумма назначения должна быть больше нуля.');
+      throw validationFailed('Сумма распределения должна быть больше нуля.');
     }
 
     const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
@@ -150,14 +150,14 @@ export class AssignmentApplicationService {
 
           const envelope = await this.repository.requireEnvelope(tx, budgetId, input.envelopeId);
           if (envelope.archivedAt) {
-            throw validationFailed('Архивированный конверт не принимает назначения.');
+            throw validationFailed('Конверт в архиве: в него нельзя распределить деньги.');
           }
 
           let targetPeriodId: string | null = null;
           if (input.periodId) {
             if (!envelope.hasPeriods) {
               throw validationFailed(
-                'У этого конверта нет периодов; назначайте средства в конверт целиком.',
+                'У этого конверта нет периодов; распределяйте деньги в конверт целиком.',
               );
             }
             const period = await this.repository.findPeriod(
@@ -171,7 +171,7 @@ export class AssignmentApplicationService {
             }
             targetPeriodId = period.id;
           } else if (envelope.hasPeriods) {
-            throw validationFailed('Для периодного конверта укажите periodId назначения.');
+            throw validationFailed('Для конверта на текущие траты укажите periodId распределения.');
           }
 
           const timezone = await this.repository.requireBudgetTimezone(tx, budgetId);
@@ -182,7 +182,7 @@ export class AssignmentApplicationService {
             (await this.repository.hasConfirmedFact(tx, budgetId, asOfDate))
           ) {
             throw validationFailed(
-              'Начальное назначение (OPENING) доступно только до первой подтверждённой операции бюджета. Используйте FREE.',
+              'Начальное распределение (OPENING) доступно только до первой подтверждённой операции бюджета. Используйте FREE.',
             );
           }
 
@@ -242,7 +242,7 @@ export class AssignmentApplicationService {
   ): Promise<AssignIncomeResult> {
     const amountMinor = parseDecimalToMinorUnits(input.amount, RUB_SCALE, false);
     if (amountMinor === 0n) {
-      throw validationFailed('Сумма назначения должна быть больше нуля.');
+      throw validationFailed('Сумма распределения должна быть больше нуля.');
     }
 
     const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
@@ -284,14 +284,14 @@ export class AssignmentApplicationService {
 
           const envelope = await this.repository.requireEnvelope(tx, budgetId, input.envelopeId);
           if (envelope.archivedAt) {
-            throw validationFailed('Архивированный конверт не принимает назначения.');
+            throw validationFailed('Конверт в архиве: в него нельзя распределить деньги.');
           }
 
           let targetPeriodId: string | null = null;
           if (input.periodId) {
             if (!envelope.hasPeriods) {
               throw validationFailed(
-                'У этого конверта нет периодов; назначайте средства в конверт целиком.',
+                'У этого конверта нет периодов; распределяйте деньги в конверт целиком.',
               );
             }
             const period = await this.repository.findPeriod(
@@ -305,7 +305,7 @@ export class AssignmentApplicationService {
             }
             targetPeriodId = period.id;
           } else if (envelope.hasPeriods) {
-            throw validationFailed('Для периодного конверта укажите periodId назначения.');
+            throw validationFailed('Для конверта на текущие траты укажите periodId распределения.');
           }
 
           const assigned = await this.repository.sumIncomeAssigned(
@@ -377,7 +377,7 @@ export class AssignmentApplicationService {
   ): Promise<ModifyAssignmentResult> {
     const amountMinor = parseDecimalToMinorUnits(input.amount, RUB_SCALE, false);
     if (amountMinor === 0n) {
-      throw validationFailed('Сумма назначения должна быть больше нуля.');
+      throw validationFailed('Сумма распределения должна быть больше нуля.');
     }
 
     const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
@@ -413,11 +413,11 @@ export class AssignmentApplicationService {
           }
 
           if (locked.status !== 'CONFIRMED') {
-            throw validationFailed('Назначение уже отменено; скорректируйте сумму до отмены.');
+            throw validationFailed('Распределение уже отменено; скорректируйте сумму до отмены.');
           }
           if (amountMinor >= locked.amountMinor) {
             throw validationFailed(
-              'Сумму существующего назначения можно только уменьшить; для увеличения создайте новое назначение.',
+              'Сумму существующего распределения можно только уменьшить; для увеличения создайте новое распределение.',
             );
           }
 
@@ -520,7 +520,7 @@ export class AssignmentApplicationService {
           }
 
           if (locked.status !== 'CONFIRMED') {
-            throw validationFailed('Назначение уже отменено.');
+            throw validationFailed('Распределение уже отменено.');
           }
 
           const timezone = await this.repository.requireBudgetTimezone(tx, budgetId);

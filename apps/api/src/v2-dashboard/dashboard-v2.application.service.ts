@@ -371,7 +371,7 @@ export class DashboardV2ApplicationService {
         code: leftover ? 'PERIOD_LEFTOVER' : 'PERIOD_DEFICIT',
         message: leftover
           ? `Остаток прошлого периода ${rubles(row.balance)} ещё не передан: решите, куда его направить.`
-          : `Перерасход прошлого периода ${rubles(-row.balance)}: покройте его отдельным назначением.`,
+          : `Перерасход прошлого периода ${rubles(-row.balance)}: покройте его отдельным распределением.`,
         amountMinor: formatMinorUnits(leftover ? row.balance : -row.balance),
         envelopeId: row.envelopeId,
         periodId: row.periodId,
@@ -386,7 +386,7 @@ export class DashboardV2ApplicationService {
         kind: 'COVERAGE',
         code: 'MANDATORY_GAP',
         level: 'ALERT',
-        message: `Не хватает на обязательства ${rubles(mandatoryGaps.currentGapMinor)} до конца периода ${period.end}: можно потратить меньше остатка периода. Покройте обязательства.`,
+        message: `Не хватает на обязательные платежи ${rubles(mandatoryGaps.currentGapMinor)} до конца периода ${period.end}: можно потратить меньше остатка периода. Отложите деньги на обязательные платежи.`,
         amountMinor: formatMinorUnits(mandatoryGaps.currentGapMinor),
         envelopeId: null,
         periodId: null,
@@ -398,7 +398,7 @@ export class DashboardV2ApplicationService {
         kind: 'COVERAGE',
         code: 'MANDATORY_GAP',
         level: 'INFO',
-        message: `Не хватает на обязательства ${rubles(mandatoryGaps.nextGapMinor)} на следующий период: закладывайте средства заранее.`,
+        message: `Не хватает на обязательные платежи ${rubles(mandatoryGaps.nextGapMinor)} на следующий период: закладывайте средства заранее.`,
         amountMinor: formatMinorUnits(mandatoryGaps.nextGapMinor),
         envelopeId: null,
         periodId: null,
@@ -410,7 +410,7 @@ export class DashboardV2ApplicationService {
       warnings.push({
         kind: 'COVERAGE',
         code: 'CASH_SHORTFALL',
-        message: `Не хватает денег на счетах ${rubles(result.unbackedAssignments)} для назначенных сумм. Проверьте счета и назначения.`,
+        message: `Не хватает денег на счетах ${rubles(result.unbackedAssignments)} для распределённых сумм. Проверьте счета и распределения.`,
         amountMinor: formatMinorUnits(result.unbackedAssignments),
         envelopeId: null,
         periodId: null,

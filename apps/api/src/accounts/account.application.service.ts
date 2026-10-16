@@ -227,7 +227,7 @@ export class AccountApplicationService {
         if (unbackedAfter > unbackedBefore) {
           throw new ConflictException({
             code: 'ASSIGNMENT_UNBACKED',
-            detail: 'Изменение нарушает покрытие назначений: непокрытая часть вырастет.',
+            detail: 'После изменения на счетах не хватит денег для уже распределённых сумм.',
           });
         }
       },

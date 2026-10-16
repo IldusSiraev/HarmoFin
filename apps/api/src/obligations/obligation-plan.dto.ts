@@ -110,7 +110,10 @@ export class ObligationOneTimePayWarning {
   @ApiProperty({ type: String, example: 'ENVELOPE_BALANCE_INSUFFICIENT' })
   code!: string;
 
-  @ApiProperty({ type: String, example: 'Назначение конверта меньше расхода; оплата проведена.' })
+  @ApiProperty({
+    type: String,
+    example: 'В конверте отложено меньше, чем расход; оплата проведена.',
+  })
   detail!: string;
 }
 

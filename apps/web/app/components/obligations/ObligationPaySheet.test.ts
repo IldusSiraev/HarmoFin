@@ -210,11 +210,11 @@ describe('ObligationPaySheet', () => {
 
   it('shows server errors beside the form and field errors beside the field', async () => {
     const wrapper = mountSheet({
-      error: 'Обязательство уже закрыто.',
+      error: 'Платёж уже закрыт.',
       fieldErrors: { amount: 'Сумма должна быть больше нуля.' },
     });
     await nextTick();
-    expect(wrapper.get('[data-testid="pay-error"]').text()).toContain('Обязательство уже закрыто.');
+    expect(wrapper.get('[data-testid="pay-error"]').text()).toContain('Платёж уже закрыт.');
     expect(wrapper.text()).toContain('Сумма должна быть больше нуля.');
   });
 

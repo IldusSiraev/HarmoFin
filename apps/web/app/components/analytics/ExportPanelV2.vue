@@ -55,7 +55,7 @@ async function download(kind: 'transactions' | 'assignments') {
         :disabled="pending !== ''"
         @click="download('assignments')"
       >
-        Скачать назначения (CSV)
+        Скачать распределения (CSV)
       </UiButton>
     </div>
     <p v-if="status" role="status" class="export-panel__note">{{ status }}</p>

@@ -22,7 +22,7 @@ describe('PlansList', () => {
   it('shows how much money the plans reserve', () => {
     const wrapper = mount(PlansList);
 
-    expect(normalize(wrapper.text())).toContain('На обязательства');
+    expect(normalize(wrapper.text())).toContain('На обязательные платежи');
     expect(normalize(wrapper.text())).toContain('52 000 ₽');
   });
 });

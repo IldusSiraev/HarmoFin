@@ -65,7 +65,7 @@ export class TransactionV2Warning {
   @ApiProperty({ type: String, example: 'ENVELOPE_BALANCE_INSUFFICIENT' })
   code!: string;
 
-  @ApiProperty({ type: String, example: 'Назначение конверта ушло в минус.' })
+  @ApiProperty({ type: String, example: 'Остаток конверта ушёл в минус.' })
   detail!: string;
 }
 

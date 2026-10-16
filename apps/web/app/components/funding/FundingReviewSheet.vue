@@ -182,15 +182,15 @@ function handleConfirm(): void {
 </script>
 
 <template>
-  <UiDrawer :open="open" title="Назначить деньги" @close="emit('later')">
+  <UiDrawer :open="open" title="Распределить деньги" @close="emit('later')">
     <div class="funding-sheet">
       <section class="funding-sheet__source" aria-label="Сумма источника">
-        <p class="funding-sheet__caption">Можно назначить</p>
+        <p class="funding-sheet__caption">Можно распределить</p>
         <p class="funding-sheet__amount" data-testid="funding-source">{{ money(sourceMinor) }}</p>
         <p class="funding-sheet__muted" data-testid="funding-intro">
           Эти деньги лежат на ваших счетах и пока свободны. Мы заранее предложили, для каких
           конвертов их отметить. Деньги со счетов никуда не переводятся. Проверьте суммы и нажмите
-          «Назначить предложенное» или выберите «Позже».
+          «Распределить как предложено» или выберите «Позже».
         </p>
       </section>
 
@@ -240,14 +240,14 @@ function handleConfirm(): void {
           "
         />
         <span class="funding-sheet__period-text">
-          <span class="funding-sheet__period-title">Принять план периода</span>
+          <span class="funding-sheet__period-title">Принять лимит на период</span>
           <span class="funding-sheet__muted">
             {{ draft.name ?? 'Новый период' }}, цель {{ money(draft.targetMinor) }}
           </span>
         </span>
       </label>
 
-      <ul class="funding-sheet__lines" aria-label="Предложенные назначения">
+      <ul class="funding-sheet__lines" aria-label="Предложенные распределения">
         <li
           v-for="line in previewLines"
           :key="lineKey(line)"
@@ -315,7 +315,7 @@ function handleConfirm(): void {
     <template #footer>
       <div class="funding-sheet__footer">
         <div class="funding-sheet__total" aria-live="polite">
-          <span class="funding-sheet__caption">Осталось назначить</span>
+          <span class="funding-sheet__caption">Осталось распределить</span>
           <strong class="funding-sheet__total-amount" data-testid="funding-remaining">
             {{ isExcess ? money(remainingMinor.slice(1)) : money(remainingMinor) }}
           </strong>
@@ -327,10 +327,10 @@ function handleConfirm(): void {
             Всё предложено: ничего не остаётся.
           </span>
           <span v-if="isExcess" class="funding-sheet__status" data-testid="funding-excess">
-            Превышение: назначено больше, чем доступно
+            Превышение: распределено больше, чем доступно
           </span>
           <span v-if="hasGap" class="funding-sheet__status" data-testid="funding-gap">
-            Не хватает на обязательства: {{ money(mandatoryGapMinor) }}
+            Не хватает на обязательные платежи: {{ money(mandatoryGapMinor) }}
           </span>
           <span
             v-if="hasDueBreakdown"
@@ -360,7 +360,7 @@ function handleConfirm(): void {
             data-testid="funding-confirm"
             @click="handleConfirm"
           >
-            Назначить предложенное
+            Распределить как предложено
           </UiButton>
         </div>
       </div>

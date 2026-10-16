@@ -298,7 +298,7 @@ describe('OnboardingChecklist', () => {
 
     expect(mocks.v2.getDashboard).toHaveBeenCalledWith('budget-1');
     const text = wrapper.text();
-    expect(text).toContain('Назначить имеющиеся деньги');
+    expect(text).toContain('Распределить деньги по конвертам');
     expect(text).not.toContain('Начальные остатки конвертов');
     expect(text).not.toContain('Первый доход и распределение');
     // only hasAccounts is done
@@ -369,7 +369,7 @@ describe('OnboardingChecklist', () => {
       await flushPromises();
 
       const step = wrapper.get('[data-step="periodSetup"]');
-      expect(step.text()).toContain('Подтвердите план периода');
+      expect(step.text()).toContain('Подтвердите лимит на период');
       expect(step.text()).toContain('Цикл уже задан в шаблоне');
       expect(step.text()).not.toContain('Периоды и цикл');
       expect(step.get('[data-testid="onboarding-target-amount"]').text()).toContain('65');
@@ -495,7 +495,7 @@ describe('OnboardingChecklist', () => {
       await flushPromises();
 
       expect(wrapper.get('[data-testid="onboarding-notice"]').text()).toBe(
-        'План периода подтверждён.',
+        'Лимит на период подтверждён.',
       );
       expect(wrapper.find('[data-testid="onboarding-target-confirm"]').exists()).toBe(false);
       expect(mocks.v2.confirmPeriodTarget).toHaveBeenCalledTimes(1);
@@ -526,8 +526,8 @@ describe('OnboardingChecklist', () => {
       await flushPromises();
 
       const step = wrapper.get('[data-step="periodSetup"]');
-      expect(step.text()).toContain('План периода подтверждён');
-      expect(step.text()).toContain('назначите их конвертам');
+      expect(step.text()).toContain('Лимит на период подтверждён');
+      expect(step.text()).toContain('распределите их по конвертам');
       expect(step.text()).not.toContain('Задать лимит');
       expect(step.get('a').text()).toBe('Открыть конверты');
       expect(step.get('a').attributes('href')).toBe('/app/envelopes');
@@ -541,8 +541,8 @@ describe('OnboardingChecklist', () => {
       await flushPromises();
 
       const step = wrapper.get('[data-step="periodSetup"]');
-      expect(step.text()).toContain('План периода подтверждён');
-      expect(step.text()).not.toContain('назначите их конвертам');
+      expect(step.text()).toContain('Лимит на период подтверждён');
+      expect(step.text()).not.toContain('распределите их по конвертам');
     });
 
     it('falls back to a link to the envelopes when there is no proposal', async () => {

@@ -8,11 +8,11 @@ import { ENVELOPE_TYPE_ICONS } from './envelope-type.js';
 // strings from the server; these helpers only classify or re-format text.
 
 export const PLAN_SCOPE_LABELS: Record<string, string> = {
-  CURRENT_EXPENSES: 'Периодная',
-  SAVINGS_GOAL: 'Накопительная',
+  CURRENT_EXPENSES: 'На текущие траты',
+  SAVINGS_GOAL: 'Накопления',
   RESERVE: 'Резерв',
-  MANDATORY_EXPENSES: 'Обязательная',
-  CUSTOM: 'Пользовательская',
+  MANDATORY_EXPENSES: 'Обязательные платежи',
+  CUSTOM: 'Свой конверт',
 };
 
 export const PLAN_SLOT_LABELS: Record<string, string> = {
@@ -35,15 +35,15 @@ export function planIcon(envelope: Pick<EnvelopePlanDto, 'envelopeType'>): typeo
 
 export function planScopeNote(envelopeType: string): string {
   if (envelopeType === 'SAVINGS_GOAL' || envelopeType === 'RESERVE') {
-    return 'Накопительный: остаток не сбрасывается при смене периода';
+    return 'Остаток не сбрасывается при смене периода';
   }
   if (envelopeType === 'MANDATORY_EXPENSES') {
-    return 'Обязательный: платежи по обязательствам и планам';
+    return 'Аренда, кредиты, коммунальные и другие регулярные платежи';
   }
   if (envelopeType === 'CURRENT_EXPENSES') {
-    return 'Периодный: остаток прошлого периода переносится только по вашему решению';
+    return 'Остаток прошлого периода переносится только по вашему решению';
   }
-  return 'Назначение денег без привязки к периоду';
+  return 'Деньги на любую цель без привязки к периоду';
 }
 
 export type BalanceSign = 'negative' | 'zero' | 'positive';

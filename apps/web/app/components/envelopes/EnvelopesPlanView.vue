@@ -78,17 +78,17 @@ const activeEnvelopes = computed(() => envelopes.value.filter((item) => item.arc
 // is moved without an explicit action, and unknown parameters are ignored.
 const actionNote = computed(() => {
   if (props.query.leftoverPeriod) {
-    return 'Остаток прошлого периода не добавлен к текущему автоматически. Откройте конверт и нажмите «Переназначить», чтобы выбрать, куда его направить.';
+    return 'Остаток прошлого периода не добавлен к текущему автоматически. Откройте конверт и нажмите «Переложить», чтобы выбрать, куда его направить.';
   }
   if (props.query.coverPeriod) {
-    return 'В прошлом периоде есть перерасход. Откройте конверт и нажмите «Переназначить», чтобы покрыть его из другого конверта или свободных денег.';
+    return 'В прошлом периоде есть перерасход. Откройте конверт и нажмите «Переложить», чтобы покрыть его из другого конверта или свободных денег.';
   }
   if (props.query.cover === 'mandatory') {
-    return 'Не хватает на обязательные расходы. Назначьте деньги в обязательный конверт кнопкой «Переназначить».';
+    return 'Не хватает на обязательные платежи. Отложите деньги в конверт обязательных платежей кнопкой «Переложить».';
   }
   return '';
 });
-const highlightLabel = 'Нужно назначить';
+const highlightLabel = 'Нужно пополнить';
 function isHighlighted(envelope: EnvelopePlanDto): boolean {
   return props.query.cover === 'mandatory' && envelope.envelopeType === 'MANDATORY_EXPENSES';
 }
@@ -254,7 +254,7 @@ function closeMove(): void {
 
 function describeResult(result: MovePanelResult): string {
   if (result.kind === 'assign') {
-    return `Назначено. Остаток конверта по данным сервера: ${formatMoneyText(result.response.balanceMinor)}.`;
+    return `Распределено. Остаток конверта по данным сервера: ${formatMoneyText(result.response.balanceMinor)}.`;
   }
   const { sourceBalanceMinor, destinationBalanceMinor } = result.response;
   const destination =
@@ -387,7 +387,7 @@ onMounted(() => {
       <span ref="pageHeading" tabindex="-1" class="plan-view__heading">Конверты</span>
     </template>
     <template #description>
-      Конверт показывает, на что назначены деньги, а не где они физически лежат. Деньги на счетах
+      Конверт показывает, для чего отложены деньги, а не где они физически лежат. Деньги на счетах
       общие: конверты делят их по назначению.
     </template>
     <template #actions>
@@ -437,7 +437,7 @@ onMounted(() => {
         <UiEmptyState
           v-if="envelopes.length === 0"
           title="Конвертов пока нет"
-          description="Создайте конверт, чтобы назначать в него деньги."
+          description="Создайте конверт, чтобы распределять в него деньги."
         >
           <template #action><UiButton @click="startCreate">Создать конверт</UiButton></template>
         </UiEmptyState>
@@ -471,7 +471,7 @@ onMounted(() => {
                         data-action="reassign-envelope"
                         @click="startReassign(envelope)"
                       >
-                        Переназначить
+                        Переложить
                       </button>
                       <button
                         v-if="!envelope.archivedAt"
@@ -570,7 +570,7 @@ onMounted(() => {
         v-model="form.envelopeType"
         name="envelopeType"
         label="Область действия"
-        tooltip="Периодная — деньги на половину периода; накопительная — остаток не сбрасывается; обязательная — платежи по обязательствам (один активный на бюджет); пользовательская — любое другое назначение."
+        tooltip="На текущие траты — деньги на половину периода; накопления — остаток не сбрасывается; обязательные платежи — аренда, кредиты и другие регулярные платежи (один активный конверт на бюджет); свой конверт — любая другая цель."
         :options="scopeOptions"
         :error="fieldError('envelopeType')"
         required
@@ -625,7 +625,7 @@ onMounted(() => {
   <UiConfirmDialog
     :open="confirmTarget !== null"
     title="Архивировать конверт?"
-    description="Конверт останется в истории, но будет недоступен для новых назначений."
+    description="Конверт останется в истории, но будет недоступен для новых распределений."
     confirm-label="Архивировать конверт"
     cancel-label="Отмена"
     variant="danger"

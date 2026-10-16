@@ -27,13 +27,13 @@ describe('UpcomingObligations', () => {
     // One link to the whole plans page replaces the removed caption link in the spendable card.
     const all = wrapper.get('a[href="/app/plans"]');
     expect(all.text()).toBe('Все');
-    expect(all.attributes('aria-label')).toBe('Все: Обязательства');
+    expect(all.attributes('aria-label')).toBe('Все: Обязательные платежи');
     expect(link.attributes('aria-label')).toBe('Открыть план: Ипотека, 26 октября');
   });
 
   it('renders the empty state', () => {
     expect(
       mount(UpcomingObligations, { props: { items: [] }, global: { stubs } }).text(),
-    ).toContain('Ближайших обязательств нет.');
+    ).toContain('Ближайших обязательных платежей нет.');
   });
 });

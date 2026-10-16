@@ -264,7 +264,7 @@ defineExpose({ confirmMove, decideTarget });
     <div v-if="hasTarget" class="period-decision__row" data-testid="target-row">
       <Info class="period-decision__icon" :size="20" aria-hidden="true" />
       <p class="period-decision__text">
-        Предложенный план периода
+        Предложенный лимит на период
         <FinanceMoney
           class="period-decision__amount"
           :minor-units="suggestedTarget as string"

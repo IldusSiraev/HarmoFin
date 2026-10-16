@@ -25,7 +25,7 @@ const COPY: Record<OperationAction, ActionCopy> = {
 const OVERRIDES: Record<string, string> = {
   RESOURCE_NOT_FOUND: 'Операция не найдена. Обновите журнал.',
   SOURCE_EXHAUSTED:
-    'На этот доход назначены средства. Сначала уменьшите или отмените назначения этого дохода.',
+    'Деньги этого дохода распределены по конвертам. Сначала уменьшите или отмените эти распределения.',
 };
 
 type RowState = Pick<TransactionJournalV2Item, 'status'>;
