@@ -52,3 +52,7 @@ https://{$CADDY_SITE_ADDRESS} {
     }
   }
 }
+
+# Сайты других проектов на этом сервере (CADDY_SITES_DIR на хосте, по умолчанию /home/deploy/caddy-sites).
+# Пустая папка допустима.
+import /etc/caddy/sites/*.caddy
