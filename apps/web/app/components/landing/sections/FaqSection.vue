@@ -56,7 +56,6 @@ function toggle(id: string): void {
 .faq__list {
   display: grid;
   gap: var(--hf-space-2);
-  max-width: 48rem;
   margin: 0;
   padding: 0;
   list-style: none;
