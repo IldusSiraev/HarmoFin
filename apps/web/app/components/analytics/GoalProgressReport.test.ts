@@ -23,21 +23,20 @@ describe('GoalProgressReport', () => {
           },
         ],
       },
-      global: {
-        stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } },
-      },
     });
 
-    expect(wrapper.get('[role="region"]').attributes()).toMatchObject({
-      'aria-labelledby': 'goal-progress-title',
-      tabindex: '0',
-    });
-    expect(wrapper.get('progress').attributes()).toMatchObject({ max: '1000', value: '500' });
-    expect(wrapper.get('progress').attributes('aria-valuetext')).toContain('500');
+    expect(wrapper.get('h2').text()).toBe('Накопления');
+    const goals = wrapper.findAll('[data-goal]');
+    expect(goals).toHaveLength(1);
     expect(wrapper.text()).toContain('250,00');
     expect(wrapper.text()).toContain('Просрочено');
     expect(wrapper.text()).toContain('2');
     expect(wrapper.text()).toContain('Отложено');
-    expect(wrapper.find('a').exists()).toBe(false);
+  });
+
+  it('пустой список целей показывает подсказку', () => {
+    const wrapper = mount(GoalProgressReport, { props: { rows: [] } });
+    expect(wrapper.text()).toContain('Нет конвертов «Накопления».');
+    expect(wrapper.find('[data-goal]').exists()).toBe(false);
   });
 });

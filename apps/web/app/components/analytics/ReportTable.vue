@@ -1,21 +1,25 @@
 <script setup lang="ts">
 import type { GenericReportDto } from '../../composables/useBudgetReferenceData.js';
+import { dateLabel } from './date-label.js';
 import { formatMinorUnits } from '../finance/money-format.js';
+import { journalHref } from './journal-href.js';
 
 defineProps<{
   rows: ReadonlyArray<GenericReportDto['rows'][number]>;
   hideJournal?: boolean;
 }>();
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 function title(row: Record<string, unknown>) {
-  return (
+  const value =
     stringValue(row.categoryName) ||
     stringValue(row.name) ||
     stringValue(row.cycleStart) ||
     stringValue(row.periodStart) ||
     stringValue(row.effectiveOn) ||
-    'Показатель'
-  );
+    'Показатель';
+  return ISO_DATE_RE.test(value) ? dateLabel(value) : value;
 }
 
 function stringValue(value: unknown) {
@@ -27,17 +31,6 @@ function amount(row: Record<string, unknown>) {
     ([key, candidate]) => key.endsWith('Minor') && typeof candidate === 'string',
   )?.[1];
   return typeof value === 'string' ? formatMinorUnits(value, 'RUB', 2) : '—';
-}
-
-function journalHref(row: Record<string, unknown>) {
-  const filters = row.journalFilters;
-  if (!filters || typeof filters !== 'object' || Array.isArray(filters)) return '/app/operations';
-  const query = new URLSearchParams(
-    Object.entries(filters as Record<string, unknown>)
-      .filter(([, value]) => typeof value === 'string')
-      .map(([name, value]) => [name, String(value)]),
-  );
-  return `/app/operations${query.size > 0 ? `?${query}` : ''}`;
 }
 </script>
 

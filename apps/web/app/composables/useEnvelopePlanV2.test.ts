@@ -369,6 +369,8 @@ describe('useEnvelopePlanV2', () => {
       'savings-goals',
       'plan-vs-actual',
       'assignment-movements',
+      'envelope-limits',
+      'period-comparison',
     ]);
   });
 

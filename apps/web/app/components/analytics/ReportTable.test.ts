@@ -23,4 +23,15 @@ describe('ReportTable', () => {
     );
     expect(wrapper.text()).toContain('Продукты');
   });
+
+  it('renders an ISO date title in DD.MM.YYYY', () => {
+    const wrapper = mount(ReportTable, {
+      props: {
+        rows: [{ effectiveOn: '2026-03-02', amountMinor: '100' }],
+        hideJournal: true,
+      },
+    });
+
+    expect(wrapper.text()).toContain('02.03.2026');
+  });
 });

@@ -125,6 +125,14 @@
   --hf-color-text-danger: #b33636;
   --hf-color-border-danger: var(--hf-color-danger-strong);
   --hf-color-overlay: rgb(13 27 42 / 48%);
+  /* charts — references only; dark theme follows the overridden base tokens */
+  --hf-color-chart-1: var(--hf-color-brand);
+  --hf-color-chart-2: var(--hf-color-primary-bright);
+  --hf-color-chart-3: var(--hf-color-primary-strong);
+  --hf-color-chart-4: var(--hf-color-brand-active);
+  --hf-color-chart-5: var(--hf-color-slate-500);
+  --hf-color-chart-rest: var(--hf-color-slate-200);
+  --hf-color-chart-track: var(--hf-color-surface-subtle);
   --hf-z-index-tooltip: 150;
   --hf-tooltip-background: var(--hf-color-slate-900);
   --hf-tooltip-color: var(--hf-color-white);
