@@ -44,6 +44,7 @@ vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) =>
 }));
 
 import { ApiRequestError } from '../../composables/useApiClient.js';
+import { selectOption, selectValue } from '../../test/select-option.js';
 import TransfersPage from './transfers.vue';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 
@@ -69,10 +70,7 @@ describe('transfers page', () => {
     await flushPromises();
 
     await wrapper.get('[data-action="create-transfer"]').trigger('click');
-    const selectElement = document.querySelector(
-      'select[name="sourceAccountId"]',
-    ) as HTMLSelectElement;
-    expect(selectElement.value).toBe('source-account');
+    expect(selectValue(document, 'sourceAccountId')).toBe('source-account');
   });
 
   function mountPage() {
@@ -119,7 +117,7 @@ describe('transfers page', () => {
       await flushPromises();
       await wrapper.get('[data-action="create-transfer"]').trigger('click');
       setField('input[name="total"]', '700');
-      setField('select[name="destinationAccountId"]', 'destination-account', 'change');
+      await selectOption(document, 'destinationAccountId', 'destination-account');
       await flushPromises();
       return wrapper;
     }
@@ -129,7 +127,7 @@ describe('transfers page', () => {
       await flushPromises();
 
       expect(mocks.v2.listDirectTransfers).toHaveBeenCalledWith('budget-id', {});
-      expect(wrapper.find('select[name="status"]').exists()).toBe(false);
+      expect(wrapper.find('[data-select-name="status"]').exists()).toBe(false);
       expect(wrapper.text()).toContain('Основной счёт');
       expect(wrapper.text()).toContain('Накопительный счёт');
       expect(wrapper.text()).not.toContain('Подтвердить');

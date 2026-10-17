@@ -42,6 +42,7 @@ vi.mock('../../composables/useEnvelopePlanV2.js', () => ({
   useEnvelopePlanV2: () => mocks.v2,
 }));
 
+import { selectOption } from '../../test/select-option.js';
 import EnvelopesPage from './envelopes.vue';
 
 function plan(overrides: Record<string, unknown>) {
@@ -379,13 +380,9 @@ describe('envelopes page, plan model v2', () => {
     const name = document.querySelector('input[name="name"]') as HTMLInputElement;
     name.value = 'Кафе';
     name.dispatchEvent(new Event('input', { bubbles: true }));
-    const scope = document.querySelector('select[name="envelopeType"]') as HTMLSelectElement;
-    scope.value = 'CURRENT_EXPENSES';
-    scope.dispatchEvent(new Event('change', { bubbles: true }));
+    await selectOption(document, 'envelopeType', 'CURRENT_EXPENSES');
     await flushPromises();
-    const slot = document.querySelector('select[name="periodSlot"]') as HTMLSelectElement;
-    slot.value = 'SECOND';
-    slot.dispatchEvent(new Event('change', { bubbles: true }));
+    await selectOption(document, 'periodSlot', 'SECOND');
     await flushPromises();
     document
       .querySelector('form[data-envelope-form]')!
@@ -409,9 +406,7 @@ describe('envelopes page, plan model v2', () => {
     const name = document.querySelector('input[name="name"]') as HTMLInputElement;
     name.value = 'Ещё обязательные';
     name.dispatchEvent(new Event('input', { bubbles: true }));
-    const scope = document.querySelector('select[name="envelopeType"]') as HTMLSelectElement;
-    scope.value = 'MANDATORY_EXPENSES';
-    scope.dispatchEvent(new Event('change', { bubbles: true }));
+    await selectOption(document, 'envelopeType', 'MANDATORY_EXPENSES');
     await flushPromises();
     document
       .querySelector('form[data-envelope-form]')!

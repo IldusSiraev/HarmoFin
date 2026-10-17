@@ -24,6 +24,9 @@ function focusable(): HTMLElement[] {
 function handleKeydown(event: KeyboardEvent): void {
   if (!props.open) return;
   if (event.key === 'Escape') {
+    // A control inside the drawer (e.g. an open select list) already handled
+    // this Escape; like UiModal, leave the drawer open.
+    if (event.defaultPrevented) return;
     // A native <dialog> stacked on top (e.g. a confirm dialog) owns Escape
     // while it's open; closing the drawer underneath it too would drop
     // whatever the dialog was confirming or cancelling out from under it.
