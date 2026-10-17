@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import DashboardMockup from '../mockups/DashboardMockup.vue';
 import UiButton from '../../ui/Button.vue';
 
 defineOptions({ name: 'FinalCtaSection' });
@@ -13,18 +12,13 @@ defineOptions({ name: 'FinalCtaSection' });
           Хватит гадать, сколько можно потратить.
         </h2>
         <p class="final-cta__description">
-          Создайте свой бюджет, распределите деньги по назначениям и всегда знайте свой реальный
-          доступный остаток.
+          Создайте бюджет, разложите деньги по конвертам и всегда знайте, сколько можно потратить.
         </p>
         <div class="final-cta__actions">
           <UiButton to="/register" variant="brand" size="lg">Начать бесплатно</UiButton>
           <a class="final-cta__secondary" href="#features">Посмотреть возможности</a>
         </div>
         <p class="final-cta__note">Без банковской привязки. Без сложной настройки.</p>
-      </div>
-
-      <div class="final-cta__preview">
-        <DashboardMockup />
       </div>
     </div>
   </section>
@@ -37,10 +31,9 @@ defineOptions({ name: 'FinalCtaSection' });
 }
 
 .final-cta__inner {
-  display: grid;
-  gap: var(--hf-space-8);
-  max-width: var(--hf-container-max);
+  max-width: 48rem;
   margin: 0 auto;
+  text-align: center;
 }
 
 .final-cta__title {
@@ -51,7 +44,7 @@ defineOptions({ name: 'FinalCtaSection' });
 }
 
 .final-cta__description {
-  margin: 0 0 var(--hf-space-6);
+  margin: 0 auto var(--hf-space-6);
   max-width: 34rem;
   color: var(--hf-color-text-muted);
 }
@@ -61,6 +54,7 @@ defineOptions({ name: 'FinalCtaSection' });
   flex-wrap: wrap;
   gap: var(--hf-space-4);
   align-items: center;
+  justify-content: center;
 }
 
 .final-cta__secondary {
@@ -78,22 +72,9 @@ defineOptions({ name: 'FinalCtaSection' });
   font-size: var(--hf-font-size-small);
 }
 
-.final-cta__preview {
-  display: none;
-}
-
 @media (min-width: 1024px) {
   .final-cta {
     padding: var(--hf-space-20) var(--hf-space-8);
-  }
-
-  .final-cta__inner {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
-    align-items: center;
-  }
-
-  .final-cta__preview {
-    display: block;
   }
 }
 </style>

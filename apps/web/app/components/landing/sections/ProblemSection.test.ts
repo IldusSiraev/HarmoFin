@@ -14,7 +14,7 @@ describe('ProblemSection', () => {
     expect(wrapper.findAll('h3')).toHaveLength(3);
     expect(wrapper.text()).toContain('На карте 120 000 ₽');
     expect(wrapper.text()).toContain(
-      'HarmoFin разделяет деньги не только по счетам, но и по назначению.',
+      'HarmoFin делит деньги не только по счетам, но и по конвертам: на что они отложены.',
     );
   });
 });

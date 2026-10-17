@@ -15,7 +15,7 @@ describe('FinalCtaSection', () => {
 
     expect(wrapper.get('h2').text()).toBe('Хватит гадать, сколько можно потратить.');
     expect(wrapper.text()).toContain(
-      'Создайте свой бюджет, распределите деньги по назначениям и всегда знайте свой реальный доступный остаток.',
+      'Создайте бюджет, разложите деньги по конвертам и всегда знайте, сколько можно потратить.',
     );
 
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'));

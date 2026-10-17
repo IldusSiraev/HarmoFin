@@ -1,53 +1,3 @@
-export interface LandingBudgetSnapshot {
-  dateLabel: string;
-  periodLabel: string;
-  daysLeft: number;
-  availableMinor: string;
-  periodLimitMinor: string;
-  spentMinor: string;
-  dailyAverageMinor: string;
-}
-
-export interface LandingEnvelope {
-  name: string;
-  amountMinor: string;
-  tone: 'brand' | 'primary' | 'warning' | 'neutral';
-}
-
-export interface LandingAllocation {
-  name: string;
-  amountMinor: string;
-}
-
-export interface LandingGoal {
-  name: string;
-  savedMinor: string;
-  targetMinor: string;
-}
-
-export interface LandingPlan {
-  dateLabel: string;
-  name: string;
-  amountMinor: string;
-}
-
-export interface LandingCategoryShare {
-  name: string;
-  share: number;
-}
-
-export interface LandingCashFlowPoint {
-  label: string;
-  incomeMinor: string;
-  expenseMinor: string;
-}
-
-export interface LandingStep {
-  index: string;
-  title: string;
-  caption: string;
-}
-
 export interface LandingFaqItem {
   id: string;
   question: string;
@@ -59,179 +9,109 @@ export interface LandingTextCard {
   text: string;
 }
 
-export const heroBudget: LandingBudgetSnapshot = {
-  dateLabel: 'Сегодня, 13 сентября',
-  periodLabel: 'Период 25.09 – 09.10',
-  daysLeft: 7,
-  availableMinor: '2180000',
-  periodLimitMinor: '6300000',
-  spentMinor: '4120000',
-  dailyAverageMinor: '311400',
-};
-
-export const heroEnvelopes: LandingEnvelope[] = [
-  { name: 'Обязательные', amountMinor: '5200000', tone: 'primary' },
-  { name: 'Ремонт', amountMinor: '7000000', tone: 'warning' },
-  { name: 'Автомобиль', amountMinor: '800000', tone: 'neutral' },
-  { name: 'Свободные', amountMinor: '2180000', tone: 'brand' },
-];
-
 export const heroTrustPoints: string[] = [
   'Без сложных таблиц',
-  'Адаптивный интерфейс',
-  'Без банковской привязки на старте',
+  'Удобно с телефона',
+  'Без привязки к банку',
 ];
 
 export const problemCards: LandingTextCard[] = [
   {
     title: 'На карте 120 000 ₽',
-    text: 'Но часть этих денег уже нужна для ипотеки, ремонта и других обязательных платежей.',
+    text: 'Но часть этих денег уже нужна на ипотеку, садик и другие обязательные платежи.',
   },
   {
-    title: 'До следующей выплаты ещё несколько дней',
-    text: 'Сколько можно потратить сегодня, чтобы не остаться без денег позже?',
+    title: 'До зарплаты ещё неделя',
+    text: 'Сколько можно потратить сегодня, чтобы потом хватило на всё остальное?',
   },
   {
-    title: 'Вы откладывали на ремонт',
-    text: 'Но накопления и повседневные деньги смешались в одном остатке.',
+    title: 'Вы копили на ремонт',
+    text: 'Но накопления и деньги на каждый день смешались в одном остатке.',
   },
 ];
 
-export const conceptAccounts: string[] = ['Карта', 'Счёт', 'Наличные'];
-
-export const conceptEnvelopes: string[] = [
-  'Ремонт',
-  'Автомобиль',
-  'Текущие',
-  'Обязательные',
-  'Свободные',
-];
-
-export const cycleMilestones: { dateLabel: string; caption: string }[] = [
-  { dateLabel: '10 сентября', caption: 'Новый цикл' },
-  { dateLabel: '25 сентября', caption: 'Следующая выплата' },
-  { dateLabel: '9 октября', caption: 'Граница периода' },
-  { dateLabel: '10 октября', caption: 'Новый цикл' },
-];
-
-export const cyclePeriods: { label: string; range: string }[] = [
-  { label: 'Период 1', range: '10.09 – 24.09' },
-  { label: 'Период 2', range: '25.09 – 09.10' },
-];
-
-export const availableExplainers: LandingTextCard[] = [
+export const accountsEnvelopesCards: LandingTextCard[] = [
   {
-    title: 'Считаем по фактическим операциям',
-    text: 'В расчёт идут подтверждённые доходы и расходы, а не ожидаемая сумма будущей выплаты.',
+    title: 'Счета — где лежат деньги',
+    text: 'Карта, накопительный счёт, наличные. Баланс меняют только реальные доходы, расходы и переводы.',
   },
   {
-    title: 'Вычитаем то, что уже обещано',
-    text: 'Обязательные платежи и накопления остаются зарезервированными и не попадают в доступный остаток.',
+    title: 'Конверты — на что они отложены',
+    text: 'Текущие траты, обязательные платежи, накопления и резерв. Конверт — не отдельный банковский счёт, а часть ваших денег с понятной целью.',
   },
   {
-    title: 'Считаем до границы периода',
-    text: 'Остаток и дневной ориентир рассчитаны до конца текущего периода, а не до конца календарного месяца.',
+    title: 'Не распределено',
+    text: 'Деньги на счетах, которые вы ещё не разложили по конвертам. Их видно сразу, они не теряются.',
   },
 ];
 
-export const allocationExplainers: LandingTextCard[] = [
+export const incomeSteps: LandingTextCard[] = [
   {
-    title: 'Доход остаётся одним',
-    text: 'Распределение не создаёт новых поступлений и не удваивает сумму в отчётах.',
+    title: 'Пришёл доход',
+    text: 'Вы записываете зарплату или другой доход — ровно ту сумму, которая пришла.',
   },
   {
-    title: 'Распределений может быть несколько',
-    text: 'Обязательные платежи, текущие расходы и накопления получают свою часть за одно действие.',
+    title: 'HarmoFin предлагает, куда его разложить',
+    text: 'Сначала обязательные платежи и лимит на период, затем накопления. Любую сумму можно поправить.',
   },
   {
-    title: 'Нераспределённое видно сразу',
-    text: 'Понятно, какая часть поступления ещё ждёт распределения.',
+    title: 'Одно действие',
+    text: '«Распределить как предложено» — или «Позже», если хотите решить потом. Деньги не пропадут.',
+  },
+  {
+    title: 'Планы меняются — переложите',
+    text: 'Деньги можно переложить из одного конверта в другой. Банковский перевод для этого не нужен.',
   },
 ];
 
-export const allocationData: {
-  incomeName: string;
-  incomeMinor: string;
-  allocations: LandingAllocation[];
-} = {
-  incomeName: 'Зарплата',
-  incomeMinor: '10600000',
-  allocations: [
-    { name: 'Обязательные', amountMinor: '5000000' },
-    { name: 'Текущие расходы', amountMinor: '3600000' },
-    { name: 'Ремонт', amountMinor: '2000000' },
-  ],
-};
-
-export const goalData: LandingGoal[] = [
-  { name: 'Ремонт', savedMinor: '7000000', targetMinor: '12000000' },
-  { name: 'Автомобиль', savedMinor: '1800000', targetMinor: '3000000' },
-  { name: 'Отпуск', savedMinor: '4200000', targetMinor: '10000000' },
-];
-
-export const upcomingPlans: { items: LandingPlan[]; reservedMinor: string } = {
-  items: [
-    { dateLabel: '20 сентября', name: 'Подписки', amountMinor: '300000' },
-    { dateLabel: '25 сентября', name: 'Секции', amountMinor: '600000' },
-    { dateLabel: '26 сентября', name: 'Ипотека', amountMinor: '3600000' },
-    { dateLabel: '01 октября', name: 'Детский сад', amountMinor: '300000' },
-  ],
-  reservedMinor: '5200000',
-};
-
-export const analyticsData: {
-  categories: LandingCategoryShare[];
-  cashFlow: LandingCashFlowPoint[];
-  planVsFact: { label: string; planMinor: string; factMinor: string }[];
-} = {
-  categories: [
-    { name: 'Продукты', share: 24 },
-    { name: 'Жильё', share: 21 },
-    { name: 'Дети', share: 14 },
-    { name: 'Автомобиль', share: 10 },
-    { name: 'Досуг', share: 8 },
-    { name: 'Прочее', share: 23 },
-  ],
-  cashFlow: [
-    { label: 'Апр', incomeMinor: '10200000', expenseMinor: '8900000' },
-    { label: 'Май', incomeMinor: '9800000', expenseMinor: '9100000' },
-    { label: 'Июн', incomeMinor: '10600000', expenseMinor: '8700000' },
-    { label: 'Июл', incomeMinor: '11200000', expenseMinor: '9600000' },
-    { label: 'Авг', incomeMinor: '9900000', expenseMinor: '9400000' },
-    { label: 'Сен', incomeMinor: '10600000', expenseMinor: '8200000' },
-  ],
-  planVsFact: [
-    { label: 'Обязательные', planMinor: '5000000', factMinor: '5200000' },
-    { label: 'Текущие', planMinor: '3600000', factMinor: '3300000' },
-    { label: 'Накопления', planMinor: '2000000', factMinor: '2000000' },
-  ],
-};
-
-export const howItWorksSteps: LandingStep[] = [
-  { index: '01', title: 'Получили зарплату', caption: '+106 000 ₽' },
-  { index: '02', title: 'Распределили', caption: 'Обязательные, текущие, ремонт' },
-  { index: '03', title: 'Оплатили покупку', caption: '−2 450 ₽, продукты' },
-  { index: '04', title: 'Узнали остаток', caption: 'Можно потратить 21 800 ₽' },
-  { index: '05', title: 'Накопления продолжают расти', caption: 'Ремонт 70 000 ₽' },
-];
-
-export const audienceCards: LandingTextCard[] = [
+export const mandatoryPoints: LandingTextCard[] = [
   {
-    title: 'Семья',
-    text: 'Общие расходы, обязательные платежи и цели в одной финансовой системе.',
+    title: 'Регулярные платежи по расписанию',
+    text: 'Ипотека, садик, связь. HarmoFin напоминает о сроке и показывает, сколько нужно отложить.',
   },
-  { title: 'Пара', text: 'Понятная финансовая картина без необходимости вести несколько таблиц.' },
-  { title: 'Один человек', text: 'Бюджет под ваши выплаты, цели и реальные финансовые привычки.' },
+  {
+    title: 'Оплатить платёж в два касания',
+    text: 'Сумма и конверт уже подставлены. Можно оплатить частями — платёж останется открытым до полной оплаты.',
+  },
+  {
+    title: 'Предупреждение заранее',
+    text: 'Если отложенного не хватает, вы увидите «Не хватает на обязательные платежи» и сумму — до срока, а не после.',
+  },
+];
+
+export const periodEndActions: LandingTextCard[] = [
+  {
+    title: 'В следующий период',
+    text: 'Остаток добавится к лимиту следующего периода.',
+  },
+  {
+    title: 'В накопления',
+    text: 'Сэкономленное уходит в конверт с целью — например, на ремонт.',
+  },
+  {
+    title: 'Оставить',
+    text: 'Решите позже: остаток никуда не денется и останется на виду.',
+  },
+];
+
+export const reportNames: string[] = [
+  'Расходы по категориям',
+  'Расходы по периодам и циклам',
+  'Доходы минус расходы',
+  'Остатки счетов',
+  'Цели накоплений',
+  'План и факт',
+  'Выгрузка в CSV',
 ];
 
 export const securityCards: LandingTextCard[] = [
   {
     title: 'Защищённый доступ',
-    text: 'Авторизация, восстановление пароля и управление активными сессиями.',
+    text: 'Вход по паролю, восстановление доступа и управление активными сессиями.',
   },
   {
-    title: 'Изоляция бюджета',
-    text: 'Данные бюджетов изолированы и недоступны другим пользователям.',
+    title: 'Ваш бюджет — только ваш',
+    text: 'Данные бюджета недоступны другим пользователям.',
   },
   { title: 'История изменений', text: 'Изменения финансовых данных сохраняются в журнале.' },
 ];
@@ -241,33 +121,46 @@ export const faqItems: LandingFaqItem[] = [
     id: 'what-is',
     question: 'Что такое HarmoFin?',
     answer:
-      'HarmoFin — веб-приложение для управления личным и семейным бюджетом, которое связывает фактические движения денег по счетам с их назначением в конвертах и категориями расходов.',
+      'Веб-приложение для личного и семейного бюджета. Оно показывает, сколько денег на счетах, на что они уже отложены и сколько можно потратить сейчас.',
   },
   {
-    id: 'difference',
-    question: 'Чем HarmoFin отличается от обычного учёта расходов?',
+    id: 'spendable',
+    question: 'Что значит «Можно потратить»?',
     answer:
-      'Он показывает не только баланс счетов, но и назначение денег и доступную сумму до следующей границы финансового периода.',
+      'Это остаток лимита на текущий период, который не заденет обязательные платежи и накопления. Если денег на счетах меньше, чем отложено, сумма будет меньше — и HarmoFin объяснит почему.',
+  },
+  {
+    id: 'not-distributed',
+    question: 'Что значит «Не распределено»?',
+    answer:
+      'Это деньги на счетах, которые ещё не разложены по конвертам. Их можно распределить в любой момент одной кнопкой.',
+  },
+  {
+    id: 'period-end',
+    question: 'Что будет с остатком в конце периода?',
+    answer:
+      'Он не исчезает и не переносится сам. Вы выбираете: в следующий период, в накопления или оставить на потом.',
   },
   {
     id: 'stable-income',
     question: 'Нужно ли получать одинаковую зарплату каждый месяц?',
-    answer: 'Нет. HarmoFin работает с фактически полученной суммой.',
+    answer: 'Нет. HarmoFin работает с суммой, которая фактически пришла.',
   },
   {
     id: 'goals',
     question: 'Можно ли копить на отдельные цели?',
-    answer: 'Да. Для этого используются конверты для накоплений.',
+    answer:
+      'Да. Для этого есть конверты «Накопления»: остаток в них не сбрасывается при смене периода.',
   },
   {
     id: 'bank-sync',
     question: 'Есть ли банковская синхронизация?',
-    answer: 'Пока нет. Банковские интеграции появятся на следующих этапах.',
+    answer: 'Пока нет. Доходы и расходы вы записываете сами — это занимает несколько секунд.',
   },
   {
     id: 'mobile',
     question: 'Можно ли пользоваться с телефона?',
-    answer: 'Да. Интерфейс адаптируется под смартфоны и планшеты.',
+    answer: 'Да. Интерфейс подстраивается под смартфоны и планшеты.',
   },
 ];
 

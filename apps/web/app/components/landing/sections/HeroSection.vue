@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { Check } from '@lucide/vue';
 
-import DashboardMockup from '../mockups/DashboardMockup.vue';
+import AvailableBudgetCard from '../../dashboard/AvailableBudgetCard.vue';
+import LandingShowcase from '../ui/LandingShowcase.vue';
 import UiButton from '../../ui/Button.vue';
+import { demoDashboard } from '../../../data/landing-demo.js';
 import { heroTrustPoints } from '../../../data/landing.js';
 
 defineOptions({ name: 'HeroSection' });
@@ -12,13 +14,13 @@ defineOptions({ name: 'HeroSection' });
   <section id="hero" class="hero" aria-labelledby="hero-title">
     <div class="hero__inner">
       <div class="hero__content">
-        <p class="hero__eyebrow">Управляйте личными и семейными финансами</p>
+        <p class="hero__eyebrow">Бюджет для семьи, пары или одного человека</p>
         <h1 id="hero-title" class="hero__title">
-          Понимайте свои деньги, а не просто записывайте расходы.
+          Знайте, сколько можно потратить, не задевая платежи и накопления.
         </h1>
         <p class="hero__description">
-          HarmoFin показывает, сколько денег у вас есть, на что они уже предназначены и сколько
-          можно потратить прямо сейчас.
+          Деньги лежат на счетах, а конверты показывают, на что они отложены. HarmoFin считает,
+          сколько из них свободно для трат прямо сейчас.
         </p>
         <div class="hero__actions">
           <UiButton to="/register" variant="brand" size="lg">Начать бесплатно</UiButton>
@@ -33,7 +35,11 @@ defineOptions({ name: 'HeroSection' });
       </div>
 
       <div class="hero__preview">
-        <DashboardMockup />
+        <LandingShowcase
+          caption="Главная HarmoFin: можно потратить 31 500 ₽ до 9 октября, ещё 17 500 ₽ не распределено по конвертам."
+        >
+          <AvailableBudgetCard :dashboard="demoDashboard" />
+        </LandingShowcase>
       </div>
     </div>
   </section>
