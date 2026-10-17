@@ -21,9 +21,22 @@ describe('ReportFilters', () => {
       .find((picker) => picker.props('name') === 'from');
     await fromPicker!.vm.$emit('update:modelValue', '2026-08-10');
 
-    expect(wrapper.find('select[name="type"]').exists()).toBe(false);
+    expect(wrapper.find('[data-select-name="type"]').exists()).toBe(false);
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([
       expect.objectContaining({ from: '2026-08-10' }),
     ]);
+  });
+
+  it('показывает только поля вкладки', () => {
+    const wrapper = mount(ReportFilters, {
+      props: {
+        modelValue: { from: '', to: '', accountId: '', categoryId: '', envelopeId: '' },
+        fields: ['envelopeId', 'to'],
+      },
+    });
+    expect(wrapper.find('[name="envelopeId"]').exists()).toBe(true);
+    expect(wrapper.find('[name="to"]').exists()).toBe(true);
+    expect(wrapper.find('[name="from"]').exists()).toBe(false);
+    expect(wrapper.find('[name="accountId"]').exists()).toBe(false);
   });
 });

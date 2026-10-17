@@ -13,6 +13,17 @@ import {
 import { clipAtNextRevision } from '../cycles/cycle-settings-at.js';
 import type { StoredRevision } from '../cycles/cycle-revision.repository.js';
 import { PrismaService } from '../database/prisma.service.js';
+import { AssignmentBalanceRepository } from '../envelope-plans/assignment-balance.repository.js';
+import {
+  addDays,
+  assertFiltersAllowed,
+  envelopeLimitRows,
+  periodComparisonRow,
+  periodRangeFor,
+  withShareBasisPoints,
+  type PeriodRange,
+  type Resolve,
+} from './report-v2-insights.js';
 import type { ReportV2Filters, ReportV2Key } from './report-v2.dto.js';
 import {
   type AssignmentLedgerRow,
@@ -34,6 +45,8 @@ export class ReportV2ApplicationService {
     private readonly planModelPolicy: PlanModelPolicy,
   ) {}
 
+  private readonly balances = new AssignmentBalanceRepository();
+
   /**
    * Any active member (VIEWER too) of a model-2 budget reads. Access, filter objects and every
    * aggregate run in one read-only snapshot transaction; foreign or missing filter objects are
@@ -45,6 +58,7 @@ export class ReportV2ApplicationService {
     key: ReportV2Key,
     filters: ReportV2Filters,
   ): Promise<ReportV2Response> {
+    assertFiltersAllowed(key, filters);
     await this.planModelPolicy.requireModel(userId, budgetId, 2);
     return this.prisma.$transaction(
       async (tx) => {
@@ -90,14 +104,57 @@ export class ReportV2ApplicationService {
       return goalRows(await repo.savingsGoals(tx, budgetId, asOf, filters.envelopeId), today);
     }
     if (key === 'plan-vs-actual') {
+      // Without explicit dates, occurrences materialized up to 60 days ahead would otherwise sum
+      // several future cycles; default to the current financial cycle of the budget instead.
+      if (filters.from === undefined && filters.to === undefined) {
+        const resolve = cycleResolver(await repo.cycleRevisions(tx, budgetId), budget);
+        const { cycle } = resolve(today);
+        return planVsActualRows(
+          await repo.planOccurrences(tx, userId, budgetId, {
+            ...filters,
+            from: cycle.start,
+            to: cycle.end,
+          }),
+        );
+      }
       return planVsActualRows(await repo.planOccurrences(tx, userId, budgetId, filters));
     }
     if (key === 'assignment-movements') {
       return ledgerRows(await repo.assignmentLedger(tx, userId, budgetId, filters));
     }
+    if (key === 'envelope-limits') {
+      const dated = filters.from !== undefined || filters.to !== undefined;
+      const startsOnLte = filters.to !== undefined && filters.to < today ? filters.to : today;
+      const endsOnGte = dated ? filters.from : addDays(today, -365);
+      const periods = await repo.limitPeriods(tx, budgetId, {
+        ...(endsOnGte !== undefined ? { endsOnGte } : {}),
+        startsOnLte,
+        ...(filters.envelopeId ? { envelopeId: filters.envelopeId } : {}),
+      });
+      // Same spending rule as the envelopes page and dashboard (v2 expenses inside the period).
+      const balances = await this.balances.allBalances(tx, budgetId, new Date());
+      const spent = new Map<string, bigint>();
+      for (const row of balances) if (row.periodId !== null) spent.set(row.periodId, row.spent);
+      return envelopeLimitRows(periods, spent, today);
+    }
+    if (key === 'period-comparison') {
+      const stored = await repo.storedPeriodRanges(tx, budgetId);
+      const resolve = cycleResolver(await repo.cycleRevisions(tx, budgetId), budget);
+      const current = periodRangeFor(asOf, stored, resolve);
+      const previous = periodRangeFor(addDays(current.start, -1), stored, resolve);
+      const facts = await repo.facts(tx, userId, budgetId, { from: previous.start, to: asOf });
+      const limits = (
+        await repo.limitPeriods(tx, budgetId, { endsOnGte: asOf, startsOnLte: asOf })
+      ).filter(
+        (row) => !row.archived && row.targetStatus === 'CONFIRMED' && row.targetMinor !== null,
+      );
+      const limitTotal =
+        limits.length === 0 ? null : limits.reduce((sum, row) => sum + (row.targetMinor ?? 0n), 0n);
+      return [periodComparisonRow({ asOf, current, previous, facts, limitTotalMinor: limitTotal })];
+    }
 
     const facts = await repo.facts(tx, userId, budgetId, filters);
-    if (key === 'expenses-by-category') return expensesByCategory(facts);
+    if (key === 'expenses-by-category') return withShareBasisPoints(expensesByCategory(facts));
     const revisions = await repo.cycleRevisions(tx, budgetId);
     const resolve = cycleResolver(revisions, budget);
     if (key === 'expenses-by-period') {
@@ -109,8 +166,6 @@ export class ReportV2ApplicationService {
     return netCashFlow(facts, resolve);
   }
 }
-
-type Resolve = (date: string) => CycleAndPeriod;
 
 /**
  * Cycle and period containing `date` under the settings in force that day (latest revision not
@@ -165,31 +220,16 @@ function expensesByCategory(facts: FactRow[]) {
     }));
 }
 
-/**
- * History is grouped by the boundaries that were stored when the period existed: a date inside a
- * stored envelope_periods range uses that range (latest start wins), a date without one is placed
- * by the settings in force that day. The current periodSlot/settings never re-slice history.
- * Heuristic: stored ranges of different envelopes normally coincide; if they overlap (e.g. a clipped
- * period after a cycle change), the range with the latest start that contains the date wins.
- */
+/** History is grouped by periodRangeFor: stored boundaries first, then settings in force. */
 function expensesByPeriod(
   facts: FactRow[],
   stored: Array<{ start: string; end: string }>,
   resolve: Resolve,
 ) {
-  const grouped = new Map<
-    string,
-    { start: string; end: string; source: 'STORED' | 'SETTINGS_AT'; amountMinor: bigint }
-  >();
+  const grouped = new Map<string, PeriodRange & { amountMinor: bigint }>();
   for (const fact of facts) {
     if (fact.transactionType !== 'EXPENSE') continue;
-    let range: { start: string; end: string; source: 'STORED' | 'SETTINGS_AT' } | undefined;
-    for (const candidate of stored) {
-      if (candidate.start <= fact.occurredOn && fact.occurredOn <= candidate.end) {
-        range = { ...candidate, source: 'STORED' };
-      }
-    }
-    range ??= { ...resolve(fact.occurredOn).period, source: 'SETTINGS_AT' };
+    const range = periodRangeFor(fact.occurredOn, stored, resolve);
     const id = `${range.start}:${range.end}`;
     const current = grouped.get(id) ?? { ...range, amountMinor: 0n };
     current.amountMinor += fact.amountMinor;

@@ -1,3 +1,4 @@
+import type { PlanVsActualRowDto } from './useBudgetReferenceData.js';
 import { useApiClient } from './useApiClient.js';
 
 // Thin typed client over the v2 (Envelope Plan v2.2) API. Every amount in a
@@ -718,6 +719,8 @@ export const REPORT_V2_KEYS = [
   'savings-goals',
   'plan-vs-actual',
   'assignment-movements',
+  'envelope-limits',
+  'period-comparison',
 ] as const;
 export type ReportV2Key = (typeof REPORT_V2_KEYS)[number];
 
@@ -744,6 +747,84 @@ export interface SavingsGoalV2Row {
   progressPermille: number;
   isReached: boolean;
   daysRemaining: number | null;
+}
+
+export interface ExpenseByCategoryV2Row {
+  categoryId: string;
+  categoryName: string;
+  expenseMinor: string;
+  /** Server share of the response total, 0..10000. */
+  shareBasisPoints: number;
+  journalFilters: Record<string, string>;
+}
+
+export interface ExpenseByPeriodV2Row {
+  periodStart: string;
+  periodEnd: string;
+  boundarySource: 'STORED' | 'SETTINGS_AT';
+  expenseMinor: string;
+  journalFilters: Record<string, string>;
+}
+
+export interface NetCashFlowV2Row {
+  cycleStart: string;
+  cycleEnd: string;
+  incomeMinor: string;
+  expenseMinor: string;
+  netCashFlowMinor: string;
+  journalFilters: Record<string, string>;
+}
+
+export interface AccountBalanceV2Row {
+  accountId: string;
+  name: string;
+  balanceMinor: string;
+  asOf: string;
+}
+
+export interface EnvelopeLimitV2Row {
+  periodId: string;
+  periodStart: string;
+  periodEnd: string;
+  isCurrent: boolean;
+  envelopeId: string;
+  envelopeName: string;
+  targetMinor: string | null;
+  targetStatus: 'UNSET' | 'DRAFT' | 'CONFIRMED';
+  spentMinor: string;
+  remainingMinor: string | null;
+  overspentMinor: string;
+  spentPermille: number | null;
+}
+
+export interface PeriodComparisonV2Row {
+  asOf: string;
+  periodStart: string;
+  periodEnd: string;
+  daysElapsed: number;
+  spentMinor: string;
+  limitTotalMinor: string | null;
+  spentOfLimitPermille: number | null;
+  previousPeriodStart: string;
+  previousPeriodEnd: string;
+  previousSameDaySpentMinor: string;
+  previousTotalSpentMinor: string;
+  deltaMinor: string;
+  deltaBasisPoints: number | null;
+}
+
+export interface ReportV2RowMap {
+  'account-balances': AccountBalanceV2Row;
+  'expenses-by-category': ExpenseByCategoryV2Row;
+  'expenses-by-period': ExpenseByPeriodV2Row;
+  'expenses-by-cycle': Record<string, unknown>;
+  'incomes-by-cycle': Record<string, unknown>;
+  'net-cash-flow': NetCashFlowV2Row;
+  'savings-goals': SavingsGoalV2Row;
+  'plan-vs-actual': PlanVsActualRowDto;
+  'assignment-movements': Record<string, unknown>;
+  'envelope-limits': EnvelopeLimitV2Row;
+  'period-comparison': PeriodComparisonV2Row;
 }
 
 export interface ReportV2Response {

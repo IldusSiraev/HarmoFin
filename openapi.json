@@ -4010,6 +4010,94 @@
         "required": ["key", "rows"],
         "type": "object"
       },
+      "ReportV2EnvelopeLimitRow": {
+        "properties": {
+          "envelopeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "envelopeName": {
+            "example": "Продукты",
+            "type": "string"
+          },
+          "isCurrent": {
+            "description": "Период содержит сегодня в часовом поясе бюджета.",
+            "type": "boolean"
+          },
+          "overspentMinor": {
+            "pattern": "^-?\\d+$",
+            "type": "string"
+          },
+          "periodEnd": {
+            "format": "date",
+            "type": "string"
+          },
+          "periodId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "periodStart": {
+            "format": "date",
+            "type": "string"
+          },
+          "remainingMinor": {
+            "description": "Лимит минус потрачено; может быть отрицательным.",
+            "nullable": true,
+            "pattern": "^-?\\d+$",
+            "type": "string"
+          },
+          "spentMinor": {
+            "pattern": "^-?\\d+$",
+            "type": "string"
+          },
+          "spentPermille": {
+            "description": "Потрачено × 1000 / лимит; больше 1000 при перерасходе.",
+            "nullable": true,
+            "type": "number"
+          },
+          "targetMinor": {
+            "description": "null, если лимит не задан.",
+            "nullable": true,
+            "pattern": "^-?\\d+$",
+            "type": "string"
+          },
+          "targetStatus": {
+            "enum": ["UNSET", "DRAFT", "CONFIRMED"],
+            "type": "string"
+          }
+        },
+        "required": [
+          "periodId",
+          "periodStart",
+          "periodEnd",
+          "isCurrent",
+          "envelopeId",
+          "envelopeName",
+          "targetMinor",
+          "targetStatus",
+          "spentMinor",
+          "remainingMinor",
+          "overspentMinor",
+          "spentPermille"
+        ],
+        "type": "object"
+      },
+      "ReportV2EnvelopeLimitsResponse": {
+        "properties": {
+          "key": {
+            "enum": ["envelope-limits"],
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ReportV2EnvelopeLimitRow"
+            },
+            "type": "array"
+          }
+        },
+        "required": ["key", "rows"],
+        "type": "object"
+      },
       "ReportV2ExpenseByCategoryRow": {
         "properties": {
           "categoryId": {
@@ -4025,9 +4113,19 @@
           },
           "journalFilters": {
             "$ref": "#/components/schemas/ReportV2JournalFiltersResponse"
+          },
+          "shareBasisPoints": {
+            "description": "Доля категории от суммы расходов ответа в базисных пунктах (0..10000), округление к нулю.",
+            "type": "number"
           }
         },
-        "required": ["categoryId", "categoryName", "expenseMinor", "journalFilters"],
+        "required": [
+          "categoryId",
+          "categoryName",
+          "expenseMinor",
+          "shareBasisPoints",
+          "journalFilters"
+        ],
         "type": "object"
       },
       "ReportV2ExpenseByCycleRow": {
@@ -4238,6 +4336,96 @@
           "expenseMinor",
           "netCashFlowMinor",
           "journalFilters"
+        ],
+        "type": "object"
+      },
+      "ReportV2PeriodComparisonResponse": {
+        "properties": {
+          "key": {
+            "enum": ["period-comparison"],
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ReportV2PeriodComparisonRow"
+            },
+            "type": "array"
+          }
+        },
+        "required": ["key", "rows"],
+        "type": "object"
+      },
+      "ReportV2PeriodComparisonRow": {
+        "properties": {
+          "asOf": {
+            "description": "День расчёта: to или сегодня.",
+            "format": "date",
+            "type": "string"
+          },
+          "daysElapsed": {
+            "type": "number"
+          },
+          "deltaBasisPoints": {
+            "description": "null, если в прошлом периоде к этому дню расходов не было.",
+            "nullable": true,
+            "type": "number"
+          },
+          "deltaMinor": {
+            "pattern": "^-?\\d+$",
+            "type": "string"
+          },
+          "limitTotalMinor": {
+            "nullable": true,
+            "pattern": "^-?\\d+$",
+            "type": "string"
+          },
+          "periodEnd": {
+            "format": "date",
+            "type": "string"
+          },
+          "periodStart": {
+            "format": "date",
+            "type": "string"
+          },
+          "previousPeriodEnd": {
+            "format": "date",
+            "type": "string"
+          },
+          "previousPeriodStart": {
+            "format": "date",
+            "type": "string"
+          },
+          "previousSameDaySpentMinor": {
+            "pattern": "^-?\\d+$",
+            "type": "string"
+          },
+          "previousTotalSpentMinor": {
+            "pattern": "^-?\\d+$",
+            "type": "string"
+          },
+          "spentMinor": {
+            "pattern": "^-?\\d+$",
+            "type": "string"
+          },
+          "spentOfLimitPermille": {
+            "nullable": true,
+            "type": "number"
+          }
+        },
+        "required": [
+          "asOf",
+          "periodStart",
+          "periodEnd",
+          "daysElapsed",
+          "spentMinor",
+          "limitTotalMinor",
+          "spentOfLimitPermille",
+          "previousPeriodStart",
+          "previousPeriodEnd",
+          "previousSameDaySpentMinor",
+          "previousTotalSpentMinor",
+          "deltaMinor",
+          "deltaBasisPoints"
         ],
         "type": "object"
       },
@@ -11549,7 +11737,7 @@
     },
     "/api/v2/budgets/{budgetId}/reports/{key}": {
       "get": {
-        "description": "Суммы строками в minor units, расчёт на сервере из CONFIRMED-фактов одним снимком; доступно любому активному участнику (VIEWER тоже). Накопления считаются по непрерывному v2-остатку назначений, старые v1 расходы входят в реальные деньги, но не списываются с v2-назначений. account-balances и savings-goals кумулятивны: дата расчёта to (по умолчанию сегодня), from игнорируется. Неизвестный key даёт 400 VALIDATION_FAILED (как в v1), чужой или несуществующий accountId/categoryId/envelopeId даёт 404 RESOURCE_NOT_FOUND до расчёта.",
+        "description": "Суммы строками в minor units, расчёт на сервере из CONFIRMED-фактов одним снимком; доступно любому активному участнику (VIEWER тоже). Накопления считаются по непрерывному v2-остатку назначений, старые v1 расходы входят в реальные деньги, но не списываются с v2-назначений. account-balances и savings-goals кумулятивны: дата расчёта to (по умолчанию сегодня), from игнорируется. envelope-limits принимает только from, to, envelopeId; period-comparison — только to (день расчёта); другие фильтры этих ключей дают 400 VALIDATION_FAILED. plan-vs-actual без from и to считается за текущий финансовый цикл бюджета. Неизвестный key даёт 400 VALIDATION_FAILED (как в v1), чужой или несуществующий accountId/categoryId/envelopeId даёт 404 RESOURCE_NOT_FOUND до расчёта.",
         "operationId": "ReportV2Controller_get_v2",
         "parameters": [
           {
@@ -11611,7 +11799,9 @@
                 "net-cash-flow",
                 "savings-goals",
                 "plan-vs-actual",
-                "assignment-movements"
+                "assignment-movements",
+                "envelope-limits",
+                "period-comparison"
               ],
               "type": "string"
             }
@@ -11658,6 +11848,12 @@
                     },
                     {
                       "$ref": "#/components/schemas/ReportV2AssignmentMovementsResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ReportV2EnvelopeLimitsResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ReportV2PeriodComparisonResponse"
                     }
                   ]
                 }
@@ -11673,7 +11869,7 @@
                 }
               }
             },
-            "description": "VALIDATION_FAILED: неизвестный key, некорректные параметры."
+            "description": "VALIDATION_FAILED: неизвестный key, некорректные или неприменимые к ключу параметры."
           },
           "401": {
             "content": {

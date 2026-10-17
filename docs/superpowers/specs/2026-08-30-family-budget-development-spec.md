@@ -142,7 +142,7 @@ PostgreSQL является единственным источником ист
 | Серверное состояние | TanStack Query for Vue |
 | Формы | vee-validate + Zod |
 | UI-компоненты | PrimeVue + Tailwind CSS |
-| Графики | ECharts |
+| Графики | Собственные SVG-компоненты (`apps/web/app/components/analytics/charts`) |
 | Backend framework | NestJS 11.x |
 | HTTP-движок | Fastify через Nest adapter |
 | API | REST + OpenAPI |
@@ -314,7 +314,7 @@ PrimeVue используется для:
 
 ### 4.6. Аналитика и визуализация
 
-Для аналитики используется ECharts или совместимая библиотека с управляемой доступностью.
+Для аналитики используются собственные SVG-компоненты без внешней библиотеки графиков: значения всегда продублированы текстом, цвета берутся из токенов темы.
 
 Форма визуализации выбирается по задаче:
 
@@ -1722,7 +1722,6 @@ TypeScript strict
 Pinia
 TanStack Query for Vue
 Tailwind CSS + PrimeVue
-ECharts
 NestJS 11.x
 Fastify
 REST + OpenAPI

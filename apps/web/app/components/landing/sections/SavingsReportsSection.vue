@@ -66,20 +66,18 @@ defineOptions({ name: 'SavingsReportsSection' });
 }
 
 /*
- * The report tables are wide (min-width ~50rem) and scroll horizontally in the
+ * The plan-vs-actual table is wide (min-width ~50rem) and scrolls horizontally in the
  * app. Inside an inert showcase that scroll cannot be used, so the reports are
  * stacked full width (wide enough on desktop) and, on narrow screens, the table
  * is clipped with a fade instead of showing a dead scrollbar. The figcaption
  * carries the full numbers.
  */
-.reports__layout :deep(.goal-progress__table-wrap),
 .reports__layout :deep(.plan-vs-actual__table-wrap) {
   overflow: hidden;
   mask-image: linear-gradient(to right, #000 85%, transparent);
 }
 
 @media (min-width: 1024px) {
-  .reports__layout :deep(.goal-progress__table-wrap),
   .reports__layout :deep(.plan-vs-actual__table-wrap) {
     mask-image: none;
   }

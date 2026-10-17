@@ -1,4 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils';
+import { reactive } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const api = {
@@ -6,12 +7,13 @@ const api = {
   listCategories: vi.fn(),
 };
 const v2 = {
-  getReport: vi.fn(),
   listEnvelopes: vi.fn(),
-  exportTransactions: vi.fn(),
-  exportAssignments: vi.fn(),
 };
-const route = { query: {} as Record<string, string> };
+// Reactive so the page's own `watch(() => route.query, ...)` (external
+// navigation: browser back/forward, in-app links like "Все категории") can
+// be exercised by reassigning `route.query` mid-test, the same way Nuxt's
+// real `useRoute()` would update it.
+const route = reactive({ query: {} as Record<string, string> });
 const budgetRow = {
   id: 'budget-id',
   name: 'Бюджет',
@@ -39,7 +41,28 @@ vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) =>
   useBudgetReferenceData: () => api,
 }));
 
-import { ApiRequestError } from '../../composables/useApiClient.js';
+const { tabStub } = vi.hoisted(() => ({
+  tabStub: (name: string) => ({
+    name,
+    props: ['budgetId', 'filters'],
+    template: `<div data-tab="${name}">{{ JSON.stringify(filters) }}</div>`,
+  }),
+}));
+vi.mock('../../components/analytics/tabs/OverviewTab.vue', () => ({
+  default: tabStub('overview'),
+}));
+vi.mock('../../components/analytics/tabs/ExpensesTab.vue', () => ({
+  default: tabStub('expenses'),
+}));
+vi.mock('../../components/analytics/tabs/CashFlowTab.vue', () => ({
+  default: tabStub('cash-flow'),
+}));
+vi.mock('../../components/analytics/tabs/EnvelopesTab.vue', () => ({
+  default: tabStub('envelopes'),
+}));
+vi.mock('../../components/analytics/tabs/SavingsTab.vue', () => ({ default: tabStub('savings') }));
+
+import { navigateTo } from '#imports';
 import AnalyticsPage from './analytics.vue';
 
 const global = {
@@ -51,128 +74,94 @@ describe('analytics page', () => {
     route.query = {};
     vi.clearAllMocks();
     workspaceRow.role = 'OWNER';
-    v2.getReport.mockResolvedValue({ key: 'expenses-by-category', rows: [] });
     v2.listEnvelopes.mockResolvedValue({ items: [] });
     api.listAccounts.mockResolvedValue([]);
     api.listCategories.mockResolvedValue([]);
   });
 
-  const flat = (text: string) => text.replace(/\s/g, ' ');
-  const goal = {
-    envelopeId: 'goal-id',
-    name: 'Отпуск',
-    envelopeType: 'SAVINGS_GOAL',
-    currentMinor: '1234500',
-    targetMinor: '5000000',
-    targetDate: null,
-    assignedMinor: '1500000',
-    movedNetMinor: '0',
-    spentMinor: '265500',
-    remainingMinor: '3765500',
-    progressPermille: 247,
-    isReached: false,
-    daysRemaining: null,
-  };
-
-  beforeEach(() => {
-    Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:x'), revokeObjectURL: vi.fn() });
-  });
-
-  it('reads the v2 report and never calls v1 reports or envelope balances', async () => {
+  it('по умолчанию открыт обзор, вкладок пять', async () => {
     const wrapper = mount(AnalyticsPage, { global });
     await flushPromises();
-
-    expect(v2.getReport).toHaveBeenCalledWith('budget-id', 'expenses-by-category', {});
-    expect(wrapper.text()).not.toContain('Баланс конверта');
-    expect(wrapper.text()).not.toContain('Остатки конвертов');
-  });
-
-  it('shows the assigned continuous savings balance from the DTO', async () => {
-    route.query = { report: 'savings-goals' };
-    v2.getReport.mockResolvedValue({ key: 'savings-goals', rows: [goal] });
-    const wrapper = mount(AnalyticsPage, { global });
-    await flushPromises();
-
-    const text = flat(wrapper.text());
-    expect(v2.getReport).toHaveBeenCalledWith('budget-id', 'savings-goals', {});
-    expect(text).toContain('Отпуск');
-    expect(text).toContain('Отложено');
-    expect(text).toContain('12 345,00');
-    expect(wrapper.find('progress').attributes('value')).toBe('247');
-  });
-
-  it('offers owner CSV downloads through v2 methods only', async () => {
-    v2.exportTransactions.mockResolvedValue(new Blob(['a']));
-    v2.exportAssignments.mockResolvedValue(new Blob(['b']));
-    const wrapper = mount(AnalyticsPage, { global });
-    await flushPromises();
-
-    await wrapper.get('[data-action="export-transactions"]').trigger('click');
-    await flushPromises();
-    await wrapper.get('[data-action="export-assignments"]').trigger('click');
-    await flushPromises();
-
-    expect(v2.exportTransactions).toHaveBeenCalledWith('budget-id');
-    expect(v2.exportAssignments).toHaveBeenCalledWith('budget-id');
-    expect(wrapper.text()).toContain('Скачать операции (CSV)');
-    expect(wrapper.text()).toContain('Скачать распределения (CSV)');
-  });
-
-  it('hides exports from non-owners and explains why', async () => {
-    workspaceRow.role = 'VIEWER';
-    const wrapper = mount(AnalyticsPage, { global });
-    await flushPromises();
-
-    expect(wrapper.find('[data-action="export-transactions"]').exists()).toBe(false);
-    expect(wrapper.text()).toContain('Экспорт доступен только владельцу бюджета');
-  });
-
-  it('explains EXPORT_LIMIT_EXCEEDED in Russian', async () => {
-    v2.exportTransactions.mockRejectedValue(
-      new ApiRequestError(422, { code: 'EXPORT_LIMIT_EXCEEDED', detail: 'too many' } as never),
-    );
-    const wrapper = mount(AnalyticsPage, { global });
-    await flushPromises();
-
-    await wrapper.get('[data-action="export-transactions"]').trigger('click');
-    await flushPromises();
-
-    expect(flat(wrapper.get('[data-testid="export-error"]').text())).toContain('10 000');
-  });
-
-  it('offers exactly the nine v2 report keys', async () => {
-    const wrapper = mount(AnalyticsPage, { global });
-    await flushPromises();
-
-    const values = wrapper.findAll('select option').map((option) => option.attributes('value'));
-    expect(values).toEqual([
-      'expenses-by-category',
-      'expenses-by-period',
-      'expenses-by-cycle',
-      'incomes-by-cycle',
-      'net-cash-flow',
-      'account-balances',
-      'savings-goals',
-      'plan-vs-actual',
-      'assignment-movements',
+    expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual([
+      'Обзор',
+      'Расходы',
+      'Доходы и расходы',
+      'Конверты',
+      'Накопления',
     ]);
+    expect(wrapper.find('[data-tab="overview"]').exists()).toBe(true);
   });
 
-  it('does not call exports for a non-owner', async () => {
-    workspaceRow.role = 'VIEWER';
+  it('вкладка из ?tab=, фильтры передаются только применимые к вкладке', async () => {
+    route.query = { tab: 'envelopes', from: '2026-03-01', accountId: 'acc', envelopeId: 'env' };
     const wrapper = mount(AnalyticsPage, { global });
     await flushPromises();
-
-    expect(wrapper.find('[data-action="export-assignments"]').exists()).toBe(false);
-    expect(v2.exportTransactions).not.toHaveBeenCalled();
-    expect(v2.exportAssignments).not.toHaveBeenCalled();
+    expect(wrapper.get('[data-tab="envelopes"]').text()).toBe(
+      JSON.stringify({ from: '2026-03-01', envelopeId: 'env' }),
+    );
   });
 
-  it('falls back from an unknown report key', async () => {
-    route.query = { report: 'envelope-balances' };
-    mount(AnalyticsPage, { global });
+  it('обзор не показывает панель фильтров', async () => {
+    const wrapper = mount(AnalyticsPage, { global });
+    await flushPromises();
+    expect(wrapper.find('[aria-label="Фильтры аналитики"]').exists()).toBe(false);
+  });
+
+  it('старая ссылка ?report= переводится на вкладку', async () => {
+    route.query = { report: 'plan-vs-actual', from: '2026-03-01' };
+    const wrapper = mount(AnalyticsPage, { global });
+    await flushPromises();
+    expect(wrapper.find('[data-tab="cash-flow"]').exists()).toBe(true);
+    expect(navigateTo).toHaveBeenCalledWith(
+      { query: { tab: 'cash-flow', from: '2026-03-01' } },
+      { replace: true },
+    );
+  });
+
+  it('неизвестные tab и report дают обзор', async () => {
+    route.query = { tab: 'nope', report: 'nope' };
+    const wrapper = mount(AnalyticsPage, { global });
+    await flushPromises();
+    expect(wrapper.find('[data-tab="overview"]').exists()).toBe(true);
+  });
+
+  it('переключение вкладки пишет её в URL, фильтры сохраняются', async () => {
+    route.query = { from: '2026-03-01' };
+    const wrapper = mount(AnalyticsPage, { global });
+    await flushPromises();
+    await wrapper.findAll('[role="tab"]')[1]!.trigger('click');
+    expect(navigateTo).toHaveBeenLastCalledWith(
+      { query: { tab: 'expenses', from: '2026-03-01' } },
+      { replace: true },
+    );
+    expect(wrapper.find('[data-tab="expenses"]').exists()).toBe(true);
+  });
+
+  it('без бюджета — пустое состояние', async () => {
+    auth.currentData.value = { workspaces: [] } as never;
+    const wrapper = mount(AnalyticsPage, { global });
+    await flushPromises();
+    expect(wrapper.text()).toContain('Бюджет не выбран');
+    auth.currentData.value = { workspaces: [workspaceRow] };
+  });
+
+  it('выгрузка остаётся под вкладками', async () => {
+    const wrapper = mount(AnalyticsPage, { global });
+    await flushPromises();
+    expect(wrapper.findComponent({ name: 'ExportPanelV2' }).exists()).toBe(true);
+  });
+
+  it('внешняя навигация (ссылка «Все категории», назад/вперёд) меняет вкладку и фильтры', async () => {
+    const wrapper = mount(AnalyticsPage, { global });
+    await flushPromises();
+    expect(wrapper.find('[data-tab="overview"]').exists()).toBe(true);
+
+    route.query = { tab: 'expenses', from: '2026-03-01' };
     await flushPromises();
 
-    expect(v2.getReport).toHaveBeenCalledWith('budget-id', 'expenses-by-category', {});
+    expect(wrapper.find('[data-tab="overview"]').exists()).toBe(false);
+    expect(wrapper.get('[data-tab="expenses"]').text()).toBe(
+      JSON.stringify({ from: '2026-03-01' }),
+    );
   });
 });

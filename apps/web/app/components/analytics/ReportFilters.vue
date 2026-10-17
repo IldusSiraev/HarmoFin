@@ -12,14 +12,20 @@ export type AnalyticsFilters = {
   envelopeId: string;
 };
 
-const props = defineProps<{
-  modelValue: AnalyticsFilters;
-  accounts?: ReadonlyArray<{ value: string; label: string }>;
-  categories?: ReadonlyArray<{ value: string; label: string }>;
-  envelopes?: ReadonlyArray<{ value: string; label: string }>;
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: AnalyticsFilters;
+    accounts?: ReadonlyArray<{ value: string; label: string }>;
+    categories?: ReadonlyArray<{ value: string; label: string }>;
+    envelopes?: ReadonlyArray<{ value: string; label: string }>;
+    fields?: ReadonlyArray<keyof AnalyticsFilters>;
+  }>(),
+  { fields: () => ['from', 'to', 'accountId', 'categoryId', 'envelopeId'] },
+);
 const emit = defineEmits<{ 'update:modelValue': [value: AnalyticsFilters] }>();
 const model = reactive({ ...props.modelValue });
+
+const shown = (field: keyof AnalyticsFilters) => props.fields.includes(field);
 
 watch(
   () => props.modelValue,
@@ -34,9 +40,22 @@ function update() {
 
 <template>
   <section class="report-filters" aria-label="Фильтры аналитики">
-    <UiDatePicker v-model="model.from" name="from" label="С даты" @update:model-value="update" />
-    <UiDatePicker v-model="model.to" name="to" label="По дату" @update:model-value="update" />
+    <UiDatePicker
+      v-if="shown('from')"
+      v-model="model.from"
+      name="from"
+      label="С даты"
+      @update:model-value="update"
+    />
+    <UiDatePicker
+      v-if="shown('to')"
+      v-model="model.to"
+      name="to"
+      label="По дату"
+      @update:model-value="update"
+    />
     <UiSelect
+      v-if="shown('accountId')"
       v-model="model.accountId"
       name="accountId"
       label="Счёт"
@@ -44,6 +63,7 @@ function update() {
       @update:model-value="update"
     />
     <UiSelect
+      v-if="shown('categoryId')"
       v-model="model.categoryId"
       name="categoryId"
       label="Категория"
@@ -51,6 +71,7 @@ function update() {
       @update:model-value="update"
     />
     <UiSelect
+      v-if="shown('envelopeId')"
       v-model="model.envelopeId"
       name="envelopeId"
       label="Конверт"

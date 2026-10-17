@@ -48,6 +48,17 @@ describe('UiDrawer', () => {
     wrapper.unmount();
   });
 
+  it('ignores an Escape already handled by a control inside', async () => {
+    const wrapper = mountDrawer();
+    const event = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    event.preventDefault();
+    document.dispatchEvent(event);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.emitted('close')).toBeUndefined();
+    wrapper.unmount();
+  });
+
   it('keeps Tab inside the panel', async () => {
     const wrapper = mountDrawer();
     const close = wrapper.get('[data-testid="drawer-close"]').element as HTMLElement;

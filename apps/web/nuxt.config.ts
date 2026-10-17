@@ -44,18 +44,12 @@ export default defineNuxtConfig({
     // navigation re-optimizes deps and fully reloads the page, aborting in-flight navigations
     // and form submits (e2e ERR_ABORTED / stuck on /register).
     optimizeDeps: {
-      include: ['@lucide/vue', '@vuepic/vue-datepicker', 'date-fns', 'date-fns/locale', 'echarts'],
+      include: ['@lucide/vue', '@vuepic/vue-datepicker', 'date-fns', 'date-fns/locale'],
     },
     build: {
       rollupOptions: {
         output: {
           hoistTransitiveImports: false,
-          manualChunks(id: string) {
-            if (id.includes('node_modules/echarts') || id.includes('node_modules/zrender')) {
-              return 'charts-vendor';
-            }
-            return undefined;
-          },
         },
       },
     },

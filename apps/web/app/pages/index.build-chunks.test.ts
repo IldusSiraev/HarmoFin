@@ -7,10 +7,8 @@ import { describe, expect, it } from 'vitest';
 // This guard reads Nuxt/Vite's *built* client manifest and walks the static
 // (non-lazy) import graph reachable from the landing page's own chunk. It
 // fails if that graph ever reaches a chunk whose emitted JS contains the
-// `echarts` library, which would mean the marketing landing page started
-// preloading the ~1.1 MB chart library that only `pages/app/analytics.vue`
-// is supposed to load. The three landing charts are hand-written SVG for
-// exactly this reason (see the development spec's performance section).
+// `echarts` string. Графики приложения — собственные SVG-компоненты; тест
+// защищает лендинг от появления тяжёлой библиотеки графиков в будущем.
 //
 // The check needs real build output to inspect, so it only runs after
 // `pnpm --filter @harmofin/web build` has produced `apps/web/.output`. When
