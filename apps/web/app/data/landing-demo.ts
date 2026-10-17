@@ -1,12 +1,16 @@
 // Demo budget for the landing showcases. Every amount is a precomputed
 // minor-units string, consistent with section 8 of Envelope Plan Model v2.2:
 // the landing never computes money. Dates are fixed so SSR and hydration match.
+import type { GoalProgressRowDto } from '../composables/useBudgetReferenceData.js';
 import type {
-  GoalProgressRowDto,
-  PlanVsActualRowDto,
-} from '../composables/useBudgetReferenceData.js';
-import type { DashboardV2Response, EnvelopePlanDto } from '../composables/useEnvelopePlanV2.js';
+  DashboardV2Response,
+  EnvelopeLimitV2Row,
+  EnvelopePlanDto,
+  ExpenseByCategoryV2Row,
+  NetCashFlowV2Row,
+} from '../composables/useEnvelopePlanV2.js';
 
+const PERIOD_EARLIER = 'demo-period-2026-08-25';
 const PERIOD_PREVIOUS = 'demo-period-2026-09-10';
 const PERIOD_CURRENT = 'demo-period-2026-09-25';
 
@@ -243,37 +247,129 @@ export const demoGoalRows: GoalProgressRowDto[] = [
   },
 ];
 
-// varianceMinor = actual − planned, as the API computes it.
-export const demoPlanRows: PlanVsActualRowDto[] = [
+// Current period (25.09–09.10) by category. Amounts sum to
+// periodStats.spentMinor (3 350 000); shares are basis points of that total
+// and sum to exactly 10 000, as the server rounds them.
+export const demoExpenseByCategoryRows: ExpenseByCategoryV2Row[] = [
   {
-    planId: 'demo-plan-salary',
-    planName: 'Зарплата',
-    planType: 'INCOME',
-    plannedMinor: '10600000',
-    actualMinor: '10600000',
-    varianceMinor: '0',
-    plannedOccurrenceCount: 1,
-    confirmedOccurrenceCount: 1,
+    categoryId: 'demo-cat-groceries',
+    categoryName: 'Продукты',
+    expenseMinor: '1450000',
+    shareBasisPoints: 4328,
+    journalFilters: {},
   },
   {
-    planId: 'demo-plan-mortgage',
-    planName: 'Ипотека',
-    planType: 'EXPENSE',
-    plannedMinor: '3600000',
-    actualMinor: '3600000',
-    varianceMinor: '0',
-    plannedOccurrenceCount: 1,
-    confirmedOccurrenceCount: 1,
+    categoryId: 'demo-cat-transport',
+    categoryName: 'Транспорт',
+    expenseMinor: '620000',
+    shareBasisPoints: 1851,
+    journalFilters: {},
   },
   {
-    planId: 'demo-plan-utilities',
-    planName: 'Коммунальные платежи',
-    planType: 'EXPENSE',
-    plannedMinor: '850000',
-    actualMinor: '912000',
-    varianceMinor: '62000',
-    plannedOccurrenceCount: 1,
-    confirmedOccurrenceCount: 1,
+    categoryId: 'demo-cat-cafe',
+    categoryName: 'Кафе и рестораны',
+    expenseMinor: '480000',
+    shareBasisPoints: 1433,
+    journalFilters: {},
+  },
+  {
+    categoryId: 'demo-cat-kids',
+    categoryName: 'Дети',
+    expenseMinor: '450000',
+    shareBasisPoints: 1343,
+    journalFilters: {},
+  },
+  {
+    categoryId: 'demo-cat-pharmacy',
+    categoryName: 'Аптека',
+    expenseMinor: '210000',
+    shareBasisPoints: 627,
+    journalFilters: {},
+  },
+  {
+    categoryId: 'demo-cat-other',
+    categoryName: 'Прочее',
+    expenseMinor: '140000',
+    shareBasisPoints: 418,
+    journalFilters: {},
+  },
+];
+
+// Limits of the «На текущие траты» envelope, newest first. The current row
+// matches demoEnvelopes, the previous one leaves the 430 000 leftover shown on
+// the dashboard, the earlier one is overspent.
+// target = spent + remaining − overspent.
+export const demoLimitRows: EnvelopeLimitV2Row[] = [
+  {
+    periodId: PERIOD_CURRENT,
+    periodStart: '2026-09-25',
+    periodEnd: '2026-10-09',
+    isCurrent: true,
+    envelopeId: 'demo-env-current-second',
+    envelopeName: 'Текущие траты',
+    targetMinor: '6500000',
+    targetStatus: 'CONFIRMED',
+    spentMinor: '3350000',
+    remainingMinor: '3150000',
+    overspentMinor: '0',
+    spentPermille: 515,
+  },
+  {
+    periodId: PERIOD_PREVIOUS,
+    periodStart: '2026-09-10',
+    periodEnd: '2026-09-24',
+    isCurrent: false,
+    envelopeId: 'demo-env-current-first',
+    envelopeName: 'Текущие траты',
+    targetMinor: '6000000',
+    targetStatus: 'CONFIRMED',
+    spentMinor: '5570000',
+    remainingMinor: '430000',
+    overspentMinor: '0',
+    spentPermille: 928,
+  },
+  {
+    periodId: PERIOD_EARLIER,
+    periodStart: '2026-08-25',
+    periodEnd: '2026-09-09',
+    isCurrent: false,
+    envelopeId: 'demo-env-current-second',
+    envelopeName: 'Текущие траты',
+    targetMinor: '6000000',
+    targetStatus: 'CONFIRMED',
+    spentMinor: '6240000',
+    remainingMinor: '0',
+    overspentMinor: '240000',
+    spentPermille: 1040,
+  },
+];
+
+// Financial cycles, oldest first; the last one is in progress.
+// netCashFlowMinor = incomeMinor − expenseMinor.
+export const demoCashFlowRows: NetCashFlowV2Row[] = [
+  {
+    cycleStart: '2026-07-10',
+    cycleEnd: '2026-08-09',
+    incomeMinor: '21200000',
+    expenseMinor: '18640000',
+    netCashFlowMinor: '2560000',
+    journalFilters: {},
+  },
+  {
+    cycleStart: '2026-08-10',
+    cycleEnd: '2026-09-09',
+    incomeMinor: '21900000',
+    expenseMinor: '19870000',
+    netCashFlowMinor: '2030000',
+    journalFilters: {},
+  },
+  {
+    cycleStart: '2026-09-10',
+    cycleEnd: '2026-10-09',
+    incomeMinor: '21200000',
+    expenseMinor: '14380000',
+    netCashFlowMinor: '6820000',
+    journalFilters: {},
   },
 ];
 
