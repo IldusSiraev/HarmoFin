@@ -21,11 +21,13 @@ import { ReportV2ApplicationService } from './report-v2.application.service.js';
 import {
   ReportV2AccountBalancesResponse,
   ReportV2AssignmentMovementsResponse,
+  ReportV2EnvelopeLimitsResponse,
   ReportV2ExpensesByCategoryResponse,
   ReportV2ExpensesByCycleResponse,
   ReportV2ExpensesByPeriodResponse,
   ReportV2IncomesByCycleResponse,
   ReportV2NetCashFlowResponse,
+  ReportV2PeriodComparisonResponse,
   ReportV2PlanVsActualResponse,
   ReportV2SavingsGoalsResponse,
   reportV2FiltersSchema,
@@ -47,6 +49,8 @@ const RESPONSES = [
   ReportV2SavingsGoalsResponse,
   ReportV2PlanVsActualResponse,
   ReportV2AssignmentMovementsResponse,
+  ReportV2EnvelopeLimitsResponse,
+  ReportV2PeriodComparisonResponse,
 ];
 
 @ApiTags('reports (v2)')
@@ -63,7 +67,7 @@ export class ReportV2Controller {
   @ApiOperation({
     summary: 'Отчёты модели плана v2',
     description:
-      'Суммы строками в minor units, расчёт на сервере из CONFIRMED-фактов одним снимком; доступно любому активному участнику (VIEWER тоже). Накопления считаются по непрерывному v2-остатку назначений, старые v1 расходы входят в реальные деньги, но не списываются с v2-назначений. account-balances и savings-goals кумулятивны: дата расчёта to (по умолчанию сегодня), from игнорируется. Неизвестный key даёт 400 VALIDATION_FAILED (как в v1), чужой или несуществующий accountId/categoryId/envelopeId даёт 404 RESOURCE_NOT_FOUND до расчёта.',
+      'Суммы строками в minor units, расчёт на сервере из CONFIRMED-фактов одним снимком; доступно любому активному участнику (VIEWER тоже). Накопления считаются по непрерывному v2-остатку назначений, старые v1 расходы входят в реальные деньги, но не списываются с v2-назначений. account-balances и savings-goals кумулятивны: дата расчёта to (по умолчанию сегодня), from игнорируется. envelope-limits принимает только from, to, envelopeId; period-comparison — только to (день расчёта); другие фильтры этих ключей дают 400 VALIDATION_FAILED. plan-vs-actual без from и to считается за текущий финансовый цикл бюджета. Неизвестный key даёт 400 VALIDATION_FAILED (как в v1), чужой или несуществующий accountId/categoryId/envelopeId даёт 404 RESOURCE_NOT_FOUND до расчёта.',
   })
   @ApiParam({ name: 'budgetId', type: String, format: 'uuid' })
   @ApiParam({ name: 'key', type: String, enum: reportV2Keys })
@@ -76,7 +80,8 @@ export class ReportV2Controller {
   @ApiResponse({
     status: 400,
     type: ProblemDetailsResponse,
-    description: 'VALIDATION_FAILED: неизвестный key, некорректные параметры.',
+    description:
+      'VALIDATION_FAILED: неизвестный key, некорректные или неприменимые к ключу параметры.',
   })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({

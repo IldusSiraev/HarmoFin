@@ -15,6 +15,22 @@ const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
 const origin = 'http://localhost:3000';
 const password = 'correct-password-10';
 const day = (value: string) => new Date(`${value}T00:00:00.000Z`);
+// UTC calendar helpers for the plan-vs-actual "current cycle" test: world() budgets use timezone
+// UTC, cycleStartDay 1, so the current financial cycle is the current calendar month.
+const todayUtc = (): string => new Date().toISOString().slice(0, 10);
+const firstDayOfMonth = (monthOffset: number): string => {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + monthOffset, 1))
+    .toISOString()
+    .slice(0, 10);
+};
+const monthStart = firstDayOfMonth;
+const monthEnd = (monthOffset: number): string => {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + monthOffset + 1, 0))
+    .toISOString()
+    .slice(0, 10);
+};
 
 type World = {
   userId: string;
@@ -157,7 +173,7 @@ describe('v2 reports (P03)', () => {
     });
     await payment(w, occurrenceId, cancelled);
 
-    const plans = await rows(w, 'plan-vs-actual');
+    const plans = await rows(w, 'plan-vs-actual', '?from=2026-03-01&to=2026-03-31');
     expect(plans).toHaveLength(1);
     const plan = plans[0]!;
     expect(plan).toMatchObject({
@@ -176,7 +192,7 @@ describe('v2 reports (P03)', () => {
     await prisma.regularPlan.update({ where: { id: planId }, data: { amountMinor: 9_999_999n } });
     const id = await expense(w, w.mandatoryEnvelopeId, 5_000_000n, '2026-03-12');
     await payment(w, occurrenceId, id);
-    const plan = (await rows(w, 'plan-vs-actual'))[0]!;
+    const plan = (await rows(w, 'plan-vs-actual', '?from=2026-03-01&to=2026-03-31'))[0]!;
     expect(plan).toMatchObject({ plannedMinor: '5000000', actualMinor: '5000000' });
     expect(plan.varianceMinor).toBe('0');
   });
@@ -383,7 +399,14 @@ const ALL_KEYS = [
   'savings-goals',
   'plan-vs-actual',
   'assignment-movements',
+  'envelope-limits',
+  'period-comparison',
 ];
+
+const DISALLOWED_FILTERS: Record<string, string[]> = {
+  'envelope-limits': ['accountId', 'categoryId'],
+  'period-comparison': ['accountId', 'categoryId', 'envelopeId'],
+};
 
 describe('v2 reports (P03 review hardening)', () => {
   it('savings-goals: нулевая цель не роняет отчёт; прогресс ограничен 0..1000', async () => {
@@ -428,7 +451,7 @@ describe('v2 reports (P03 review hardening)', () => {
     });
   });
 
-  it('изоляция: данные бюджета B не попадают ни в один из 9 отчётов бюджета A', async () => {
+  it('изоляция: данные бюджета B не попадают ни в один отчёт бюджета A', async () => {
     const a = await world();
     const b = await world();
     await assign(a, a.goalEnvelopeId, null, 800_000n, 'OPENING');
@@ -500,6 +523,8 @@ describe('v2 reports (P03 review hardening)', () => {
         `?accountId=${randomUUID()}`,
         `?envelopeId=${randomUUID()}`,
       ]) {
+        const filterName = query.slice(1, query.indexOf('='));
+        if (DISALLOWED_FILTERS[key]?.includes(filterName)) continue;
         const response = await get(a, key, query);
         expect(response.statusCode, `${key}${query}`).toBe(404);
         expect(response.json()).toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
@@ -539,7 +564,12 @@ describe('v2 reports (P03 review hardening)', () => {
       })
       .then((row) => payment(w, salary.occurrenceId, row.id));
 
-    const all = new Map((await rows(w, 'plan-vs-actual')).map((row) => [row.planId, row]));
+    const all = new Map(
+      (await rows(w, 'plan-vs-actual', '?from=2026-03-01&to=2026-03-31')).map((row) => [
+        row.planId,
+        row,
+      ]),
+    );
     expect(all.size).toBe(3);
     expect(all.get(unpaid.planId)).toMatchObject({
       plannedMinor: '300000',
@@ -558,6 +588,21 @@ describe('v2 reports (P03 review hardening)', () => {
 
     const dated = await rows(w, 'plan-vs-actual', '?from=2026-03-15&to=2026-03-31');
     expect(dated.map((row) => row.planId)).toEqual([salary.planId]);
+  });
+
+  it('plan-vs-actual: без from/to считает только текущий финансовый цикл, не все материализованные occurrence', async () => {
+    const w = await world();
+    const { planId } = await occurrence(w, 1_100_000n, todayUtc());
+    await occurrence(w, 1_100_000n, firstDayOfMonth(1), planId);
+    await occurrence(w, 1_100_000n, firstDayOfMonth(2), planId);
+
+    const undated = await rows(w, 'plan-vs-actual');
+    const row = undated.find((row) => row.planId === planId);
+    expect(row).toMatchObject({ plannedOccurrenceCount: 1, plannedMinor: '1100000' });
+
+    const dated = await rows(w, 'plan-vs-actual', `?from=${monthStart(0)}&to=${monthEnd(2)}`);
+    const datedRow = dated.find((row) => row.planId === planId);
+    expect(datedRow).toMatchObject({ plannedOccurrenceCount: 3, plannedMinor: '3300000' });
   });
 
   it('account-balances: отменённые/удалённые переводы и операции не влияют, legacy-перевод из нескольких частей', async () => {
@@ -640,6 +685,14 @@ describe('v2 reports (P03 review hardening)', () => {
         required: ['kind', 'id', 'effectiveOn', 'amountMinor', 'countsAsAccumulation'],
         money: ['amountMinor'],
       },
+      ReportV2EnvelopeLimitRow: {
+        required: ['periodId', 'envelopeId', 'spentMinor', 'overspentMinor', 'isCurrent'],
+        money: ['spentMinor', 'overspentMinor'],
+      },
+      ReportV2PeriodComparisonRow: {
+        required: ['asOf', 'periodStart', 'spentMinor', 'deltaMinor', 'previousSameDaySpentMinor'],
+        money: ['spentMinor', 'deltaMinor', 'previousSameDaySpentMinor', 'previousTotalSpentMinor'],
+      },
     };
     for (const [name, expected] of Object.entries(expectations)) {
       const schema = document.components.schemas[name];
@@ -649,6 +702,180 @@ describe('v2 reports (P03 review hardening)', () => {
         expect(schema!.properties?.[field]?.type, `${name}.${field}`).toBe('string');
       }
     }
+  });
+});
+
+describe('v2 reports: аналитика', () => {
+  it('envelope-limits: лимит, перерасход, без лимита; только конверты на текущие траты и v2-расходы', async () => {
+    const w = await world();
+    const march = await addLimitPeriod(w, w.mainEnvelopeId, '2026-03-01', '2026-03-14', 1_000_000n);
+    const unset = await addLimitPeriod(
+      w,
+      w.mainEnvelopeId,
+      '2026-03-15',
+      '2026-03-31',
+      null,
+      'UNSET',
+    );
+    await addLimitPeriod(w, w.mandatoryEnvelopeId, '2026-03-01', '2026-03-14', 5_000n);
+    await expense(w, w.mainEnvelopeId, 1_200_000n, '2026-03-05');
+    await expense(w, w.mainEnvelopeId, 70_000n, '2026-03-20');
+    await expense(w, w.mainEnvelopeId, 900_000n, '2026-03-06', { status: 'DRAFT' });
+    await expense(w, w.mainEnvelopeId, 900_000n, '2026-03-07', { modelVersion: 1 });
+
+    const list = await rows(w, 'envelope-limits', '?from=2026-03-01&to=2026-03-31');
+    expect(list.map((row) => row.periodId)).toEqual([unset, march]);
+    expect(list[1]).toMatchObject({
+      envelopeId: w.mainEnvelopeId,
+      envelopeName: 'Текущий',
+      targetMinor: '1000000',
+      targetStatus: 'CONFIRMED',
+      spentMinor: '1200000',
+      remainingMinor: '-200000',
+      overspentMinor: '200000',
+      spentPermille: 1200,
+      isCurrent: false,
+    });
+    expect(list[0]).toMatchObject({
+      targetMinor: null,
+      spentMinor: '70000',
+      remainingMinor: null,
+      spentPermille: null,
+    });
+  });
+
+  it('envelope-limits: «потрачено» совпадает со страницей конвертов', async () => {
+    const w = await world();
+    const periodId = await addLimitPeriod(
+      w,
+      w.mainEnvelopeId,
+      '2026-03-01',
+      '2026-03-14',
+      500_000n,
+    );
+    await expense(w, w.mainEnvelopeId, 123_400n, '2026-03-05');
+    const [limit] = await rows(w, 'envelope-limits', '?from=2026-03-01&to=2026-03-14');
+    const envelopes = await server.inject({
+      method: 'GET',
+      url: `/api/v2/budgets/${w.budgetId}/envelopes`,
+      headers: { origin, cookie: `harmofin_session=${w.cookie}` },
+    });
+    const main = envelopes
+      .json<{
+        items: Array<{ id: string; periods?: Array<{ periodId: string; spentMinor: string }> }>;
+      }>()
+      .items.find((item) => item.id === w.mainEnvelopeId);
+    const period = main?.periods?.find((item) => item.periodId === periodId);
+    expect(period?.spentMinor).toBe('123400');
+    expect(limit?.spentMinor).toBe(period?.spentMinor);
+  });
+
+  it('envelope-limits: текущий период отмечен isCurrent, будущие периоды не попадают', async () => {
+    const w = await world();
+    const today = new Date().toISOString().slice(0, 10);
+    const current = await addLimitPeriod(w, w.mainEnvelopeId, today, today, 1n);
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    await addLimitPeriod(w, w.mainEnvelopeId, tomorrow, tomorrow, 1n);
+    const list = await rows(w, 'envelope-limits');
+    expect(list.map((row) => [row.periodId, row.isCurrent])).toEqual([[current, true]]);
+  });
+
+  it('period-comparison: то же число дней прошлого периода, лимит текущего периода', async () => {
+    const w = await world();
+    await addLimitPeriod(w, w.mainEnvelopeId, '2026-03-01', '2026-03-14', 0n);
+    await addLimitPeriod(w, w.mainEnvelopeId, '2026-03-15', '2026-03-31', 500_000n);
+    await expense(w, w.mainEnvelopeId, 100_000n, '2026-03-03');
+    await expense(w, w.mainEnvelopeId, 50_000n, '2026-03-10');
+    await expense(w, null, 80_000n, '2026-03-16');
+    await expense(w, w.mainEnvelopeId, 999n, '2026-03-25');
+    await expense(w, w.mainEnvelopeId, 5_000n, '2026-03-17', { status: 'DELETED' });
+
+    const [row] = await rows(w, 'period-comparison', '?to=2026-03-20');
+    expect(row).toEqual({
+      asOf: '2026-03-20',
+      periodStart: '2026-03-15',
+      periodEnd: '2026-03-31',
+      daysElapsed: 6,
+      spentMinor: '80000',
+      limitTotalMinor: '500000',
+      spentOfLimitPermille: 160,
+      previousPeriodStart: '2026-03-01',
+      previousPeriodEnd: '2026-03-14',
+      previousSameDaySpentMinor: '100000',
+      previousTotalSpentMinor: '150000',
+      deltaMinor: '-20000',
+      deltaBasisPoints: -2000,
+    });
+  });
+
+  it('period-comparison: пустой прошлый период и нет лимитов', async () => {
+    const w = await world();
+    await expense(w, w.mainEnvelopeId, 10_000n, '2026-03-16');
+    const [row] = await rows(w, 'period-comparison', '?to=2026-03-20');
+    expect(row).toMatchObject({
+      periodStart: '2026-03-15',
+      previousPeriodStart: '2026-03-01',
+      previousSameDaySpentMinor: '0',
+      deltaBasisPoints: null,
+      limitTotalMinor: null,
+    });
+  });
+
+  it('неприменимые фильтры новых ключей дают 400 VALIDATION_FAILED', async () => {
+    const w = await world();
+    for (const [key, query] of [
+      ['period-comparison', '?from=2026-03-01'],
+      ['period-comparison', `?accountId=${w.accountId}`],
+      ['period-comparison', `?envelopeId=${w.mainEnvelopeId}`],
+      ['envelope-limits', `?categoryId=${w.categoryId}`],
+      ['envelope-limits', `?accountId=${w.accountId}`],
+    ] as const) {
+      const response = await get(w, key, query);
+      expect(response.statusCode, `${key}${query}`).toBe(400);
+      expect(response.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
+    }
+  });
+
+  it('VIEWER читает envelope-limits и period-comparison', async () => {
+    const w = await world();
+    await addLimitPeriod(w, w.mainEnvelopeId, '2026-03-01', '2026-03-14', 500_000n);
+    const viewer = await addMember(w, 'VIEWER');
+    const limits = await get(w, 'envelope-limits', '', { cookie: viewer.cookie });
+    expect(limits.statusCode).toBe(200);
+    expect(limits.json<{ key: string }>().key).toBe('envelope-limits');
+    const comparison = await get(w, 'period-comparison', '', { cookie: viewer.cookie });
+    expect(comparison.statusCode).toBe(200);
+    expect(comparison.json<{ key: string }>().key).toBe('period-comparison');
+  });
+
+  it('period-comparison: границы периодов берутся из настроек, действовавших в датах истории, а не текущих настроек бюджета', async () => {
+    const w = await world();
+    // Текущие настройки бюджета сменились (c 10-го числа), но март ещё жил под старыми (ревизия A).
+    await prisma.budget.update({
+      where: { id: w.budgetId },
+      data: { cycleStartDay: 10, periodBoundaryOffset: 14 },
+    });
+    await revision(w, '2026-01-01', 1, 14);
+    await expense(w, w.mainEnvelopeId, 100_000n, '2026-03-16');
+
+    const [row] = await rows(w, 'period-comparison', '?to=2026-03-20');
+    expect(row).toMatchObject({
+      periodStart: '2026-03-15',
+      periodEnd: '2026-03-31',
+      previousPeriodStart: '2026-03-01',
+      previousPeriodEnd: '2026-03-14',
+    });
+  });
+
+  it('expenses-by-category: доля категории в базисных пунктах', async () => {
+    const w = await world();
+    await expense(w, null, 300_000n, '2026-03-05');
+    await expense(w, null, 100_000n, '2026-03-05', { categoryId: w.otherCategoryId });
+    const list = await rows(w, 'expenses-by-category');
+    expect(list.map((row) => [row.categoryId, row.shareBasisPoints])).toEqual([
+      [w.categoryId, 7500],
+      [w.otherCategoryId, 2500],
+    ]);
   });
 });
 
@@ -801,6 +1028,32 @@ async function envelope(
     },
   });
   return created.id;
+}
+
+async function addLimitPeriod(
+  w: World,
+  envelopeId: string,
+  start: string,
+  end: string,
+  targetMinor: bigint | null,
+  targetStatus: 'UNSET' | 'DRAFT' | 'CONFIRMED' = 'CONFIRMED',
+): Promise<string> {
+  const id = randomUUID();
+  await prisma.envelopePeriod.create({
+    data: {
+      id,
+      budgetId: w.budgetId,
+      envelopeId,
+      startsOn: day(start),
+      endsOn: day(end),
+      targetStatus,
+      targetMinor,
+      ...(targetStatus === 'CONFIRMED'
+        ? { confirmedByUserId: w.userId, confirmedAt: new Date() }
+        : {}),
+    },
+  });
+  return id;
 }
 
 async function addPeriod(w: World, envelopeId: string, start: string, end: string) {
@@ -989,25 +1242,32 @@ async function directTransfer(
   });
 }
 
-async function occurrence(w: World, amountMinor: bigint, scheduledOn: string) {
-  const planId = randomUUID();
-  await prisma.regularPlan.create({
-    data: {
-      id: planId,
-      workspaceId: w.workspaceId,
-      budgetId: w.budgetId,
-      name: 'Аренда',
-      planType: 'EXPENSE',
-      amountMinor,
-      anchorOn: day(scheduledOn),
-      startOn: day(scheduledOn),
-      recurrence: 'ONE_TIME',
-      envelopeId: w.mandatoryEnvelopeId,
-      isActive: true,
-      createdByUserId: w.userId,
-      updatedByUserId: w.userId,
-    },
-  });
+async function occurrence(
+  w: World,
+  amountMinor: bigint,
+  scheduledOn: string,
+  existingPlanId?: string,
+) {
+  const planId = existingPlanId ?? randomUUID();
+  if (!existingPlanId) {
+    await prisma.regularPlan.create({
+      data: {
+        id: planId,
+        workspaceId: w.workspaceId,
+        budgetId: w.budgetId,
+        name: 'Аренда',
+        planType: 'EXPENSE',
+        amountMinor,
+        anchorOn: day(scheduledOn),
+        startOn: day(scheduledOn),
+        recurrence: 'ONE_TIME',
+        envelopeId: w.mandatoryEnvelopeId,
+        isActive: true,
+        createdByUserId: w.userId,
+        updatedByUserId: w.userId,
+      },
+    });
+  }
   const row = await prisma.planOccurrence.create({
     data: {
       id: randomUUID(),

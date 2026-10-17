@@ -13,6 +13,8 @@ export const reportV2Keys = [
   'savings-goals',
   'plan-vs-actual',
   'assignment-movements',
+  'envelope-limits',
+  'period-comparison',
 ] as const;
 
 export const reportV2KeySchema = z.enum(reportV2Keys);
@@ -96,6 +98,13 @@ export class ReportV2ExpenseByCategoryRow {
 
   @ApiProperty({ type: String, pattern: MONEY })
   expenseMinor!: string;
+
+  @ApiProperty({
+    type: Number,
+    description:
+      'Доля категории от суммы расходов ответа в базисных пунктах (0..10000), округление к нулю.',
+  })
+  shareBasisPoints!: number;
 
   @ApiProperty({ type: ReportV2JournalFiltersResponse })
   journalFilters!: ReportV2JournalFiltersResponse;
@@ -353,4 +362,117 @@ export class ReportV2AssignmentMovementsResponse {
 
   @ApiProperty({ type: [ReportV2AssignmentMovementRow] })
   rows!: ReportV2AssignmentMovementRow[];
+}
+
+export class ReportV2EnvelopeLimitRow {
+  @ApiProperty({ type: String, format: 'uuid' })
+  periodId!: string;
+
+  @ApiProperty({ type: String, format: 'date' })
+  periodStart!: string;
+
+  @ApiProperty({ type: String, format: 'date' })
+  periodEnd!: string;
+
+  @ApiProperty({ type: Boolean, description: 'Период содержит сегодня в часовом поясе бюджета.' })
+  isCurrent!: boolean;
+
+  @ApiProperty({ type: String, format: 'uuid' })
+  envelopeId!: string;
+
+  @ApiProperty({ type: String, example: 'Продукты' })
+  envelopeName!: string;
+
+  @ApiProperty({
+    type: String,
+    pattern: MONEY,
+    nullable: true,
+    description: 'null, если лимит не задан.',
+  })
+  targetMinor!: string | null;
+
+  @ApiProperty({ type: String, enum: ['UNSET', 'DRAFT', 'CONFIRMED'] })
+  targetStatus!: 'UNSET' | 'DRAFT' | 'CONFIRMED';
+
+  @ApiProperty({ type: String, pattern: MONEY })
+  spentMinor!: string;
+
+  @ApiProperty({
+    type: String,
+    pattern: MONEY,
+    nullable: true,
+    description: 'Лимит минус потрачено; может быть отрицательным.',
+  })
+  remainingMinor!: string | null;
+
+  @ApiProperty({ type: String, pattern: MONEY })
+  overspentMinor!: string;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Потрачено × 1000 / лимит; больше 1000 при перерасходе.',
+  })
+  spentPermille!: number | null;
+}
+
+export class ReportV2EnvelopeLimitsResponse {
+  @ApiProperty({ type: String, enum: ['envelope-limits'] })
+  key!: 'envelope-limits';
+
+  @ApiProperty({ type: [ReportV2EnvelopeLimitRow] })
+  rows!: ReportV2EnvelopeLimitRow[];
+}
+
+export class ReportV2PeriodComparisonRow {
+  @ApiProperty({ type: String, format: 'date', description: 'День расчёта: to или сегодня.' })
+  asOf!: string;
+
+  @ApiProperty({ type: String, format: 'date' })
+  periodStart!: string;
+
+  @ApiProperty({ type: String, format: 'date' })
+  periodEnd!: string;
+
+  @ApiProperty({ type: Number })
+  daysElapsed!: number;
+
+  @ApiProperty({ type: String, pattern: MONEY })
+  spentMinor!: string;
+
+  @ApiProperty({ type: String, pattern: MONEY, nullable: true })
+  limitTotalMinor!: string | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  spentOfLimitPermille!: number | null;
+
+  @ApiProperty({ type: String, format: 'date' })
+  previousPeriodStart!: string;
+
+  @ApiProperty({ type: String, format: 'date' })
+  previousPeriodEnd!: string;
+
+  @ApiProperty({ type: String, pattern: MONEY })
+  previousSameDaySpentMinor!: string;
+
+  @ApiProperty({ type: String, pattern: MONEY })
+  previousTotalSpentMinor!: string;
+
+  @ApiProperty({ type: String, pattern: MONEY })
+  deltaMinor!: string;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'null, если в прошлом периоде к этому дню расходов не было.',
+  })
+  deltaBasisPoints!: number | null;
+}
+
+export class ReportV2PeriodComparisonResponse {
+  @ApiProperty({ type: String, enum: ['period-comparison'] })
+  key!: 'period-comparison';
+
+  @ApiProperty({ type: [ReportV2PeriodComparisonRow] })
+  rows!: ReportV2PeriodComparisonRow[];
 }

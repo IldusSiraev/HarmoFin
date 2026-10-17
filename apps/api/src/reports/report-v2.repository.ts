@@ -7,6 +7,7 @@ import {
   type StoredRevision,
 } from '../cycles/cycle-revision.repository.js';
 import type { ReportV2Filters } from './report-v2.dto.js';
+import type { LimitPeriodRow } from './report-v2-insights.js';
 
 export type ReportBudget = CycleSettings & { id: string };
 
@@ -428,5 +429,48 @@ export class ReportV2Repository {
         left.kind.localeCompare(right.kind) ||
         left.id.localeCompare(right.id),
     );
+  }
+
+  /**
+   * Period rows of CURRENT_EXPENSES envelopes that started on or before `startsOnLte` and end on or
+   * after `endsOnGte`. Budget is filtered on both the period and its envelope.
+   */
+  async limitPeriods(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    range: { endsOnGte?: string; startsOnLte: string; envelopeId?: string },
+  ): Promise<LimitPeriodRow[]> {
+    const rows = await tx.envelopePeriod.findMany({
+      where: {
+        budgetId,
+        startsOn: { lte: dateValue(range.startsOnLte) },
+        ...(range.endsOnGte ? { endsOn: { gte: dateValue(range.endsOnGte) } } : {}),
+        envelope: {
+          budgetId,
+          envelopeType: 'CURRENT_EXPENSES',
+          ...(range.envelopeId ? { id: range.envelopeId } : {}),
+        },
+      },
+      select: {
+        id: true,
+        envelopeId: true,
+        startsOn: true,
+        endsOn: true,
+        targetMinor: true,
+        targetStatus: true,
+        envelope: { select: { name: true, archivedAt: true } },
+      },
+      orderBy: [{ startsOn: 'desc' }, { id: 'asc' }],
+    });
+    return rows.map((row) => ({
+      periodId: row.id,
+      envelopeId: row.envelopeId,
+      envelopeName: row.envelope.name,
+      archived: row.envelope.archivedAt !== null,
+      startsOn: dateText(row.startsOn),
+      endsOn: dateText(row.endsOn),
+      targetMinor: row.targetMinor,
+      targetStatus: row.targetStatus,
+    }));
   }
 }
