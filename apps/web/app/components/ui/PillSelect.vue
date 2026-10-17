@@ -1,11 +1,22 @@
 <script setup lang="ts">
+import type { Component } from 'vue';
+
+export interface PillOption {
+  value: string;
+  label: string;
+  /** Decorative icon before the label. */
+  icon?: Component | undefined;
+  /** Short note shown as a dot and read by screen readers, e.g. "текущий период". */
+  marker?: string | undefined;
+}
+
 defineOptions({ name: 'UiPillSelect' });
 
 const props = withDefaults(
   defineProps<{
     name: string;
     label: string;
-    options: ReadonlyArray<{ value: string; label: string }>;
+    options: ReadonlyArray<PillOption>;
     modelValue: string;
     accent?: 'danger' | 'success' | 'info';
     required?: boolean;
@@ -40,7 +51,22 @@ const accentVar: Record<'danger' | 'success' | 'info', string> = {
         :data-testid="`pill-${name}-${option.value}`"
         @click="$emit('update:modelValue', option.value)"
       >
-        {{ option.label }}
+        <component
+          :is="option.icon"
+          v-if="option.icon"
+          class="pill-select__icon"
+          :size="16"
+          aria-hidden="true"
+        />
+        <span>{{ option.label }}</span>
+        <span
+          v-if="option.marker"
+          class="pill-select__marker"
+          :title="option.marker"
+          :data-testid="`pill-${name}-${option.value}-marker`"
+        >
+          <span class="pill-select__marker-text">{{ option.marker }}</span>
+        </span>
       </button>
     </div>
     <p v-if="error" class="pill-select__error" role="alert">{{ error }}</p>
@@ -67,6 +93,9 @@ const accentVar: Record<'danger' | 'success' | 'info', string> = {
 }
 
 .pill-select__option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hf-space-2);
   min-height: var(--hf-control-height-md);
   padding: 0 var(--hf-space-4);
   border: 1px solid var(--hf-color-border-strong);
@@ -92,6 +121,33 @@ const accentVar: Record<'danger' | 'success' | 'info', string> = {
 .pill-select__option--active {
   border-color: var(--pill-accent);
   color: var(--pill-accent);
+}
+
+.pill-select__icon {
+  flex-shrink: 0;
+  color: var(--hf-color-text-muted);
+}
+
+.pill-select__option--active .pill-select__icon {
+  color: var(--pill-accent);
+}
+
+.pill-select__marker {
+  position: relative;
+  width: 0.5rem;
+  height: 0.5rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--hf-color-status-success);
+}
+
+.pill-select__marker-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .pill-select__error {
