@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue';
-import { ArrowLeft, Search, X } from '@lucide/vue';
+import { ArrowLeft, CircleCheck, Search, X } from '@lucide/vue';
 
 import {
   selectableCategories,
@@ -9,6 +9,7 @@ import {
 } from '../../composables/useBudgetReferenceData.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import type { EntryType } from '../../composables/useOperationDialogs.js';
+import type { TransactionV2Response } from '../../composables/useEnvelopePlanV2.js';
 import {
   createOperationForm,
   normalizeDecimal,
@@ -29,6 +30,12 @@ import UiInput from '../ui/Input.vue';
 import UiModal from '../ui/Modal.vue';
 import UiPillSelect, { type PillOption } from '../ui/PillSelect.vue';
 import { categoryIcon } from '../operations/category-icon.js';
+import { formatMinorUnits } from '../finance/money-format.js';
+
+export type SavedOperation = Pick<
+  TransactionV2Response,
+  'amountMinor' | 'currency' | 'accountId' | 'categoryId'
+>;
 
 defineOptions({ name: 'AppOperationEntryDialog' });
 
@@ -133,6 +140,7 @@ watch(
   () => props.open,
   (open) => {
     if (!open) return;
+    lastSaved.value = null;
     activeType.value = props.initialType;
     categorySearch.value = '';
     oneTimeStep.value = false;
@@ -152,9 +160,30 @@ watch(defaultEnvelopeId, (id) => {
   if (props.open && operation.envelopeId === '') operation.envelopeId = id;
 });
 
+// What the last "save and add another" stored, shown inside the form: the
+// modal backdrop hides the toast, and a silently cleared form reads as lost
+// input. The amount is the server's; the batch is only counted, not summed.
+const lastSaved = ref<{ text: string; count: number } | null>(null);
+
+const savedNotice = computed(() => {
+  if (!lastSaved.value) return '';
+  const { text, count } = lastSaved.value;
+  return count > 1 ? `${text}. Всего добавлено: ${count}` : text;
+});
+
+function describeSaved(saved: SavedOperation): string {
+  const parts = [
+    formatMinorUnits(saved.amountMinor, saved.currency, 2),
+    props.categories.find((category) => category.id === saved.categoryId)?.name,
+    props.accounts.find((account) => account.value === saved.accountId)?.label,
+  ].filter((part): part is string => Boolean(part));
+  return `Добавлено: ${parts.join(' · ')}`;
+}
+
 // After "save and add another": the same account, date and envelope usually
 // repeat in a batch of receipts, so only the per-receipt fields are cleared.
-function startNext(): void {
+function startNext(saved: SavedOperation): void {
+  lastSaved.value = { text: describeSaved(saved), count: (lastSaved.value?.count ?? 0) + 1 };
   operation.amount = '';
   operation.categoryId = '';
   operation.merchantName = '';
@@ -377,7 +406,17 @@ function submitOneTime(): void {
 
     <div v-else class="entry-dialog__body">
       <template v-if="activeType !== 'TRANSFER'">
-        <OperationAmountField v-model="operation.amount" :accent="accent" />
+        <!-- A plain block, not a grid cell of its own: the live region stays
+             mounted (so each new save is announced) without adding a gap. -->
+        <div>
+          <div role="status">
+            <p v-if="savedNotice" class="entry-dialog__saved" data-testid="entry-saved-notice">
+              <CircleCheck :size="18" aria-hidden="true" />
+              <span>{{ savedNotice }}</span>
+            </p>
+          </div>
+          <OperationAmountField v-model="operation.amount" :accent="accent" />
+        </div>
 
         <UiPillSelect
           v-model="operation.accountId"
@@ -631,6 +670,23 @@ function submitOneTime(): void {
   .entry-dialog__submit {
     order: -1;
   }
+}
+
+.entry-dialog__saved {
+  display: flex;
+  align-items: center;
+  gap: var(--hf-space-2);
+  margin: 0 0 var(--hf-space-4);
+  padding: var(--hf-space-2) var(--hf-space-3);
+  border-radius: var(--hf-radius-md);
+  background: var(--hf-color-status-success-background);
+  color: var(--hf-color-status-success);
+  font-size: var(--hf-font-size-small);
+  font-weight: var(--hf-font-weight-medium);
+}
+
+.entry-dialog__saved > svg {
+  flex-shrink: 0;
 }
 
 .entry-dialog__hint {
