@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ShieldCheck, Lock, RotateCcwClock } from '@lucide/vue';
+import { ShieldCheck, Lock, RotateCcwClock, Ban, MapPin, Download } from '@lucide/vue';
 
 import LandingCard from '../ui/LandingCard.vue';
 import LandingSection from '../ui/LandingSection.vue';
@@ -7,7 +7,7 @@ import { securityCards } from '../../../data/landing.js';
 
 defineOptions({ name: 'SecuritySection' });
 
-const icons = [ShieldCheck, Lock, RotateCcwClock];
+const icons = [ShieldCheck, Lock, RotateCcwClock, Ban, MapPin, Download];
 </script>
 
 <template>

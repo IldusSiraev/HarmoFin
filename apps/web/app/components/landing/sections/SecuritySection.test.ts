@@ -22,4 +22,10 @@ describe('SecuritySection', () => {
       ]),
     );
   });
+
+  it('renders an icon for each card', () => {
+    const wrapper = mount(SecuritySection);
+    const cardIcons = wrapper.findAll('svg');
+    expect(cardIcons).toHaveLength(6);
+  });
 });
