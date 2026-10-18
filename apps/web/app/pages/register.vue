@@ -65,6 +65,7 @@ async function submit() {
     :loading="loading"
     :summary="summary"
     :submit-disabled="!consentsReady"
+    :submit-described-by="consentsReady ? undefined : 'consent-hint'"
     :on-submit="submit"
   >
     <div class="field">
@@ -111,7 +112,7 @@ async function submit() {
       />
     </div>
     <ConsentCheckboxes v-model:terms="acceptTerms" v-model:pd="acceptPd" />
-    <p v-if="!acceptTerms || !acceptPd" class="consent-hint">
+    <p v-if="!acceptTerms || !acceptPd" id="consent-hint" class="consent-hint">
       Чтобы создать аккаунт, отметьте оба пункта.
     </p>
     <template #footer>

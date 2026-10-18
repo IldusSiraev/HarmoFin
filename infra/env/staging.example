@@ -8,12 +8,14 @@ WORKER_IMAGE=<registry-worker-image>
 MIGRATE_IMAGE=<registry-migrate-image>
 IMAGE_TAG=<commit-sha>
 NUXT_PUBLIC_API_URL=https://<environment-domain>
-# Реквизиты оператора ПД для /privacy, /terms, /consent. В production обязательны.
-NUXT_PUBLIC_LEGAL_OPERATOR_NAME=
-NUXT_PUBLIC_LEGAL_OPERATOR_INN=
-NUXT_PUBLIC_LEGAL_OPERATOR_EMAIL=
-NUXT_PUBLIC_LEGAL_HOSTING_PROVIDER=
-NUXT_PUBLIC_LEGAL_EMAIL_PROVIDER=
+# Реквизиты оператора ПД для /privacy, /terms, /consent. Обязательны: staging деплоится через
+# production.yml, где эти переменные заданы как ${VAR:?}, поэтому значения не могут быть пустыми
+# (тестовые значения допустимы на staging).
+NUXT_PUBLIC_LEGAL_OPERATOR_NAME=<operator-full-name>
+NUXT_PUBLIC_LEGAL_OPERATOR_INN=<12-digit-inn>
+NUXT_PUBLIC_LEGAL_OPERATOR_EMAIL=<operator-email>
+NUXT_PUBLIC_LEGAL_HOSTING_PROVIDER=<hosting-provider>
+NUXT_PUBLIC_LEGAL_EMAIL_PROVIDER=<email-provider>
 DATABASE_URL=<provided-at-runtime>
 POSTGRES_DB=<provided-at-runtime>
 POSTGRES_USER=<provided-at-runtime>

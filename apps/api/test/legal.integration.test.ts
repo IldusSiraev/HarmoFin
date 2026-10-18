@@ -26,24 +26,31 @@ const createdUserIds: string[] = [];
 
 type Session = { userId: string; cookie: string; csrfToken: string };
 
-async function register(consents?: unknown): Promise<{ status: number; session?: Session }> {
+async function register(
+  consents?: unknown,
+  email: string = `legal-${randomUUID()}@harmofin.test`,
+): Promise<{ status: number; session?: Session; email: string }> {
   const response = await server.inject({
     method: 'POST',
     url: '/api/v1/auth/register',
     headers: { origin },
     payload: {
-      email: `legal-${randomUUID()}@harmofin.test`,
+      email,
       password,
       ...(consents ? { consents } : {}),
     },
   });
-  if (response.statusCode !== 201) return { status: response.statusCode };
+  if (response.statusCode !== 201) return { status: response.statusCode, email };
   const body = response.json<{ user: { id: string }; csrfToken: string }>();
   const raw = response.headers['set-cookie'];
   const setCookie = Array.isArray(raw) ? raw.join('; ') : (raw ?? '');
   const cookie = decodeURIComponent(/harmofin_session=([^;]+)/.exec(setCookie)?.[1] ?? '');
   createdUserIds.push(body.user.id);
-  return { status: 201, session: { userId: body.user.id, cookie, csrfToken: body.csrfToken } };
+  return {
+    status: 201,
+    session: { userId: body.user.id, cookie, csrfToken: body.csrfToken },
+    email,
+  };
 }
 
 function me(session: Session) {
@@ -122,10 +129,10 @@ describe('legal consents', () => {
   });
 
   it('rejects an outdated consent set at registration and creates no user', async () => {
-    const before = await prisma.user.count();
-    const { status } = await register([{ document: 'TERMS', version: '2020-01-01' }]);
+    const email = `legal-${randomUUID()}@harmofin.test`;
+    const { status } = await register([{ document: 'TERMS', version: '2020-01-01' }], email);
     expect(status).toBe(422);
-    expect(await prisma.user.count()).toBe(before);
+    expect(await prisma.user.count({ where: { email } })).toBe(0);
   });
 
   it('lets a user without consents accept them later, idempotently', async () => {
@@ -150,7 +157,9 @@ describe('legal consents', () => {
   it('keeps one user consents invisible to another', async () => {
     const { session: first } = await register(current);
     const { session: second } = await register();
-    expect((await me(second!)).json<{ pendingConsents: unknown[] }>().pendingConsents).toHaveLength(3);
+    expect((await me(second!)).json<{ pendingConsents: unknown[] }>().pendingConsents).toHaveLength(
+      3,
+    );
     expect((await me(first!)).json()).toMatchObject({ pendingConsents: [] });
   });
 });

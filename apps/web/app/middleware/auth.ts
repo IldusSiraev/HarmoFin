@@ -14,6 +14,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   } catch {
     return navigateTo('/login');
   }
-  if (me.pendingConsents.length > 0 && !CONSENT_EXEMPT_PATHS.has(to.path))
+  const normalizedPath = to.path.replace(/\/+$/, '') || '/';
+  if (me.pendingConsents.length > 0 && !CONSENT_EXEMPT_PATHS.has(normalizedPath))
     return navigateTo('/accept-terms');
 });

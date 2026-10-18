@@ -26,6 +26,7 @@ describe('auth middleware', () => {
     ['/app/operations', pending, '/accept-terms'],
     ['/accept-terms', pending, undefined],
     ['/app/settings/delete-account', pending, undefined],
+    ['/app/settings/delete-account/', pending, undefined],
     ['/app', [], undefined],
   ])('on %s with pending %j resolves to %s', async (path, pendingConsents, target) => {
     mocks.loadMe.mockResolvedValue({ user: {}, workspaces: [], pendingConsents });

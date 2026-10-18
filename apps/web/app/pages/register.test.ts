@@ -49,10 +49,12 @@ describe('register page', () => {
     const submit = () => wrapper.get('button[type="submit"]');
 
     expect(submit().attributes('disabled')).toBeDefined();
+    expect(submit().attributes('aria-describedby')).toBe('consent-hint');
     await wrapper.get('[name="consent-terms"]').setValue(true);
     expect(submit().attributes('disabled')).toBeDefined();
     await wrapper.get('[name="consent-pd"]').setValue(true);
     expect(submit().attributes('disabled')).toBeUndefined();
+    expect(submit().attributes('aria-describedby')).toBeUndefined();
     expect(wrapper.text()).not.toContain('отметьте оба пункта');
   });
 

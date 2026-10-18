@@ -9,6 +9,7 @@ const props = defineProps<{
   loading?: boolean;
   summary?: string;
   submitDisabled?: boolean;
+  submitDescribedBy?: string | undefined;
 }>();
 
 const hydrated = ref(false);
@@ -51,6 +52,7 @@ function submit(): void | Promise<void> {
             class="primary-action"
             type="submit"
             :disabled="props.loading || props.submitDisabled"
+            :aria-describedby="props.submitDescribedBy"
           >
             {{ props.loading ? 'Подождите…' : props.submitLabel }}
           </button>

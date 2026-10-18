@@ -112,8 +112,12 @@ describe('accept terms page', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('Чтобы продолжить, отметьте оба пункта.');
+    expect(wrapper.get('button[type="submit"]').attributes('aria-describedby')).toBe(
+      'consent-hint',
+    );
     await checkBoth(wrapper);
     expect(wrapper.text()).not.toContain('Чтобы продолжить, отметьте оба пункта.');
+    expect(wrapper.get('button[type="submit"]').attributes('aria-describedby')).toBeUndefined();
   });
 
   it('offers account deletion and sign-out instead of accepting', async () => {

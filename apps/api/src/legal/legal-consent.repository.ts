@@ -28,7 +28,10 @@ export class LegalConsentRepository {
   }
 
   findAccepted(tx: Tx, userId: string): Promise<ConsentInput[]> {
-    return tx.userConsent.findMany({ where: { userId }, select: { document: true, version: true } });
+    return tx.userConsent.findMany({
+      where: { userId },
+      select: { document: true, version: true },
+    });
   }
 
   async audit(tx: Tx, userId: string, consents: ConsentInput[], requestId?: string): Promise<void> {
