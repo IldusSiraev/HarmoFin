@@ -12,8 +12,8 @@ test('adds an operation from a page other than the dashboard', async ({ page }) 
     page.getByRole('main').getByRole('button', { name: 'Добавить операцию' }),
   ).toBeVisible();
 
-  // The shell mounts the menu twice — header and sidebar — and CSS hides one of
-  // them per width, so pick whichever copy this viewport actually shows.
+  // Only the sidebar mounts the menu on this page and it is hidden below 1024px,
+  // so pick whichever copy this viewport actually shows.
   const trigger = page.getByTestId('add-menu-trigger').filter({ visible: true });
   await trigger.click();
   await page.getByTestId('operation-type-expense').click();
@@ -46,6 +46,8 @@ test.describe('app shell on a phone', () => {
     await page.goto('/app');
     await expect(page.getByRole('heading', { name: 'Можно потратить' })).toBeVisible();
     await expect(page.getByTestId('bottom-nav-add')).toBeVisible();
+    // The bottom navigation is the only add button on a phone.
+    await expect(page.getByTestId('add-menu-trigger').filter({ visible: true })).toHaveCount(0);
 
     const overflow = await page.evaluate(() => {
       const root = document.scrollingElement;

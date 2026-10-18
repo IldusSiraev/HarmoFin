@@ -186,7 +186,9 @@ async function loadDashboard() {
           <h1 ref="pageTitle" class="dashboard-title" tabindex="-1">{{ activeBudget.name }}</h1>
         </div>
         <div class="dashboard-header__actions">
-          <AppAddMenu tooltip-placement="bottom" />
+          <span class="dashboard-header__add">
+            <AppAddMenu tooltip-placement="bottom" />
+          </span>
           <UiButton
             variant="tertiary"
             data-action="refresh-summary"
@@ -355,6 +357,17 @@ async function loadDashboard() {
   display: flex;
   gap: var(--hf-space-2);
   align-items: center;
+}
+
+/* Below 1024px the bottom navigation owns the single add button. */
+.dashboard-header__add {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .dashboard-header__add {
+    display: contents;
+  }
 }
 
 .dashboard-kicker {

@@ -119,7 +119,7 @@ test('v2: partial income assignment, rent in two parts and a smaller kindergarte
   // 2. Income smaller than the need (43 000 due, 30 000 received) through "+".
   await page.goto('/app');
   await expect(page.getByTestId('dashboard-loading')).toHaveCount(0);
-  // The dashboard renders three triggers (sidebar, header, main); use the sidebar one.
+  // The dashboard renders two triggers on desktop (sidebar, main); use the sidebar one.
   const addTrigger = page
     .getByRole('complementary', { name: 'Основная навигация' })
     .getByTestId('add-menu-trigger');
