@@ -113,6 +113,66 @@ export class AccountDeletionRepository {
     await tx.accountDeletion.create({ data: { id: createUuidV7(input.requestedAt), ...input } });
   }
 
+  /** Locks the open, not yet expired request matching the token hash. */
+  async lockOpenDeletionByTokenHash(tx: Tx, tokenHash: string, now: Date) {
+    const rows = await tx.$queryRaw<
+      Array<{
+        id: string;
+        userId: string;
+        purgeAfter: Date;
+        archivedWorkspaceIds: string[];
+        archivedBudgetIds: string[];
+        deactivatedMembershipIds: string[];
+      }>
+    >`
+      SELECT "id", "user_id" AS "userId", "purge_after" AS "purgeAfter",
+             "archived_workspace_ids" AS "archivedWorkspaceIds",
+             "archived_budget_ids" AS "archivedBudgetIds",
+             "deactivated_membership_ids" AS "deactivatedMembershipIds"
+      FROM "account_deletions"
+      WHERE "restore_token_hash" = ${tokenHash}
+        AND "restored_at" IS NULL
+        AND "purged_at" IS NULL
+        AND "purge_after" > ${now}
+      FOR UPDATE
+    `;
+    return rows[0] ?? null;
+  }
+
+  async reactivateUser(tx: Tx, userId: string): Promise<boolean> {
+    const result = await tx.user.updateMany({
+      where: { id: userId, status: 'PENDING_DELETION' },
+      data: { status: 'ACTIVE' },
+    });
+    return result.count === 1;
+  }
+
+  /** Restores only what the request archived; anything archived earlier stays archived. */
+  async restoreScope(
+    tx: Tx,
+    scope: { archivedWorkspaceIds: string[]; archivedBudgetIds: string[]; deactivatedMembershipIds: string[] },
+  ): Promise<void> {
+    if (scope.archivedWorkspaceIds.length > 0)
+      await tx.workspace.updateMany({
+        where: { id: { in: scope.archivedWorkspaceIds }, status: 'ARCHIVED' },
+        data: { status: 'ACTIVE' },
+      });
+    if (scope.archivedBudgetIds.length > 0)
+      await tx.budget.updateMany({
+        where: { id: { in: scope.archivedBudgetIds }, status: 'ARCHIVED' },
+        data: { status: 'ACTIVE' },
+      });
+    if (scope.deactivatedMembershipIds.length > 0)
+      await tx.workspaceMembership.updateMany({
+        where: { id: { in: scope.deactivatedMembershipIds }, isActive: false },
+        data: { isActive: true, removedAt: null },
+      });
+  }
+
+  async markRestored(tx: Tx, deletionId: string, now: Date): Promise<void> {
+    await tx.accountDeletion.update({ where: { id: deletionId }, data: { restoredAt: now } });
+  }
+
   async audit(
     tx: Tx,
     input: {

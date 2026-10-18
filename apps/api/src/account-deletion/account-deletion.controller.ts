@@ -1,6 +1,13 @@
 import { Body, Controller, HttpCode, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
-import { ApiAcceptedResponse, ApiBody, ApiCookieAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
-import type { FastifyReply } from 'fastify';
+import {
+  ApiAcceptedResponse,
+  ApiBody,
+  ApiCookieAuth,
+  ApiNoContentResponse,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import {
   cookieOptions,
@@ -8,6 +15,7 @@ import {
   requiredContext,
   type AuthenticatedRequest,
 } from '../auth/auth-http.js';
+import { AuthRateLimitGuard } from '../auth/auth-rate-limit.guard.js';
 import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { ProblemDetailsResponse } from '../common/errors/problem-details.dto.js';
 import { CsrfGuard } from '../common/security/csrf.guard.js';
@@ -17,9 +25,15 @@ import type { ApiConfig } from '../config/env.js';
 import { AccountDeletionApplicationService } from './account-deletion.application.service.js';
 import {
   AccountDeletionScheduledResponse,
+  CancelAccountDeletionRequest,
   RequestAccountDeletionRequest,
 } from './account-deletion.dto.js';
-import { requestDeletionSchema, type RequestDeletionInput } from './account-deletion.schemas.js';
+import {
+  cancelDeletionSchema,
+  requestDeletionSchema,
+  type CancelDeletionInput,
+  type RequestDeletionInput,
+} from './account-deletion.schemas.js';
 
 @ApiTags('auth')
 @Controller()
@@ -53,5 +67,24 @@ export class AccountDeletionController {
     });
     reply.clearCookie(this.config.auth.cookieName, cookieOptions(this.config));
     return { purgeAfter: result.purgeAfter.toISOString() };
+  }
+
+  @Post('auth/deletion/cancel')
+  @HttpCode(204)
+  @UseGuards(AuthRateLimitGuard)
+  @ApiBody({ type: CancelAccountDeletionRequest })
+  @ApiNoContentResponse({ description: 'Удаление отменено. Войдите обычным способом.' })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 429, type: ProblemDetailsResponse })
+  async cancelDeletion(
+    @Body(new ZodValidationPipe(cancelDeletionSchema)) input: CancelDeletionInput,
+    @Req() request: FastifyRequest,
+  ): Promise<void> {
+    const meta = requestMeta(request);
+    await this.service.cancelDeletion(input, {
+      ...(meta.requestId ? { requestId: meta.requestId } : {}),
+    });
   }
 }

@@ -31,6 +31,17 @@ function setup(overrides: { passwordOk?: boolean; otherMembers?: number; claimed
     revokeCredentials: vi.fn().mockResolvedValue(undefined),
     createDeletion: vi.fn().mockResolvedValue(undefined),
     audit: vi.fn().mockResolvedValue(undefined),
+    lockOpenDeletionByTokenHash: vi.fn().mockResolvedValue({
+      id: 'd1',
+      userId: 'u1',
+      purgeAfter: new Date(NOW.getTime() + 1_000),
+      archivedWorkspaceIds: ['w1'],
+      archivedBudgetIds: ['b1'],
+      deactivatedMembershipIds: [],
+    }),
+    reactivateUser: vi.fn().mockResolvedValue(true),
+    restoreScope: vi.fn().mockResolvedValue(undefined),
+    markRestored: vi.fn().mockResolvedValue(undefined),
   };
   const passwordService = { verify: vi.fn().mockResolvedValue(overrides.passwordOk ?? true) };
   const tokenService = { createRawToken: () => 'raw-token', digest: (raw: string) => `hash:${raw}` };
@@ -112,5 +123,45 @@ describe('AccountDeletionApplicationService.requestDeletion', () => {
     await expect(
       service.requestDeletion('u1', { password: 'correct-password' }, {}),
     ).resolves.toEqual({ purgeAfter: new Date(NOW.getTime() + ACCOUNT_DELETION_GRACE_MS) });
+  });
+});
+
+describe('AccountDeletionApplicationService.cancelDeletion', () => {
+  it('restores the user and the archived scope by token hash', async () => {
+    const { service, repository } = setup();
+
+    await service.cancelDeletion({ token: 'raw-token' }, {});
+
+    expect(repository.lockOpenDeletionByTokenHash).toHaveBeenCalledWith(expect.anything(), 'hash:raw-token', NOW);
+    expect(repository.reactivateUser).toHaveBeenCalledWith(expect.anything(), 'u1');
+    expect(repository.restoreScope).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ archivedWorkspaceIds: ['w1'], archivedBudgetIds: ['b1'] }),
+    );
+    expect(repository.markRestored).toHaveBeenCalledWith(expect.anything(), 'd1', NOW);
+    expect(repository.audit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'ACCOUNT_DELETION_CANCELLED', userId: 'u1' }),
+    );
+  });
+
+  it('rejects an unknown, used or expired token with one generic error', async () => {
+    const { service, repository } = setup();
+    repository.lockOpenDeletionByTokenHash.mockResolvedValue(null);
+
+    await expect(service.cancelDeletion({ token: 'nope' }, {})).rejects.toMatchObject({
+      response: { code: 'ACCOUNT_RESTORE_TOKEN_INVALID' },
+    });
+    expect(repository.reactivateUser).not.toHaveBeenCalled();
+  });
+
+  it('rejects when the user is no longer pending deletion', async () => {
+    const { service, repository } = setup();
+    repository.reactivateUser.mockResolvedValue(false);
+
+    await expect(service.cancelDeletion({ token: 'raw-token' }, {})).rejects.toMatchObject({
+      response: { code: 'ACCOUNT_RESTORE_TOKEN_INVALID' },
+    });
+    expect(repository.markRestored).not.toHaveBeenCalled();
   });
 });

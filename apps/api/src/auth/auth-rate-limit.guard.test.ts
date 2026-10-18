@@ -28,6 +28,20 @@ describe('AuthRateLimitGuard', () => {
     expect(guard.canActivate(context)).toBe(true);
     expectRateLimited(() => guard.canActivate(context));
   });
+
+  it('limits account restore attempts with the recovery budget', () => {
+    const guard = new AuthRateLimitGuard({
+      rateLimit: { windowSeconds: 900, loginMax: 5, recoveryMax: 1 },
+    } as never);
+    const context = contextFor({
+      method: 'POST',
+      url: '/api/v1/auth/deletion/cancel',
+      ip: '127.0.0.1',
+    });
+
+    expect(guard.canActivate(context)).toBe(true);
+    expectRateLimited(() => guard.canActivate(context));
+  });
 });
 
 function contextFor(request: object): never {

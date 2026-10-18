@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { FastifyInstance } from 'fastify';
@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createApiApp } from '../src/app.js';
+import { newBudgetModelData } from '../src/common/plan-model/new-budget-model.js';
 import { loadApiConfig } from '../src/config/env.js';
 
 const databaseUrl =
@@ -69,6 +70,10 @@ function requestDeletion(fixture: Fixture, body: object, withCsrf = true) {
     },
     payload: body,
   });
+}
+
+function digest(raw: string): string {
+  return createHmac('sha256', tokenSecret).update(raw).digest('hex');
 }
 
 function login(fixture: Fixture) {
@@ -153,9 +158,22 @@ describe('account deletion', () => {
         },
       },
     });
+    expect(document.paths['/api/v1/auth/deletion/cancel']).toMatchObject({
+      post: {
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/CancelAccountDeletionRequest' },
+            },
+          },
+        },
+        responses: { '204': expect.any(Object) },
+      },
+    });
     expect(document.components?.schemas).toMatchObject({
       RequestAccountDeletionRequest: expect.any(Object),
       AccountDeletionScheduledResponse: expect.any(Object),
+      CancelAccountDeletionRequest: expect.any(Object),
     });
   });
 
@@ -251,4 +269,73 @@ describe('account deletion', () => {
     });
     expect(JSON.stringify(audit.newValues)).not.toContain(fixture.email);
   });
+
+  async function deleteWithKnownToken(fixture: Fixture, rawToken: string) {
+    expect((await requestDeletion(fixture, { password })).statusCode).toBe(202);
+    await prisma.accountDeletion.updateMany({
+      where: { userId: fixture.userId, restoredAt: null, purgedAt: null },
+      data: { restoreTokenHash: digest(rawToken) },
+    });
+  }
+
+  function cancel(token: string) {
+    return server.inject({
+      method: 'POST',
+      url: '/api/v1/auth/deletion/cancel',
+      headers: { origin },
+      payload: { token },
+    });
+  }
+
+  it('restores access by a valid token exactly once', async () => {
+    const fixture = await register('del-restore');
+    const rawToken = `restore-${randomUUID()}`;
+    await deleteWithKnownToken(fixture, rawToken);
+
+    expect((await cancel(rawToken)).statusCode).toBe(204);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: fixture.userId } })).status).toBe('ACTIVE');
+    expect((await prisma.workspace.findUniqueOrThrow({ where: { id: fixture.workspaceId } })).status).toBe('ACTIVE');
+    expect((await prisma.budget.findUniqueOrThrow({ where: { id: fixture.budgetId } })).status).toBe('ACTIVE');
+    expect((await login(fixture)).statusCode).toBe(201);
+
+    const reused = await cancel(rawToken);
+    expect(reused.statusCode).toBe(422);
+    expect(reused.json()).toMatchObject({ code: 'ACCOUNT_RESTORE_TOKEN_INVALID' });
+  });
+
+  it('rejects an unknown token and an expired one', async () => {
+    expect((await cancel(`unknown-${randomUUID()}`)).statusCode).toBe(422);
+
+    const fixture = await register('del-expired');
+    const rawToken = `expired-${randomUUID()}`;
+    await deleteWithKnownToken(fixture, rawToken);
+    await prisma.accountDeletion.updateMany({
+      where: { userId: fixture.userId },
+      data: { purgeAfter: new Date(Date.now() - 1_000) },
+    });
+
+    expect((await cancel(rawToken)).statusCode).toBe(422);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: fixture.userId } })).status).toBe('PENDING_DELETION');
+  });
+
+  it('does not reactivate a budget that was archived before the request', async () => {
+    const fixture = await register('del-prearchived');
+    const oldBudgetId = randomUUID();
+    await prisma.budget.create({
+      data: {
+        id: oldBudgetId,
+        workspaceId: fixture.workspaceId,
+        name: 'Старый бюджет',
+        status: 'ARCHIVED',
+        ...newBudgetModelData(),
+      },
+    });
+    const rawToken = `pre-${randomUUID()}`;
+    await deleteWithKnownToken(fixture, rawToken);
+
+    expect((await cancel(rawToken)).statusCode).toBe(204);
+    expect((await prisma.budget.findUniqueOrThrow({ where: { id: oldBudgetId } })).status).toBe('ARCHIVED');
+    expect((await prisma.budget.findUniqueOrThrow({ where: { id: fixture.budgetId } })).status).toBe('ACTIVE');
+  });
+
 });
