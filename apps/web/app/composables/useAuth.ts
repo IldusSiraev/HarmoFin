@@ -109,6 +109,23 @@ export function useAuth() {
     await api.request('/api/v1/auth/sessions', { method: 'DELETE' });
   }
 
+  async function requestAccountDeletion(password: string): Promise<{ purgeAfter: string }> {
+    const result = await api.request<{ purgeAfter: string }>('/api/v1/me/deletion', {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    });
+    currentUser.value = null;
+    currentData.value = null;
+    return result;
+  }
+
+  async function cancelAccountDeletion(token: string): Promise<void> {
+    await api.request('/api/v1/auth/deletion/cancel', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+  }
+
   return {
     currentUser,
     currentData,
@@ -122,6 +139,8 @@ export function useAuth() {
     listSessions,
     revokeSession,
     revokeAllSessions,
+    requestAccountDeletion,
+    cancelAccountDeletion,
   };
 }
 

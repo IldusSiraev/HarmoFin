@@ -81,6 +81,16 @@ describe('settings hub page', () => {
     expect(wrapper.find('a[href="/app/settings/sessions"]').exists()).toBe(true);
   });
 
+  it('links to account deletion from the account card', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const link = wrapper.find('a[href="/app/settings/delete-account"]');
+    expect(link.exists()).toBe(true);
+    expect(link.text()).toContain('Удаление аккаунта');
+    wrapper.unmount();
+  });
+
   it('keeps a link to the help page', async () => {
     const wrapper = mountPage();
     await flushPromises();
