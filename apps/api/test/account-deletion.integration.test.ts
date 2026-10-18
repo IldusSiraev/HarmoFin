@@ -601,11 +601,40 @@ describe('account deletion', () => {
         displayOrder: 1,
       },
     });
+    // Account-scoped audit event (no workspace/budget): written e.g. by a password-recovery
+    // request. Must be purged for the target, but a bystander's own unscoped event must survive.
+    const recoveryRequest = await server.inject({
+      method: 'POST',
+      url: '/api/v1/auth/recovery/request',
+      headers: { origin },
+      payload: { email: target.email },
+    });
+    expect(recoveryRequest.statusCode).toBe(202);
+    expect(
+      await prisma.auditEvent.count({
+        where: { actorUserId: target.userId, workspaceId: null, budgetId: null },
+      }),
+    ).toBeGreaterThan(0);
+    const bystanderRecoveryRequest = await server.inject({
+      method: 'POST',
+      url: '/api/v1/auth/recovery/request',
+      headers: { origin },
+      payload: { email: bystander.email },
+    });
+    expect(bystanderRecoveryRequest.statusCode).toBe(202);
+
     await seedFinancialData(target);
     expect((await requestDeletion(target, { password })).statusCode).toBe(202);
     await makeDue(target.userId);
 
     await new AccountPurgeHandler(prisma).execute(new Date());
+
+    expect(await prisma.auditEvent.count({ where: { actorUserId: target.userId } })).toBe(0);
+    expect(
+      await prisma.auditEvent.count({
+        where: { actorUserId: bystander.userId, workspaceId: null, budgetId: null },
+      }),
+    ).toBeGreaterThan(0);
 
     expect(await prisma.budget.count({ where: { workspaceId: target.workspaceId } })).toBe(0);
     expect(await prisma.workspace.count({ where: { id: target.workspaceId } })).toBe(0);
@@ -640,6 +669,24 @@ describe('account deletion', () => {
 
     expect(await prisma.budget.count({ where: { id: bystander.budgetId, status: 'ACTIVE' } })).toBe(1);
     expect(await prisma.category.count({ where: { budgetId: bystander.budgetId } })).toBeGreaterThan(0);
+    const bystanderUser = await prisma.user.findUniqueOrThrow({ where: { id: bystander.userId } });
+    expect(bystanderUser).toMatchObject({ email: bystander.email, status: 'ACTIVE' });
+    expect(
+      (await prisma.workspace.findUniqueOrThrow({ where: { id: bystander.workspaceId } })).status,
+    ).toBe('ACTIVE');
+    expect(
+      await prisma.session.count({ where: { userId: bystander.userId, revokedAt: null } }),
+    ).toBeGreaterThan(0);
+
+    // A second execute over the already-purged target does not throw and leaves it unchanged.
+    await expect(new AccountPurgeHandler(prisma).execute(new Date())).resolves.toBeUndefined();
+    const userAfterSecondRun = await prisma.user.findUniqueOrThrow({ where: { id: target.userId } });
+    expect(userAfterSecondRun).toMatchObject({
+      email: `deleted-${target.userId}@invalid`,
+      passwordHash: '',
+      displayName: null,
+      status: 'DELETED',
+    });
   });
 
   it('skips restored and not yet due requests, leaves a restored user intact, and is safe to re-run', async () => {
@@ -673,6 +720,23 @@ describe('account deletion', () => {
     await expect(handler.execute(new Date())).resolves.toBeUndefined();
   });
 
+  /**
+   * Polls pg_stat_activity until another backend is waiting on a row lock for the given table.
+   * A `SELECT ... FOR UPDATE` block shows up as `wait_event_type = 'Lock'` with the blocked
+   * query text, not as a row in pg_locks (that contention is a tuple/transactionid wait).
+   */
+  async function waitForBlockedLockOn(tableName: string): Promise<void> {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const rows = await prisma.$queryRaw<Array<{ count: bigint }>>`
+        SELECT count(*)::bigint AS count
+        FROM pg_stat_activity
+        WHERE wait_event_type = 'Lock' AND query ILIKE ${`%${tableName}%`}`;
+      if ((rows[0]?.count ?? 0n) > 0n) return;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    throw new Error(`Timed out waiting for a blocked lock on ${tableName}`);
+  }
+
   it('blocks a concurrent purge while the deletion row is locked by a restore, and does not purge once restored', async () => {
     const racer = await register('del-race');
     const rawToken = `race-${randomUUID()}`;
@@ -700,8 +764,8 @@ describe('account deletion', () => {
     const handler = new AccountPurgeHandler(prisma);
     const racingPurge = handler.purgeOne(deletion.id, new Date());
 
-    // Give purgeOne time to attempt the row lock and block behind the held transaction.
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Poll pg_locks instead of a fixed sleep, so this isn't a timing guess under load.
+    await waitForBlockedLockOn('account_deletions');
     release();
     await holderFinished;
     await holder;

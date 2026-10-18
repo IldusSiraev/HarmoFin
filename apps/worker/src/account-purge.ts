@@ -46,7 +46,9 @@ export const USER_RETAINED_OUTSIDE_SCOPE: Record<string, string> = {
   idempotency_records:
     'actor_user_id rows outside the owned budget scope belong to another owner and are retained.',
   audit_events:
-    'actor_user_id rows outside the owned workspace/budget scope are another owner\'s audit trail and are retained.',
+    'actor_user_id rows outside the owned workspace/budget scope are another owner\'s audit trail and are retained; ' +
+    'account-scoped rows (workspace_id IS NULL AND budget_id IS NULL, e.g. RECOVERY_REQUESTED/PASSWORD_CHANGED) are ' +
+    "deleted below by actor_user_id since they belong to no other owner's scope.",
   notifications:
     'user_id rows outside the owned workspace/budget scope belong to another owner\'s workspace and are retained.',
 };
@@ -115,14 +117,20 @@ export async function purgeUserData(tx: Prisma.TransactionClient, userId: string
   }
 
   // Only delete rows the deleted user actually owns (their own sessions/tokens/memberships).
-  // Do NOT delete idempotency_records/audit_events/notifications by actor_user_id/user_id here:
-  // those tables also hold rows created while this user acted inside *another* owner's
-  // workspace/budget (once collaboration exists), and that history is not this user's to erase.
-  // Rows inside the scope this user owns are already removed by the budget_id/workspace_id
-  // deletes above; the users row stays (anonymized), so any remaining FK to it stays valid.
+  // Do NOT delete idempotency_records/notifications by actor_user_id/user_id here: those tables
+  // also hold rows created while this user acted inside *another* owner's workspace/budget (once
+  // collaboration exists), and that history is not this user's to erase. Rows inside the scope
+  // this user owns are already removed by the budget_id/workspace_id deletes above; the users
+  // row stays (anonymized), so any remaining FK to it stays valid.
   await tx.$executeRaw`DELETE FROM "sessions" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "recovery_tokens" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "workspace_memberships" WHERE "user_id" = ${userId}::uuid`;
+  // Account-level audit events (auth actions written with no workspace/budget, e.g.
+  // RECOVERY_REQUESTED, PASSWORD_CHANGED before a membership existed) belong to no other owner's
+  // scope, so they are safe and necessary to delete by actor_user_id here.
+  await tx.$executeRaw`
+    DELETE FROM "audit_events"
+    WHERE "actor_user_id" = ${userId}::uuid AND "workspace_id" IS NULL AND "budget_id" IS NULL`;
   await tx.$executeRaw`
     UPDATE "users"
     SET "email" = 'deleted-' || "id"::text || '@invalid',
