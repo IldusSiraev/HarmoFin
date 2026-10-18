@@ -17,6 +17,9 @@ describe('ConsentCheckboxes', () => {
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'));
     expect(hrefs).toEqual(['/terms', '/privacy', '/consent']);
     expect(wrapper.findAll('a').every((link) => link.attributes('target') === '_blank')).toBe(true);
+    expect(
+      wrapper.findAll('a').every((link) => link.attributes('rel') === 'noopener noreferrer'),
+    ).toBe(true);
   });
 
   it('emits each checkbox separately', async () => {

@@ -12,16 +12,22 @@ const pd = defineModel<boolean>('pd', { required: true });
       <input v-model="terms" name="consent-terms" type="checkbox" />
       <span>
         Принимаю
-        <NuxtLink to="/terms" target="_blank">пользовательское соглашение</NuxtLink>
+        <NuxtLink to="/terms" target="_blank" rel="noopener noreferrer"
+          >пользовательское соглашение</NuxtLink
+        >
         и
-        <NuxtLink to="/privacy" target="_blank">политику обработки персональных данных</NuxtLink>
+        <NuxtLink to="/privacy" target="_blank" rel="noopener noreferrer"
+          >политику обработки персональных данных</NuxtLink
+        >
       </span>
     </label>
     <label class="consent-checkboxes__item">
       <input v-model="pd" name="consent-pd" type="checkbox" />
       <span>
         Даю
-        <NuxtLink to="/consent" target="_blank">согласие на обработку персональных данных</NuxtLink>
+        <NuxtLink to="/consent" target="_blank" rel="noopener noreferrer"
+          >согласие на обработку персональных данных</NuxtLink
+        >
       </span>
     </label>
   </fieldset>

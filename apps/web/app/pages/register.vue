@@ -122,8 +122,7 @@ async function submit() {
 
 <style scoped>
 small,
-label span,
-.consent-hint {
+label span {
   color: #70808a;
   font-size: 0.78rem;
   font-weight: 500;
@@ -131,5 +130,8 @@ label span,
 
 .consent-hint {
   margin: 0;
+  color: var(--hf-color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 500;
 }
 </style>

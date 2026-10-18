@@ -107,6 +107,15 @@ describe('accept terms page', () => {
     expect(mocks.navigateTo).toHaveBeenCalledWith('/app', { replace: true });
   });
 
+  it('shows a hint while unchecked and hides it once both are checked', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Чтобы продолжить, отметьте оба пункта.');
+    await checkBoth(wrapper);
+    expect(wrapper.text()).not.toContain('Чтобы продолжить, отметьте оба пункта.');
+  });
+
   it('offers account deletion and sign-out instead of accepting', async () => {
     const wrapper = mountPage();
     await flushPromises();

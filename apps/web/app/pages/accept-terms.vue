@@ -55,6 +55,7 @@ async function signOut() {
     :on-submit="submit"
   >
     <ConsentCheckboxes v-model:terms="acceptTerms" v-model:pd="acceptPd" />
+    <p v-if="!ready" class="consent-hint">Чтобы продолжить, отметьте оба пункта.</p>
     <template #footer>
       <p class="form-links">
         <NuxtLink to="/app/settings/delete-account">Удалить аккаунт</NuxtLink>
@@ -73,5 +74,12 @@ async function signOut() {
   font: inherit;
   text-decoration: underline;
   cursor: pointer;
+}
+
+.consent-hint {
+  margin: 0;
+  color: var(--hf-color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 500;
 }
 </style>
