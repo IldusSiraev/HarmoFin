@@ -44,7 +44,10 @@ function setup(overrides: { passwordOk?: boolean; otherMembers?: number; claimed
     markRestored: vi.fn().mockResolvedValue(undefined),
   };
   const passwordService = { verify: vi.fn().mockResolvedValue(overrides.passwordOk ?? true) };
-  const tokenService = { createRawToken: () => 'raw-token', digest: (raw: string) => `hash:${raw}` };
+  const tokenService = {
+    createRawToken: () => 'raw-token',
+    digest: (raw: string) => `hash:${raw}`,
+  };
   const emailSender = {
     sendPasswordRecovery: vi.fn(),
     sendAccountDeletionScheduled: vi.fn().mockResolvedValue(undefined),
@@ -132,7 +135,11 @@ describe('AccountDeletionApplicationService.cancelDeletion', () => {
 
     await service.cancelDeletion({ token: 'raw-token' }, {});
 
-    expect(repository.lockOpenDeletionByTokenHash).toHaveBeenCalledWith(expect.anything(), 'hash:raw-token', NOW);
+    expect(repository.lockOpenDeletionByTokenHash).toHaveBeenCalledWith(
+      expect.anything(),
+      'hash:raw-token',
+      NOW,
+    );
     expect(repository.reactivateUser).toHaveBeenCalledWith(expect.anything(), 'u1');
     expect(repository.restoreScope).toHaveBeenCalledWith(
       expect.anything(),

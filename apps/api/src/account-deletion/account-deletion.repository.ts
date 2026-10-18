@@ -59,7 +59,10 @@ export class AccountDeletionRepository {
 
   async archiveScope(tx: Tx, workspaceIds: string[], budgetIds: string[]): Promise<void> {
     if (budgetIds.length > 0)
-      await tx.budget.updateMany({ where: { id: { in: budgetIds } }, data: { status: 'ARCHIVED' } });
+      await tx.budget.updateMany({
+        where: { id: { in: budgetIds } },
+        data: { status: 'ARCHIVED' },
+      });
     if (workspaceIds.length > 0)
       await tx.workspace.updateMany({
         where: { id: { in: workspaceIds } },
@@ -150,7 +153,11 @@ export class AccountDeletionRepository {
   /** Restores only what the request archived; anything archived earlier stays archived. */
   async restoreScope(
     tx: Tx,
-    scope: { archivedWorkspaceIds: string[]; archivedBudgetIds: string[]; deactivatedMembershipIds: string[] },
+    scope: {
+      archivedWorkspaceIds: string[];
+      archivedBudgetIds: string[];
+      deactivatedMembershipIds: string[];
+    },
   ): Promise<void> {
     if (scope.archivedWorkspaceIds.length > 0)
       await tx.workspace.updateMany({

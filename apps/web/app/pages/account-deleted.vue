@@ -7,7 +7,11 @@ const route = useRoute();
 const purgeDate = computed(() => {
   const raw = typeof route.query.until === 'string' ? new Date(route.query.until) : null;
   if (!raw || Number.isNaN(raw.getTime())) return null;
-  return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(raw);
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(raw);
 });
 
 const subtitle = computed(() =>

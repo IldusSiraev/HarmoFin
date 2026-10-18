@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
 const navigateTo = vi.hoisted(() => vi.fn());
 vi.mock('#app', () => ({ useRoute: () => mocks.route, navigateTo }));
 vi.mock('../composables/useAuth.js', async () => {
-  const actual = await vi.importActual<typeof import('../composables/useAuth.js')>('../composables/useAuth.js');
+  const actual = await vi.importActual<typeof import('../composables/useAuth.js')>(
+    '../composables/useAuth.js',
+  );
   return { ...actual, useAuth: () => ({ cancelAccountDeletion: mocks.cancelAccountDeletion }) };
 });
 

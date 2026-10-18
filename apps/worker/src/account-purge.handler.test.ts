@@ -7,7 +7,10 @@ import { AccountPurgeHandler } from './account-purge.handler.js';
 
 const NOW = new Date('2026-11-18T00:00:00.000Z');
 
-function setup(locked: Array<{ userId: string }>, due: Array<{ id: string }> = [{ id: 'd1' }, { id: 'd2' }]) {
+function setup(
+  locked: Array<{ userId: string }>,
+  due: Array<{ id: string }> = [{ id: 'd1' }, { id: 'd2' }],
+) {
   const tx = {
     $queryRaw: vi.fn().mockResolvedValue(locked),
     accountDeletion: { update: vi.fn().mockResolvedValue({}) },
@@ -36,7 +39,10 @@ describe('AccountPurgeHandler', () => {
     );
     expect(prisma.$transaction).toHaveBeenCalledTimes(2);
     expect(purgeUserData).toHaveBeenCalledWith(tx, 'u1');
-    expect(tx.accountDeletion.update).toHaveBeenCalledWith({ where: { id: 'd1' }, data: { purgedAt: NOW } });
+    expect(tx.accountDeletion.update).toHaveBeenCalledWith({
+      where: { id: 'd1' },
+      data: { purgedAt: NOW },
+    });
   });
 
   it('skips a request that was restored or purged after selection', async () => {
@@ -64,7 +70,9 @@ describe('AccountPurgeHandler', () => {
       },
       $transaction: vi.fn((callback: (t: typeof tx) => unknown) => callback(tx)),
     };
-    vi.mocked(purgeUserData).mockRejectedValueOnce(new Error('boom detail')).mockResolvedValue(undefined);
+    vi.mocked(purgeUserData)
+      .mockRejectedValueOnce(new Error('boom detail'))
+      .mockResolvedValue(undefined);
     const onFailure = vi.fn();
     const handler = new AccountPurgeHandler(prisma as never, onFailure);
 
@@ -72,7 +80,10 @@ describe('AccountPurgeHandler', () => {
 
     expect(purgeUserData).toHaveBeenCalledTimes(2);
     expect(tx.accountDeletion.update).toHaveBeenCalledTimes(1);
-    expect(tx.accountDeletion.update).toHaveBeenCalledWith({ where: { id: 'd2' }, data: { purgedAt: NOW } });
+    expect(tx.accountDeletion.update).toHaveBeenCalledWith({
+      where: { id: 'd2' },
+      data: { purgedAt: NOW },
+    });
     expect(onFailure).toHaveBeenCalledWith({ deletionId: 'd1', errorName: 'Error' });
     expect(onFailure).toHaveBeenCalledTimes(1);
     // The second query excludes the id that failed in this run.

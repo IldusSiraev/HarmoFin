@@ -29,7 +29,11 @@ export const BUDGET_TABLES_IN_DELETE_ORDER = [
 export const BUDGET_SCOPE_EXTRA_TABLES = ['categories', 'accounts'] as const;
 
 /** Owned-workspace scope: deleted by workspace_id for the workspaces this user owns. */
-export const WORKSPACE_SCOPE_TABLES = ['notifications', 'audit_events', 'workspace_memberships'] as const;
+export const WORKSPACE_SCOPE_TABLES = [
+  'notifications',
+  'audit_events',
+  'workspace_memberships',
+] as const;
 
 export const BUDGETS_TABLE = 'budgets';
 export const WORKSPACES_TABLE = 'workspaces';
@@ -46,11 +50,11 @@ export const USER_RETAINED_OUTSIDE_SCOPE: Record<string, string> = {
   idempotency_records:
     'actor_user_id rows outside the owned budget scope belong to another owner and are retained.',
   audit_events:
-    'actor_user_id rows outside the owned workspace/budget scope are another owner\'s audit trail and are retained; ' +
+    "actor_user_id rows outside the owned workspace/budget scope are another owner's audit trail and are retained; " +
     'account-scoped rows (workspace_id IS NULL AND budget_id IS NULL, e.g. RECOVERY_REQUESTED/PASSWORD_CHANGED) are ' +
     "deleted below by actor_user_id since they belong to no other owner's scope.",
   notifications:
-    'user_id rows outside the owned workspace/budget scope belong to another owner\'s workspace and are retained.',
+    "user_id rows outside the owned workspace/budget scope belong to another owner's workspace and are retained.",
 };
 
 /** Every table a budget_id/workspace_id-scoped row is guaranteed to be removed from. */
@@ -91,7 +95,10 @@ export async function purgeUserData(tx: Prisma.TransactionClient, userId: string
       SET "income_allocation_source_category_id" = NULL, "income_allocation_target_envelope_id" = NULL
       WHERE "id" = ANY(${budgetIds}::uuid[])`;
     for (const table of BUDGET_TABLES_IN_DELETE_ORDER) {
-      await tx.$executeRawUnsafe(`DELETE FROM "${table}" WHERE "budget_id" = ANY($1::uuid[])`, budgetIds);
+      await tx.$executeRawUnsafe(
+        `DELETE FROM "${table}" WHERE "budget_id" = ANY($1::uuid[])`,
+        budgetIds,
+      );
     }
     // categories reference their parent with ON DELETE RESTRICT: delete leaves layer by layer.
     for (;;) {

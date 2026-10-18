@@ -1,7 +1,9 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 
-const route = vi.hoisted(() => ({ query: { until: '2026-11-17T09:00:00.000Z' } as Record<string, unknown> }));
+const route = vi.hoisted(() => ({
+  query: { until: '2026-11-17T09:00:00.000Z' } as Record<string, unknown>,
+}));
 vi.mock('#app', () => ({ useRoute: () => route, navigateTo: vi.fn() }));
 
 import AccountDeletedPage from './account-deleted.vue';

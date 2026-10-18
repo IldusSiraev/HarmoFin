@@ -190,7 +190,12 @@ describe('account deletion', () => {
     const owner = await register('del-owner');
     const member = await register('del-member');
     await prisma.workspaceMembership.create({
-      data: { id: randomUUID(), workspaceId: owner.workspaceId, userId: member.userId, role: 'EDITOR' },
+      data: {
+        id: randomUUID(),
+        workspaceId: owner.workspaceId,
+        userId: member.userId,
+        role: 'EDITOR',
+      },
     });
 
     const response = await requestDeletion(owner, { password });
@@ -278,9 +283,15 @@ describe('account deletion', () => {
     await deleteWithKnownToken(fixture, rawToken);
 
     expect((await cancel(rawToken)).statusCode).toBe(204);
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: fixture.userId } })).status).toBe('ACTIVE');
-    expect((await prisma.workspace.findUniqueOrThrow({ where: { id: fixture.workspaceId } })).status).toBe('ACTIVE');
-    expect((await prisma.budget.findUniqueOrThrow({ where: { id: fixture.budgetId } })).status).toBe('ACTIVE');
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: fixture.userId } })).status).toBe(
+      'ACTIVE',
+    );
+    expect(
+      (await prisma.workspace.findUniqueOrThrow({ where: { id: fixture.workspaceId } })).status,
+    ).toBe('ACTIVE');
+    expect(
+      (await prisma.budget.findUniqueOrThrow({ where: { id: fixture.budgetId } })).status,
+    ).toBe('ACTIVE');
     expect((await login(fixture)).statusCode).toBe(201);
 
     const reused = await cancel(rawToken);
@@ -300,7 +311,9 @@ describe('account deletion', () => {
     });
 
     expect((await cancel(rawToken)).statusCode).toBe(422);
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: fixture.userId } })).status).toBe('PENDING_DELETION');
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: fixture.userId } })).status).toBe(
+      'PENDING_DELETION',
+    );
   });
 
   it('does not reactivate a budget that was archived before the request', async () => {
@@ -319,8 +332,12 @@ describe('account deletion', () => {
     await deleteWithKnownToken(fixture, rawToken);
 
     expect((await cancel(rawToken)).statusCode).toBe(204);
-    expect((await prisma.budget.findUniqueOrThrow({ where: { id: oldBudgetId } })).status).toBe('ARCHIVED');
-    expect((await prisma.budget.findUniqueOrThrow({ where: { id: fixture.budgetId } })).status).toBe('ACTIVE');
+    expect((await prisma.budget.findUniqueOrThrow({ where: { id: oldBudgetId } })).status).toBe(
+      'ARCHIVED',
+    );
+    expect(
+      (await prisma.budget.findUniqueOrThrow({ where: { id: fixture.budgetId } })).status,
+    ).toBe('ACTIVE');
   });
 
   async function makeDue(userId: string) {
@@ -339,7 +356,11 @@ describe('account deletion', () => {
     };
   }
 
-  function postTransaction(fixture: Fixture, idempotencyKey: string, payload: Record<string, unknown>) {
+  function postTransaction(
+    fixture: Fixture,
+    idempotencyKey: string,
+    payload: Record<string, unknown>,
+  ) {
     return server.inject({
       method: 'POST',
       url: `/api/v2/budgets/${fixture.budgetId}/transactions`,
@@ -348,7 +369,11 @@ describe('account deletion', () => {
     });
   }
 
-  function postTransfer(fixture: Fixture, idempotencyKey: string, payload: Record<string, unknown>) {
+  function postTransfer(
+    fixture: Fixture,
+    idempotencyKey: string,
+    payload: Record<string, unknown>,
+  ) {
     return server.inject({
       method: 'POST',
       url: `/api/v2/budgets/${fixture.budgetId}/transfers`,
@@ -391,10 +416,22 @@ describe('account deletion', () => {
       },
     });
     const incomeCategory = await prisma.category.create({
-      data: { id: randomUUID(), budgetId: fixture.budgetId, name: 'Зарплата', categoryType: 'INCOME', displayOrder: 1 },
+      data: {
+        id: randomUUID(),
+        budgetId: fixture.budgetId,
+        name: 'Зарплата',
+        categoryType: 'INCOME',
+        displayOrder: 1,
+      },
     });
     const expenseCategory = await prisma.category.create({
-      data: { id: randomUUID(), budgetId: fixture.budgetId, name: 'Продукты', categoryType: 'EXPENSE', displayOrder: 1 },
+      data: {
+        id: randomUUID(),
+        budgetId: fixture.budgetId,
+        name: 'Продукты',
+        categoryType: 'EXPENSE',
+        displayOrder: 1,
+      },
     });
     await prisma.category.create({
       data: {
@@ -563,7 +600,12 @@ describe('account deletion', () => {
       },
     });
     await prisma.planPayment.create({
-      data: { id: randomUUID(), budgetId: fixture.budgetId, occurrenceId: occurrence.id, transactionId: expenseTransactionId },
+      data: {
+        id: randomUUID(),
+        budgetId: fixture.budgetId,
+        occurrenceId: occurrence.id,
+        transactionId: expenseTransactionId,
+      },
     });
     await prisma.budgetCycleRevision.create({
       data: {
@@ -647,13 +689,19 @@ describe('account deletion', () => {
     expect(await prisma.envelopePeriod.count({ where: { budgetId: target.budgetId } })).toBe(0);
     expect(await prisma.envelopeAssignment.count({ where: { budgetId: target.budgetId } })).toBe(0);
     expect(await prisma.envelopeMovement.count({ where: { budgetId: target.budgetId } })).toBe(0);
-    expect(await prisma.envelopeFundingRule.count({ where: { budgetId: target.budgetId } })).toBe(0);
-    expect(await prisma.envelopeReallocation.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.envelopeFundingRule.count({ where: { budgetId: target.budgetId } })).toBe(
+      0,
+    );
+    expect(await prisma.envelopeReallocation.count({ where: { budgetId: target.budgetId } })).toBe(
+      0,
+    );
     expect(await prisma.incomeAllocation.count({ where: { budgetId: target.budgetId } })).toBe(0);
     expect(await prisma.regularPlan.count({ where: { budgetId: target.budgetId } })).toBe(0);
     expect(await prisma.planOccurrence.count({ where: { budgetId: target.budgetId } })).toBe(0);
     expect(await prisma.planPayment.count({ where: { budgetId: target.budgetId } })).toBe(0);
-    expect(await prisma.budgetCycleRevision.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.budgetCycleRevision.count({ where: { budgetId: target.budgetId } })).toBe(
+      0,
+    );
     expect(await prisma.notification.count({ where: { budgetId: target.budgetId } })).toBe(0);
     expect(await prisma.idempotencyRecord.count({ where: { budgetId: target.budgetId } })).toBe(0);
     expect(await prisma.session.count({ where: { userId: target.userId } })).toBe(0);
@@ -665,10 +713,17 @@ describe('account deletion', () => {
       displayName: null,
       status: 'DELETED',
     });
-    expect((await prisma.accountDeletion.findFirstOrThrow({ where: { userId: target.userId } })).purgedAt).not.toBeNull();
+    expect(
+      (await prisma.accountDeletion.findFirstOrThrow({ where: { userId: target.userId } }))
+        .purgedAt,
+    ).not.toBeNull();
 
-    expect(await prisma.budget.count({ where: { id: bystander.budgetId, status: 'ACTIVE' } })).toBe(1);
-    expect(await prisma.category.count({ where: { budgetId: bystander.budgetId } })).toBeGreaterThan(0);
+    expect(await prisma.budget.count({ where: { id: bystander.budgetId, status: 'ACTIVE' } })).toBe(
+      1,
+    );
+    expect(
+      await prisma.category.count({ where: { budgetId: bystander.budgetId } }),
+    ).toBeGreaterThan(0);
     const bystanderUser = await prisma.user.findUniqueOrThrow({ where: { id: bystander.userId } });
     expect(bystanderUser).toMatchObject({ email: bystander.email, status: 'ACTIVE' });
     expect(
@@ -680,7 +735,9 @@ describe('account deletion', () => {
 
     // A second execute over the already-purged target does not throw and leaves it unchanged.
     await expect(new AccountPurgeHandler(prisma).execute(new Date())).resolves.toBeUndefined();
-    const userAfterSecondRun = await prisma.user.findUniqueOrThrow({ where: { id: target.userId } });
+    const userAfterSecondRun = await prisma.user.findUniqueOrThrow({
+      where: { id: target.userId },
+    });
     expect(userAfterSecondRun).toMatchObject({
       email: `deleted-${target.userId}@invalid`,
       passwordHash: '',
@@ -695,7 +752,10 @@ describe('account deletion', () => {
     await deleteWithKnownToken(restored, rawToken);
     await makeDue(restored.userId);
     // A restore after the deadline is rejected, so restore first, then make the row due.
-    await prisma.accountDeletion.updateMany({ where: { userId: restored.userId }, data: { restoredAt: new Date() } });
+    await prisma.accountDeletion.updateMany({
+      where: { userId: restored.userId },
+      data: { restoredAt: new Date() },
+    });
     await prisma.user.update({ where: { id: restored.userId }, data: { status: 'ACTIVE' } });
 
     const pending = await register('del-skip-pending');
@@ -707,8 +767,12 @@ describe('account deletion', () => {
 
     expect(await prisma.budget.count({ where: { id: restored.budgetId } })).toBe(1);
     expect(await prisma.budget.count({ where: { id: pending.budgetId } })).toBe(1);
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: pending.userId } })).status).toBe('PENDING_DELETION');
-    const restoredDeletion = await prisma.accountDeletion.findFirstOrThrow({ where: { userId: restored.userId } });
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: pending.userId } })).status).toBe(
+      'PENDING_DELETION',
+    );
+    const restoredDeletion = await prisma.accountDeletion.findFirstOrThrow({
+      where: { userId: restored.userId },
+    });
     expect(restoredDeletion.purgedAt).toBeNull();
     const restoredUser = await prisma.user.findUniqueOrThrow({ where: { id: restored.userId } });
     expect(restoredUser.status).toBe('ACTIVE');
@@ -742,7 +806,9 @@ describe('account deletion', () => {
     const rawToken = `race-${randomUUID()}`;
     await deleteWithKnownToken(racer, rawToken);
     await makeDue(racer.userId);
-    const deletion = await prisma.accountDeletion.findFirstOrThrow({ where: { userId: racer.userId } });
+    const deletion = await prisma.accountDeletion.findFirstOrThrow({
+      where: { userId: racer.userId },
+    });
 
     let release!: () => void;
     const held = new Promise<void>((resolve) => {
@@ -756,7 +822,10 @@ describe('account deletion', () => {
     const holder = prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT 1 FROM "account_deletions" WHERE "id" = ${deletion.id}::uuid FOR UPDATE`;
       await held; // keep the row locked until the racing purgeOne has had a chance to block
-      await tx.accountDeletion.update({ where: { id: deletion.id }, data: { restoredAt: new Date() } });
+      await tx.accountDeletion.update({
+        where: { id: deletion.id },
+        data: { restoredAt: new Date() },
+      });
       await tx.user.update({ where: { id: racer.userId }, data: { status: 'ACTIVE' } });
       holderDone();
     });
@@ -774,9 +843,10 @@ describe('account deletion', () => {
     expect(await prisma.budget.count({ where: { id: racer.budgetId } })).toBe(1);
     const racerUser = await prisma.user.findUniqueOrThrow({ where: { id: racer.userId } });
     expect(racerUser.status).toBe('ACTIVE');
-    const racerDeletion = await prisma.accountDeletion.findUniqueOrThrow({ where: { id: deletion.id } });
+    const racerDeletion = await prisma.accountDeletion.findUniqueOrThrow({
+      where: { id: deletion.id },
+    });
     expect(racerDeletion.purgedAt).toBeNull();
     expect(racerDeletion.restoredAt).not.toBeNull();
   });
-
 });

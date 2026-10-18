@@ -20,7 +20,8 @@ describe('account purge coverage', () => {
     const uncovered: string[] = [];
     for (const model of models) {
       const hasScopeColumn = model.fields.some(
-        (field) => field.kind === 'scalar' && (field.name === 'budgetId' || field.name === 'workspaceId'),
+        (field) =>
+          field.kind === 'scalar' && (field.name === 'budgetId' || field.name === 'workspaceId'),
       );
       if (!hasScopeColumn) continue;
       const table = model.dbName ?? model.name;

@@ -29,7 +29,9 @@ const runner = new JobRunner(
     EVALUATE_BUDGET_NOTIFICATIONS: new NotificationRuleHandler(database),
     PURGE_DELETED_ACCOUNTS: new AccountPurgeHandler(database, (failure) => {
       logger.purgeFailure(failure);
-      void errorReporter.report(new Error('Account purge failed'), { errorName: failure.errorName });
+      void errorReporter.report(new Error('Account purge failed'), {
+        errorName: failure.errorName,
+      });
     }),
   },
   {
