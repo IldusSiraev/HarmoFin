@@ -114,6 +114,15 @@ export const securityCards: LandingTextCard[] = [
     text: 'Данные бюджета недоступны другим пользователям.',
   },
   { title: 'История изменений', text: 'Изменения финансовых данных сохраняются в журнале.' },
+  {
+    title: 'Без привязки банка',
+    text: 'Сервис не просит логины от интернет-банка и данные карт — операции вы вносите сами.',
+  },
+  { title: 'Данные хранятся в России', text: 'Сервер и резервные копии находятся в России.' },
+  {
+    title: 'Выгрузка и удаление',
+    text: 'Операции можно выгрузить в CSV, а аккаунт — удалить в настройках в любой момент.',
+  },
 ];
 
 export const faqItems: LandingFaqItem[] = [
@@ -178,10 +187,8 @@ export const footerProductLinks: { href: string; label: string }[] = [
   { href: '#faq', label: 'FAQ' },
 ];
 
-// TODO: these become real links (with `href`) once /privacy, /terms and /contacts pages exist.
-// Until then LandingFooter renders them as plain, non-interactive text.
-export const footerInfoLinks: { label: string }[] = [
-  { label: 'Политика конфиденциальности' },
-  { label: 'Пользовательское соглашение' },
-  { label: 'Контакты' },
+export const footerInfoLinks: { label: string; href: string }[] = [
+  { label: 'Политика обработки персональных данных', href: '/privacy' },
+  { label: 'Пользовательское соглашение', href: '/terms' },
+  { label: 'Согласие на обработку персональных данных', href: '/consent' },
 ];

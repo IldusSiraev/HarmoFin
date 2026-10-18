@@ -9,10 +9,17 @@ describe('SecuritySection', () => {
 
     expect(wrapper.get('section').attributes('id')).toBe('security');
     expect(wrapper.get('h2').text()).toBe('Ваши финансовые данные — только ваши.');
-    expect(wrapper.findAll('h3').map((heading) => heading.text())).toEqual([
-      'Защищённый доступ',
-      'Ваш бюджет — только ваш',
-      'История изменений',
-    ]);
+    const headings = wrapper.findAll('h3').map((heading) => heading.text());
+    expect(headings).toHaveLength(6);
+    expect(headings).toEqual(
+      expect.arrayContaining([
+        'Защищённый доступ',
+        'Ваш бюджет — только ваш',
+        'История изменений',
+        'Без привязки банка',
+        'Данные хранятся в России',
+        'Выгрузка и удаление',
+      ]),
+    );
   });
 });
