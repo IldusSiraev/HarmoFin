@@ -10,6 +10,7 @@ import { WorkerJobRepository } from './job.repository.js';
 import { createWorkerErrorReporter, MetricsRegistry } from './observability/observability.js';
 import { PlanOccurrenceHandler } from './plan-occurrence.handler.js';
 import { NotificationRuleHandler } from './notification.handler.js';
+import { AccountPurgeHandler } from './account-purge.handler.js';
 import { WorkerRuntime } from './runtime.js';
 
 const config = loadWorkerConfig(process.env);
@@ -26,6 +27,7 @@ const runner = new JobRunner(
   {
     MATERIALIZE_PLAN_OCCURRENCES: new PlanOccurrenceHandler(database),
     EVALUATE_BUDGET_NOTIFICATIONS: new NotificationRuleHandler(database),
+    PURGE_DELETED_ACCOUNTS: new AccountPurgeHandler(database),
   },
   {
     pollIntervalMs: config.pollIntervalMs,

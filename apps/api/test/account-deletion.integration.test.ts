@@ -8,6 +8,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp } from '../src/app.js';
 import { newBudgetModelData } from '../src/common/plan-model/new-budget-model.js';
 import { loadApiConfig } from '../src/config/env.js';
+import { purgeUserData } from '../../worker/src/account-purge.js';
+import { AccountPurgeHandler } from '../../worker/src/account-purge.handler.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ?? 'postgresql://harmofin_local:harmofin_local@localhost:5432/harmofin';
@@ -107,27 +109,10 @@ describe('account deletion', () => {
   });
 
   afterAll(async () => {
-    // TODO(Task 5): replace with worker purgeUserData() once apps/worker/src/account-purge.ts exists.
     for (const userId of createdUserIds) {
+      await prisma.$transaction((tx) => purgeUserData(tx, userId), { timeout: 60_000 });
       await prisma.accountDeletion.deleteMany({ where: { userId } });
-      await prisma.auditEvent.deleteMany({ where: { actorUserId: userId } });
-      await prisma.session.deleteMany({ where: { userId } });
-      await prisma.recoveryToken.deleteMany({ where: { userId } });
-      const memberships = await prisma.workspaceMembership.findMany({
-        where: { userId },
-        select: { workspaceId: true },
-      });
-      await prisma.workspaceMembership.deleteMany({ where: { userId } });
-      try {
-        for (const { workspaceId } of memberships) {
-          await prisma.budget.deleteMany({ where: { workspaceId } });
-          await prisma.workspace.deleteMany({ where: { id: workspaceId } });
-        }
-        await prisma.user.deleteMany({ where: { id: userId } });
-      } catch {
-        // Budgets own child rows (categories/envelopes/etc.) with restrictive FKs; leaving
-        // the workspace/budget/user rows behind is acceptable for this temporary cleanup.
-      }
+      await prisma.user.deleteMany({ where: { id: userId } });
     }
     await app.close();
     await prisma.$disconnect();
@@ -336,6 +321,82 @@ describe('account deletion', () => {
     expect((await cancel(rawToken)).statusCode).toBe(204);
     expect((await prisma.budget.findUniqueOrThrow({ where: { id: oldBudgetId } })).status).toBe('ARCHIVED');
     expect((await prisma.budget.findUniqueOrThrow({ where: { id: fixture.budgetId } })).status).toBe('ACTIVE');
+  });
+
+  async function makeDue(userId: string) {
+    await prisma.accountDeletion.updateMany({
+      where: { userId, restoredAt: null, purgedAt: null },
+      data: { purgeAfter: new Date(Date.now() - 1_000) },
+    });
+  }
+
+  it('purges every row of the owned scope and anonymizes the user, leaving others intact', async () => {
+    const target = await register('del-purge');
+    const bystander = await register('del-bystander');
+    await prisma.category.create({
+      data: {
+        id: randomUUID(),
+        budgetId: bystander.budgetId,
+        name: 'Продукты',
+        categoryType: 'EXPENSE',
+        displayOrder: 1,
+      },
+    });
+    await prisma.account.create({
+      data: {
+        id: randomUUID(),
+        budgetId: target.budgetId,
+        name: 'Карта',
+        accountType: 'BANK_ACCOUNT',
+        currency: 'RUB',
+        scale: 2,
+        startingBalanceMinor: 100_000n,
+        accountingStartDate: new Date('2026-10-01T00:00:00.000Z'),
+      },
+    });
+    expect((await requestDeletion(target, { password })).statusCode).toBe(202);
+    await makeDue(target.userId);
+
+    await new AccountPurgeHandler(prisma).execute(new Date());
+
+    expect(await prisma.budget.count({ where: { workspaceId: target.workspaceId } })).toBe(0);
+    expect(await prisma.workspace.count({ where: { id: target.workspaceId } })).toBe(0);
+    expect(await prisma.account.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.category.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.session.count({ where: { userId: target.userId } })).toBe(0);
+    expect(await prisma.auditEvent.count({ where: { actorUserId: target.userId } })).toBe(0);
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: target.userId } });
+    expect(user).toMatchObject({
+      email: `deleted-${target.userId}@invalid`,
+      passwordHash: '',
+      displayName: null,
+      status: 'DELETED',
+    });
+    expect((await prisma.accountDeletion.findFirstOrThrow({ where: { userId: target.userId } })).purgedAt).not.toBeNull();
+
+    expect(await prisma.budget.count({ where: { id: bystander.budgetId, status: 'ACTIVE' } })).toBe(1);
+    expect(await prisma.category.count({ where: { budgetId: bystander.budgetId } })).toBeGreaterThan(0);
+  });
+
+  it('skips restored and not yet due requests and is safe to re-run', async () => {
+    const restored = await register('del-skip-restored');
+    const rawToken = `skip-${randomUUID()}`;
+    await deleteWithKnownToken(restored, rawToken);
+    await makeDue(restored.userId);
+    // A restore after the deadline is rejected, so restore first, then make the row due.
+    await prisma.accountDeletion.updateMany({ where: { userId: restored.userId }, data: { restoredAt: new Date() } });
+    await prisma.user.update({ where: { id: restored.userId }, data: { status: 'ACTIVE' } });
+
+    const pending = await register('del-skip-pending');
+    expect((await requestDeletion(pending, { password })).statusCode).toBe(202);
+
+    const handler = new AccountPurgeHandler(prisma);
+    await handler.execute(new Date());
+    await handler.execute(new Date());
+
+    expect(await prisma.budget.count({ where: { id: restored.budgetId } })).toBe(1);
+    expect(await prisma.budget.count({ where: { id: pending.budgetId } })).toBe(1);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: pending.userId } })).status).toBe('PENDING_DELETION');
   });
 
 });
