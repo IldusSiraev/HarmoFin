@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import AppAddMenu from './AppAddMenu.vue';
 import AppMobileMenuButton from './AppMobileMenuButton.vue';
 import AppUserMenu from './AppUserMenu.vue';
 
@@ -13,7 +12,6 @@ defineEmits<{ toggleMobileMenu: [] }>();
     <div class="app-header__container">
       <AppMobileMenuButton class="app-header__mobile-button" @toggle="$emit('toggleMobileMenu')" />
       <NuxtLink to="/app" class="app-header__wordmark">HarmoFin</NuxtLink>
-      <AppAddMenu class="app-header__add" />
       <AppUserMenu class="app-header__user" />
     </div>
   </header>
@@ -55,12 +53,9 @@ defineEmits<{ toggleMobileMenu: [] }>();
   border-radius: var(--hf-radius-sm);
 }
 
-.app-header__add {
-  margin-left: auto;
-}
-
 .app-header__user {
   min-width: 0;
+  margin-left: auto;
 }
 
 .app-header__mobile-button {
