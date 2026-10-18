@@ -27,7 +27,8 @@ import UiDatePicker from '../ui/DatePicker.vue';
 import UiInfoTooltip from '../ui/InfoTooltip.vue';
 import UiInput from '../ui/Input.vue';
 import UiModal from '../ui/Modal.vue';
-import UiPillSelect from '../ui/PillSelect.vue';
+import UiPillSelect, { type PillOption } from '../ui/PillSelect.vue';
+import { categoryIcon } from '../operations/category-icon.js';
 
 defineOptions({ name: 'AppOperationEntryDialog' });
 
@@ -35,20 +36,27 @@ const props = withDefaults(
   defineProps<{
     open: boolean;
     initialType: EntryType;
-    accounts: ReadonlyArray<{ value: string; label: string }>;
+    accounts: ReadonlyArray<PillOption>;
     categories: ReadonlyArray<CategoryDto>;
     envelopes: ReadonlyArray<{ value: string; label: string }>;
     mandatoryEnvelopeIds?: ReadonlyArray<string>;
+    /** Envelopes whose period is running today, per the server. */
+    currentPeriodEnvelopeIds?: ReadonlyArray<string>;
     pending?: boolean;
     error?: string;
   }>(),
-  { mandatoryEnvelopeIds: () => [], pending: false, error: '' },
+  {
+    mandatoryEnvelopeIds: () => [],
+    currentPeriodEnvelopeIds: () => [],
+    pending: false,
+    error: '',
+  },
 );
 
 const emit = defineEmits<{
   close: [];
   back: [];
-  submitOperation: [input: ReturnType<typeof toTransactionInput>];
+  submitOperation: [input: ReturnType<typeof toTransactionInput>, addAnother: boolean];
   submitDirectTransfer: [input: ReturnType<typeof toDirectTransferInput>];
   submitOneTimePay: [input: OneTimePayEntry];
 }>();
@@ -66,7 +74,7 @@ const categorySearch = ref('');
 const oneTimeStep = ref(false);
 const oneTimeName = ref('');
 const oneTimeNameError = ref('');
-const popularCategories = ref<ReadonlyArray<{ value: string; label: string }>>([]);
+const popularCategories = ref<ReadonlyArray<PillOption>>([]);
 
 const api = useBudgetReferenceData();
 const { budgetId } = useOperationReferenceData();
@@ -84,10 +92,7 @@ async function loadPopularCategories(type: EntryType): Promise<void> {
       sort: 'popular',
       limit: 15,
     });
-    popularCategories.value = selectableCategories(result, props.categories).map((category) => ({
-      value: category.id,
-      label: category.name,
-    }));
+    popularCategories.value = selectableCategories(result, props.categories).map(toCategoryOption);
   } catch {
     popularCategories.value = [];
   }
@@ -98,6 +103,28 @@ function selectType(type: EntryType): void {
   categorySearch.value = '';
   oneTimeStep.value = false;
   void loadPopularCategories(type);
+}
+
+function toCategoryOption(category: CategoryDto): PillOption {
+  return {
+    value: category.id,
+    label: category.name,
+    icon: categoryIcon(category.icon, category.categoryType),
+  };
+}
+
+// The envelope of the period running today is the usual target of an expense,
+// so it is preselected — but only when exactly one envelope qualifies.
+const defaultEnvelopeId = computed(() =>
+  props.currentPeriodEnvelopeIds.length === 1 ? props.currentPeriodEnvelopeIds[0]! : '',
+);
+
+// The modal moves focus to itself on the next tick; the amount field takes it
+// one tick later so the user can type the sum straight away.
+async function focusAmount(): Promise<void> {
+  await nextTick();
+  await nextTick();
+  document.querySelector<HTMLElement>('input[name="amount"]')?.focus();
 }
 
 // Each open is a fresh entry — the dialog is create-only, so there is no
@@ -111,11 +138,32 @@ watch(
     oneTimeStep.value = false;
     Object.assign(operation, createOperationForm(), {
       transactionType: props.initialType === 'INCOME' ? 'INCOME' : 'EXPENSE',
+      envelopeId: defaultEnvelopeId.value,
     });
     Object.assign(transfer, createTransferForm());
     void loadPopularCategories(props.initialType);
+    if (props.initialType !== 'TRANSFER') void focusAmount();
   },
 );
+
+// Reference data may arrive after the dialog opened; fill the default in then
+// unless an envelope is already chosen.
+watch(defaultEnvelopeId, (id) => {
+  if (props.open && operation.envelopeId === '') operation.envelopeId = id;
+});
+
+// After "save and add another": the same account, date and envelope usually
+// repeat in a batch of receipts, so only the per-receipt fields are cleared.
+function startNext(): void {
+  operation.amount = '';
+  operation.categoryId = '';
+  operation.merchantName = '';
+  operation.sourceDescription = '';
+  categorySearch.value = '';
+  void focusAmount();
+}
+
+defineExpose({ startNext });
 
 watch(oneTimeName, () => {
   oneTimeNameError.value = '';
@@ -136,7 +184,7 @@ const categoryOptions = computed(() =>
     .filter(
       (category) => category.categoryType === operation.transactionType && !category.archivedAt,
     )
-    .map((category) => ({ value: category.id, label: category.name })),
+    .map(toCategoryOption),
 );
 
 // A budget with only a handful of confirmed operations has just as few
@@ -156,7 +204,7 @@ const visibleCategoryOptions = computed(() => {
   }
 
   const seen = new Set<string>();
-  const combined: Array<{ value: string; label: string }> = [];
+  const combined: PillOption[] = [];
   for (const option of popularCategories.value) {
     if (seen.has(option.value)) continue;
     seen.add(option.value);
@@ -183,7 +231,13 @@ const transferDestinationOptions = computed(() =>
 );
 
 // An expense does not need an envelope; "" is the explicit "no assignment".
-const envelopeOptions = computed(() => [{ value: '', label: 'Без конверта' }, ...props.envelopes]);
+const envelopeOptions = computed<PillOption[]>(() => [
+  { value: '', label: 'Без конверта' },
+  ...props.envelopes.map((envelope) => ({
+    ...envelope,
+    marker: props.currentPeriodEnvelopeIds.includes(envelope.value) ? 'текущий период' : undefined,
+  })),
+]);
 const mandatorySelected = computed(
   () => activeType.value === 'EXPENSE' && props.mandatoryEnvelopeIds.includes(operation.envelopeId),
 );
@@ -195,8 +249,16 @@ const canSubmit = computed(() => {
   return Boolean(operation.amount && operation.accountId && operation.categoryId);
 });
 
-function submit(): void {
+// Only a plain expense offers "save and add another": an income opens the
+// funding offer afterwards, and a mandatory envelope goes through its own step.
+const canAddAnother = computed(() => activeType.value === 'EXPENSE' && !mandatorySelected.value);
+
+// Which button started the save, so only that one shows the spinner.
+const addingAnother = ref(false);
+
+function submit(addAnother = false): void {
   if (!canSubmit.value || props.pending) return;
+  addingAnother.value = addAnother && canAddAnother.value;
   if (activeType.value === 'TRANSFER') {
     emit('submitDirectTransfer', toDirectTransferInput(transfer));
     return;
@@ -213,7 +275,7 @@ function submit(): void {
     void nextTick(() => document.querySelector<HTMLElement>('input[name="oneTimeName"]')?.focus());
     return;
   }
-  emit('submitOperation', toTransactionInput(operation, 'CONFIRMED'));
+  emit('submitOperation', toTransactionInput(operation, 'CONFIRMED'), addingAnother.value);
 }
 
 function leaveOneTimeStep(): void {
@@ -421,17 +483,34 @@ function submitOneTime(): void {
       </template>
     </div>
 
-    <UiButton
+    <div
       v-if="!oneTimeStep"
-      class="entry-dialog__submit"
-      full-width
-      data-testid="entry-submit"
-      :disabled="!canSubmit || pending"
-      :loading="pending"
-      @click="submit"
+      class="entry-dialog__actions"
+      :class="{ 'entry-dialog__actions--pair': canAddAnother }"
     >
-      {{ mandatorySelected ? 'Добавить разовый платёж и оплатить' : 'Сохранить операцию' }}
-    </UiButton>
+      <UiButton
+        v-if="canAddAnother"
+        class="entry-dialog__submit-next"
+        variant="secondary"
+        full-width
+        data-testid="entry-submit-next"
+        :disabled="!canSubmit || pending"
+        :loading="pending && addingAnother"
+        @click="submit(true)"
+      >
+        Сохранить и добавить ещё
+      </UiButton>
+      <UiButton
+        class="entry-dialog__submit"
+        full-width
+        data-testid="entry-submit"
+        :disabled="!canSubmit || pending"
+        :loading="pending && !addingAnother"
+        @click="submit()"
+      >
+        {{ mandatorySelected ? 'Добавить разовый платёж и оплатить' : 'Сохранить операцию' }}
+      </UiButton>
+    </div>
   </UiModal>
 </template>
 
@@ -531,6 +610,27 @@ function submitOneTime(): void {
 .entry-dialog__step-button {
   min-width: 2.75rem;
   min-height: 2.75rem;
+}
+
+.entry-dialog__actions {
+  display: grid;
+  gap: var(--hf-space-3);
+}
+
+/* Side by side, the primary save on the right; stacked on a phone, the
+   primary save comes first. */
+.entry-dialog__actions--pair {
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 30rem) {
+  .entry-dialog__actions--pair {
+    grid-template-columns: 1fr;
+  }
+
+  .entry-dialog__submit {
+    order: -1;
+  }
 }
 
 .entry-dialog__hint {

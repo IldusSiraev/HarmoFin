@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 
+import { ACCOUNT_TYPE_ICONS } from '../accounts/account-type.js';
 import AppOperationEntryDialog from './AppOperationEntryDialog.vue';
 import AppOperationTypeDialog from './AppOperationTypeDialog.vue';
 import type { CreateTransactionInput } from '../../composables/useBudgetReferenceData.js';
@@ -23,7 +24,7 @@ const emit = defineEmits<{ saved: [] }>();
 
 const { openDialog, entryType, openChoose, openOperation, openTransfer, close } =
   useOperationDialogs();
-const { accounts, categories, envelopes, envelopePlans, budgetId, load } =
+const { accountDetails, categories, envelopes, envelopePlans, budgetId, load } =
   useOperationReferenceData();
 const { push } = useToast();
 const funding = useFundingEntry();
@@ -38,6 +39,27 @@ function chooseType(type: EntryType): void {
     openOperation(type);
   }
 }
+
+const accountOptions = computed(() =>
+  accountDetails.value.map((account) => ({
+    value: account.id,
+    label: account.name,
+    icon: ACCOUNT_TYPE_ICONS[account.accountType],
+  })),
+);
+
+// "Current" is the server's flag on the envelope's period bucket. Half-month
+// envelopes are what "the current period" means to the user; a budget without
+// them falls back to any current-expenses envelope with a running period.
+const currentPeriodEnvelopeIds = computed(() => {
+  const running = envelopePlans.value.filter(
+    (envelope) =>
+      envelope.envelopeType === 'CURRENT_EXPENSES' &&
+      (envelope.periods ?? []).some((period) => period.current),
+  );
+  const halves = running.filter((envelope) => envelope.periodSlot !== null);
+  return (halves.length > 0 ? halves : running).map((envelope) => envelope.id);
+});
 
 const mandatoryEnvelopeIds = computed(() =>
   envelopePlans.value
@@ -71,10 +93,15 @@ watch(openDialog, async (value) => {
   await load();
 });
 
-async function saveOperation(input: CreateTransactionInput): Promise<void> {
+const entryDialog = ref<InstanceType<typeof AppOperationEntryDialog> | null>(null);
+
+// "Save and add another" keeps the dialog open and hands it back a fresh
+// entry; a plain save closes it.
+async function saveOperation(input: CreateTransactionInput, addAnother = false): Promise<void> {
   const id = budgetId.value;
   if (!id || pending.value) return;
   pending.value = true;
+  formError.value = '';
   try {
     // The money fact is saved first and on its own; assigning it is an
     // optional second step offered afterwards.
@@ -98,7 +125,8 @@ async function saveOperation(input: CreateTransactionInput): Promise<void> {
     );
     const incomeId = isIncome ? saved.id : null;
     attempt = null;
-    close();
+    if (addAnother) entryDialog.value?.startNext();
+    else close();
     push({ tone: 'success', title: 'Операция сохранена' });
     emit('saved');
     if (incomeId !== null) funding.offer({ sourceKind: 'INCOME', incomeTransactionId: incomeId });
@@ -163,12 +191,14 @@ async function saveDirectTransfer(input: CreateDirectTransferRequest): Promise<v
     <AppOperationTypeDialog :open="chooseOpen" @close="close" @select="chooseType" />
 
     <AppOperationEntryDialog
+      ref="entryDialog"
       :open="entryOpen"
       :initial-type="entryType ?? 'EXPENSE'"
-      :accounts="accounts"
+      :accounts="accountOptions"
       :categories="categories"
       :envelopes="envelopes"
       :mandatory-envelope-ids="mandatoryEnvelopeIds"
+      :current-period-envelope-ids="currentPeriodEnvelopeIds"
       :pending="pending"
       :error="formError"
       @close="close"

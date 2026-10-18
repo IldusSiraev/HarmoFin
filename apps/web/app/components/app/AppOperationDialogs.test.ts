@@ -280,6 +280,96 @@ describe('AppOperationDialogs', () => {
       wrapper.unmount();
     });
 
+    it('preselects and marks the envelope of the current period', async () => {
+      v2.listEnvelopes.mockResolvedValue({
+        items: [
+          {
+            id: 'first-half-id',
+            name: 'Первая половина',
+            envelopeType: 'CURRENT_EXPENSES',
+            periodSlot: 'FIRST',
+            archivedAt: null,
+            periods: [
+              { periodId: 'p1', startsOn: '2026-10-01', endsOn: '2026-10-15', current: false },
+            ],
+          },
+          {
+            id: 'second-half-id',
+            name: 'Вторая половина',
+            envelopeType: 'CURRENT_EXPENSES',
+            periodSlot: 'SECOND',
+            archivedAt: null,
+            periods: [
+              { periodId: 'p2', startsOn: '2026-10-16', endsOn: '2026-10-31', current: true },
+            ],
+          },
+        ],
+      });
+      const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
+      useOperationDialogs().openOperation('EXPENSE');
+      await flushPromises();
+
+      const pill = (id: string) => document.querySelector(`[data-testid="pill-envelope-${id}"]`);
+      expect(pill('second-half-id')?.getAttribute('aria-checked')).toBe('true');
+      expect(pill('first-half-id')?.getAttribute('aria-checked')).toBe('false');
+      expect(pill('second-half-id')?.textContent).toContain('текущий период');
+      expect(
+        document.querySelector('[data-testid="pill-envelope-first-half-id-marker"]'),
+      ).toBeNull();
+      wrapper.unmount();
+    });
+
+    it('focuses the amount field when the expense form opens', async () => {
+      const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
+      useOperationDialogs().openOperation('EXPENSE');
+      await flushPromises();
+
+      expect(document.activeElement).toBe(document.querySelector('input[name="amount"]'));
+      wrapper.unmount();
+    });
+
+    it('shows account and category icons in the pills', async () => {
+      api.listAccounts.mockResolvedValue([
+        { id: 'account-id', name: 'Основная карта', accountType: 'BANK_CARD' },
+      ]);
+      const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
+      useOperationDialogs().openOperation('EXPENSE');
+      await flushPromises();
+
+      expect(
+        document.querySelector('[data-testid="pill-account-account-id"] .pill-select__icon'),
+      ).not.toBeNull();
+      expect(
+        document.querySelector('[data-testid="pill-category-category-id"] .pill-select__icon'),
+      ).not.toBeNull();
+      wrapper.unmount();
+    });
+
+    it('saves and keeps the form open for the next expense', async () => {
+      v2.createTransaction.mockResolvedValue({ id: 'expense-id' });
+      const wrapper = await openExpense();
+
+      click('entry-submit-next');
+      await flushPromises();
+
+      expect(v2.createTransaction).toHaveBeenCalledTimes(1);
+      expect(useOperationDialogs().openDialog.value).toBe('entry');
+      const amount = document.querySelector<HTMLInputElement>('input[name="amount"]');
+      expect(amount?.value).toBe('');
+      expect(document.activeElement).toBe(amount);
+      expect(
+        document
+          .querySelector('[data-testid="pill-account-account-id"]')
+          ?.getAttribute('aria-checked'),
+      ).toBe('true');
+      expect(
+        document
+          .querySelector('[data-testid="pill-category-category-id"]')
+          ?.getAttribute('aria-checked'),
+      ).toBe('false');
+      wrapper.unmount();
+    });
+
     it('does not post a mandatory-envelope expense and offers the one-time payment flow instead', async () => {
       v2.payOneTimeObligation.mockResolvedValue({ transaction: { id: 'tx' } });
       const wrapper = await openExpense();

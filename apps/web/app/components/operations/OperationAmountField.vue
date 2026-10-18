@@ -109,8 +109,12 @@ function step(delta: 1 | -1): void {
   text-align: right;
 }
 
+/* The accent underline already frames the field; the global focus ring around
+   the bare input reads as a stray box, so it is dropped here. */
+.amount-field__input:focus,
 .amount-field__input:focus-visible {
   outline: none;
+  box-shadow: none;
 }
 
 .amount-field__currency {
