@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { consentListSchema } from '../legal/legal.schemas.js';
+
 const emailSchema = z.string().trim().toLowerCase().email().max(320);
 const passwordSchema = z.string().min(10).max(128);
 const optionalNameSchema = z.string().trim().min(1).max(120).optional();
@@ -10,6 +12,7 @@ export const registerSchema = z
     password: passwordSchema,
     workspaceName: optionalNameSchema,
     budgetName: optionalNameSchema,
+    consents: consentListSchema.optional(),
   })
   .strict();
 

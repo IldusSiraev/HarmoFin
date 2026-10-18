@@ -20,6 +20,7 @@ import { TemplateModule } from './v2-template/template.module.js';
 import { EnvelopePlanModule } from './envelope-plans/envelope-plan.module.js';
 import { ExportsModule } from './exports/exports.module.js';
 import { HealthModule } from './health/health.module.js';
+import { LegalModule } from './legal/legal.module.js';
 import { ReportModule } from './reports/report.module.js';
 import { PlansModule } from './plans/plans.module.js';
 import { PlansCalendarModule } from './plans-calendar/plans-calendar.module.js';
@@ -37,6 +38,7 @@ export class AppModule {
         HealthModule,
         AuthModule.register(config),
         AccountDeletionModule.register(config),
+        LegalModule.register(),
         PlanModelModule.register(),
         AuditModule.register(),
         WorkspaceModule.register(),
