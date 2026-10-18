@@ -6,8 +6,8 @@ export function navigateTo(): Promise<void> {
   return Promise.resolve();
 }
 
-export function useRoute(): { path: string } {
-  return { path: '/app' };
+export function useRoute(): { path: string; query: Record<string, string> } {
+  return { path: '/app', query: {} };
 }
 
 export function useSeoMeta(): void {}

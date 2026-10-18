@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#F7F9FA" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0B1524" media="(prefers-color-scheme: dark)" />
+    <title>Нет подключения — HarmoFin</title>
+    <!-- Served by the service worker from its cache when a navigation fails,
+         so everything stays inline: no network requests, no budget data.
+         Colors mirror app/assets/styles/tokens.css. -->
+    <style>
+      :root {
+        color-scheme: light dark;
+        --page: #f7f9fa;
+        --surface: #ffffff;
+        --border: #e4e8ec;
+        --text: #0d1b2a;
+        --muted: #5b6b78;
+        --brand: #1ba39c;
+        --brand-hover: #168f89;
+        --focus: #127a75;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --page: #0b1524;
+          --surface: #10203a;
+          --border: rgb(255 255 255 / 10%);
+          --text: #eaf0f8;
+          --muted: #93a2b8;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        display: grid;
+        min-height: 100vh;
+        margin: 0;
+        padding: 1.5rem;
+        place-items: center;
+        background: var(--page);
+        color: var(--text);
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        font-size: 1rem;
+        line-height: 1.5;
+      }
+
+      main {
+        width: 100%;
+        max-width: 26rem;
+        padding: 2rem 1.5rem;
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        background: var(--surface);
+        box-shadow: 0 1px 2px rgb(13 27 42 / 6%);
+        text-align: center;
+      }
+
+      svg {
+        width: 3rem;
+        height: 3rem;
+      }
+
+      h1 {
+        margin: 1rem 0 0.5rem;
+        font-size: 1.5rem;
+        line-height: 1.33;
+        font-weight: 600;
+      }
+
+      p {
+        margin: 0 0 1.5rem;
+        color: var(--muted);
+      }
+
+      button {
+        min-height: 2.75rem;
+        padding: 0.625rem 1.5rem;
+        border: 0;
+        border-radius: 0.75rem;
+        background: var(--brand);
+        color: #ffffff;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: var(--brand-hover);
+      }
+
+      button:focus-visible {
+        outline: none;
+        box-shadow:
+          0 0 0 2px #ffffff,
+          0 0 0 5px var(--focus);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="8" fill="#1ba39c" />
+        <path
+          d="M10 8v16M22 8v16M10 16h12"
+          stroke="#ffffff"
+          stroke-width="3"
+          stroke-linecap="round"
+        />
+      </svg>
+      <h1>Нет подключения к интернету</h1>
+      <p>
+        Без сети данные бюджета недоступны, и ничего не сохраняется. Проверьте подключение и
+        попробуйте ещё раз.
+      </p>
+      <button type="button" onclick="window.location.reload()">Повторить</button>
+    </main>
+  </body>
+</html>
