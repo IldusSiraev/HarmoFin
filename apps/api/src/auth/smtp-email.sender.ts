@@ -24,4 +24,21 @@ export class SmtpEmailSender implements EmailSender {
       text: `Откройте ссылку для восстановления пароля: ${input.resetUrl}`,
     });
   }
+
+  async sendAccountDeletionScheduled(input: {
+    recipient: string;
+    restoreUrl: string;
+    purgeDateLabel: string;
+  }): Promise<void> {
+    await this.transporter.sendMail({
+      from: this.config.mail.from,
+      to: input.recipient,
+      subject: 'Аккаунт HarmoFin будет удалён',
+      text: [
+        `Вход в аккаунт закрыт. ${input.purgeDateLabel} аккаунт и все данные бюджета будут удалены безвозвратно.`,
+        `Чтобы отменить удаление, откройте ссылку до этой даты: ${input.restoreUrl}`,
+        'Если это были не вы — отмените удаление и сразу смените пароль.',
+      ].join('\n\n'),
+    });
+  }
 }
