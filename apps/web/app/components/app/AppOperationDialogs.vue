@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+
+import { navigateTo, useRoute } from '#imports';
 
 import { ACCOUNT_TYPE_ICONS } from '../accounts/account-type.js';
 import AppOperationEntryDialog from './AppOperationEntryDialog.vue';
@@ -91,6 +93,18 @@ watch(openDialog, async (value) => {
   if (value === 'none') return;
   formError.value = '';
   await load();
+});
+
+// The installed app's «Добавить расход» shortcut (manifest.webmanifest) opens
+// /app?entry=expense. Drop the parameter right away so a reload or the back
+// button doesn't reopen the dialog.
+const route = useRoute();
+onMounted(() => {
+  if (route.query.entry !== 'expense') return;
+  openOperation('EXPENSE');
+  const query = { ...route.query };
+  delete query.entry;
+  void navigateTo({ path: route.path, query }, { replace: true });
 });
 
 const entryDialog = ref<InstanceType<typeof AppOperationEntryDialog> | null>(null);

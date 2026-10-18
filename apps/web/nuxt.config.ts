@@ -7,7 +7,19 @@ export default defineNuxtConfig({
   app: {
     head: {
       htmlAttrs: { lang: 'ru' },
-      link: [{ rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
+      link: [
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+        { rel: 'manifest', href: '/manifest.webmanifest' },
+        { rel: 'apple-touch-icon', href: '/icons/apple-touch-icon.png' },
+      ],
+      // The installed app's title bar blends into the page background
+      // instead of a colored strip (Calm Fintech); one value per theme.
+      meta: [
+        { name: 'theme-color', content: '#F7F9FA', media: '(prefers-color-scheme: light)' },
+        { name: 'theme-color', content: '#0B1524', media: '(prefers-color-scheme: dark)' },
+        { name: 'mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-title', content: 'HarmoFin' },
+      ],
       script: [
         {
           // Runs before hydration so the page paints in the right theme the

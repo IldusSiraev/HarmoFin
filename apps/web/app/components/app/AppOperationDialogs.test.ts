@@ -32,6 +32,14 @@ vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) =>
 }));
 vi.mock('../../composables/useEnvelopePlanV2.js', () => ({ useEnvelopePlanV2: () => v2 }));
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => auth }));
+const router = vi.hoisted(() => ({
+  route: { path: '/app', query: {} as Record<string, string> },
+  navigateTo: vi.fn(),
+}));
+vi.mock('#imports', () => ({
+  useRoute: () => router.route,
+  navigateTo: router.navigateTo,
+}));
 
 import { ApiRequestError } from '../../composables/useApiClient.js';
 import AppOperationDialogs from './AppOperationDialogs.vue';
@@ -53,6 +61,7 @@ function typeAmount(value: string): void {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  router.route = { path: '/app', query: {} };
   useOperationDialogs().close();
   useToast().clear();
   useOperationReferenceData().invalidate();
@@ -84,6 +93,23 @@ describe('AppOperationDialogs', () => {
 
     expect(document.querySelector('[data-testid="entry-submit"]')).toBeNull();
     expect(document.querySelector('form.transfer-form')).toBeNull();
+    expect(router.navigateTo).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it('opens the expense entry from the installed-app shortcut and clears the shortcut parameter', async () => {
+    router.route = { path: '/app', query: { entry: 'expense', period: 'current' } };
+    const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
+    await flushPromises();
+
+    expect(useOperationDialogs().openDialog.value).toBe('entry');
+    expect(
+      document.querySelector('[data-testid="entry-tab-EXPENSE"]')?.getAttribute('aria-selected'),
+    ).toBe('true');
+    expect(router.navigateTo).toHaveBeenCalledWith(
+      { path: '/app', query: { period: 'current' } },
+      { replace: true },
+    );
     wrapper.unmount();
   });
 
