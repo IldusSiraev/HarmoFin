@@ -643,27 +643,21 @@ describe('account deletion', () => {
         displayOrder: 1,
       },
     });
-    // Account-scoped audit event (no workspace/budget): written e.g. by a password-recovery
-    // request. Must be purged for the target, but a bystander's own unscoped event must survive.
-    const recoveryRequest = await server.inject({
-      method: 'POST',
-      url: '/api/v1/auth/recovery/request',
-      headers: { origin },
-      payload: { email: target.email },
-    });
-    expect(recoveryRequest.statusCode).toBe(202);
-    expect(
-      await prisma.auditEvent.count({
-        where: { actorUserId: target.userId, workspaceId: null, budgetId: null },
-      }),
-    ).toBeGreaterThan(0);
-    const bystanderRecoveryRequest = await server.inject({
-      method: 'POST',
-      url: '/api/v1/auth/recovery/request',
-      headers: { origin },
-      payload: { email: bystander.email },
-    });
-    expect(bystanderRecoveryRequest.statusCode).toBe(202);
+    // Account-scoped audit event (no workspace/budget), the shape a password-recovery request
+    // writes. Seeded directly: the CI integration job has no SMTP server for the real endpoint.
+    // Must be purged for the target, but a bystander's own unscoped event must survive.
+    for (const userId of [target.userId, bystander.userId]) {
+      await prisma.auditEvent.create({
+        data: {
+          id: randomUUID(),
+          actorUserId: userId,
+          entityType: 'auth',
+          entityId: userId,
+          action: 'RECOVERY_REQUESTED',
+          source: 'API',
+        },
+      });
+    }
 
     await seedFinancialData(target);
     expect((await requestDeletion(target, { password })).statusCode).toBe(202);
@@ -818,9 +812,14 @@ describe('account deletion', () => {
     const holderFinished = new Promise<void>((resolve) => {
       holderDone = resolve;
     });
+    let lockAcquired!: () => void;
+    const holderLocked = new Promise<void>((resolve) => {
+      lockAcquired = resolve;
+    });
 
     const holder = prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT 1 FROM "account_deletions" WHERE "id" = ${deletion.id}::uuid FOR UPDATE`;
+      lockAcquired();
       await held; // keep the row locked until the racing purgeOne has had a chance to block
       await tx.accountDeletion.update({
         where: { id: deletion.id },
@@ -830,10 +829,13 @@ describe('account deletion', () => {
       holderDone();
     });
 
+    // Start the purge only once the restore holds the row; otherwise the purge can win the
+    // lock first and the poll below would see the holder blocked instead of the purge.
+    await holderLocked;
     const handler = new AccountPurgeHandler(prisma);
     const racingPurge = handler.purgeOne(deletion.id, new Date());
 
-    // Poll pg_locks instead of a fixed sleep, so this isn't a timing guess under load.
+    // Poll pg_stat_activity instead of a fixed sleep, so this isn't a timing guess under load.
     await waitForBlockedLockOn('account_deletions');
     release();
     await holderFinished;
