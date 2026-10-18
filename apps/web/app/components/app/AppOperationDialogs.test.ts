@@ -345,8 +345,51 @@ describe('AppOperationDialogs', () => {
       wrapper.unmount();
     });
 
+    const savedExpense = {
+      id: 'expense-id',
+      amountMinor: '50000',
+      currency: 'RUB',
+      accountId: 'account-id',
+      categoryId: 'category-id',
+    };
+
+    it('confirms each "add another" save inside the form and counts the batch', async () => {
+      v2.createTransaction.mockResolvedValue(savedExpense);
+      const wrapper = await openExpense();
+      const notice = () =>
+        document.querySelector('[data-testid="entry-saved-notice"]')?.textContent ?? '';
+
+      expect(notice()).toBe('');
+      click('entry-submit-next');
+      await flushPromises();
+      // The in-form notice replaces the toast while the dialog stays open.
+      expect(useToast().toasts.value).toHaveLength(0);
+      expect(notice()).toContain('Добавлено:');
+      expect(notice()).toContain('500,00');
+      expect(notice()).toContain('Продукты');
+      expect(notice()).toContain('Основная карта');
+      expect(notice()).not.toContain('Всего');
+      expect(
+        document.querySelector('[data-testid="entry-saved-notice"]')?.closest('[role="status"]'),
+      ).not.toBeNull();
+
+      typeAmount('300');
+      click('pill-category-category-id');
+      await flushPromises();
+      click('entry-submit-next');
+      await flushPromises();
+      expect(notice()).toContain('Всего добавлено: 2');
+
+      useOperationDialogs().close();
+      await flushPromises();
+      useOperationDialogs().openOperation('EXPENSE');
+      await flushPromises();
+      expect(notice()).toBe('');
+      wrapper.unmount();
+    });
+
     it('saves and keeps the form open for the next expense', async () => {
-      v2.createTransaction.mockResolvedValue({ id: 'expense-id' });
+      v2.createTransaction.mockResolvedValue(savedExpense);
       const wrapper = await openExpense();
 
       click('entry-submit-next');

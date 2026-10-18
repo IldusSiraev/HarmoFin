@@ -125,9 +125,14 @@ async function saveOperation(input: CreateTransactionInput, addAnother = false):
     );
     const incomeId = isIncome ? saved.id : null;
     attempt = null;
-    if (addAnother) entryDialog.value?.startNext();
-    else close();
-    push({ tone: 'success', title: 'Операция сохранена' });
+    // On "add another" the dialog confirms the save in its own status line;
+    // a toast too would be announced twice and could cover the form.
+    if (addAnother) {
+      entryDialog.value?.startNext(saved);
+    } else {
+      close();
+      push({ tone: 'success', title: 'Операция сохранена' });
+    }
     emit('saved');
     if (incomeId !== null) funding.offer({ sourceKind: 'INCOME', incomeTransactionId: incomeId });
   } catch (error) {
