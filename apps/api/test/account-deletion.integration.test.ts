@@ -128,12 +128,35 @@ describe('account deletion', () => {
     await prisma.$disconnect();
   });
 
-  it('documents both endpoints in OpenAPI', async () => {
+  it('documents the deletion request endpoint in OpenAPI', async () => {
     const document = (await server.inject({ method: 'GET', url: '/openapi.json' })).json<{
       paths: Record<string, unknown>;
+      components?: { schemas?: Record<string, unknown> };
     }>();
-    expect(document.paths['/api/v1/me/deletion']).toMatchObject({ post: expect.any(Object) });
-    expect(document.paths['/api/v1/auth/deletion/cancel']).toMatchObject({ post: expect.any(Object) });
+    expect(document.paths['/api/v1/me/deletion']).toMatchObject({
+      post: {
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/RequestAccountDeletionRequest' },
+            },
+          },
+        },
+        responses: {
+          '202': {
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/AccountDeletionScheduledResponse' },
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(document.components?.schemas).toMatchObject({
+      RequestAccountDeletionRequest: expect.any(Object),
+      AccountDeletionScheduledResponse: expect.any(Object),
+    });
   });
 
   it('rejects a wrong password with a field error and keeps the account', async () => {
