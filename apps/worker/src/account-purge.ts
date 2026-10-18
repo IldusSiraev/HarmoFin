@@ -5,7 +5,7 @@ import { Prisma } from '@prisma/client';
  * docs/runbooks/budget-reset.sql, except audit_events are deleted, not detached.
  * Legacy model-1 tables (transfer_parts, income_allocations, envelope_reallocations) are included.
  */
-const BUDGET_TABLES_IN_DELETE_ORDER = [
+export const BUDGET_TABLES_IN_DELETE_ORDER = [
   'plan_payments',
   'notifications',
   'envelope_assignments',
@@ -24,6 +24,41 @@ const BUDGET_TABLES_IN_DELETE_ORDER = [
   'budget_cycle_revisions',
   'envelopes',
 ] as const;
+
+/** Deleted in the same budget_id scope, outside the ordered list above (leaf cleanup, then accounts). */
+export const BUDGET_SCOPE_EXTRA_TABLES = ['categories', 'accounts'] as const;
+
+/** Owned-workspace scope: deleted by workspace_id for the workspaces this user owns. */
+export const WORKSPACE_SCOPE_TABLES = ['notifications', 'audit_events', 'workspace_memberships'] as const;
+
+export const BUDGETS_TABLE = 'budgets';
+export const WORKSPACES_TABLE = 'workspaces';
+
+/** Deleted directly by the user's own id (their own sessions/tokens/memberships). */
+export const USER_OWNED_TABLES = ['sessions', 'recovery_tokens', 'workspace_memberships'] as const;
+
+/**
+ * Tables that have a user-id column but are intentionally NOT blanket-deleted by that column:
+ * rows outside this user's owned workspace/budget scope belong to another owner and must survive
+ * (collaboration/audit history). Rows inside the owned scope are already removed above.
+ */
+export const USER_RETAINED_OUTSIDE_SCOPE: Record<string, string> = {
+  idempotency_records:
+    'actor_user_id rows outside the owned budget scope belong to another owner and are retained.',
+  audit_events:
+    'actor_user_id rows outside the owned workspace/budget scope are another owner\'s audit trail and are retained.',
+  notifications:
+    'user_id rows outside the owned workspace/budget scope belong to another owner\'s workspace and are retained.',
+};
+
+/** Every table a budget_id/workspace_id-scoped row is guaranteed to be removed from. */
+export const SCOPE_COVERED_TABLES: ReadonlySet<string> = new Set<string>([
+  ...BUDGET_TABLES_IN_DELETE_ORDER,
+  ...BUDGET_SCOPE_EXTRA_TABLES,
+  ...WORKSPACE_SCOPE_TABLES,
+  BUDGETS_TABLE,
+  WORKSPACES_TABLE,
+]);
 
 export class AccountPurgeCoverageError extends Error {
   override readonly name = 'AccountPurgeCoverageError';
@@ -79,11 +114,14 @@ export async function purgeUserData(tx: Prisma.TransactionClient, userId: string
     await tx.$executeRaw`DELETE FROM "workspaces" WHERE "id" = ANY(${workspaceIds}::uuid[])`;
   }
 
+  // Only delete rows the deleted user actually owns (their own sessions/tokens/memberships).
+  // Do NOT delete idempotency_records/audit_events/notifications by actor_user_id/user_id here:
+  // those tables also hold rows created while this user acted inside *another* owner's
+  // workspace/budget (once collaboration exists), and that history is not this user's to erase.
+  // Rows inside the scope this user owns are already removed by the budget_id/workspace_id
+  // deletes above; the users row stays (anonymized), so any remaining FK to it stays valid.
   await tx.$executeRaw`DELETE FROM "sessions" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "recovery_tokens" WHERE "user_id" = ${userId}::uuid`;
-  await tx.$executeRaw`DELETE FROM "idempotency_records" WHERE "actor_user_id" = ${userId}::uuid`;
-  await tx.$executeRaw`DELETE FROM "notifications" WHERE "user_id" = ${userId}::uuid`;
-  await tx.$executeRaw`DELETE FROM "audit_events" WHERE "actor_user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "workspace_memberships" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`
     UPDATE "users"

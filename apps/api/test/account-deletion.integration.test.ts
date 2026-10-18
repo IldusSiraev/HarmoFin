@@ -330,6 +330,265 @@ describe('account deletion', () => {
     });
   }
 
+  function mutationHeaders(fixture: Fixture, idempotencyKey: string) {
+    return {
+      origin,
+      cookie: `harmofin_session=${encodeURIComponent(fixture.cookie)}`,
+      'x-csrf-token': fixture.csrfToken,
+      'idempotency-key': idempotencyKey,
+    };
+  }
+
+  function postTransaction(fixture: Fixture, idempotencyKey: string, payload: Record<string, unknown>) {
+    return server.inject({
+      method: 'POST',
+      url: `/api/v2/budgets/${fixture.budgetId}/transactions`,
+      headers: mutationHeaders(fixture, idempotencyKey),
+      payload,
+    });
+  }
+
+  function postTransfer(fixture: Fixture, idempotencyKey: string, payload: Record<string, unknown>) {
+    return server.inject({
+      method: 'POST',
+      url: `/api/v2/budgets/${fixture.budgetId}/transfers`,
+      headers: mutationHeaders(fixture, idempotencyKey),
+      payload,
+    });
+  }
+
+  /**
+   * Seeds one row in every budget-scoped financial table via the real API where practical
+   * (transactions and a direct transfer, both with an Idempotency-Key header) and via Prisma
+   * for entities with no simple single-call API path (regular plan/occurrence/payment, envelope
+   * period/assignment/movement/funding-rule/reallocation, income allocation, budget cycle
+   * revision, notification) — see Task 5 fix-round report for the rationale.
+   */
+  async function seedFinancialData(fixture: Fixture) {
+    const today = new Date().toISOString().slice(0, 10);
+    const account = await prisma.account.create({
+      data: {
+        id: randomUUID(),
+        budgetId: fixture.budgetId,
+        name: 'Карта',
+        accountType: 'BANK_ACCOUNT',
+        currency: 'RUB',
+        scale: 2,
+        startingBalanceMinor: 100_000n,
+        accountingStartDate: new Date('2026-10-01T00:00:00.000Z'),
+      },
+    });
+    const otherAccount = await prisma.account.create({
+      data: {
+        id: randomUUID(),
+        budgetId: fixture.budgetId,
+        name: 'Наличные',
+        accountType: 'CASH',
+        currency: 'RUB',
+        scale: 2,
+        startingBalanceMinor: 50_000n,
+        accountingStartDate: new Date('2026-10-01T00:00:00.000Z'),
+      },
+    });
+    const incomeCategory = await prisma.category.create({
+      data: { id: randomUUID(), budgetId: fixture.budgetId, name: 'Зарплата', categoryType: 'INCOME', displayOrder: 1 },
+    });
+    const expenseCategory = await prisma.category.create({
+      data: { id: randomUUID(), budgetId: fixture.budgetId, name: 'Продукты', categoryType: 'EXPENSE', displayOrder: 1 },
+    });
+    await prisma.category.create({
+      data: {
+        id: randomUUID(),
+        budgetId: fixture.budgetId,
+        name: 'Супермаркеты',
+        categoryType: 'EXPENSE',
+        displayOrder: 1,
+        parentId: expenseCategory.id,
+      },
+    });
+    const envelope = await prisma.envelope.create({
+      data: {
+        id: randomUUID(),
+        budgetId: fixture.budgetId,
+        name: 'Текущие расходы',
+        envelopeType: 'CURRENT_EXPENSES',
+        periodSlot: 'FIRST',
+        startingBalanceMinor: 0n,
+        displayOrder: 1,
+      },
+    });
+    const otherEnvelope = await prisma.envelope.create({
+      data: {
+        id: randomUUID(),
+        budgetId: fixture.budgetId,
+        name: 'Свободный конверт',
+        envelopeType: 'CUSTOM',
+        startingBalanceMinor: 0n,
+        displayOrder: 2,
+      },
+    });
+
+    const incomeResponse = await postTransaction(fixture, 'seed-income', {
+      transactionType: 'INCOME',
+      status: 'CONFIRMED',
+      amount: '1000.00',
+      occurredOn: today,
+      accountId: account.id,
+      categoryId: incomeCategory.id,
+    });
+    expect(incomeResponse.statusCode).toBe(201);
+    const incomeTransactionId = incomeResponse.json<{ id: string }>().id;
+
+    const expenseResponse = await postTransaction(fixture, 'seed-expense', {
+      transactionType: 'EXPENSE',
+      status: 'CONFIRMED',
+      amount: '100.00',
+      occurredOn: today,
+      accountId: account.id,
+      categoryId: expenseCategory.id,
+    });
+    expect(expenseResponse.statusCode).toBe(201);
+    const expenseTransactionId = expenseResponse.json<{ id: string }>().id;
+
+    const transferResponse = await postTransfer(fixture, 'seed-transfer', {
+      sourceAccountId: account.id,
+      destinationAccountId: otherAccount.id,
+      amount: '5',
+      occurredOn: today,
+      comment: 'Перенос на наличные',
+    });
+    expect(transferResponse.statusCode).toBe(201);
+
+    const period = await prisma.envelopePeriod.create({
+      data: {
+        id: randomUUID(),
+        budgetId: fixture.budgetId,
+        envelopeId: envelope.id,
+        startsOn: new Date(Date.now() - 10 * DAY_MS),
+        endsOn: new Date(Date.now() + 10 * DAY_MS),
+        targetStatus: 'CONFIRMED',
+        targetMinor: 50_000n,
+        confirmedByUserId: fixture.userId,
+        confirmedAt: new Date(),
+      },
+    });
+    await prisma.envelopeAssignment.create({
+      data: {
+        id: randomUUID(),
+        budgetId: fixture.budgetId,
+        envelopeId: envelope.id,
+        type: 'FREE',
+        amountMinor: 30_000n,
+        effectiveOn: new Date(),
+        periodId: period.id,
+        status: 'CONFIRMED',
+      },
+    });
+    await prisma.envelopeMovement.create({
+      data: {
+        id: randomUUID(),
+        budgetId: fixture.budgetId,
+        sourceEnvelopeId: otherEnvelope.id,
+        destinationEnvelopeId: envelope.id,
+        destinationPeriodId: period.id,
+        amountMinor: 1_000n,
+        effectiveOn: new Date(),
+        status: 'CONFIRMED',
+      },
+    });
+    await prisma.envelopeFundingRule.create({
+      data: {
+        id: randomUUID(),
+        budgetId: fixture.budgetId,
+        envelopeId: envelope.id,
+        type: 'FIXED_PER_PERIOD',
+        fixedMinor: 20_000n,
+      },
+    });
+    await prisma.envelopeReallocation.create({
+      data: {
+        id: randomUUID(),
+        budgetId: fixture.budgetId,
+        sourceEnvelopeId: otherEnvelope.id,
+        destinationEnvelopeId: envelope.id,
+        amountMinor: 500n,
+        occurredOn: new Date(),
+        createdByUserId: fixture.userId,
+        updatedByUserId: fixture.userId,
+      },
+    });
+    await prisma.incomeAllocation.create({
+      data: {
+        id: randomUUID(),
+        budgetId: fixture.budgetId,
+        incomeTransactionId,
+        amountMinor: 200n,
+        occurredOn: new Date(),
+        accountId: account.id,
+        envelopeId: envelope.id,
+        createdByUserId: fixture.userId,
+        updatedByUserId: fixture.userId,
+      },
+    });
+    const plan = await prisma.regularPlan.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: fixture.workspaceId,
+        budgetId: fixture.budgetId,
+        name: 'Подписка',
+        planType: 'EXPENSE',
+        amountMinor: 10_000n,
+        anchorOn: new Date(),
+        startOn: new Date(),
+        recurrence: 'MONTHLY',
+        accountId: account.id,
+        categoryId: expenseCategory.id,
+        createdByUserId: fixture.userId,
+        updatedByUserId: fixture.userId,
+      },
+    });
+    const occurrence = await prisma.planOccurrence.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: fixture.workspaceId,
+        budgetId: fixture.budgetId,
+        planId: plan.id,
+        scheduledOn: new Date(),
+        planName: plan.name,
+        planType: 'EXPENSE',
+        amountMinor: 10_000n,
+        status: 'COMPLETED',
+        transactionId: expenseTransactionId,
+        completedAt: new Date(),
+      },
+    });
+    await prisma.planPayment.create({
+      data: { id: randomUUID(), budgetId: fixture.budgetId, occurrenceId: occurrence.id, transactionId: expenseTransactionId },
+    });
+    await prisma.budgetCycleRevision.create({
+      data: {
+        id: randomUUID(),
+        budgetId: fixture.budgetId,
+        effectiveOn: new Date(),
+        cycleStartDay: 1,
+        periodBoundaryOffset: 15,
+        timezone: 'Europe/Moscow',
+      },
+    });
+    await prisma.notification.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: fixture.workspaceId,
+        budgetId: fixture.budgetId,
+        userId: fixture.userId,
+        notificationType: 'PLAN_UPCOMING',
+        title: 'Скоро платёж',
+        body: 'Подписка через 3 дня',
+        notificationKey: `seed-${randomUUID()}`,
+      },
+    });
+  }
+
   it('purges every row of the owned scope and anonymizes the user, leaving others intact', async () => {
     const target = await register('del-purge');
     const bystander = await register('del-bystander');
@@ -342,18 +601,7 @@ describe('account deletion', () => {
         displayOrder: 1,
       },
     });
-    await prisma.account.create({
-      data: {
-        id: randomUUID(),
-        budgetId: target.budgetId,
-        name: 'Карта',
-        accountType: 'BANK_ACCOUNT',
-        currency: 'RUB',
-        scale: 2,
-        startingBalanceMinor: 100_000n,
-        accountingStartDate: new Date('2026-10-01T00:00:00.000Z'),
-      },
-    });
+    await seedFinancialData(target);
     expect((await requestDeletion(target, { password })).statusCode).toBe(202);
     await makeDue(target.userId);
 
@@ -363,6 +611,22 @@ describe('account deletion', () => {
     expect(await prisma.workspace.count({ where: { id: target.workspaceId } })).toBe(0);
     expect(await prisma.account.count({ where: { budgetId: target.budgetId } })).toBe(0);
     expect(await prisma.category.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.envelope.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.transaction.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.transfer.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.transferPart.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.envelopePeriod.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.envelopeAssignment.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.envelopeMovement.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.envelopeFundingRule.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.envelopeReallocation.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.incomeAllocation.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.regularPlan.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.planOccurrence.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.planPayment.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.budgetCycleRevision.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.notification.count({ where: { budgetId: target.budgetId } })).toBe(0);
+    expect(await prisma.idempotencyRecord.count({ where: { budgetId: target.budgetId } })).toBe(0);
     expect(await prisma.session.count({ where: { userId: target.userId } })).toBe(0);
     expect(await prisma.auditEvent.count({ where: { actorUserId: target.userId } })).toBe(0);
     const user = await prisma.user.findUniqueOrThrow({ where: { id: target.userId } });
@@ -378,7 +642,7 @@ describe('account deletion', () => {
     expect(await prisma.category.count({ where: { budgetId: bystander.budgetId } })).toBeGreaterThan(0);
   });
 
-  it('skips restored and not yet due requests and is safe to re-run', async () => {
+  it('skips restored and not yet due requests, leaves a restored user intact, and is safe to re-run', async () => {
     const restored = await register('del-skip-restored');
     const rawToken = `skip-${randomUUID()}`;
     await deleteWithKnownToken(restored, rawToken);
@@ -397,6 +661,58 @@ describe('account deletion', () => {
     expect(await prisma.budget.count({ where: { id: restored.budgetId } })).toBe(1);
     expect(await prisma.budget.count({ where: { id: pending.budgetId } })).toBe(1);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: pending.userId } })).status).toBe('PENDING_DELETION');
+    const restoredDeletion = await prisma.accountDeletion.findFirstOrThrow({ where: { userId: restored.userId } });
+    expect(restoredDeletion.purgedAt).toBeNull();
+    const restoredUser = await prisma.user.findUniqueOrThrow({ where: { id: restored.userId } });
+    expect(restoredUser.status).toBe('ACTIVE');
+    expect(restoredUser.email).toBe(restored.email);
+    expect(await prisma.session.count({ where: { userId: restored.userId } })).toBeGreaterThan(0);
+    expect(await prisma.workspace.count({ where: { id: restored.workspaceId } })).toBe(1);
+
+    // A second execute on an already-purged / already-skipped set does not throw.
+    await expect(handler.execute(new Date())).resolves.toBeUndefined();
+  });
+
+  it('blocks a concurrent purge while the deletion row is locked by a restore, and does not purge once restored', async () => {
+    const racer = await register('del-race');
+    const rawToken = `race-${randomUUID()}`;
+    await deleteWithKnownToken(racer, rawToken);
+    await makeDue(racer.userId);
+    const deletion = await prisma.accountDeletion.findFirstOrThrow({ where: { userId: racer.userId } });
+
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let holderDone!: () => void;
+    const holderFinished = new Promise<void>((resolve) => {
+      holderDone = resolve;
+    });
+
+    const holder = prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT 1 FROM "account_deletions" WHERE "id" = ${deletion.id}::uuid FOR UPDATE`;
+      await held; // keep the row locked until the racing purgeOne has had a chance to block
+      await tx.accountDeletion.update({ where: { id: deletion.id }, data: { restoredAt: new Date() } });
+      await tx.user.update({ where: { id: racer.userId }, data: { status: 'ACTIVE' } });
+      holderDone();
+    });
+
+    const handler = new AccountPurgeHandler(prisma);
+    const racingPurge = handler.purgeOne(deletion.id, new Date());
+
+    // Give purgeOne time to attempt the row lock and block behind the held transaction.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    release();
+    await holderFinished;
+    await holder;
+
+    expect(await racingPurge).toBe(false);
+    expect(await prisma.budget.count({ where: { id: racer.budgetId } })).toBe(1);
+    const racerUser = await prisma.user.findUniqueOrThrow({ where: { id: racer.userId } });
+    expect(racerUser.status).toBe('ACTIVE');
+    const racerDeletion = await prisma.accountDeletion.findUniqueOrThrow({ where: { id: deletion.id } });
+    expect(racerDeletion.purgedAt).toBeNull();
+    expect(racerDeletion.restoredAt).not.toBeNull();
   });
 
 });

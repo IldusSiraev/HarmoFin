@@ -5,18 +5,48 @@ import type { WorkerJobHandler } from './job-runner.js';
 
 const PURGE_BATCH_SIZE = 20;
 const PURGE_TRANSACTION_TIMEOUT_MS = 60_000;
+/** Stay well under the job lease so a slow batch cannot be re-claimed concurrently. */
+const PURGE_TIME_BUDGET_MS = 200_000;
+
+export type AccountPurgeFailure = { deletionId: string; errorName: string };
 
 export class AccountPurgeHandler implements WorkerJobHandler {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly onFailure?: (failure: AccountPurgeFailure) => void,
+    private readonly clock: () => number = () => Date.now(),
+  ) {}
 
+  /** Drains due requests in batches, skipping ids that failed in this run so the loop terminates. */
   async execute(now: Date): Promise<void> {
-    const due = await this.prisma.accountDeletion.findMany({
-      where: { purgeAfter: { lte: now }, restoredAt: null, purgedAt: null },
-      select: { id: true },
-      orderBy: { purgeAfter: 'asc' },
-      take: PURGE_BATCH_SIZE,
-    });
-    for (const { id } of due) await this.purgeOne(id, now);
+    const deadline = this.clock() + PURGE_TIME_BUDGET_MS;
+    const failedIds = new Set<string>();
+
+    for (;;) {
+      if (this.clock() >= deadline) return;
+      const due = await this.prisma.accountDeletion.findMany({
+        where: {
+          purgeAfter: { lte: now },
+          restoredAt: null,
+          purgedAt: null,
+          ...(failedIds.size > 0 ? { id: { notIn: [...failedIds] } } : {}),
+        },
+        select: { id: true },
+        orderBy: { purgeAfter: 'asc' },
+        take: PURGE_BATCH_SIZE,
+      });
+      if (due.length === 0) return;
+
+      for (const { id } of due) {
+        if (this.clock() >= deadline) return;
+        try {
+          await this.purgeOne(id, now);
+        } catch (error) {
+          failedIds.add(id);
+          this.onFailure?.({ deletionId: id, errorName: errorName(error) });
+        }
+      }
+    }
   }
 
   /** Re-checks the request under a row lock, so a concurrent restore cannot interleave. */
@@ -42,4 +72,8 @@ export class AccountPurgeHandler implements WorkerJobHandler {
       { timeout: PURGE_TRANSACTION_TIMEOUT_MS },
     );
   }
+}
+
+function errorName(error: unknown): string {
+  return error instanceof Error ? error.name : 'Unknown error';
 }

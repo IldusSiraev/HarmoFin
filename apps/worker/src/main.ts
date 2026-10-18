@@ -27,7 +27,10 @@ const runner = new JobRunner(
   {
     MATERIALIZE_PLAN_OCCURRENCES: new PlanOccurrenceHandler(database),
     EVALUATE_BUDGET_NOTIFICATIONS: new NotificationRuleHandler(database),
-    PURGE_DELETED_ACCOUNTS: new AccountPurgeHandler(database),
+    PURGE_DELETED_ACCOUNTS: new AccountPurgeHandler(database, (failure) => {
+      logger.purgeFailure(failure);
+      void errorReporter.report(new Error('Account purge failed'), { errorName: failure.errorName });
+    }),
   },
   {
     pollIntervalMs: config.pollIntervalMs,
