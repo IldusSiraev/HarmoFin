@@ -145,6 +145,10 @@ onMounted(() => {
             <span>Сессии</span>
             <span class="settings-page__row-link">Управлять →</span>
           </NuxtLink>
+          <NuxtLink to="/app/settings/delete-account" class="settings-page__row">
+            <span>Удаление аккаунта</span>
+            <span class="settings-page__row-link">Перейти →</span>
+          </NuxtLink>
         </UiCard>
       </div>
     </template>

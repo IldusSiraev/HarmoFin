@@ -24,6 +24,12 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import type { RequestContext } from '../common/request-context/request-context.js';
 import { ProblemDetailsResponse } from '../common/errors/problem-details.dto.js';
+import {
+  cookieOptions,
+  requestMeta,
+  requiredContext,
+  type AuthenticatedRequest,
+} from './auth-http.js';
 import { CsrfGuard } from '../common/security/csrf.guard.js';
 import { API_CONFIG } from '../common/security/security.constants.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
@@ -31,7 +37,6 @@ import type { ApiConfig } from '../config/env.js';
 import {
   AuthApplicationService,
   type AuthSessionResponse as ApplicationAuthSessionResponse,
-  type RequestMeta,
 } from './auth.application.service.js';
 import {
   AuthSessionResponse,
@@ -60,8 +65,6 @@ import {
 import { SessionAuthGuard } from './session-auth.guard.js';
 import { SessionService } from './session.service.js';
 import { TokenService } from './token.service.js';
-
-type AuthenticatedRequest = FastifyRequest & { authContext?: RequestContext };
 
 @ApiTags('auth')
 @Controller()
@@ -266,26 +269,4 @@ export class AuthController {
     const rawToken = request.cookies[this.config.auth.cookieName];
     return typeof rawToken === 'string' ? this.sessionService.authenticate(rawToken) : null;
   }
-}
-
-function requestMeta(request: FastifyRequest): RequestMeta {
-  const userAgent = request.headers['user-agent'];
-  return {
-    ...(typeof userAgent === 'string' ? { userAgent } : {}),
-    ...(typeof request.id === 'string' ? { requestId: request.id } : {}),
-  };
-}
-
-function requiredContext(request: AuthenticatedRequest): RequestContext {
-  if (!request.authContext) throw new Error('Missing authenticated request context.');
-  return request.authContext;
-}
-
-function cookieOptions(config: ApiConfig) {
-  return {
-    httpOnly: true,
-    sameSite: 'lax' as const,
-    secure: config.nodeEnv === 'production',
-    path: '/',
-  };
 }

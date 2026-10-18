@@ -1,6 +1,17 @@
 {
   "components": {
     "schemas": {
+      "AccountDeletionScheduledResponse": {
+        "properties": {
+          "purgeAfter": {
+            "description": "Момент, после которого данные будут удалены безвозвратно.",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": ["purgeAfter"],
+        "type": "object"
+      },
       "AccountResponse": {
         "properties": {
           "accountType": {
@@ -338,6 +349,17 @@
           }
         },
         "required": ["id", "name", "primaryCurrency"],
+        "type": "object"
+      },
+      "CancelAccountDeletionRequest": {
+        "properties": {
+          "token": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": ["token"],
         "type": "object"
       },
       "CategoryResponse": {
@@ -4585,6 +4607,18 @@
         "required": ["key", "rows"],
         "type": "object"
       },
+      "RequestAccountDeletionRequest": {
+        "properties": {
+          "password": {
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": ["password"],
+        "type": "object"
+      },
       "ReviseAssignmentRequest": {
         "properties": {
           "amount": {
@@ -5851,6 +5885,68 @@
             "session": []
           }
         ],
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/auth/deletion/cancel": {
+      "post": {
+        "operationId": "AccountDeletionController_cancelDeletion_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelAccountDeletionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Удаление отменено. Войдите обычным способом."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
         "tags": ["auth"]
       }
     },
@@ -7504,6 +7600,90 @@
             "description": ""
           },
           "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/me/deletion": {
+      "post": {
+        "operationId": "AccountDeletionController_requestDeletion_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestAccountDeletionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDeletionScheduledResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
             "content": {
               "application/json": {
                 "schema": {

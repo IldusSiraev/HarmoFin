@@ -77,7 +77,17 @@ export class AuthModule {
         SessionAuthGuard,
         CsrfGuard,
       ],
-      exports: [API_CONFIG, SessionAuthGuard, CsrfGuard, SessionService, AuthApplicationService],
+      exports: [
+        API_CONFIG,
+        SessionAuthGuard,
+        CsrfGuard,
+        SessionService,
+        AuthApplicationService,
+        TokenService,
+        PasswordService,
+        EMAIL_SENDER,
+        AuthRateLimitGuard,
+      ],
     };
   }
 }

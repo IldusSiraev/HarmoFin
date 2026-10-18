@@ -96,9 +96,14 @@ export class JobRunner {
   }
 }
 
+const RECURRING_DELAY_MS: Record<WorkerJobType, number> = {
+  MATERIALIZE_PLAN_OCCURRENCES: 300_000,
+  EVALUATE_BUDGET_NOTIFICATIONS: 900_000,
+  PURGE_DELETED_ACCOUNTS: 86_400_000,
+};
+
 function nextRunAt(jobType: WorkerJobType, now: Date): Date {
-  const delayMs = jobType === 'MATERIALIZE_PLAN_OCCURRENCES' ? 300_000 : 900_000;
-  return new Date(now.getTime() + delayMs);
+  return new Date(now.getTime() + RECURRING_DELAY_MS[jobType]);
 }
 
 function errorText(error: unknown): string {

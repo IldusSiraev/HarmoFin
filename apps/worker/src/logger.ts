@@ -5,6 +5,7 @@ import type { WorkerLogger } from './runtime.js';
 
 export interface WorkerEventLogger extends WorkerLogger {
   jobOutcome(fields: { jobType: string; outcome: 'completed' | 'failed' | 'retried' }): void;
+  purgeFailure(fields: { deletionId: string; errorName: string }): void;
 }
 
 export function createWorkerLogger(config: WorkerConfig): WorkerEventLogger {
@@ -44,5 +45,9 @@ class PinoWorkerLogger implements WorkerEventLogger {
 
   jobOutcome(fields: { jobType: string; outcome: 'completed' | 'failed' | 'retried' }): void {
     this.logger.info({ event: 'job_outcome', ...fields }, 'Job outcome');
+  }
+
+  purgeFailure(fields: { deletionId: string; errorName: string }): void {
+    this.logger.error({ event: 'account_purge_failure', ...fields }, 'Account purge failed');
   }
 }

@@ -166,6 +166,8 @@ function requiresCsrf(method: string, path: string): boolean {
     isUnsafe(method) &&
     path !== '/api/v1/auth/login' &&
     path !== '/api/v1/auth/register' &&
-    !path.startsWith('/api/v1/auth/recovery/')
+    !path.startsWith('/api/v1/auth/recovery/') &&
+    // Opened from the restore email while signed out: there is no session to bind a token to.
+    path !== '/api/v1/auth/deletion/cancel'
   );
 }

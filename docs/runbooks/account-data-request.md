@@ -154,7 +154,19 @@ ssh production-user@production-host rm /tmp/user-export-[user-id]-[timestamp].js
 
 ## Процедура удаления аккаунта
 
-### 1. Оценить влияние удаления
+> С 18.10.2026 удаление выполняется самим пользователем: «Настройки → Аккаунт → Удаление аккаунта». Ручная SQL-процедура ниже устарела (неверные имена таблиц) и не применяется. Через 30 дней данные стирает worker-задание `PURGE_DELETED_ACCOUNTS` (`apps/worker/src/account-purge.ts`).
+
+### Операции поддержки
+
+- **Статус запроса:** `SELECT id, requested_at, purge_after, restored_at, purged_at FROM account_deletions WHERE user_id = '<user-id>';`
+- **Письмо не дошло, пользователь хочет отменить:** после верификации личности (см. «Верификация личности») выполнить в одной транзакции: `UPDATE users SET status = 'ACTIVE' WHERE id = '<user-id>' AND status = 'PENDING_DELETION';`, вернуть `status = 'ACTIVE'` рабочим пространствам и бюджетам из `archived_workspace_ids` / `archived_budget_ids`, `is_active = true, removed_at = NULL` членствам из `deactivated_membership_ids`, затем `UPDATE account_deletions SET restored_at = now() WHERE id = '<deletion-id>';`. Пользователь входит обычным способом.
+- **Ускорить очистку:** `UPDATE account_deletions SET purge_after = now() WHERE id = '<deletion-id>' AND restored_at IS NULL AND purged_at IS NULL;` — после этого либо дождаться следующего ежедневного запуска задания, либо сразу выполнить `UPDATE worker_jobs SET run_at = now() WHERE job_key = 'accounts:purge-deleted-v1' AND status = 'PENDING';`. Перезапуск worker не ускоряет очистку: `ensureRecurringJobs` использует `update: {}` и не сбрасывает `run_at`.
+- **Письмо со ссылкой не дошло:** повторная отправка письма не автоматизирована; после верификации личности (см. «Верификация личности») по запросу пользователя поддержка выполняет ручную процедуру отмены удаления, описанную в пункте выше («Письмо не дошло, пользователь хочет отменить»).
+- **Ошибка `AccountPurgeCoverageError` в логах worker:** в схеме появилась таблица с `budget_id`/`workspace_id`, которой нет в `BUDGET_TABLES_IN_DELETE_ORDER`. Транзакция откатилась, данные целы; добавить таблицу в список и выпустить worker.
+- **Ошибка по конкретному аккаунту (`purgeFailure` в логах worker):** очистка этого аккаунта пропущена и повторится в следующем запуске задания; остальные аккаунты в батче обработаны — изоляция по аккаунту не останавливает всю очистку.
+- **Резервные копии:** строки удалённых аккаунтов остаются в backup до истечения их срока хранения (см. `database-restore.md`); при восстановлении из backup повторно выполнить очистку для `account_deletions` с `purged_at IS NOT NULL`.
+
+### 1. Оценить влияние удаления (устарело, не применяется с 18.10.2026)
 
 **Влияние на общие бюджеты**:
 

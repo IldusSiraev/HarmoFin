@@ -7,6 +7,7 @@ export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: {
+      '#app': fileURLToPath(new URL('./app/test/nuxt-imports.ts', import.meta.url)),
       '#imports': fileURLToPath(new URL('./app/test/nuxt-imports.ts', import.meta.url)),
       '#components': fileURLToPath(new URL('./app/test/nuxt-components.ts', import.meta.url)),
     },

@@ -49,6 +49,7 @@ export class AuthRateLimitGuard implements CanActivate {
   private maximumFor(url: string): number | null {
     if (url.startsWith('/api/v1/auth/login')) return this.config.rateLimit.loginMax;
     if (url.startsWith('/api/v1/auth/recovery/request')) return this.config.rateLimit.recoveryMax;
+    if (url.startsWith('/api/v1/auth/deletion/cancel')) return this.config.rateLimit.recoveryMax;
     return null;
   }
 }

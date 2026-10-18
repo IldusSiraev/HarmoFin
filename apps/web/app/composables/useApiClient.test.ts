@@ -47,6 +47,24 @@ describe('createApiClient', () => {
     ).resolves.toBeUndefined();
   });
 
+  it('cancels account deletion without a session-bound CSRF token', async () => {
+    const fetcher = vi.fn<Fetcher>(async () => new Response(null, { status: 204 }));
+    const client = createApiClient(fetcher, 'http://localhost:3001', 'http://localhost:3000');
+
+    await expect(
+      client.request('/api/v1/auth/deletion/cancel', {
+        method: 'POST',
+        body: JSON.stringify({ token: 'raw-token' }),
+      }),
+    ).resolves.toBeUndefined();
+
+    // The restore link is opened signed out: /auth/csrf would answer 401.
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+      'http://localhost:3001/api/v1/auth/deletion/cancel',
+    );
+  });
+
   it('downloads Blob with session policy and parses Problem Details errors', async () => {
     const successFetcher = vi.fn<Fetcher>(async () => new Response('csv', { status: 200 }));
     const successClient = createApiClient(

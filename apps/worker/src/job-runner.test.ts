@@ -141,4 +141,30 @@ describe('JobRunner', () => {
 
     expect(repository.retry).toHaveBeenCalledWith('job-id', 2, now, 'Error');
   });
+
+  it('reschedules the account purge job one day later', async () => {
+    const now = new Date('2026-10-18T00:00:00.000Z');
+    const repository = {
+      ensureRecurringJobs: vi.fn().mockResolvedValue(undefined),
+      claimDue: vi
+        .fn()
+        .mockResolvedValueOnce([{ id: 'job-1', jobType: 'PURGE_DELETED_ACCOUNTS', attempts: 1 }])
+        .mockResolvedValue([]),
+      completeRecurring: vi.fn().mockResolvedValue(undefined),
+      retry: vi.fn().mockResolvedValue(undefined),
+    };
+    const runner = new JobRunner(
+      repository as never,
+      { PURGE_DELETED_ACCOUNTS: { execute: vi.fn().mockResolvedValue(undefined) } },
+      { pollIntervalMs: 60_000, concurrency: 1, leaseSeconds: 60, now: () => now },
+    );
+
+    await runner.start();
+    await runner.stop();
+
+    expect(repository.completeRecurring).toHaveBeenCalledWith(
+      'job-1',
+      new Date('2026-10-19T00:00:00.000Z'),
+    );
+  });
 });
