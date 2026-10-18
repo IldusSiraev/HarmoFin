@@ -1,5 +1,6 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 
+import { AccountDeletionModule } from './account-deletion/account-deletion.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AccountModule } from './accounts/account.module.js';
@@ -35,6 +36,7 @@ export class AppModule {
         DatabaseModule.register(config),
         HealthModule,
         AuthModule.register(config),
+        AccountDeletionModule.register(config),
         PlanModelModule.register(),
         AuditModule.register(),
         WorkspaceModule.register(),
