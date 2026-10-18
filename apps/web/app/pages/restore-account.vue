@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { useRoute } from '#app';
+import { navigateTo, useRoute } from '#app';
 
 import { errorMessage, useAuth } from '../composables/useAuth.js';
 
@@ -19,7 +19,10 @@ onMounted(() => {
 });
 
 async function submit() {
-  if (restored.value) return;
+  if (restored.value) {
+    await navigateTo('/login');
+    return;
+  }
   summary.value = '';
   if (!token) {
     summary.value = INVALID_LINK;
@@ -42,7 +45,7 @@ async function submit() {
   <AuthForm
     title="Отмена удаления"
     subtitle="Аккаунт и данные бюджета вернутся в том виде, в котором были на момент удаления."
-    submit-label="Отменить удаление"
+    :submit-label="restored ? 'Перейти ко входу' : 'Отменить удаление'"
     :loading="loading"
     :summary="summary"
     :on-submit="submit"

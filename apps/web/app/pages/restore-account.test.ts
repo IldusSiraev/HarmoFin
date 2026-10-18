@@ -7,7 +7,8 @@ const mocks = vi.hoisted(() => ({
   cancelAccountDeletion: vi.fn(),
   route: { query: { token: 'raw-token' } as Record<string, unknown> },
 }));
-vi.mock('#app', () => ({ useRoute: () => mocks.route, navigateTo: vi.fn() }));
+const navigateTo = vi.hoisted(() => vi.fn());
+vi.mock('#app', () => ({ useRoute: () => mocks.route, navigateTo }));
 vi.mock('../composables/useAuth.js', async () => {
   const actual = await vi.importActual<typeof import('../composables/useAuth.js')>('../composables/useAuth.js');
   return { ...actual, useAuth: () => ({ cancelAccountDeletion: mocks.cancelAccountDeletion }) };
@@ -27,6 +28,7 @@ const stubs = {
 describe('restore account page', () => {
   beforeEach(() => {
     mocks.cancelAccountDeletion.mockReset();
+    navigateTo.mockReset();
     mocks.route.query = { token: 'raw-token' };
     window.history.replaceState(null, '', '/restore-account?token=raw-token');
   });
@@ -47,6 +49,20 @@ describe('restore account page', () => {
     expect(mocks.cancelAccountDeletion).toHaveBeenCalledWith('raw-token');
     expect(wrapper.text()).toContain('Удаление отменено');
     expect(wrapper.text()).toContain('Войти');
+    expect(wrapper.get('button').text()).toBe('Перейти ко входу');
+  });
+
+  it('navigates to login on a second submit after success, without calling the API again', async () => {
+    mocks.cancelAccountDeletion.mockResolvedValue(undefined);
+    const wrapper = mount(RestoreAccountPage, { global: { stubs } });
+
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(mocks.cancelAccountDeletion).toHaveBeenCalledTimes(1);
+    expect(navigateTo).toHaveBeenCalledWith('/login');
   });
 
   it('shows the server message for an invalid or expired link', async () => {
