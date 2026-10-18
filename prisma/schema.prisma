@@ -10,6 +10,7 @@ datasource db {
 enum UserStatus {
   ACTIVE
   LOCKED
+  PENDING_DELETION
   DELETED
 }
 
@@ -20,6 +21,7 @@ enum SessionRevokeReason {
   ALL_SESSIONS_REVOKED
   ROTATED
   ADMIN_REVOKED
+  ACCOUNT_DELETED
 }
 
 enum WorkspaceStatus {
@@ -153,6 +155,7 @@ enum PlanOccurrenceCancellationReason {
 enum WorkerJobType {
   MATERIALIZE_PLAN_OCCURRENCES
   EVALUATE_BUDGET_NOTIFICATIONS
+  PURGE_DELETED_ACCOUNTS
 }
 
 enum WorkerJobStatus {
@@ -861,6 +864,24 @@ model RecoveryToken {
 
   @@index([userId, consumedAt, expiresAt])
   @@map("recovery_tokens")
+}
+
+// No FK to users: the row is the non-personal trace of a deletion and must outlive the purge.
+model AccountDeletion {
+  id                       String    @id @db.Uuid
+  userId                   String    @map("user_id") @db.Uuid
+  requestedAt              DateTime  @map("requested_at") @db.Timestamptz(3)
+  purgeAfter               DateTime  @map("purge_after") @db.Timestamptz(3)
+  restoreTokenHash         String    @unique @map("restore_token_hash") @db.Char(64)
+  archivedWorkspaceIds     String[]  @default([]) @map("archived_workspace_ids") @db.Uuid
+  archivedBudgetIds        String[]  @default([]) @map("archived_budget_ids") @db.Uuid
+  deactivatedMembershipIds String[]  @default([]) @map("deactivated_membership_ids") @db.Uuid
+  restoredAt               DateTime? @map("restored_at") @db.Timestamptz(3)
+  purgedAt                 DateTime? @map("purged_at") @db.Timestamptz(3)
+
+  @@index([purgedAt, restoredAt, purgeAfter])
+  @@index([userId])
+  @@map("account_deletions")
 }
 
 model AuditEvent {
