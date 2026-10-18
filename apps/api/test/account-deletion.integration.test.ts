@@ -112,6 +112,7 @@ describe('account deletion', () => {
     for (const userId of createdUserIds) {
       await prisma.$transaction((tx) => purgeUserData(tx, userId), { timeout: 60_000 });
       await prisma.accountDeletion.deleteMany({ where: { userId } });
+      await prisma.userConsent.deleteMany({ where: { userId } });
       await prisma.user.deleteMany({ where: { id: userId } });
     }
     await app.close();
@@ -660,11 +661,21 @@ describe('account deletion', () => {
     }
 
     await seedFinancialData(target);
+    await prisma.userConsent.create({
+      data: {
+        id: randomUUID(),
+        userId: target.userId,
+        document: 'PD_CONSENT',
+        version: '2026-10-18',
+        acceptedAt: new Date(),
+      },
+    });
     expect((await requestDeletion(target, { password })).statusCode).toBe(202);
     await makeDue(target.userId);
 
     await new AccountPurgeHandler(prisma).execute(new Date());
 
+    expect(await prisma.userConsent.count({ where: { userId: target.userId } })).toBe(0);
     expect(await prisma.auditEvent.count({ where: { actorUserId: target.userId } })).toBe(0);
     expect(
       await prisma.auditEvent.count({

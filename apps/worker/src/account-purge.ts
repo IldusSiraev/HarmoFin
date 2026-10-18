@@ -38,8 +38,13 @@ export const WORKSPACE_SCOPE_TABLES = [
 export const BUDGETS_TABLE = 'budgets';
 export const WORKSPACES_TABLE = 'workspaces';
 
-/** Deleted directly by the user's own id (their own sessions/tokens/memberships). */
-export const USER_OWNED_TABLES = ['sessions', 'recovery_tokens', 'workspace_memberships'] as const;
+/** Deleted directly by the user's own id (their own sessions/tokens/memberships/consents). */
+export const USER_OWNED_TABLES = [
+  'sessions',
+  'recovery_tokens',
+  'workspace_memberships',
+  'user_consents',
+] as const;
 
 /**
  * Tables that have a user-id column but are intentionally NOT blanket-deleted by that column:
@@ -132,6 +137,7 @@ export async function purgeUserData(tx: Prisma.TransactionClient, userId: string
   await tx.$executeRaw`DELETE FROM "sessions" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "recovery_tokens" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "workspace_memberships" WHERE "user_id" = ${userId}::uuid`;
+  await tx.$executeRaw`DELETE FROM "user_consents" WHERE "user_id" = ${userId}::uuid`;
   // Account-level audit events (auth actions written with no workspace/budget, e.g.
   // RECOVERY_REQUESTED, PASSWORD_CHANGED before a membership existed) belong to no other owner's
   // scope, so they are safe and necessary to delete by actor_user_id here.

@@ -174,6 +174,12 @@ enum NotificationType {
   INSUFFICIENT_MANDATORY_OBLIGATIONS
 }
 
+enum LegalDocumentType {
+  TERMS
+  PRIVACY_POLICY
+  PD_CONSENT
+}
+
 model User {
   id              String     @id @db.Uuid
   email           String     @unique @db.VarChar(320)
@@ -194,6 +200,7 @@ model User {
   updatedRegularPlans  RegularPlan[]          @relation("RegularPlanUpdater")
   actedPlanOccurrences PlanOccurrence[]       @relation("PlanOccurrenceActor")
   notifications        Notification[]
+  consents             UserConsent[]
 
   @@map("users")
 }
@@ -882,6 +889,20 @@ model AccountDeletion {
   @@index([purgedAt, restoredAt, purgeAfter])
   @@index([userId])
   @@map("account_deletions")
+}
+
+// Append-only proof of consent (152-FZ art. 9 part 3): a new document version adds rows, never edits them.
+model UserConsent {
+  id         String            @id @db.Uuid
+  userId     String            @map("user_id") @db.Uuid
+  document   LegalDocumentType
+  version    String            @db.VarChar(32)
+  acceptedAt DateTime          @map("accepted_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([userId, document, version])
+  @@map("user_consents")
 }
 
 model AuditEvent {
