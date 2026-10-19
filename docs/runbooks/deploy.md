@@ -67,7 +67,6 @@
 **Входные параметры workflow**:
 
 - `release`: версия релиза (`1.2.3` или `v1.2.3`) либо точный commit SHA; версия резолвится в SHA своего тега (см. [выпуск релиза](release.md))
-- `staging_evidence`: `[URL прогона staging workflow]`
 - `migration_compatibility`: `[forward-only | backward-compatible | rollback-safe]`
 - `backup_evidence`: `[ссылка на backup из шага 3]`
 
@@ -210,10 +209,9 @@ curl -f https://production-domain/api/v1/health/ready
 См.: `docs/runbooks/image-rollback.md`
 
 ```bash
-# Запустить production deployment workflow с предыдущим известным рабочим SHA
+# Запустить production deployment workflow с предыдущей рабочей версией
 # Входные параметры workflow:
-# - image_tag: [SHA для отката]
-# - staging_evidence: [исходный staging evidence]
+# - release: [предыдущая версия или её commit SHA]
 # - migration_compatibility: backward-compatible
 # - backup_evidence: [текущий backup]
 ```

@@ -88,12 +88,14 @@ feat/fix PR ──merge──▶ main ──▶ release.yml обновляет R
 
 Задача: добавить образам тег версии, когда одновременно существуют git-тег `vX.Y.Z` и опубликованные SHA-образы. Порядок появления тега и образов не гарантирован (release-please отрабатывает быстрее CI), поэтому workflow запускается на оба события и идемпотентен.
 
-- Триггеры: `push` тегов `v*.*.*`; `workflow_run` «Publish images» c `conclusion == success` на `main`.
-- Определение пары (версия, SHA):
-  - для тега: SHA = `git rev-parse "$TAG^{commit}"`;
-  - для `workflow_run`: `git tag --points-at "$HEAD_SHA" --list 'v*.*.*'`; нет тега — успешный выход без действий.
-- Валидация: тег соответствует `^v[0-9]+\.[0-9]+\.[0-9]+$`; версия в `package.json` на этом SHA совпадает с тегом, иначе ошибка.
-- Для каждого target (`web`, `api`, `worker`, `migrate`): если `ghcr.io/<owner>/harmofin-<target>:<sha>` отсутствует — успешный выход с сообщением «образы ещё не опубликованы» (их пометит запуск от `workflow_run`); иначе `docker buildx imagetools create --tag …:<X.Y.Z> …:<sha>`.
+- Триггеры: `push` тегов `v*.*.*`; `workflow_run` «Publish images» c `conclusion == success` на `main`; `workflow_dispatch` с необязательным входом `tag` (конкретный релиз для ручного дотегивания).
+- `workflow_run.head_sha` не читается: для него непредсказуемо, какой коммит main триггернул завершившийся прогон Publish, и это может быть более новый коммит, чем коммит релиза.
+- Кандидаты на тегирование (список git-тегов `vX.Y.Z`, а не одна пара):
+  - `push` → только запушенный тег;
+  - `workflow_dispatch` со входом `tag` → только этот тег;
+  - иначе (`workflow_run`, либо `workflow_dispatch` без `tag`) → 5 новейших тегов: `git tag --list 'v*.*.*' --sort=-v:refname | head -n 5`.
+- Для каждого кандидата: SHA = `git rev-parse "$TAG^{commit}"`; `resolve_tagged_commit "$SHA"` из `infra/scripts/release.sh` валидирует совпадение тега и версии в `package.json` на этом SHA (ошибка — весь job падает).
+- Для каждого target (`web`, `api`, `worker`, `migrate`) у кандидата: если хотя бы один `ghcr.io/<owner>/harmofin-<target>:<sha>` отсутствует — лог «образы ещё не опубликованы» и переход к следующему кандидату без ошибки; если все четыре опубликованы — `docker buildx imagetools create --tag …:<X.Y.Z> …:<sha>` для всех четырёх. Повторное тегирование уже помеченного релиза идемпотентно.
 - Тег `latest` не создаётся: деплой остаётся по неизменяемым ссылкам.
 - `permissions: contents: read, packages: write`.
 

@@ -2,7 +2,9 @@ name: Tag release images
 
 # release-please tags the release commit within seconds, while its images are
 # published only after CI finishes, so either event may come first. Both
-# triggers run the same idempotent job; whichever finds tag and images tags them.
+# triggers run the same idempotent job: it scans recent release tags and tags
+# whichever of their images are already published, skipping the rest for a
+# later run to pick up.
 on:
   push:
     tags: ['v*.*.*']
@@ -10,6 +12,12 @@ on:
     workflows: [Publish images]
     types: [completed]
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag vX.Y.Z to tag (empty: scan recent releases)'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -21,7 +29,7 @@ concurrency:
 
 jobs:
   tag:
-    if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     env:
       REGISTRY: ghcr.io
@@ -31,52 +39,64 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Resolve release commit
-        id: resolve
+      - name: List candidate release tags
+        id: candidates
         env:
           EVENT_NAME: ${{ github.event_name }}
           PUSHED_TAG: ${{ github.ref_name }}
-          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          DISPATCH_TAG: ${{ inputs.tag }}
         run: |
-          source infra/scripts/release.sh
           if [[ "$EVENT_NAME" == "push" ]]; then
-            sha="$(git rev-parse "${PUSHED_TAG}^{commit}")"
+            tags="$PUSHED_TAG"
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && -n "$DISPATCH_TAG" ]]; then
+            tags="$DISPATCH_TAG"
           else
-            sha="$RUN_HEAD_SHA"
+            tags="$(git tag --list 'v*.*.*' --sort=-v:refname | head -n 5)"
           fi
-          resolved="$(resolve_tagged_commit "$sha")"
-          if [[ -z "$resolved" ]]; then
-            echo "Commit $sha carries no release tag; nothing to tag."
-            exit 0
-          fi
-          printf 'sha=%s\nversion=%s\n' "$sha" "${resolved#* }" >> "$GITHUB_OUTPUT"
+          {
+            echo 'tags<<EOF'
+            printf '%s\n' "$tags"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Log in to GitHub Container Registry
-        if: steps.resolve.outputs.version != ''
         run: |
           printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login "$REGISTRY" \
             --username '${{ github.actor }}' --password-stdin
 
       - name: Set up Docker Buildx
-        if: steps.resolve.outputs.version != ''
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
-      - name: Add release version tag to published images
-        if: steps.resolve.outputs.version != ''
+      - name: Tag published images for each candidate release
         env:
           OWNER: ${{ github.repository_owner }}
-          RELEASE_SHA: ${{ steps.resolve.outputs.sha }}
-          RELEASE_VERSION: ${{ steps.resolve.outputs.version }}
+          CANDIDATE_TAGS: ${{ steps.candidates.outputs.tags }}
         run: |
+          source infra/scripts/release.sh
           image_prefix="${REGISTRY}/${OWNER,,}/harmofin"
-          for target in web api worker migrate; do
-            if ! docker buildx imagetools inspect "${image_prefix}-${target}:${RELEASE_SHA}" >/dev/null 2>&1; then
-              echo "Images for ${RELEASE_SHA} are not published yet; the Publish images run will tag them."
-              exit 0
+          while IFS= read -r tag; do
+            [[ -z "$tag" ]] && continue
+            sha="$(git rev-parse "${tag}^{commit}")"
+            resolved="$(resolve_tagged_commit "$sha")"
+            if [[ -z "$resolved" ]]; then
+              echo "Commit $sha for $tag carries no matching release tag; skipping."
+              continue
             fi
-          done
-          for target in web api worker migrate; do
-            docker buildx imagetools create --tag "${image_prefix}-${target}:${RELEASE_VERSION}" \
-              "${image_prefix}-${target}:${RELEASE_SHA}"
-          done
-          echo "Tagged ${RELEASE_SHA} as ${RELEASE_VERSION}."
+            version="${resolved#* }"
+            all_published=1
+            for target in web api worker migrate; do
+              if ! docker buildx imagetools inspect "${image_prefix}-${target}:${sha}" >/dev/null 2>&1; then
+                all_published=0
+                break
+              fi
+            done
+            if [[ "$all_published" -eq 0 ]]; then
+              echo "Images for ${tag} (${sha}) are not published yet; skipping."
+              continue
+            fi
+            for target in web api worker migrate; do
+              docker buildx imagetools create --tag "${image_prefix}-${target}:${version}" \
+                "${image_prefix}-${target}:${sha}"
+            done
+            echo "Tagged ${sha} as ${version}."
+          done <<< "$CANDIDATE_TAGS"

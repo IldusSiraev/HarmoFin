@@ -105,10 +105,12 @@ test('release image tagging reacts to tags and to published images', async () =>
 
   assert.match(workflow, /push:\s*\n\s*tags:\s*\['v\*\.\*\.\*'\]/);
   assert.match(workflow, /workflow_run:\s*\n\s*workflows:\s*\[Publish images\]/);
+  assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /conclusion == 'success'/);
   assert.match(workflow, /fetch-depth:\s*0/);
   assert.match(workflow, /source infra\/scripts\/release\.sh/);
   assert.match(workflow, /resolve_tagged_commit/);
+  assert.match(workflow, /--sort=-v:refname/);
   assert.match(workflow, /docker buildx imagetools inspect/);
   assert.match(workflow, /docker buildx imagetools create --tag/);
   assert.match(workflow, /for target in web api worker migrate/);
@@ -116,7 +118,10 @@ test('release image tagging reacts to tags and to published images', async () =>
   assert.match(workflow, /packages:\s*write/);
   assert.doesNotMatch(workflow, /:latest/);
   assert.doesNotMatch(workflow, /pull_request/);
+  assert.doesNotMatch(workflow, /workflow_run\.head_sha/);
   for (const block of runBlocks(workflow)) {
-    assert.doesNotMatch(block, /\$\{\{\s*github\.(event|ref_name)/);
+    assert.doesNotMatch(block, /\$\{\{\s*github\.event/);
+    assert.doesNotMatch(block, /\$\{\{\s*github\.ref_name/);
+    assert.doesNotMatch(block, /\$\{\{\s*inputs\./);
   }
 });

@@ -89,8 +89,7 @@ docker manifest inspect ghcr.io/[org]/[repo]/worker:$ROLLBACK_SHA
 
 **Входные параметры workflow dispatch**:
 
-- `image_tag`: `[SHA для отката]`
-- `staging_evidence`: `[исходный staging evidence для SHA отката]`
+- `release`: `[предыдущая версия или её commit SHA для отката]`
 - `migration_compatibility`: `backward-compatible` или `rollback-safe`
 - `backup_evidence`: `[ссылка на текущий backup]`
 

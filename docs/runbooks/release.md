@@ -20,6 +20,8 @@ HarmoFin использует единую версию SemVer `vX.Y.Z` для w
 4. После CI `Publish images` публикует образы по SHA; `Tag release images` добавляет им тег `X.Y.Z`.
 5. Staging обновляется автоматически, как для любого коммита в `main`.
 
+Если образы релиза не получили тег версии (например, `Tag release images` запустился раньше, чем `Publish images` их опубликовал), запустить workflow `Tag release images` вручную с `tag=vX.Y.Z`.
+
 ## Деплой версии в production
 
 1. Проверить релиз на staging: `curl -s https://<staging>/api/v1/health/live` возвращает нужные `version` и `revision`.
@@ -29,7 +31,7 @@ HarmoFin использует единую версию SemVer `vX.Y.Z` для w
 
 ## Откат
 
-Запустить `Deploy production` с предыдущей версией (`release=X.Y.Z-1`) или по [регламенту отката образа](image-rollback.md).
+Запустить `Deploy production` с предыдущей версией, например `release=1.2.2`, или по [регламенту отката образа](image-rollback.md).
 
 ## Первый релиз
 
