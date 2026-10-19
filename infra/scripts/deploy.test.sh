@@ -134,14 +134,13 @@ rm -rf "$fake_bin" "$captured_args"
 eval "$env_backup"
 
 # run_deploy_smoke: smoke expects the revision that was just deployed
-# Re-source deploy.sh: earlier tests in this file redefined run_deploy_smoke
-# itself, so the original function must be restored before testing it here.
-source "$script_dir/deploy.sh" 2>/dev/null
-captured_expected_revision=""
-run_smoke_checks() {
-  captured_expected_revision="${EXPECTED_REVISION:-}"
-}
-IMAGE_TAG=abc1234 SMOKE_BASE_URL=http://example.invalid run_deploy_smoke
+# Runs in a fresh subshell that sources deploy.sh anew: earlier tests in this
+# file redefined run_deploy_smoke itself, so the real function (not a leftover
+# stub) must be exercised here.
+captured_expected_revision="$(
+  IMAGE_TAG=abc1234 SMOKE_BASE_URL=http://example.invalid \
+    bash -c 'source infra/scripts/deploy.sh; run_smoke_checks() { echo "$EXPECTED_REVISION"; }; run_deploy_smoke'
+)"
 assert_equal "run_deploy_smoke expects the deployed revision" "abc1234" "$captured_expected_revision"
 
 report_results

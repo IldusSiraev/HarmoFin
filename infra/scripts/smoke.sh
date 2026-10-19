@@ -61,14 +61,24 @@ curl_body() {
 # check_api_revision <body_fn> <url> <expected_revision>
 # Reads the API liveness body and compares its "revision" with the deployed
 # SHA. Releases built before revision reporting omit the field; they pass with
-# a warning so rollbacks to them still work.
+# a warning so rollbacks to them still work. An empty body (fetch failure,
+# e.g. curl timeout) is a hard failure, not a legacy-release pass, because it
+# cannot be distinguished from a dead endpoint otherwise.
 check_api_revision() {
   local body_fn="$1"
   local url="$2"
   local expected_revision="$3"
+  local body
   local actual_revision
 
-  actual_revision="$("$body_fn" "$url" | sed -n 's/.*"revision":"\([^"]*\)".*/\1/p')"
+  body="$("$body_fn" "$url")"
+
+  if [[ -z "$body" ]]; then
+    echo "Could not read $url to check the revision." >&2
+    return 1
+  fi
+
+  actual_revision="$(echo "$body" | sed -n 's/.*"revision":"\([^"]*\)".*/\1/p')"
 
   if [[ -z "$actual_revision" ]]; then
     echo "Warning: $url does not report a revision; skipping revision check." >&2

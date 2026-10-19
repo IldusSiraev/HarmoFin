@@ -68,4 +68,10 @@ fake_body_without_revision() {
 assert_success "check_api_revision tolerates releases that predate revision reporting" \
   check_api_revision fake_body_without_revision "http://example.invalid/api/v1/health/live" abc1234
 
+fake_body_empty() {
+  :
+}
+assert_failure "check_api_revision fails when the liveness body cannot be read" \
+  check_api_revision fake_body_empty "http://example.invalid/api/v1/health/live" abc1234
+
 report_results
