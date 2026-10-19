@@ -12,6 +12,8 @@ test('registers, protects app, logs out, and logs back in', async ({ page }) => 
   await waitForHydration(page);
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Пароль').fill(password);
+  await page.getByRole('checkbox', { name: /пользовательское соглашение/ }).check();
+  await page.getByRole('checkbox', { name: /согласие на обработку/ }).check();
   await page.getByRole('button', { name: 'Создать аккаунт' }).click();
   await expect(page).toHaveURL(/\/app$/);
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Семейный бюджет');

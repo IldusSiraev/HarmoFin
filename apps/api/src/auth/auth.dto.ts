@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+import { ConsentItem } from '../legal/legal.dto.js';
+
 export class RegisterRequest {
   @ApiProperty({ type: String, example: 'user@example.com', format: 'email' })
   email!: string;
@@ -12,6 +14,12 @@ export class RegisterRequest {
 
   @ApiPropertyOptional({ type: String, example: 'Семейный бюджет', maxLength: 120 })
   budgetName?: string;
+
+  @ApiPropertyOptional({
+    type: [ConsentItem],
+    description: 'Принятые редакции документов; без поля пользователь примет их после входа.',
+  })
+  consents?: ConsentItem[];
 }
 
 export class LoginRequest {
@@ -138,4 +146,10 @@ export class MeResponse {
 
   @ApiProperty({ type: [WorkspaceMembershipResponse] })
   workspaces!: WorkspaceMembershipResponse[];
+
+  @ApiProperty({
+    type: [ConsentItem],
+    description: 'Текущие документы, которые пользователь ещё не принял.',
+  })
+  pendingConsents!: ConsentItem[];
 }

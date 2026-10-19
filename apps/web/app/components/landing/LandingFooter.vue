@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { footerInfoLinks, footerProductLinks } from '../../data/landing.js';
+import { useLegal } from '../../composables/useLegal.js';
 
 defineOptions({ name: 'LandingFooter' });
+
+const { operator } = useLegal();
 </script>
 
 <template>
@@ -24,8 +27,11 @@ defineOptions({ name: 'LandingFooter' });
       <div class="landing-footer__column">
         <h3 class="landing-footer__heading">Информация</h3>
         <ul class="landing-footer__list">
-          <li v-for="link in footerInfoLinks" :key="link.label">
-            <span class="landing-footer__link landing-footer__link--text">{{ link.label }}</span>
+          <li v-for="link in footerInfoLinks" :key="link.href">
+            <NuxtLink :to="link.href" class="landing-footer__link">{{ link.label }}</NuxtLink>
+          </li>
+          <li v-if="operator.email">
+            <a :href="`mailto:${operator.email}`" class="landing-footer__link">Контакты</a>
           </li>
         </ul>
       </div>

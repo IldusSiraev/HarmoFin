@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { navigateTo } from '#app';
 
+import ConsentCheckboxes from '../components/auth/ConsentCheckboxes.vue';
 import { errorMessage, useAuth } from '../composables/useAuth.js';
+import { useLegal, type LegalDocument } from '../composables/useLegal.js';
 
 defineOptions({ name: 'RegisterPage' });
 
@@ -15,7 +17,24 @@ const summary = ref('');
 const fieldErrors = ref<Record<string, string>>({});
 const { register } = useAuth();
 
+const acceptTerms = ref(false);
+const acceptPd = ref(false);
+const documents = ref<LegalDocument[]>([]);
+const { loadDocuments } = useLegal();
+const consentsReady = computed(
+  () => acceptTerms.value && acceptPd.value && documents.value.length === 3,
+);
+
+onMounted(async () => {
+  try {
+    documents.value = await loadDocuments();
+  } catch {
+    summary.value = 'Не удалось загрузить документы. Обновите страницу.';
+  }
+});
+
 async function submit() {
+  if (!consentsReady.value) return;
   loading.value = true;
   summary.value = '';
   fieldErrors.value = {};
@@ -25,6 +44,7 @@ async function submit() {
       password: password.value,
       ...(workspaceName.value ? { workspaceName: workspaceName.value } : {}),
       ...(budgetName.value ? { budgetName: budgetName.value } : {}),
+      consents: documents.value.map(({ document, version }) => ({ document, version })),
     });
     await navigateTo('/app');
   } catch (error) {
@@ -44,6 +64,8 @@ async function submit() {
     submit-label="Создать аккаунт"
     :loading="loading"
     :summary="summary"
+    :submit-disabled="!consentsReady"
+    :submit-described-by="consentsReady ? undefined : 'consent-hint'"
     :on-submit="submit"
   >
     <div class="field">
@@ -89,6 +111,10 @@ async function submit() {
         placeholder="Например, Семейный бюджет"
       />
     </div>
+    <ConsentCheckboxes class="concern-wrapper" v-model:terms="acceptTerms" v-model:pd="acceptPd" />
+    <p v-if="!acceptTerms || !acceptPd" id="consent-hint" class="consent-hint">
+      Чтобы создать аккаунт, отметьте оба пункта.
+    </p>
     <template #footer>
       <p class="form-links"><span>Уже есть аккаунт?</span><NuxtLink to="/login">Войти</NuxtLink></p>
     </template>
@@ -99,6 +125,17 @@ async function submit() {
 small,
 label span {
   color: #70808a;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.concern-wrapper {
+  margin-top: 1rem;
+}
+
+.consent-hint {
+  margin: 0;
+  color: var(--hf-color-text-muted);
   font-size: 0.78rem;
   font-weight: 500;
 }

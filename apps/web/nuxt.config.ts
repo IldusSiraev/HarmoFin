@@ -49,6 +49,14 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiUrl: config.apiUrl,
+      // Filled at runtime from NUXT_PUBLIC_LEGAL_*; required in production compose.
+      legal: {
+        operatorName: '',
+        operatorInn: '',
+        operatorEmail: '',
+        hostingProvider: '',
+        emailProvider: '',
+      },
     },
   },
   vite: {

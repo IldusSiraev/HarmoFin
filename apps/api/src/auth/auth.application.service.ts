@@ -4,11 +4,12 @@ import {
   UnauthorizedException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { LegalDocumentType, Prisma } from '@prisma/client';
 
 import { newBudgetModelData } from '../common/plan-model/new-budget-model.js';
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
 import type { ApiConfig } from '../config/env.js';
+import { assertCurrentConsents, pendingConsents } from '../legal/legal-documents.js';
 import { MetricsRegistry } from '../observability/observability.js';
 import type {
   ChangePasswordInput,
@@ -54,6 +55,7 @@ export class AuthApplicationService {
   ) {}
 
   async register(input: RegisterInput, requestMeta: RequestMeta): Promise<AuthSessionResponse> {
+    if (input.consents) assertCurrentConsents(input.consents);
     const passwordHash = await this.passwordService.hash(input.password);
     const session = await this.repository.transaction(async (tx) => {
       const userId = createUuidV7();
@@ -106,6 +108,17 @@ export class AuthApplicationService {
           requestId: requestMeta.requestId ?? null,
         },
       });
+      if (input.consents) {
+        await tx.userConsent.createMany({
+          data: input.consents.map((consent) => ({
+            id: createUuidV7(now),
+            userId: user.id,
+            document: consent.document,
+            version: consent.version,
+            acceptedAt: now,
+          })),
+        });
+      }
       const createdSession = await this.createSession(tx, user.id, requestMeta, now);
 
       return { user, workspace, budget, session: createdSession };
@@ -380,6 +393,7 @@ export class AuthApplicationService {
         planModelVersion: number;
       }>;
     }>;
+    pendingConsents: Array<{ document: LegalDocumentType; version: string }>;
   }> {
     const user = await this.repository.findUserById(userId);
     if (!user || user.status !== 'ACTIVE')
@@ -387,8 +401,8 @@ export class AuthApplicationService {
         code: 'SESSION_INVALID',
         detail: 'Сессия недействительна.',
       });
-    const memberships = await this.repository.transaction((tx) =>
-      tx.workspaceMembership.findMany({
+    const { memberships, accepted } = await this.repository.transaction(async (tx) => ({
+      memberships: await tx.workspaceMembership.findMany({
         where: { userId, isActive: true, workspace: { status: 'ACTIVE' } },
         select: {
           role: true,
@@ -404,8 +418,16 @@ export class AuthApplicationService {
           },
         },
       }),
-    );
-    return { user, workspaces: memberships.map(({ role, workspace }) => ({ ...workspace, role })) };
+      accepted: await tx.userConsent.findMany({
+        where: { userId },
+        select: { document: true, version: true },
+      }),
+    }));
+    return {
+      user,
+      workspaces: memberships.map(({ role, workspace }) => ({ ...workspace, role })),
+      pendingConsents: pendingConsents(accepted),
+    };
   }
 
   private async createSession(

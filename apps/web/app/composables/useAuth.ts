@@ -9,6 +9,7 @@ export type BudgetSummary = {
   primaryCurrency: string;
   planModelVersion: 2;
 };
+export type Consent = { document: 'TERMS' | 'PRIVACY_POLICY' | 'PD_CONSENT'; version: string };
 type MeResponse = {
   user: User;
   workspaces: Array<{
@@ -17,6 +18,7 @@ type MeResponse = {
     role: string;
     budgets: Array<BudgetSummary>;
   }>;
+  pendingConsents: Consent[];
 };
 
 export type SessionView = {
@@ -45,6 +47,7 @@ export function useAuth() {
     password: string;
     workspaceName?: string;
     budgetName?: string;
+    consents?: Consent[];
   }) {
     const result = await api.request<{ user: User }>('/api/v1/auth/register', {
       method: 'POST',
@@ -126,6 +129,14 @@ export function useAuth() {
     });
   }
 
+  async function acceptConsents(consents: Consent[]): Promise<void> {
+    await api.request('/api/v1/me/consents', {
+      method: 'POST',
+      body: JSON.stringify({ consents }),
+    });
+    if (currentData.value) currentData.value = { ...currentData.value, pendingConsents: [] };
+  }
+
   return {
     currentUser,
     currentData,
@@ -141,6 +152,7 @@ export function useAuth() {
     revokeAllSessions,
     requestAccountDeletion,
     cancelAccountDeletion,
+    acceptConsents,
   };
 }
 

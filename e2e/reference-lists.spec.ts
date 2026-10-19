@@ -25,6 +25,8 @@ async function registerAndReachApp(page: Page, suffix: string): Promise<void> {
   await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Пароль').fill(password);
+  await page.getByRole('checkbox', { name: /пользовательское соглашение/ }).check();
+  await page.getByRole('checkbox', { name: /согласие на обработку/ }).check();
   await page.getByRole('button', { name: 'Создать аккаунт' }).click();
   await expect(page).toHaveURL(/\/app$/);
 }

@@ -1,6 +1,18 @@
 {
   "components": {
     "schemas": {
+      "AcceptConsentsRequest": {
+        "properties": {
+          "consents": {
+            "items": {
+              "$ref": "#/components/schemas/ConsentItem"
+            },
+            "type": "array"
+          }
+        },
+        "required": ["consents"],
+        "type": "object"
+      },
       "AccountDeletionScheduledResponse": {
         "properties": {
           "purgeAfter": {
@@ -481,6 +493,21 @@
           }
         },
         "required": ["currentPassword", "newPassword"],
+        "type": "object"
+      },
+      "ConsentItem": {
+        "properties": {
+          "document": {
+            "enum": ["TERMS", "PRIVACY_POLICY", "PD_CONSENT"],
+            "type": "string"
+          },
+          "version": {
+            "example": "2026-10-18",
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": ["document", "version"],
         "type": "object"
       },
       "CreateAccountRequest": {
@@ -2561,6 +2588,26 @@
         ],
         "type": "object"
       },
+      "LegalDocumentResponse": {
+        "properties": {
+          "document": {
+            "enum": ["TERMS", "PRIVACY_POLICY", "PD_CONSENT"],
+            "type": "string"
+          },
+          "effectiveOn": {
+            "example": "2026-10-18",
+            "format": "date",
+            "type": "string"
+          },
+          "version": {
+            "example": "2026-10-18",
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": ["document", "version", "effectiveOn"],
+        "type": "object"
+      },
       "LiveHealthResponse": {
         "properties": {
           "status": {
@@ -2621,6 +2668,13 @@
       },
       "MeResponse": {
         "properties": {
+          "pendingConsents": {
+            "description": "Текущие документы, которые пользователь ещё не принял.",
+            "items": {
+              "$ref": "#/components/schemas/ConsentItem"
+            },
+            "type": "array"
+          },
           "user": {
             "$ref": "#/components/schemas/UserResponse"
           },
@@ -2631,7 +2685,7 @@
             "type": "array"
           }
         },
-        "required": ["user", "workspaces"],
+        "required": ["user", "workspaces", "pendingConsents"],
         "type": "object"
       },
       "MoveEnvelopeRequest": {
@@ -3883,6 +3937,13 @@
             "example": "Семейный бюджет",
             "maxLength": 120,
             "type": "string"
+          },
+          "consents": {
+            "description": "Принятые редакции документов; без поля пользователь примет их после входа.",
+            "items": {
+              "$ref": "#/components/schemas/ConsentItem"
+            },
+            "type": "array"
           },
           "email": {
             "example": "user@example.com",
@@ -7584,6 +7645,28 @@
         "tags": ["health"]
       }
     },
+    "/api/v1/legal/documents": {
+      "get": {
+        "operationId": "LegalController_documents_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LegalDocumentResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": ["legal"]
+      }
+    },
     "/api/v1/me": {
       "get": {
         "operationId": "AuthController_me_v1",
@@ -7616,6 +7699,73 @@
           }
         ],
         "tags": ["auth"]
+      }
+    },
+    "/api/v1/me/consents": {
+      "post": {
+        "operationId": "LegalController_accept_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptConsentsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["legal"]
       }
     },
     "/api/v1/me/deletion": {
