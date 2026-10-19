@@ -62,6 +62,13 @@ jobs:
       - name: Run OpenAPI script unit tests
         run: node --test scripts/openapi/*.test.mjs scripts/ci/*.test.mjs
 
+      - name: Run infra script tests
+        run: |
+          node --test infra/scripts/*.test.mjs
+          for test_file in infra/scripts/*.test.sh; do
+            bash "$test_file"
+          done
+
       - name: Generate OpenAPI document
         run: node scripts/openapi/generate.mjs openapi.head.json
 

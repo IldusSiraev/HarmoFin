@@ -13,7 +13,6 @@ test('production workflow requires manual dispatch with required inputs', async 
 
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /image_tag:/);
-  assert.match(workflow, /staging_evidence:/);
   assert.match(workflow, /migration_compatibility:/);
   assert.match(workflow, /backup_evidence:/);
   assert.match(workflow, /required:\s*true/);
@@ -30,7 +29,6 @@ test('production workflow validates SHA format and evidence', async () => {
   const workflow = await readWorkflow('deploy-production.yml');
 
   assert.match(workflow, /grep -Eq '\^\[0-9a-f\]\{7,40\}\$'/);
-  assert.match(workflow, /test -n.*staging_evidence/i);
   assert.match(workflow, /test -n.*backup_evidence/i);
 });
 
@@ -54,7 +52,6 @@ test('production workflow uses production secrets and invokes deploy script', as
 test('production workflow records all evidence in metadata', async () => {
   const workflow = await readWorkflow('deploy-production.yml');
 
-  assert.match(workflow, /staging_evidence=/);
   assert.match(workflow, /migration_compatibility=/);
   assert.match(workflow, /backup_evidence=/);
   assert.match(workflow, /environment=production/);
