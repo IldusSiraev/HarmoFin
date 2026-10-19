@@ -164,14 +164,15 @@ watch(
             Создать аккаунт
           </UiButton>
         </nav>
-        <button
-          type="button"
+        <UiButton
+          variant="tertiary"
+          size="sm"
           class="demo-page__restart"
           data-action="demo-restart"
           @click="restart"
         >
           Начать сначала
-        </button>
+        </UiButton>
       </div>
       <div class="demo-page__screen">
         <DemoStage
@@ -244,12 +245,6 @@ watch(
 
 .demo-page__restart {
   justify-self: start;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--hf-color-text-muted);
-  text-decoration: underline;
-  cursor: pointer;
 }
 
 @media (min-width: 64rem) {

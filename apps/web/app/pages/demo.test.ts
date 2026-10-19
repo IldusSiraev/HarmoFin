@@ -98,7 +98,9 @@ describe('demo page', () => {
     await flushPromises();
     const cta = wrapper.get('[data-action="demo-register"]');
     expect(cta.attributes('href')).toBe('/register');
-    await wrapper.get('[data-action="demo-restart"]').trigger('click');
+    const restart = wrapper.get('[data-action="demo-restart"]');
+    expect(restart.classes()).toContain('ui-button--sm');
+    await restart.trigger('click');
     expect(mocks.replace).toHaveBeenLastCalledWith({
       query: { step: '0', start: '10', offset: '15' },
     });
