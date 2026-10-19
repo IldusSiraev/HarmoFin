@@ -18,7 +18,11 @@ describe('API process', () => {
     const response = await fetch(`http://127.0.0.1:${port}/api/v1/health/live`);
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ status: 'ok' });
+    await expect(response.json()).resolves.toEqual({
+      status: 'ok',
+      version: '0.0.0-dev',
+      revision: 'dev',
+    });
   }, 20_000);
 
   it('builds the OpenAPI document under tsx', async () => {

@@ -42,6 +42,7 @@ const apiEnvironmentSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   TRUST_PROXY: z.enum(['true', 'false']).default('false'),
   RELEASE_SHA: z.string().min(1).default('dev'),
+  APP_VERSION: z.string().min(1).default('0.0.0-dev'),
   ERROR_REPORTING_ENDPOINT: optionalHttpUrl,
   OTEL_EXPORTER_OTLP_ENDPOINT: optionalHttpUrl,
   AUTH_TOKEN_HASH_SECRET: z.string().min(32),
@@ -66,6 +67,7 @@ export interface ApiConfig {
   logLevel: LogLevel;
   trustProxy: boolean;
   releaseSha: string;
+  appVersion: string;
   errorReportingEndpoint?: string;
   otelExporterOtlpEndpoint?: string;
   auth: {
@@ -127,6 +129,7 @@ export function loadApiConfig(input: NodeJS.ProcessEnv): ApiConfig {
     logLevel: environment.LOG_LEVEL,
     trustProxy: environment.TRUST_PROXY === 'true',
     releaseSha: environment.RELEASE_SHA,
+    appVersion: environment.APP_VERSION,
     ...(environment.ERROR_REPORTING_ENDPOINT
       ? { errorReportingEndpoint: environment.ERROR_REPORTING_ENDPOINT }
       : {}),

@@ -15,6 +15,7 @@ const baseConfig: ApiConfig = {
   logLevel: 'silent',
   trustProxy: false,
   releaseSha: 'test',
+  appVersion: 'test-version',
   auth: {
     tokenHashSecret: 'test-only-secret-with-at-least-32-bytes',
     idleTimeoutSeconds: 2_592_000,
@@ -54,7 +55,11 @@ describe('API health contract', () => {
     const response = await server.inject({ method: 'GET', url: '/api/v1/health/live' });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ status: 'ok' });
+    expect(response.json()).toEqual({
+      status: 'ok',
+      version: baseConfig.appVersion,
+      revision: baseConfig.releaseSha,
+    });
   });
 
   it('publishes readiness when PostgreSQL is available', async () => {
@@ -75,7 +80,10 @@ describe('API health contract', () => {
     const document = response.json<{
       paths: Record<string, unknown>;
       components: {
-        schemas: Record<string, { properties?: Record<string, { type?: string }> }>;
+        schemas: Record<
+          string,
+          { properties?: Record<string, { type?: string }>; required?: string[] }
+        >;
       };
     }>();
 
@@ -90,6 +98,9 @@ describe('API health contract', () => {
       detail: { type: 'string' },
       requestId: { type: 'string' },
     });
+    expect(document.components.schemas.LiveHealthResponse?.required).toEqual(
+      expect.arrayContaining(['status', 'version', 'revision']),
+    );
   });
 });
 

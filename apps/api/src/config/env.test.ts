@@ -28,6 +28,7 @@ describe('loadApiConfig', () => {
       logLevel: 'info',
       trustProxy: false,
       releaseSha: 'dev',
+      appVersion: '0.0.0-dev',
       auth: {
         tokenHashSecret: 'test-only-secret-with-at-least-32-bytes',
         idleTimeoutSeconds: 2_592_000,
@@ -111,11 +112,13 @@ describe('loadApiConfig', () => {
       loadApiConfig({
         ...validEnvironment,
         RELEASE_SHA: 'release-123',
+        APP_VERSION: '1.2.3',
         ERROR_REPORTING_ENDPOINT: 'https://errors.invalid/ingest',
         OTEL_EXPORTER_OTLP_ENDPOINT: 'https://traces.invalid/v1/traces',
       }),
     ).toMatchObject({
       releaseSha: 'release-123',
+      appVersion: '1.2.3',
       errorReportingEndpoint: 'https://errors.invalid/ingest',
       otelExporterOtlpEndpoint: 'https://traces.invalid/v1/traces',
     });
