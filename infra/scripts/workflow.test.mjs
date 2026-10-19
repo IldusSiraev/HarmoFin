@@ -77,3 +77,23 @@ test('release workflow runs release-please on main with a GitHub App token', asy
   assert.doesNotMatch(workflow, /pull_request/);
   assert.doesNotMatch(workflow, /GITHUB_TOKEN/);
 });
+
+test('runtime images bake the application version', async () => {
+  const dockerfile = await readFile(new URL('infra/docker/Dockerfile', root), 'utf8');
+  const bake = await readFile(new URL('infra/docker/docker-bake.hcl', root), 'utf8');
+
+  assert.match(dockerfile, /ARG APP_VERSION=0\.0\.0-dev/);
+  assert.match(dockerfile, /APP_VERSION=\$APP_VERSION/);
+  assert.match(dockerfile, /NUXT_PUBLIC_APP_VERSION=\$APP_VERSION/);
+  assert.match(bake, /variable "APP_VERSION"/);
+  assert.match(bake, /APP_VERSION\s*=\s*APP_VERSION/);
+});
+
+test('publish workflow passes the package version into images', async () => {
+  const workflow = await readWorkflow('publish.yml');
+
+  assert.match(workflow, /require\('\.\/package\.json'\)\.version/);
+  assert.match(workflow, /build-args:\s*\|\s*\n\s*APP_VERSION=\$\{\{ env\.APP_VERSION \}\}/);
+  assert.match(workflow, /org\.opencontainers\.image\.version=\$\{\{ env\.APP_VERSION \}\}/);
+  assert.match(workflow, /"version=\$\{APP_VERSION\}"/);
+});

@@ -4,6 +4,10 @@ variable "TAG" {
   default = "local"
 }
 
+variable "APP_VERSION" {
+  default = "0.0.0-dev"
+}
+
 group "default" {
   targets = ["web", "api", "worker", "migrate"]
 }
@@ -11,6 +15,9 @@ group "default" {
 target "_common" {
   context    = "."
   dockerfile = "infra/docker/Dockerfile"
+  args = {
+    APP_VERSION = APP_VERSION
+  }
 }
 
 target "web" {

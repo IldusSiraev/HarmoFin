@@ -41,6 +41,12 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 USER app
 
+# Release version from the root package.json; the web reads it as
+# runtimeConfig.public.appVersion, the API as config.appVersion.
+ARG APP_VERSION=0.0.0-dev
+ENV APP_VERSION=$APP_VERSION \
+    NUXT_PUBLIC_APP_VERSION=$APP_VERSION
+
 FROM runtime-base AS web
 
 COPY --chown=app:app --from=build /app/apps/web/.output ./.output
