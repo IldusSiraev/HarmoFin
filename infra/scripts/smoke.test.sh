@@ -44,4 +44,28 @@ fake_curl_503() {
 assert_failure "check_http_status fails on mismatched status code" \
   check_http_status fake_curl_503 "http://example.invalid/health/ready" 200
 
+# check_api_revision: compares the deployed revision with the expected SHA
+fake_body_with_revision() {
+  echo '{"status":"ok","version":"1.2.3","revision":"abc1234"}'
+}
+assert_success "check_api_revision succeeds when the revision matches" \
+  check_api_revision fake_body_with_revision "http://example.invalid/api/v1/health/live" abc1234
+assert_failure "check_api_revision fails when another revision is running" \
+  check_api_revision fake_body_with_revision "http://example.invalid/api/v1/health/live" def5678
+
+output="$(check_api_revision fake_body_with_revision "http://example.invalid/api/v1/health/live" def5678 2>&1 || true)"
+case "$output" in
+  *"Expected revision def5678"*"got abc1234"*) echo "ok - check_api_revision names both revisions" ;;
+  *)
+    echo "not ok - check_api_revision names both revisions (got: $output)"
+    failures=$((failures + 1))
+    ;;
+esac
+
+fake_body_without_revision() {
+  echo '{"status":"ok"}'
+}
+assert_success "check_api_revision tolerates releases that predate revision reporting" \
+  check_api_revision fake_body_without_revision "http://example.invalid/api/v1/health/live" abc1234
+
 report_results
