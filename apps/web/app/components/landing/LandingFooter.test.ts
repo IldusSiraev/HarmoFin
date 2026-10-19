@@ -33,4 +33,9 @@ describe('LandingFooter', () => {
     const wrapper = mount(LandingFooter, { global: { stubs } });
     expect(wrapper.text()).not.toContain('Контакты');
   });
+
+  it('links the demo from the product column', () => {
+    const wrapper = mount(LandingFooter, { global: { stubs } });
+    expect(wrapper.find('a[href="/demo"]').text()).toBe('Демо');
+  });
 });

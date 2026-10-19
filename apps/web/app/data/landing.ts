@@ -181,6 +181,7 @@ export const landingNavLinks: { href: string; label: string }[] = [
 ];
 
 export const footerProductLinks: { href: string; label: string }[] = [
+  { href: '/demo', label: 'Демо' },
   { href: '#features', label: 'Возможности' },
   { href: '#how-it-works', label: 'Как это работает' },
   { href: '#security', label: 'Безопасность' },

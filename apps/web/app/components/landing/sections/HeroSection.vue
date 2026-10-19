@@ -24,7 +24,7 @@ defineOptions({ name: 'HeroSection' });
         </p>
         <div class="hero__actions">
           <UiButton to="/register" variant="brand" size="lg">Начать бесплатно</UiButton>
-          <a class="hero__secondary" href="#how-it-works">Посмотреть, как это работает →</a>
+          <NuxtLink class="hero__secondary" to="/demo">Попробовать демо →</NuxtLink>
         </div>
         <ul class="hero__trust">
           <li v-for="point in heroTrustPoints" :key="point" class="hero__trust-item">
