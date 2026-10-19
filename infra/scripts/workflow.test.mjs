@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
+import { runBlocks } from './workflow-test-helpers.mjs';
+
 const root = new URL('../..', import.meta.url);
 
 async function readWorkflow(name) {
@@ -96,4 +98,25 @@ test('publish workflow passes the package version into images', async () => {
   assert.match(workflow, /build-args:\s*\|\s*\n\s*APP_VERSION=\$\{\{ env\.APP_VERSION \}\}/);
   assert.match(workflow, /org\.opencontainers\.image\.version=\$\{\{ env\.APP_VERSION \}\}/);
   assert.match(workflow, /"version=\$\{APP_VERSION\}"/);
+});
+
+test('release image tagging reacts to tags and to published images', async () => {
+  const workflow = await readWorkflow('tag-release-images.yml');
+
+  assert.match(workflow, /push:\s*\n\s*tags:\s*\['v\*\.\*\.\*'\]/);
+  assert.match(workflow, /workflow_run:\s*\n\s*workflows:\s*\[Publish images\]/);
+  assert.match(workflow, /conclusion == 'success'/);
+  assert.match(workflow, /fetch-depth:\s*0/);
+  assert.match(workflow, /source infra\/scripts\/release\.sh/);
+  assert.match(workflow, /resolve_tagged_commit/);
+  assert.match(workflow, /docker buildx imagetools inspect/);
+  assert.match(workflow, /docker buildx imagetools create --tag/);
+  assert.match(workflow, /for target in web api worker migrate/);
+  assert.match(workflow, /actions\/checkout@[0-9a-f]{40}/);
+  assert.match(workflow, /packages:\s*write/);
+  assert.doesNotMatch(workflow, /:latest/);
+  assert.doesNotMatch(workflow, /pull_request/);
+  for (const block of runBlocks(workflow)) {
+    assert.doesNotMatch(block, /\$\{\{\s*github\.(event|ref_name)/);
+  }
 });
