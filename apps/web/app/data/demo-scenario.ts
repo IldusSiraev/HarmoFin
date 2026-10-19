@@ -274,7 +274,6 @@ export function toDashboard(
         },
         ...later,
       ];
-  const funded = s.envelopesTotalMinor !== '0';
   return {
     planModelVersion: 2,
     period: { start: dates.periodStart, end: dates.periodEnd, periodId: PERIOD_ID },
@@ -282,14 +281,9 @@ export function toDashboard(
     asOf,
     horizonEnd: dates.periodEnd,
     nearestObligations: obligations,
-    periodStats: funded
-      ? {
-          spentMinor: s.envelopes.current.spentMinor,
-          availableMinor: s.envelopes.current.balanceMinor,
-          daysLeft: asOf === dates.shoppingTo ? dates.daysLeftAfterShopping : 0,
-          averagePerDayMinor: '0',
-        }
-      : null,
+    // AvailableBudgetCard renders a per-day spending figure whenever periodStats is set; the
+    // landing never shows that aggregate, so days-left information is text-only (demoStepText).
+    periodStats: null,
     envelopes: ENVELOPE_ORDER.map((key) => ({
       ...ENVELOPES[key],
       balanceMinor: s.envelopes[key].balanceMinor,

@@ -79,7 +79,7 @@ describe('demo scenario snapshots', () => {
       end: '2026-10-24',
       periodId: 'demo-period-salary',
     });
-    expect(dashboard.periodStats?.daysLeft).toBe(3);
+    expect(dashboard.periodStats).toBeNull();
     expect(dashboard.nearestObligations.map((o) => o.name)).toEqual([
       'Детский сад',
       'Коммунальные услуги',
