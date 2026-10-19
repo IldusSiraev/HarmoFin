@@ -24,6 +24,13 @@ test('release-please releases the whole product as one node package', async () =
   assert.deepEqual(Object.keys(config.packages), ['.']);
 });
 
+test('release-please derives the next version from commits after the first release', async () => {
+  const config = await readJson('release-please-config.json');
+
+  assert.equal(config['release-as'], undefined);
+  assert.equal(config.packages['.']['release-as'], undefined);
+});
+
 test('release-please syncs the version into every app package', async () => {
   const config = await readJson('release-please-config.json');
   const synced = config.packages['.']['extra-files']

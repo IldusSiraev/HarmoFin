@@ -44,5 +44,7 @@ Staging пока не развёрнут, поэтому workflow `Deploy stagin
 
 ## Первый релиз
 
-Первый Release PR выпускает `1.0.0` (`release-as` в `release-please-config.json`). После выпуска `v1.0.0`
-удалить `release-as` отдельным коммитом, иначе следующие Release PR снова будут предлагать `1.0.0`.
+Первый релиз `v1.0.0` выпущен 19.10.2026 через временный `release-as: "1.0.0"`, который затем удалён из
+`release-please-config.json`. Следующие версии release-please вычисляет из коммитов; тест
+`scripts/ci/release-config.test.mjs` не даёт вернуть `release-as` случайно. Если версию нужно задать вручную,
+временно добавить `release-as` и удалить его сразу после выпуска.
