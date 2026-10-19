@@ -29,7 +29,8 @@ describe('HeroSection', () => {
 
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'));
     expect(hrefs).toContain('/register');
-    expect(hrefs).toContain('#how-it-works');
+    expect(hrefs).toContain('/demo');
+    expect(wrapper.text()).toContain('Попробовать демо');
   });
 
   it('lists the trust points from the brief', () => {
