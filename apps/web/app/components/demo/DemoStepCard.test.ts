@@ -18,22 +18,22 @@ describe('demo step card', () => {
     expect(wrapper.get('[aria-live="polite"]').text()).toBe('Шаг 3 из 7');
   });
 
-  it('renders choices as a labelled radiogroup and marks the selected one in text', () => {
+  it('renders choices as a labelled group of toggle buttons and marks the selected one in text', () => {
     const wrapper = mount(DemoStepCard, {
       props: { step: 2, title: 'Распределите', body: 'Текст', choices, selected: 'vacation' },
     });
-    const group = wrapper.get('[role="radiogroup"]');
+    const group = wrapper.get('[role="group"]');
     expect(group.attributes('aria-label')).toBe('Выберите вариант');
-    const radios = wrapper.findAll('[role="radio"]');
-    expect(radios.map((r) => r.attributes('aria-checked'))).toEqual(['false', 'true']);
-    expect(radios[1]!.text()).toContain('Выбрано');
+    const buttons = wrapper.findAll('button[aria-pressed]');
+    expect(buttons.map((b) => b.attributes('aria-pressed'))).toEqual(['false', 'true']);
+    expect(buttons[1]!.text()).toContain('Выбрано');
   });
 
   it('emits the chosen value', async () => {
     const wrapper = mount(DemoStepCard, {
       props: { step: 5, title: 'Конец', body: 'Текст', choices },
     });
-    await wrapper.findAll('[role="radio"]')[0]!.trigger('click');
+    await wrapper.findAll('button[aria-pressed]')[0]!.trigger('click');
     expect(wrapper.emitted('choose')?.[0]).toEqual(['suggested']);
   });
 });

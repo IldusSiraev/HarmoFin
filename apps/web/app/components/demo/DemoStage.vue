@@ -40,12 +40,12 @@ const goals = computed(() => toGoalRows(props.snapshot));
         :period-boundary-offset="cycle.offset"
       />
       <template v-else>
-        <AvailableBudgetCard :dashboard="dashboard" />
+        <AvailableBudgetCard v-if="step <= 5" :dashboard="dashboard" />
         <div v-if="step >= 2" class="demo-stage__envelopes">
           <EnvelopePlanRow v-for="envelope in envelopes" :key="envelope.id" :envelope="envelope" />
         </div>
         <UpcomingObligations
-          v-if="step === 1 || step === 3"
+          v-if="step === 2 || step === 3"
           :items="dashboard.nearestObligations"
         />
         <GoalProgressReport v-if="step === 6" :rows="goals" />

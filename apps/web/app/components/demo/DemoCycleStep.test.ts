@@ -15,15 +15,14 @@ describe('demo cycle step', () => {
     expect(cycleErrors(start, offset)).toEqual(expected);
   });
 
-  it('renders both settings fields and passes valid values to CyclePreview', () => {
+  it('renders both settings fields and no cycle preview of its own', () => {
     const wrapper = mount(DemoCycleStep, { props: { start: '5', offset: '10' } });
     expect(wrapper.text()).toContain('Начало первого периода');
     expect(wrapper.text()).toContain('Граница второго периода (дней от начала первого)');
-    const preview = wrapper.findComponent({ name: 'SettingsCyclePreview' });
-    expect(preview.props()).toMatchObject({ cycleStartDay: 5, periodBoundaryOffset: 10 });
+    expect(wrapper.findComponent({ name: 'SettingsCyclePreview' }).exists()).toBe(false);
   });
 
-  it('shows field errors and hides the preview for invalid input', () => {
+  it('shows field errors for invalid input', () => {
     const wrapper = mount(DemoCycleStep, { props: { start: '40', offset: '10' } });
     expect(wrapper.text()).toContain('Укажите день от 1 до 28.');
     expect(wrapper.findComponent({ name: 'SettingsCyclePreview' }).exists()).toBe(false);

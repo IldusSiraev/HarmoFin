@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import CyclePreview from '../settings/CyclePreview.vue';
 import UiInput from '../ui/Input.vue';
 import { cycleErrors } from './demo-cycle.js';
 
@@ -11,7 +10,6 @@ const props = defineProps<{ start: string; offset: string }>();
 const emit = defineEmits<{ 'update:start': [value: string]; 'update:offset': [value: string] }>();
 
 const errors = computed(() => cycleErrors(props.start, props.offset));
-const valid = computed(() => !errors.value.start && !errors.value.offset);
 </script>
 
 <template>
@@ -34,11 +32,6 @@ const valid = computed(() => !errors.value.start && !errors.value.offset);
         @update:model-value="emit('update:offset', String($event))"
       />
     </div>
-    <CyclePreview
-      v-if="valid"
-      :cycle-start-day="Number(start)"
-      :period-boundary-offset="Number(offset)"
-    />
   </div>
 </template>
 

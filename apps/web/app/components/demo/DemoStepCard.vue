@@ -28,17 +28,16 @@ defineExpose({ focusHeading: () => heading.value?.focus() });
     <div
       v-if="choices?.length"
       class="demo-step__choices"
-      role="radiogroup"
+      role="group"
       aria-label="Выберите вариант"
     >
       <button
         v-for="choice in choices"
         :key="choice.value"
         type="button"
-        role="radio"
         class="demo-step__choice"
         :class="{ 'demo-step__choice--selected': selected === choice.value }"
-        :aria-checked="selected === choice.value ? 'true' : 'false'"
+        :aria-pressed="selected === choice.value ? 'true' : 'false'"
         @click="emit('choose', choice.value)"
       >
         <span class="demo-step__choice-label">{{ choice.label }}</span>
