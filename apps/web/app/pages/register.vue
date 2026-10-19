@@ -111,7 +111,7 @@ async function submit() {
         placeholder="Например, Семейный бюджет"
       />
     </div>
-    <ConsentCheckboxes v-model:terms="acceptTerms" v-model:pd="acceptPd" />
+    <ConsentCheckboxes class="concern-wrapper" v-model:terms="acceptTerms" v-model:pd="acceptPd" />
     <p v-if="!acceptTerms || !acceptPd" id="consent-hint" class="consent-hint">
       Чтобы создать аккаунт, отметьте оба пункта.
     </p>
@@ -127,6 +127,10 @@ label span {
   color: #70808a;
   font-size: 0.78rem;
   font-weight: 500;
+}
+
+.concern-wrapper {
+  margin-top: 1rem;
 }
 
 .consent-hint {
