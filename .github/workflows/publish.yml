@@ -36,6 +36,10 @@ jobs:
         env:
           OWNER: ${{ github.repository_owner }}
 
+      - name: Read release version
+        run: |
+          printf 'APP_VERSION=%s\n' "$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
+
       - name: Log in to GitHub Container Registry
         run: |
           printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login "$REGISTRY" \
@@ -52,8 +56,11 @@ jobs:
           target: ${{ matrix.target }}
           push: true
           tags: ${{ env.IMAGE_REPOSITORY }}:${{ env.RELEASE_SHA }}
+          build-args: |
+            APP_VERSION=${{ env.APP_VERSION }}
           labels: |
             org.opencontainers.image.revision=${{ env.RELEASE_SHA }}
+            org.opencontainers.image.version=${{ env.APP_VERSION }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
           cache-from: type=gha,scope=${{ matrix.target }}
           cache-to: type=gha,mode=max,scope=${{ matrix.target }}
@@ -63,6 +70,7 @@ jobs:
           printf '%s\n' \
             "image=${IMAGE_REPOSITORY}:${RELEASE_SHA}" \
             "revision=${RELEASE_SHA}" \
+            "version=${APP_VERSION}" \
             "target=${{ matrix.target }}" > "release-${{ matrix.target }}-${RELEASE_SHA}.txt"
 
       - name: Upload release metadata

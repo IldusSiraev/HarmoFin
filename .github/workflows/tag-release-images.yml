@@ -1,0 +1,102 @@
+name: Tag release images
+
+# release-please tags the release commit within seconds, while its images are
+# published only after CI finishes, so either event may come first. Both
+# triggers run the same idempotent job: it scans recent release tags and tags
+# whichever of their images are already published, skipping the rest for a
+# later run to pick up.
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_run:
+    workflows: [Publish images]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag vX.Y.Z to tag (empty: scan recent releases)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: tag-release-images
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: ghcr.io
+    steps:
+      - name: Check out repository with tags
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: List candidate release tags
+        id: candidates
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSHED_TAG: ${{ github.ref_name }}
+          DISPATCH_TAG: ${{ inputs.tag }}
+        run: |
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            tags="$PUSHED_TAG"
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && -n "$DISPATCH_TAG" ]]; then
+            tags="$DISPATCH_TAG"
+          else
+            tags="$(git tag --list 'v*.*.*' --sort=-v:refname | head -n 5)"
+          fi
+          {
+            echo 'tags<<EOF'
+            printf '%s\n' "$tags"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        run: |
+          printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login "$REGISTRY" \
+            --username '${{ github.actor }}' --password-stdin
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Tag published images for each candidate release
+        env:
+          OWNER: ${{ github.repository_owner }}
+          CANDIDATE_TAGS: ${{ steps.candidates.outputs.tags }}
+        run: |
+          source infra/scripts/release.sh
+          image_prefix="${REGISTRY}/${OWNER,,}/harmofin"
+          while IFS= read -r tag; do
+            [[ -z "$tag" ]] && continue
+            sha="$(git rev-parse "${tag}^{commit}")"
+            resolved="$(resolve_tagged_commit "$sha")"
+            if [[ -z "$resolved" ]]; then
+              echo "Commit $sha for $tag carries no matching release tag; skipping."
+              continue
+            fi
+            version="${resolved#* }"
+            all_published=1
+            for target in web api worker migrate; do
+              if ! docker buildx imagetools inspect "${image_prefix}-${target}:${sha}" >/dev/null 2>&1; then
+                all_published=0
+                break
+              fi
+            done
+            if [[ "$all_published" -eq 0 ]]; then
+              echo "Images for ${tag} (${sha}) are not published yet; skipping."
+              continue
+            fi
+            for target in web api worker migrate; do
+              docker buildx imagetools create --tag "${image_prefix}-${target}:${version}" \
+                "${image_prefix}-${target}:${sha}"
+            done
+            echo "Tagged ${sha} as ${version}."
+          done <<< "$CANDIDATE_TAGS"

@@ -14,6 +14,7 @@ const config = {
   logLevel: 'silent' as const,
   trustProxy: false,
   releaseSha: 'test',
+  appVersion: 'test-version',
   auth: {
     tokenHashSecret: 'test-only-secret-with-at-least-32-bytes',
     idleTimeoutSeconds: 2_592_000,

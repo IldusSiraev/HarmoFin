@@ -171,6 +171,13 @@ pnpm test:e2e
 - Не логировать пароли, cookies, reset links, token values или полный sensitive payload.
 - UI и route parameter не являются авторизацией: доступ проверяет API в guard, policy и repository query.
 
+## Релизы
+
+Версия продукта — единый SemVer `vX.Y.Z` в корневом `package.json`. Release PR с changelog готовит
+release-please по Conventional Commits; мерж Release PR ставит тег и GitHub Release, образы получают
+тег версии, production деплоится workflow `Deploy production` с указанием версии.
+Процедура и разовая настройка — в [runbook выпуска релиза](docs/runbooks/release.md).
+
 ## Документация
 
 - [Функциональное ТЗ](docs/superpowers/specs/2026-08-30-family-budget-app-spec.md)

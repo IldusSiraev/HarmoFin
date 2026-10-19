@@ -1161,6 +1161,8 @@ Production deploy выполняется после:
 - DNS и TLS через cloud provider/CDN/reverse proxy;
 - CI/CD с автоматическим deploy staging и ручным deploy production.
 
+Версионирование и выпуск релизов описаны в [отдельном дизайне](2026-10-19-release-versioning-design.md).
+
 ### 14.2. Production-топология
 
 ```text

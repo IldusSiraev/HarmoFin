@@ -5,7 +5,7 @@
 **Предусловия**:
 
 - Release checklist завершён (`docs/operations/release-record.md`)
-- Деплой на staging прошёл успешно с тем же SHA
+- Если staging включён (`STAGING_DEPLOY_ENABLED`), деплой на staging прошёл успешно с тем же SHA
 - Совместимость миграции проверена
 - Свежий backup подтверждён
 - Дежурный инженер на связи
@@ -20,13 +20,13 @@
 
 ```bash
 # Проверить завершение release checklist
-# Убедиться, что прогон staging workflow прошёл успешно
+# Если staging включён — убедиться, что прогон staging workflow прошёл успешно
 # Подтвердить, что backup укладывается в окно RPO (≤1 час)
 # Подтвердить классификацию совместимости миграции
 ```
 
 - [ ] Release SHA опубликован и просканирован
-- [ ] Smoke-тесты на staging прошли с этим SHA
+- [ ] Smoke-тесты на staging прошли с этим SHA (если staging включён)
 - [ ] Backup свежий (не старше 1 часа)
 - [ ] Совместимость миграции: `[forward-only | backward-compatible | rollback-safe]`
 - [ ] Дежурный инженер уведомлён и доступен
@@ -66,8 +66,7 @@
 
 **Входные параметры workflow**:
 
-- `image_tag`: `[точный commit SHA]`
-- `staging_evidence`: `[URL прогона staging workflow]`
+- `release`: версия релиза (`1.2.3` или `v1.2.3`) либо точный commit SHA; версия резолвится в SHA своего тега (см. [выпуск релиза](release.md))
 - `migration_compatibility`: `[forward-only | backward-compatible | rollback-safe]`
 - `backup_evidence`: `[ссылка на backup из шага 3]`
 
@@ -210,10 +209,9 @@ curl -f https://production-domain/api/v1/health/ready
 См.: `docs/runbooks/image-rollback.md`
 
 ```bash
-# Запустить production deployment workflow с предыдущим известным рабочим SHA
+# Запустить production deployment workflow с предыдущей рабочей версией
 # Входные параметры workflow:
-# - image_tag: [SHA для отката]
-# - staging_evidence: [исходный staging evidence]
+# - release: [предыдущая версия или её commit SHA]
 # - migration_compatibility: backward-compatible
 # - backup_evidence: [текущий backup]
 ```

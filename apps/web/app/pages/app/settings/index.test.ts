@@ -190,6 +190,13 @@ describe('settings hub page', () => {
     });
   });
 
+  it('shows the running application version as secondary text', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('.settings-page__version').text()).toBe('Версия 0.0.0-test');
+  });
+
   it('opens the template preview', async () => {
     const wrapper = mountPage();
     await flushPromises();

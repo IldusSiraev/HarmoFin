@@ -51,6 +51,48 @@ curl_status() {
   curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$url"
 }
 
+# curl_body <url>
+# Real body fetcher used by production callers of check_api_revision.
+curl_body() {
+  local url="$1"
+  curl -s --max-time 5 "$url"
+}
+
+# check_api_revision <body_fn> <url> <expected_revision>
+# Reads the API liveness body and compares its "revision" with the deployed
+# SHA. Releases built before revision reporting omit the field; they pass with
+# a warning so rollbacks to them still work. An empty body (fetch failure,
+# e.g. curl timeout) is a hard failure, not a legacy-release pass, because it
+# cannot be distinguished from a dead endpoint otherwise.
+check_api_revision() {
+  local body_fn="$1"
+  local url="$2"
+  local expected_revision="$3"
+  local body
+  local actual_revision
+
+  body="$("$body_fn" "$url")"
+
+  if [[ -z "$body" ]]; then
+    echo "Could not read $url to check the revision." >&2
+    return 1
+  fi
+
+  actual_revision="$(echo "$body" | sed -n 's/.*"revision":"\([^"]*\)".*/\1/p')"
+
+  if [[ -z "$actual_revision" ]]; then
+    echo "Warning: $url does not report a revision; skipping revision check." >&2
+    return 0
+  fi
+
+  if [[ "$actual_revision" != "$expected_revision" ]]; then
+    echo "Expected revision $expected_revision from $url, got $actual_revision." >&2
+    return 1
+  fi
+
+  return 0
+}
+
 # run_smoke_checks <base_url>
 # Verifies liveness/readiness for web (via Caddy) and API through the public
 # same-origin routes only. Does not touch worker/metrics private ports.
@@ -65,6 +107,11 @@ run_smoke_checks() {
 
   echo "Checking API readiness at $base_url/api/v1/health/ready"
   check_http_status curl_status "$base_url/api/v1/health/ready" 200 || return 1
+
+  if [[ -n "${EXPECTED_REVISION:-}" ]]; then
+    echo "Checking API revision at $base_url/api/v1/health/live"
+    check_api_revision curl_body "$base_url/api/v1/health/live" "$EXPECTED_REVISION" || return 1
+  fi
 
   echo "Smoke checks passed for $base_url"
   return 0

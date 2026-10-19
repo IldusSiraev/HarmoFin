@@ -2610,13 +2610,21 @@
       },
       "LiveHealthResponse": {
         "properties": {
+          "revision": {
+            "example": "0123456789abcdef0123456789abcdef01234567",
+            "type": "string"
+          },
           "status": {
             "enum": ["ok"],
             "example": "ok",
             "type": "string"
+          },
+          "version": {
+            "example": "1.2.3",
+            "type": "string"
           }
         },
-        "required": ["status"],
+        "required": ["status", "version", "revision"],
         "type": "object"
       },
       "LoginRequest": {

@@ -35,7 +35,7 @@ export class AppModule {
       module: AppModule,
       imports: [
         DatabaseModule.register(config),
-        HealthModule,
+        HealthModule.register(config),
         AuthModule.register(config),
         AccountDeletionModule.register(config),
         LegalModule.register(),

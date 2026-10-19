@@ -1,7 +1,9 @@
 import { Controller, Get, Inject, ServiceUnavailableException } from '@nestjs/common';
 import { ApiOkResponse, ApiResponse, ApiTags } from '@nestjs/swagger';
 
+import { API_CONFIG } from '../common/security/security.constants.js';
 import { ProblemDetailsResponse } from '../common/errors/problem-details.dto.js';
+import type { ApiConfig } from '../config/env.js';
 import { DatabaseHealthService } from '../database/database-health.service.js';
 import { MetricsRegistry } from '../observability/observability.js';
 import { LiveHealthResponse, ReadyHealthResponse } from './health.dto.js';
@@ -14,12 +16,14 @@ export class HealthController {
     private readonly databaseHealth: DatabaseHealthService,
     @Inject(MetricsRegistry)
     private readonly metrics: MetricsRegistry,
+    @Inject(API_CONFIG)
+    private readonly config: ApiConfig,
   ) {}
 
   @Get('live')
   @ApiOkResponse({ type: LiveHealthResponse })
   live(): LiveHealthResponse {
-    return { status: 'ok' };
+    return { status: 'ok', version: this.config.appVersion, revision: this.config.releaseSha };
   }
 
   @Get('ready')

@@ -9,3 +9,5 @@ pnpm-lock.yaml
 .claude/
 docs/superpowers/
 identity/
+CHANGELOG.md
+.release-please-manifest.json

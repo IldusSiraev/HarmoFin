@@ -49,6 +49,8 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiUrl: config.apiUrl,
+      // Filled at runtime from NUXT_PUBLIC_APP_VERSION, baked into the image at build.
+      appVersion: '0.0.0-dev',
       // Filled at runtime from NUXT_PUBLIC_LEGAL_*; required in production compose.
       legal: {
         operatorName: '',

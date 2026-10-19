@@ -152,8 +152,8 @@ nslookup <домен> ns1.example.com     # опросить каждый NS п�
 
 Actions → **Deploy production** → Run workflow (`workflow_dispatch`):
 
-- `image_tag`: точный commit SHA, уже опубликованный [publish.yml](../../.github/workflows/publish.yml) (проверить в Actions → Publish images → успешный прогон)
-- `staging_evidence`, `backup_evidence`: workflow только проверяет, что поле не пустое — для solo-проекта без отдельного staging можно указать текстовое пояснение вместо реальной ссылки
+- `release`: версия релиза (`1.2.3` или `v1.2.3`) либо точный commit SHA, уже опубликованный [publish.yml](../../.github/workflows/publish.yml) (проверить в Actions → Publish images → успешный прогон)
+- `backup_evidence`: workflow только проверяет, что поле не пустое — для solo-проекта без отдельного staging можно указать текстовое пояснение вместо реальной ссылки
 - `migration_compatibility`: для самого первого деплоя на пустую базу данных подходит `forward-only`
 
 Дальше `deploy-production.yml` делает всё сам: заливает `infra/compose/production.yml`, `infra/caddy/Caddyfile`, `infra/scripts/*` и `.env.production` на сервер, запускает `deploy.sh` (миграция → `docker compose up -d` → ожидание healthy → smoke-тесты).

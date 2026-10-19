@@ -64,7 +64,7 @@ wait_for_services_healthy() {
 # Overridable in tests.
 run_deploy_smoke() {
   local base_url="${SMOKE_BASE_URL:?SMOKE_BASE_URL is required}"
-  run_smoke_checks "$base_url"
+  EXPECTED_REVISION="${IMAGE_TAG:-}" run_smoke_checks "$base_url"
 }
 
 # run_deploy
