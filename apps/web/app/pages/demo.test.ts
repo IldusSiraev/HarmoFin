@@ -13,12 +13,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock('#app', () => ({
   useRoute: () => mocks.route,
   useRouter: () => ({ replace: mocks.replace }),
-  useHead: vi.fn(),
+  useSeoMeta: vi.fn(),
 }));
 vi.mock('#imports', () => ({
   useRoute: () => mocks.route,
   useRouter: () => ({ replace: mocks.replace }),
-  useHead: vi.fn(),
+  useSeoMeta: vi.fn(),
 }));
 vi.mock('../composables/useApiClient.js', () => ({
   useApiClient: () => ({ request: mocks.apiRequest }),
@@ -49,6 +49,27 @@ describe('demo page', () => {
     expect(wrapper.text()).toContain('Демо: выдуманная семья и суммы. Ничего не сохраняется.');
     expect(wrapper.get('h2').text()).toBe('Настройте финансовый цикл');
     expect(mocks.apiRequest).not.toHaveBeenCalled();
+  });
+
+  it('marks the root as hydrated after mount', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+    expect(wrapper.attributes('data-hydrated')).toBe('true');
+  });
+
+  it('goes back to the previous step keeping the same choices', async () => {
+    const wrapper = mountPage({ step: '3', start: '10', offset: '15', split: 'vacation' });
+    await flushPromises();
+    await wrapper.get('[data-action="demo-back"]').trigger('click');
+    expect(mocks.replace).toHaveBeenLastCalledWith({
+      query: { step: '2', start: '10', offset: '15', split: 'vacation' },
+    });
+  });
+
+  it('passes a valid typed draft on step 0 to the stage preview before pressing «Далее»', async () => {
+    const wrapper = mountPage({ step: '0', start: '10', offset: '15' });
+    await wrapper.get('[name="demo-cycle-start"]').setValue('12');
+    expect(wrapper.findComponent({ name: 'SettingsCyclePreview' }).props('cycleStartDay')).toBe(12);
   });
 
   it('moves forward and writes the step to the URL', async () => {

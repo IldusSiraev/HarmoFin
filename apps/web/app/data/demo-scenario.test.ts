@@ -98,6 +98,14 @@ describe('demo scenario snapshots', () => {
     });
   });
 
+  it('keeps the step 2 caption neutral until a split is chosen', () => {
+    const dates = demoPeriodDates(10, 15);
+    const before = demoStepText(2, { split: null, leftover: null }, dates);
+    expect(before.caption).toBe('Конверты пока пусты — выберите, как распределить зарплату.');
+    const after = demoStepText(2, { split: 'suggested', leftover: null }, dates);
+    expect(after.caption).toBe('Конверты после распределения зарплаты.');
+  });
+
   it('writes step texts with the visitor cycle dates and glossary terms', () => {
     const dates = demoPeriodDates(5, 10);
     const texts = [0, 1, 2, 3, 4, 5, 6].map((step) =>

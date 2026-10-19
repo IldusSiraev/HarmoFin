@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from '#app';
-import { useHead } from '#imports';
+import { useSeoMeta } from '#imports';
 
 import DemoCycleStep from '../components/demo/DemoCycleStep.vue';
 import DemoStage from '../components/demo/DemoStage.vue';
@@ -18,11 +18,16 @@ import {
 import { parseDemoQuery, toDemoQuery, type DemoState } from '../data/demo-state.js';
 
 defineOptions({ name: 'DemoPage' });
-useHead({ title: 'Демо — HarmoFin' });
+useSeoMeta({
+  title: 'Демо — HarmoFin',
+  description:
+    'Попробуйте HarmoFin без регистрации: настройте финансовый цикл и проживите месяц семьи с конвертами.',
+});
 
 const route = useRoute();
 const router = useRouter();
 const card = ref<InstanceType<typeof DemoStepCard> | null>(null);
+const hydrated = ref(false);
 
 const state = computed(() => parseDemoQuery(route.query as Record<string, unknown>));
 // Draft cycle fields: the visitor may type an invalid value; the URL keeps the last valid cycle.
@@ -107,6 +112,7 @@ onMounted(() => {
     Object.keys(normalized).length === Object.keys(current).length &&
     Object.entries(normalized).every(([key, value]) => current[key] === value);
   if (!same && Object.keys(current).length > 0) void go(state.value);
+  hydrated.value = true;
 });
 
 watch(
@@ -119,7 +125,8 @@ watch(
 </script>
 
 <template>
-  <div class="demo-page">
+  <div class="demo-page" :data-hydrated="hydrated ? 'true' : 'false'">
+    <h1 class="demo-page__visually-hidden">Демо HarmoFin</h1>
     <header class="demo-page__header">
       <NuxtLink to="/" class="demo-page__logo">HarmoFin</NuxtLink>
       <UiButton to="/register" variant="secondary" size="sm">Создать аккаунт</UiButton>
@@ -208,6 +215,18 @@ watch(
   color: var(--hf-color-text);
   font-weight: var(--hf-font-weight-semibold);
   text-decoration: none;
+}
+
+.demo-page__visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .demo-page__notice {
