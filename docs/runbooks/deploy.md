@@ -66,7 +66,7 @@
 
 **Входные параметры workflow**:
 
-- `image_tag`: `[точный commit SHA]`
+- `release`: версия релиза (`1.2.3` или `v1.2.3`) либо точный commit SHA; версия резолвится в SHA своего тега (см. [выпуск релиза](release.md))
 - `staging_evidence`: `[URL прогона staging workflow]`
 - `migration_compatibility`: `[forward-only | backward-compatible | rollback-safe]`
 - `backup_evidence`: `[ссылка на backup из шага 3]`
