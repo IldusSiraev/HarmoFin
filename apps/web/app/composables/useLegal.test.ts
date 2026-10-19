@@ -31,6 +31,24 @@ describe('useLegal', () => {
     expect(useLegal().operatorComplete.value).toBe(false);
   });
 
+  it('accepts requisites that Nuxt parsed from env into numbers', () => {
+    const legal = runtime.legal as Record<string, unknown>;
+    legal.operatorEmail = 'privacy@harmofin.example';
+    legal.operatorInn = 123456789012;
+    expect(useLegal().operator.value.inn).toBe('123456789012');
+    expect(useLegal().operatorComplete.value).toBe(true);
+
+    // A personal INN of regions 01-09 starts with 0, which numeric parsing drops.
+    legal.operatorInn = 12345678901;
+    expect(useLegal().operator.value.inn).toBe('012345678901');
+    expect(useLegal().operatorComplete.value).toBe(true);
+
+    legal.operatorInn = 12345678;
+    expect(useLegal().operator.value.inn).toBe('12345678');
+    expect(useLegal().operatorComplete.value).toBe(false);
+    legal.operatorInn = '123456789012';
+  });
+
   it('loads current document versions from the API', async () => {
     request.mockResolvedValue([
       { document: 'TERMS', version: '2026-10-18', effectiveOn: '2026-10-18' },

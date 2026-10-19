@@ -17,22 +17,30 @@ export type LegalDocument = {
   effectiveOn: string;
 };
 
+// Nuxt parses NUXT_PUBLIC_* env values, so an all-digit value arrives as a number.
+function text(value: unknown): string {
+  return value === undefined || value === null ? '' : String(value).trim();
+}
+
+// A personal INN has 12 digits; numeric parsing drops the leading 0 of regions 01-09.
+function inn(value: unknown): string {
+  const digits = text(value);
+  return typeof value === 'number' && digits.length === 11 ? `0${digits}` : digits;
+}
+
 export function useLegal() {
-  const config = useRuntimeConfig().public.legal as {
-    operatorName: string;
-    operatorInn: string;
-    operatorEmail: string;
-    hostingProvider: string;
-    emailProvider: string;
-  };
+  const config = useRuntimeConfig().public.legal as Record<
+    'operatorName' | 'operatorInn' | 'operatorEmail' | 'hostingProvider' | 'emailProvider',
+    unknown
+  >;
   const api = useApiClient();
 
   const operator = computed<LegalOperator>(() => ({
-    name: config.operatorName.trim(),
-    inn: config.operatorInn.trim(),
-    email: config.operatorEmail.trim(),
-    hostingProvider: config.hostingProvider.trim(),
-    emailProvider: config.emailProvider.trim(),
+    name: text(config.operatorName),
+    inn: inn(config.operatorInn),
+    email: text(config.operatorEmail),
+    hostingProvider: text(config.hostingProvider),
+    emailProvider: text(config.emailProvider),
   }));
 
   const operatorComplete = computed(
