@@ -61,3 +61,19 @@ test('smoke script has no mutation commands', async () => {
   assert.match(smoke, /health\/live/);
   assert.match(smoke, /health\/ready/);
 });
+
+test('release workflow runs release-please on main with a GitHub App token', async () => {
+  const workflow = await readWorkflow('release.yml');
+
+  assert.match(workflow, /push:\s*\n\s*branches:\s*\[main\]/);
+  assert.match(workflow, /actions\/create-github-app-token@[0-9a-f]{40}/);
+  assert.match(workflow, /googleapis\/release-please-action@[0-9a-f]{40}/);
+  assert.match(workflow, /secrets\.RELEASE_APP_ID/);
+  assert.match(workflow, /secrets\.RELEASE_APP_PRIVATE_KEY/);
+  assert.match(workflow, /token:\s*\$\{\{\s*steps\.app-token\.outputs\.token\s*\}\}/);
+  assert.match(workflow, /config-file:\s*release-please-config\.json/);
+  assert.match(workflow, /manifest-file:\s*\.release-please-manifest\.json/);
+  assert.match(workflow, /permissions:\s*\n\s*contents:\s*read/);
+  assert.doesNotMatch(workflow, /pull_request/);
+  assert.doesNotMatch(workflow, /GITHUB_TOKEN/);
+});
