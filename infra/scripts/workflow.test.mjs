@@ -35,6 +35,15 @@ test('staging workflow is environment scoped and invokes deploy script', async (
   assert.doesNotMatch(workflow, /environment:\s*\n\s*name:\s*production/);
 });
 
+test('staging deploy runs only when the repository enables it', async () => {
+  const workflow = await readWorkflow('deploy-staging.yml');
+
+  assert.match(
+    workflow,
+    /if:\s*\$\{\{\s*github\.event\.workflow_run\.conclusion == 'success' && vars\.STAGING_DEPLOY_ENABLED == 'true'\s*\}\}/,
+  );
+});
+
 test('deployment workflows do not expose secrets to pull request jobs', async () => {
   const publish = await readWorkflow('publish.yml');
   const staging = await readWorkflow('deploy-staging.yml');

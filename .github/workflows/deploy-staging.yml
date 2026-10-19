@@ -15,7 +15,9 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Staging is optional until a staging host exists: set the repository
+    # variable STAGING_DEPLOY_ENABLED=true (with the STAGING_* secrets) to enable.
+    if: ${{ github.event.workflow_run.conclusion == 'success' && vars.STAGING_DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     environment:
       name: staging

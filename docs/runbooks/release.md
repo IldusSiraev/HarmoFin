@@ -18,16 +18,25 @@ HarmoFin использует единую версию SemVer `vX.Y.Z` для w
 2. Workflow `Release` поддерживает открытый PR «chore: релиз X.Y.Z» с `CHANGELOG.md` и версией во всех `package.json`.
 3. Мерж Release PR создаёт тег `vX.Y.Z` и GitHub Release.
 4. После CI `Publish images` публикует образы по SHA; `Tag release images` добавляет им тег `X.Y.Z`.
-5. Staging обновляется автоматически, как для любого коммита в `main`.
+5. Если staging включён, он обновляется автоматически, как для любого коммита в `main`.
+
+## Staging
+
+Staging пока не развёрнут, поэтому workflow `Deploy staging` выключен: без переменной репозитория
+`STAGING_DEPLOY_ENABLED` его запуски помечаются как пропущенные (skipped). Чтобы включить staging,
+поднять сервер, сохранить секреты `STAGING_*` (см. `.github/workflows/deploy-staging.yml`) и задать
+переменную репозитория `STAGING_DEPLOY_ENABLED=true` (Settings → Secrets and variables → Actions → Variables).
 
 Если образы релиза не получили тег версии (например, `Tag release images` запустился раньше, чем `Publish images` их опубликовал), запустить workflow `Tag release images` вручную с `tag=vX.Y.Z`.
 
 ## Деплой версии в production
 
-1. Проверить релиз на staging: `curl -s https://<staging>/api/v1/health/live` возвращает нужные `version` и `revision`.
+1. Если staging включён, проверить релиз на нём: `curl -s https://<staging>/api/v1/health/live` возвращает нужные `version` и `revision`.
+   Без staging — убедиться, что CI и `Publish images` для коммита релиза прошли успешно.
 2. Выполнить предусловия из [регламента деплоя](deploy.md) (backup, классификация миграций).
 3. Запустить workflow `Deploy production` с `release=X.Y.Z`.
-4. Smoke после деплоя сверяет `revision` из health с развёрнутым SHA.
+4. Smoke после деплоя сверяет `revision` из health с развёрнутым SHA; дополнительно проверить
+   `curl -s https://<production>/api/v1/health/live` — `version` равна `X.Y.Z`.
 
 ## Откат
 

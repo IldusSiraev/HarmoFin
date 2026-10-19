@@ -5,7 +5,7 @@
 **Предусловия**:
 
 - Release checklist завершён (`docs/operations/release-record.md`)
-- Деплой на staging прошёл успешно с тем же SHA
+- Если staging включён (`STAGING_DEPLOY_ENABLED`), деплой на staging прошёл успешно с тем же SHA
 - Совместимость миграции проверена
 - Свежий backup подтверждён
 - Дежурный инженер на связи
@@ -20,13 +20,13 @@
 
 ```bash
 # Проверить завершение release checklist
-# Убедиться, что прогон staging workflow прошёл успешно
+# Если staging включён — убедиться, что прогон staging workflow прошёл успешно
 # Подтвердить, что backup укладывается в окно RPO (≤1 час)
 # Подтвердить классификацию совместимости миграции
 ```
 
 - [ ] Release SHA опубликован и просканирован
-- [ ] Smoke-тесты на staging прошли с этим SHA
+- [ ] Smoke-тесты на staging прошли с этим SHA (если staging включён)
 - [ ] Backup свежий (не старше 1 часа)
 - [ ] Совместимость миграции: `[forward-only | backward-compatible | rollback-safe]`
 - [ ] Дежурный инженер уведомлён и доступен
