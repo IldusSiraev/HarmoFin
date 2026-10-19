@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { definePageMeta } from '#imports';
+import { definePageMeta, useRuntimeConfig } from '#imports';
 
 import TemplatePreviewSheet from '../../../components/funding/TemplatePreviewSheet.vue';
 import ReferencePageLayout from '../../../components/ui/ReferencePageLayout.vue';
@@ -14,6 +14,9 @@ defineOptions({ name: 'AppSettingsPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
 
 const { currentData, loadMe } = useAuth();
+
+// Nuxt parses NUXT_PUBLIC_* values, so the version is normalized to text.
+const appVersion = String(useRuntimeConfig().public.appVersion).trim();
 
 const loading = ref(true);
 const loadError = ref('');
@@ -151,6 +154,7 @@ onMounted(() => {
           </NuxtLink>
         </UiCard>
       </div>
+      <p v-if="appVersion" class="settings-page__version">Версия {{ appVersion }}</p>
     </template>
   </ReferencePageLayout>
 </template>
@@ -158,6 +162,12 @@ onMounted(() => {
 <style scoped>
 .settings-page__help-link {
   margin: 0 0 var(--hf-space-5);
+  font-size: var(--hf-font-size-small);
+}
+
+.settings-page__version {
+  margin: var(--hf-space-5) 0 0;
+  color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-small);
 }
 

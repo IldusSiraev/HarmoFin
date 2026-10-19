@@ -17,3 +17,7 @@ export function useHead(): void {}
 export function useState<T>(key: string, init?: () => T): Ref<T | undefined> {
   return ref(init?.()) as Ref<T | undefined>;
 }
+
+export function useRuntimeConfig(): { public: { appVersion: string } } {
+  return { public: { appVersion: '0.0.0-test' } };
+}
