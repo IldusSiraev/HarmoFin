@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 
 import { FinancialBalanceRepository } from '../common/finance/financial-balance.repository.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
@@ -13,8 +14,12 @@ import {
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { PrismaService } from '../database/prisma.service.js';
-import { DirectTransferRepository } from './direct-transfer.repository.js';
-import type { DirectTransferListQuery } from './direct-transfer.schemas.js';
+import { balanceDecreases, type TransferEffect } from './direct-transfer.domain.js';
+import { DirectTransferRepository, type TransferRow } from './direct-transfer.repository.js';
+import type {
+  DirectTransferListQuery,
+  UpdateDirectTransferInput,
+} from './direct-transfer.schemas.js';
 
 const RUB_SCALE = 2;
 const DIRECT_TRANSFER_CREATE_OPERATION = 'directTransfer.create';
@@ -60,6 +65,38 @@ function insufficientBalance(): ConflictException {
   });
 }
 
+function notEditable(): ConflictException {
+  return new ConflictException({
+    code: 'TRANSFER_NOT_EDITABLE',
+    detail: 'Удалённый перевод изменить нельзя.',
+  });
+}
+
+function alreadyDeleted(): ConflictException {
+  return new ConflictException({ code: 'TRANSFER_ALREADY_DELETED', detail: 'Перевод уже удалён.' });
+}
+
+function notDeleted(): ConflictException {
+  return new ConflictException({
+    code: 'TRANSFER_NOT_DELETED',
+    detail: 'Восстановить можно только удалённый перевод.',
+  });
+}
+
+function insufficientForChange(): ConflictException {
+  return new ConflictException({
+    code: 'INSUFFICIENT_BALANCE',
+    detail: 'На счёте недостаточно средств для этого изменения.',
+  });
+}
+
+function archivedReference(): ConflictException {
+  return new ConflictException({
+    code: 'REFERENCE_INVALID',
+    detail: 'Счёт перевода в архиве. Верните счёт из архива, чтобы восстановить перевод.',
+  });
+}
+
 function parseOccurredOn(value: string): Date {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) {
     throw validationFailed('Дата перевода должна быть в формате ГГГГ-ММ-ДД.');
@@ -87,6 +124,48 @@ export type DirectTransferListView = {
   items: DirectTransferViewListItem[];
   nextCursor: string | null;
 };
+
+export type TransferJournalItem = {
+  kind: 'TRANSFER';
+  id: string;
+  budgetId: string;
+  status: 'CONFIRMED' | 'DELETED';
+  amountMinor: string;
+  currency: string;
+  occurredOn: string;
+  sourceAccountId: string;
+  destinationAccountId: string;
+  comment: string | null;
+  createdAt: string;
+  deletedAt: string | null;
+};
+
+export function toTransferJournalItem(row: TransferRow): TransferJournalItem {
+  return {
+    kind: 'TRANSFER',
+    id: row.id,
+    budgetId: row.budgetId,
+    status: row.status === 'DELETED' ? 'DELETED' : 'CONFIRMED',
+    amountMinor: formatMinorUnits(row.totalMinor),
+    currency: row.currency,
+    occurredOn: row.occurredOn.toISOString().slice(0, 10),
+    // ACCOUNT_ONLY rows always carry both accounts (create writes them).
+    sourceAccountId: row.sourceAccountId ?? '',
+    destinationAccountId: row.destinationAccountId ?? '',
+    comment: row.comment,
+    createdAt: row.createdAt.toISOString(),
+    deletedAt: row.deletedAt?.toISOString() ?? null,
+  };
+}
+
+function effectOf(row: TransferRow): TransferEffect {
+  return {
+    confirmed: row.status === 'CONFIRMED',
+    sourceAccountId: row.sourceAccountId ?? '',
+    destinationAccountId: row.destinationAccountId ?? '',
+    amountMinor: row.totalMinor,
+  };
+}
 
 /**
  * Confirms clean bank transfers between accounts without envelopes
@@ -313,5 +392,225 @@ export class DirectTransferApplicationService {
       sourceAccountId: transfer.sourceAccountId,
       destinationAccountId: transfer.destinationAccountId,
     };
+  }
+
+  async update(
+    userId: string,
+    budgetId: string,
+    transferId: string,
+    input: UpdateDirectTransferInput,
+    idempotencyKey: string,
+    requestId?: string,
+  ): Promise<TransferJournalItem> {
+    const amount =
+      input.amount === undefined ? undefined : parseDecimalToMinorUnits(input.amount, RUB_SCALE, false);
+    if (amount !== undefined && amount <= 0n) {
+      throw validationFailed('Сумма перевода должна быть больше нуля.');
+    }
+    const occurredOn = input.occurredOn === undefined ? undefined : parseOccurredOn(input.occurredOn);
+    return this.mutate(
+      'update',
+      userId,
+      budgetId,
+      transferId,
+      input,
+      idempotencyKey,
+      ['OWNER', 'EDITOR'],
+      async (tx, current, ctx) => {
+        if (current.status !== 'CONFIRMED') throw notEditable();
+        const next = {
+          sourceAccountId: input.sourceAccountId ?? current.sourceAccountId ?? '',
+          destinationAccountId: input.destinationAccountId ?? current.destinationAccountId ?? '',
+          totalMinor: amount ?? current.totalMinor,
+          occurredOn: occurredOn ?? current.occurredOn,
+          comment: input.comment === undefined ? current.comment : input.comment,
+        };
+        if (next.sourceAccountId === next.destinationAccountId) throw accountsMustDiffer();
+        if (occurredOnKey(next.occurredOn) > ctx.today) {
+          throw validationFailed('Нельзя подтвердить факт с будущей датой.');
+        }
+        const moneyChanged =
+          next.sourceAccountId !== current.sourceAccountId ||
+          next.destinationAccountId !== current.destinationAccountId ||
+          next.totalMinor !== current.totalMinor ||
+          next.occurredOn.getTime() !== current.occurredOn.getTime();
+        const commentChanged = next.comment !== current.comment;
+        if (!moneyChanged && !commentChanged) {
+          // Nothing actually changes: skip the write so no UPDATED audit row is created and
+          // updatedByUserId/updatedAt are not bumped for a no-op PATCH.
+          return current;
+        }
+        if (moneyChanged) {
+          await this.requireActiveAccounts(tx, budgetId, [
+            next.sourceAccountId,
+            next.destinationAccountId,
+          ]);
+        }
+        await this.lockAndCheck(tx, budgetId, ctx.allowNegativeBalance, current, {
+          confirmed: true,
+          sourceAccountId: next.sourceAccountId,
+          destinationAccountId: next.destinationAccountId,
+          amountMinor: next.totalMinor,
+        });
+        return this.repository.updateTransfer(tx, current, next, {
+          workspaceId: ctx.workspaceId,
+          actorUserId: userId,
+          requestId,
+        });
+      },
+    );
+  }
+
+  async remove(
+    userId: string,
+    budgetId: string,
+    transferId: string,
+    idempotencyKey: string,
+    requestId?: string,
+  ): Promise<TransferJournalItem> {
+    return this.mutate(
+      'delete',
+      userId,
+      budgetId,
+      transferId,
+      {},
+      idempotencyKey,
+      ['OWNER', 'EDITOR'],
+      async (tx, current, ctx) => {
+        if (current.status === 'DELETED') throw alreadyDeleted();
+        await this.lockAndCheck(tx, budgetId, ctx.allowNegativeBalance, current, {
+          ...effectOf(current),
+          confirmed: false,
+        });
+        return this.repository.setLifecycle(tx, current, 'DELETED', {
+          workspaceId: ctx.workspaceId,
+          actorUserId: userId,
+          requestId,
+        });
+      },
+    );
+  }
+
+  async restore(
+    userId: string,
+    budgetId: string,
+    transferId: string,
+    idempotencyKey: string,
+    requestId?: string,
+  ): Promise<TransferJournalItem> {
+    return this.mutate(
+      'restore',
+      userId,
+      budgetId,
+      transferId,
+      {},
+      idempotencyKey,
+      ['OWNER'],
+      async (tx, current, ctx) => {
+        if (current.status !== 'DELETED') throw notDeleted();
+        const accounts = await Promise.all([
+          this.repository.findAccount(tx, budgetId, current.sourceAccountId ?? ''),
+          this.repository.findAccount(tx, budgetId, current.destinationAccountId ?? ''),
+        ]);
+        if (accounts.some((account) => !account || account.archivedAt)) throw archivedReference();
+        await this.lockAndCheck(tx, budgetId, ctx.allowNegativeBalance, current, {
+          ...effectOf(current),
+          confirmed: true,
+        });
+        return this.repository.setLifecycle(tx, current, 'CONFIRMED', {
+          workspaceId: ctx.workspaceId,
+          actorUserId: userId,
+          requestId,
+        });
+      },
+    );
+  }
+
+  private async mutate(
+    kind: 'update' | 'delete' | 'restore',
+    userId: string,
+    budgetId: string,
+    transferId: string,
+    hashInput: Record<string, unknown>,
+    idempotencyKey: string,
+    roles: ReadonlyArray<'OWNER' | 'EDITOR'>,
+    body: (
+      tx: Prisma.TransactionClient,
+      current: TransferRow,
+      ctx: { workspaceId: string; allowNegativeBalance: boolean; today: string },
+    ) => Promise<TransferRow>,
+  ): Promise<TransferJournalItem> {
+    const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
+    const requestHash = createHash('sha256')
+      .update(JSON.stringify({ budgetId, transferId, kind, ...hashInput }))
+      .digest('hex');
+    const result = await this.prisma.$transaction(async (tx) => {
+      await this.repository.lockBudget(tx, budgetId);
+      return this.idempotency.execute<TransferJournalItem>(
+        tx,
+        {
+          budgetId,
+          actorUserId: userId,
+          key: idempotencyKey,
+          operation: `directTransfer.${kind}`,
+          requestHash,
+        },
+        async () => {
+          const membership = await tx.workspaceMembership.findFirst({
+            where: { workspaceId: model.workspaceId, userId, isActive: true },
+            select: { role: true },
+          });
+          if (!membership || !(roles as ReadonlyArray<string>).includes(membership.role)) {
+            throw forbidden();
+          }
+          const budget = await this.repository.requireBudget(tx, budgetId);
+          const current = await this.repository.findForMutation(tx, budgetId, transferId);
+          if (!current) throw resourceNotFound();
+          const row = await body(tx, current, {
+            workspaceId: model.workspaceId,
+            allowNegativeBalance: budget.allowNegativeBalance,
+            today: todayInTimezone(new Date(), budget.timezone),
+          });
+          return { status: 200, body: toTransferJournalItem(row) };
+        },
+      );
+    });
+    return result.body;
+  }
+
+  private async requireActiveAccounts(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    accountIds: string[],
+  ): Promise<void> {
+    for (const accountId of accountIds) {
+      const account = await this.repository.findAccount(tx, budgetId, accountId);
+      if (!account) throw resourceNotFound();
+      if (account.archivedAt || account.currency !== 'RUB' || account.scale !== RUB_SCALE) {
+        throw invalidReference();
+      }
+    }
+  }
+
+  /** Locks every touched account in id order, then rejects a change that drives one below zero. */
+  private async lockAndCheck(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    allowNegativeBalance: boolean,
+    current: TransferRow,
+    after: TransferEffect,
+  ): Promise<void> {
+    const before = effectOf(current);
+    await this.repository.lockAccounts(tx, budgetId, [
+      before.sourceAccountId,
+      before.destinationAccountId,
+      after.sourceAccountId,
+      after.destinationAccountId,
+    ]);
+    if (allowNegativeBalance) return;
+    for (const [accountId, decrease] of balanceDecreases(before, after)) {
+      const balance = await this.balances.accountBalance(tx, budgetId, accountId);
+      if (balance - decrease < 0n) throw insufficientForChange();
+    }
   }
 }
