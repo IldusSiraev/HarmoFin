@@ -7,6 +7,7 @@ import CategoryIconPicker from '../../components/categories/CategoryIconPicker.v
 import { categoryIcon } from '../../components/operations/category-icon.js';
 import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../components/ui/Button.vue';
+import UiButtonGroup from '../../components/ui/ButtonGroup.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
 import UiInput from '../../components/ui/Input.vue';
@@ -140,6 +141,7 @@ async function loadPage() {
 }
 
 async function changeStatus(value: string) {
+  if (value === status.value) return;
   status.value = value as ReferenceStatus;
   await loadCategories();
 }
@@ -290,12 +292,11 @@ onMounted(() => {
         <UiButton data-action="create-category" @click="startCreate">Создать категорию</UiButton>
       </template>
       <template #filters>
-        <UiSelect
-          class="reference-status-filter"
-          :model-value="status"
-          name="status"
-          label="Показать категории"
+        <UiButtonGroup
           :options="getStatusOptions()"
+          :model-value="status"
+          label="Показать категории"
+          testid-prefix="status"
           @update:model-value="changeStatus"
         />
       </template>
@@ -472,9 +473,6 @@ form[data-category-form] {
   display: flex;
   flex-wrap: wrap;
   gap: var(--hf-space-3);
-}
-.reference-status-filter {
-  max-width: 18rem;
 }
 .category-columns {
   display: grid;

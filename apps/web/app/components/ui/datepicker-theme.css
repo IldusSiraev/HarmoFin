@@ -1,0 +1,37 @@
+/* VueDatePicker is themed globally (not scoped): its trigger input renders
+   inline here, but the calendar popover teleports to <body>, outside this
+   component's scoped-style subtree. Values map the library's own CSS
+   variables and input classes onto our design tokens so both pieces still
+   read as one field, styled like every other UiInput. */
+.dp--theme-light,
+.dp--theme-dark {
+  --dp-font-family: inherit;
+  --dp-border-radius: var(--hf-control-radius);
+  --dp-cell-border-radius: var(--hf-radius-sm);
+  --dp-background-color: var(--hf-color-surface);
+  --dp-text-color: var(--hf-color-text);
+  --dp-hover-color: var(--hf-color-action-secondary-hover);
+  --dp-hover-text-color: var(--hf-color-text);
+  --dp-hover-icon-color: var(--hf-color-text);
+  --dp-primary-color: var(--hf-color-action-primary);
+  --dp-primary-text-color: var(--hf-color-white);
+  --dp-secondary-color: var(--hf-color-text-subtle);
+  --dp-border-color: var(--hf-color-border-strong);
+  --dp-menu-border-color: var(--hf-color-border);
+  --dp-border-color-hover: var(--hf-color-border-strong);
+  --dp-icon-color: var(--hf-color-text-muted);
+  --dp-danger-color: var(--hf-color-status-danger);
+  --dp-highlight-color: var(--hf-color-brand-soft);
+  --dp-font-size: 1rem;
+  --dp-input-padding: 0 var(--hf-control-padding-inline);
+}
+
+.ui-date-field .dp__input_wrap,
+.ui-date-field .dp--input-wrap {
+  width: 100%;
+}
+
+.ui-date-field .dp--input {
+  min-height: var(--hf-control-height-md);
+  cursor: pointer;
+}

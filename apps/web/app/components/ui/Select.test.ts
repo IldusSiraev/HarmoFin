@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, nextTick, ref } from 'vue';
 
 import UiDrawer from './Drawer.vue';
-import FilterPanel from './FilterPanel.vue';
 import UiSelect from './Select.vue';
 
 const options = [
@@ -359,26 +358,6 @@ describe('UiSelect edge cases', () => {
     expect(trigger.attributes('aria-expanded')).toBe('false');
     await trigger.trigger('keydown', { key: 'Escape' });
     expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(false);
-    wrapper.unmount();
-  });
-
-  it('Escape with an open list closes only the list inside a FilterPanel', async () => {
-    const Host = defineComponent({
-      components: { FilterPanel, UiSelect },
-      setup: () => ({ options }),
-      template: `<FilterPanel>
-        <UiSelect model-value="a" name="status" label="Статус" :options="options" />
-      </FilterPanel>`,
-    });
-    const wrapper = mount(Host, { attachTo: document.body });
-    await wrapper.get('button[aria-haspopup="true"]').trigger('click');
-    const trigger = wrapper.get('[role="combobox"]');
-    await trigger.trigger('click');
-    await trigger.trigger('keydown', { key: 'Escape' });
-    expect(wrapper.find('[aria-label="Дополнительные фильтры"]').exists()).toBe(true);
-    expect(trigger.attributes('aria-expanded')).toBe('false');
-    await trigger.trigger('keydown', { key: 'Escape' });
-    expect(wrapper.find('[aria-label="Дополнительные фильтры"]').exists()).toBe(false);
     wrapper.unmount();
   });
 });

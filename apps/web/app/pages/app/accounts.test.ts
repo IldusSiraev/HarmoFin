@@ -324,12 +324,12 @@ describe('accounts page', () => {
     expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(true);
   });
 
-  it('switches both requests to the archive from the chip', async () => {
+  it('switches both requests to the archive from the status switch', async () => {
     mocks.api.listAccounts.mockResolvedValue([account]);
     wrapper = mountPage();
     await flushPromises();
 
-    await wrapper.get('[data-testid="chip-archived"]').trigger('click');
+    await wrapper.get('[data-testid="status-archived"]').trigger('click');
     await flushPromises();
 
     expect(mocks.api.listAccounts).toHaveBeenLastCalledWith('budget-id', 'archived');
@@ -342,7 +342,7 @@ describe('accounts page', () => {
     await flushPromises();
     expect(wrapper.text()).toContain('Счетов пока нет');
 
-    await wrapper.get('[data-testid="chip-archived"]').trigger('click');
+    await wrapper.get('[data-testid="status-archived"]').trigger('click');
     await flushPromises();
 
     expect(wrapper.text()).toContain('В архиве пусто');
