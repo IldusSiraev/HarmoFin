@@ -69,6 +69,18 @@ export class IncomeCategorySuggestionRepository {
     });
   }
 
+  async find(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    workspaceId: string,
+  ): Promise<IncomeCategorySuggestionRecord> {
+    const row = await tx.budget.findFirstOrThrow({
+      where: { id: budgetId, workspaceId },
+      select: SETTING_SELECT,
+    });
+    return toRecord(row);
+  }
+
   async save(
     tx: Prisma.TransactionClient,
     params: SaveIncomeCategorySuggestionParams,

@@ -60,6 +60,41 @@ const fundingRuleTypes = [
   'PERCENT_OF_INCOME',
 ] as const;
 
+type RuleFields = {
+  type: (typeof fundingRuleTypes)[number];
+  fixedAmount?: string | undefined;
+  percentBasisPoints?: number | undefined;
+};
+
+function refineRuleFields(value: RuleFields, ctx: z.RefinementCtx): void {
+  const fixedAllowed = value.type === 'FIXED_PER_PERIOD' || value.type === 'SUGGESTED_FIXED';
+  if (fixedAllowed && value.fixedAmount === undefined) {
+    ctx.addIssue({ code: 'custom', path: ['fixedAmount'], message: 'Укажите fixedAmount.' });
+  }
+  if (!fixedAllowed && value.fixedAmount !== undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['fixedAmount'],
+      message: 'fixedAmount допустим только для FIXED_PER_PERIOD и SUGGESTED_FIXED.',
+    });
+  }
+  const percent = value.type === 'PERCENT_OF_INCOME';
+  if (percent && value.percentBasisPoints === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['percentBasisPoints'],
+      message: 'Укажите percentBasisPoints.',
+    });
+  }
+  if (!percent && value.percentBasisPoints !== undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['percentBasisPoints'],
+      message: 'percentBasisPoints допустим только для PERCENT_OF_INCOME.',
+    });
+  }
+}
+
 export const putFundingRuleSchema = z
   .object({
     type: z.enum(fundingRuleTypes),
@@ -68,34 +103,60 @@ export const putFundingRuleSchema = z
     percentBasisPoints: z.number().int().min(0).max(10_000).optional(),
   })
   .strict()
+  .superRefine(refineRuleFields);
+
+const queueRuleSchema = z
+  .object({
+    envelopeId: uuid,
+    type: z.enum(fundingRuleTypes),
+    fixedAmount: decimalAmount.optional(),
+    percentBasisPoints: z.number().int().min(0).max(10_000).optional(),
+  })
+  .strict()
   .superRefine((value, ctx) => {
-    const fixedAllowed = value.type === 'FIXED_PER_PERIOD' || value.type === 'SUGGESTED_FIXED';
-    if (fixedAllowed && value.fixedAmount === undefined) {
-      ctx.addIssue({ code: 'custom', path: ['fixedAmount'], message: 'Укажите fixedAmount.' });
-    }
-    if (!fixedAllowed && value.fixedAmount !== undefined) {
+    if (value.type === 'MANUAL') {
       ctx.addIssue({
         code: 'custom',
-        path: ['fixedAmount'],
-        message: 'fixedAmount допустим только для FIXED_PER_PERIOD и SUGGESTED_FIXED.',
+        path: ['type'],
+        message: 'Правило «Вручную» передаётся в outside, не в очереди.',
       });
     }
-    const percent = value.type === 'PERCENT_OF_INCOME';
-    if (percent && value.percentBasisPoints === undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['percentBasisPoints'],
-        message: 'Укажите percentBasisPoints.',
-      });
-    }
-    if (!percent && value.percentBasisPoints !== undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['percentBasisPoints'],
-        message: 'percentBasisPoints допустим только для PERCENT_OF_INCOME.',
+    refineRuleFields(value, ctx);
+  });
+
+const outsideRuleSchema = z.object({ envelopeId: uuid, type: z.literal('MANUAL') }).strict();
+
+/** Batch save: queue order defines priority on the server; outside envelopes are MANUAL. */
+export const putFundingRulesBatchSchema = z
+  .object({
+    queue: z.array(queueRuleSchema).max(200),
+    outside: z.array(outsideRuleSchema).max(200),
+    incomeSuggestion: z
+      .object({
+        enabled: z.boolean(),
+        sourceCategoryId: uuid.nullable(),
+        targetEnvelopeId: uuid.nullable(),
+      })
+      .strict(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    const seen = new Set<string>();
+    for (const list of ['queue', 'outside'] as const) {
+      value[list].forEach((item, index) => {
+        if (seen.has(item.envelopeId)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [list, index, 'envelopeId'],
+            message: 'Конверт указан больше одного раза.',
+          });
+        }
+        seen.add(item.envelopeId);
       });
     }
   });
+
+export type PutFundingRulesBatchInput = z.output<typeof putFundingRulesBatchSchema>;
 
 export type PutFundingRuleInput = z.output<typeof putFundingRuleSchema>;
 

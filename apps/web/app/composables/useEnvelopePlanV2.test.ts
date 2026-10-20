@@ -393,6 +393,30 @@ describe('useEnvelopePlanV2', () => {
     expect(call.headers.get('Origin')).toBe('http://web.test');
   });
 
+  it('listFundingRules и saveFundingRules вызывают v2 funding-rules', async () => {
+    const v2 = useEnvelopePlanV2();
+    await v2.listFundingRules('budget-1');
+    expect(
+      fetchSpy.mock.calls.find(
+        ([input]) =>
+          String(input).endsWith('/api/v2/budgets/budget-1/funding-rules') &&
+          !String(input).includes('csrf'),
+      ),
+    ).toBeDefined();
+
+    const body = {
+      queue: [{ envelopeId: 'e1', type: 'PERCENT_OF_INCOME' as const, percentBasisPoints: 1000 }],
+      outside: [],
+      incomeSuggestion: { enabled: false, sourceCategoryId: null, targetEnvelopeId: null },
+    };
+    await v2.saveFundingRules('budget-1', body, 'key-1');
+    const call = lastCall();
+    expect(call.url).toContain('/api/v2/budgets/budget-1/funding-rules');
+    expect(call.init.method).toBe('PUT');
+    expect(JSON.parse(call.init.body as string)).toEqual(body);
+    expect(call.headers.get('Idempotency-Key')).toBe('key-1');
+  });
+
   it('PUTs funding rule, period target and income suggestion with CSRF and keys', async () => {
     const api = useEnvelopePlanV2();
 

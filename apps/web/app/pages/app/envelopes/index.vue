@@ -2,10 +2,10 @@
 import { computed, onMounted, ref } from 'vue';
 import { definePageMeta, useRoute } from '#imports';
 
-import EnvelopePlanView from '../../components/envelopes/EnvelopesPlanView.vue';
-import UiButton from '../../components/ui/Button.vue';
-import UiEmptyState from '../../components/ui/EmptyState.vue';
-import { useAuth } from '../../composables/useAuth.js';
+import EnvelopePlanView from '../../../components/envelopes/EnvelopesPlanView.vue';
+import UiButton from '../../../components/ui/Button.vue';
+import UiEmptyState from '../../../components/ui/EmptyState.vue';
+import { useAuth } from '../../../composables/useAuth.js';
 
 defineOptions({ name: 'AppEnvelopesPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });

@@ -193,6 +193,11 @@ export class FundingRuleResponse {
   percentBasisPoints!: number | null;
 }
 
+export class FundingRuleListResponse {
+  @ApiProperty({ type: [FundingRuleResponse] })
+  items!: FundingRuleResponse[];
+}
+
 export class PutPeriodTargetRequest {
   @ApiProperty({
     type: String,
@@ -322,4 +327,87 @@ export class EnvelopeHistoryListResponse {
 
   @ApiProperty({ type: String, nullable: true, example: null })
   nextCursor!: string | null;
+}
+
+const RULE_TYPES = [
+  'MANUAL',
+  'SUM_OF_PLANS',
+  'FIXED_PER_PERIOD',
+  'SUGGESTED_FIXED',
+  'PERCENT_OF_INCOME',
+];
+
+export class FundingRulesBatchQueueItem {
+  @ApiProperty({ type: String, example: '0195f3c3-aaaa-bbbb-cccc-000000000001' })
+  envelopeId!: string;
+
+  @ApiProperty({
+    type: String,
+    enum: RULE_TYPES.filter((type) => type !== 'MANUAL'),
+    example: 'PERCENT_OF_INCOME',
+  })
+  type!: string;
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    example: '15000.00',
+    description: 'Только FIXED_PER_PERIOD и SUGGESTED_FIXED; обязателен для них.',
+  })
+  fixedAmount?: string;
+
+  @ApiProperty({
+    type: Number,
+    required: false,
+    example: 1000,
+    minimum: 0,
+    maximum: 10000,
+    description: 'Только PERCENT_OF_INCOME; обязателен для него.',
+  })
+  percentBasisPoints?: number;
+}
+
+export class FundingRulesBatchOutsideItem {
+  @ApiProperty({ type: String, example: '0195f3c3-aaaa-bbbb-cccc-000000000002' })
+  envelopeId!: string;
+
+  @ApiProperty({ type: String, enum: ['MANUAL'], example: 'MANUAL' })
+  type!: string;
+}
+
+export class IncomeSuggestionState {
+  @ApiProperty({ type: Boolean, example: false })
+  enabled!: boolean;
+
+  @ApiProperty({ type: String, nullable: true, example: null })
+  sourceCategoryId!: string | null;
+
+  @ApiProperty({ type: String, nullable: true, example: null })
+  targetEnvelopeId!: string | null;
+}
+
+export class PutFundingRulesBatchRequest {
+  @ApiProperty({
+    type: [FundingRulesBatchQueueItem],
+    description:
+      'Очередь распределения: порядок массива = порядок. priority присваивает сервер: (индекс + 1) * 10.',
+  })
+  queue!: FundingRulesBatchQueueItem[];
+
+  @ApiProperty({
+    type: [FundingRulesBatchOutsideItem],
+    description: 'Конверты вне очереди (MANUAL, priority 0).',
+  })
+  outside!: FundingRulesBatchOutsideItem[];
+
+  @ApiProperty({ type: IncomeSuggestionState })
+  incomeSuggestion!: IncomeSuggestionState;
+}
+
+export class FundingRulesBatchResponse {
+  @ApiProperty({ type: [FundingRuleResponse] })
+  items!: FundingRuleResponse[];
+
+  @ApiProperty({ type: IncomeSuggestionState })
+  incomeSuggestion!: IncomeSuggestionState;
 }

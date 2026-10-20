@@ -690,6 +690,37 @@ export interface FundingRuleResponse {
   percentBasisPoints: number | null;
 }
 
+export interface FundingRuleListResponse {
+  items: FundingRuleResponse[];
+}
+
+export interface IncomeSuggestionState {
+  enabled: boolean;
+  sourceCategoryId: string | null;
+  targetEnvelopeId: string | null;
+}
+
+export interface FundingRulesBatchQueueItem {
+  envelopeId: string;
+  type: Exclude<FundingRuleType, 'MANUAL'>;
+  /** Decimal rubles; only FIXED_PER_PERIOD and SUGGESTED_FIXED. */
+  fixedAmount?: string;
+  /** Integer 0..10000; only PERCENT_OF_INCOME. */
+  percentBasisPoints?: number;
+}
+
+export interface PutFundingRulesBatchRequest {
+  /** Order of the array is the distribution order; the server assigns priorities. */
+  queue: FundingRulesBatchQueueItem[];
+  outside: Array<{ envelopeId: string; type: 'MANUAL' }>;
+  incomeSuggestion: IncomeSuggestionState;
+}
+
+export interface FundingRulesBatchResponse {
+  items: FundingRuleResponse[];
+  incomeSuggestion: IncomeSuggestionState;
+}
+
 export interface PutPeriodTargetRequest {
   /** Decimal rubles; null resets the target to UNSET. */
   target: string | null;
@@ -960,6 +991,14 @@ export function useEnvelopePlanV2() {
       api.requestBlob(`${base(budgetId)}/exports/transactions.csv`),
     exportAssignments: (budgetId: string) =>
       api.requestBlob(`${base(budgetId)}/exports/assignments.csv`),
+    listFundingRules: (budgetId: string) =>
+      get<FundingRuleListResponse>(`${base(budgetId)}/funding-rules`),
+    saveFundingRules: (
+      budgetId: string,
+      input: PutFundingRulesBatchRequest,
+      idempotencyKey: string,
+    ) =>
+      putKeyed<FundingRulesBatchResponse>(`${base(budgetId)}/funding-rules`, input, idempotencyKey),
     updateFundingRule: (
       budgetId: string,
       envelopeId: string,

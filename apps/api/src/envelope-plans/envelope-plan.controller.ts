@@ -21,6 +21,7 @@ import {
   ApiCreatedResponse,
   ApiHeader,
   ApiOkResponse,
+  ApiOperation,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -46,20 +47,25 @@ import {
   AssignmentResultResponse,
   EnvelopePlanResponse,
   MovementResultResponse,
+  FundingRuleListResponse,
   FundingRuleResponse,
+  FundingRulesBatchResponse,
   MoveEnvelopeRequest,
   PeriodTargetResponse,
   PutFundingRuleRequest,
+  PutFundingRulesBatchRequest,
   PutPeriodTargetRequest,
   ReviseAssignmentRequest,
   UpdateEnvelopeRequest,
 } from './envelope-plan.dto.js';
 import { EnvelopePlanApplicationService } from './envelope-plan.application.service.js';
+import { FundingRulesBatchApplicationService } from './funding-rules-batch.application.service.js';
 import {
   createAssignmentSchema,
   createEnvelopeSchema,
   envelopeHistorySchema,
   putFundingRuleSchema,
+  putFundingRulesBatchSchema,
   putPeriodTargetSchema,
   updateEnvelopeSchema,
   uuidParamSchema,
@@ -67,6 +73,7 @@ import {
   type CreateEnvelopeInput,
   type EnvelopeHistoryQuery,
   type PutFundingRuleInput,
+  type PutFundingRulesBatchInput,
   type PutPeriodTargetInput,
   type UpdateEnvelopeInput,
 } from './envelope-plan.schemas.js';
@@ -96,6 +103,8 @@ export class EnvelopePlanController {
     private readonly movements: MovementApplicationService,
     @Inject(PeriodTargetApplicationService)
     private readonly periodTargets: PeriodTargetApplicationService,
+    @Inject(FundingRulesBatchApplicationService)
+    private readonly fundingRules: FundingRulesBatchApplicationService,
   ) {}
 
   @Get('envelopes')
@@ -218,6 +227,53 @@ export class EnvelopePlanController {
     @Req() request: AuthenticatedRequest,
   ) {
     return (await this.plans.history(contextOf(request).userId, budgetId, envelopeId, query)).body;
+  }
+
+  @Get('funding-rules')
+  @ApiOkResponse({ type: FundingRuleListResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  async listFundingRules(
+    @Param('budgetId') budgetId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (await this.fundingRules.list(contextOf(request).userId, budgetId)).body;
+  }
+
+  @Put('funding-rules')
+  @UseGuards(CsrfGuard)
+  @ApiOperation({
+    summary: 'Сохранить очередь и правила пополнения конвертов',
+    description:
+      'Одна транзакция: правила конвертов, порядок очереди и предложение «категория дохода → конверт». Конверты вне тела не меняются. Распределения, остатки и цели периодов не меняются. Только OWNER; повтор с тем же Idempotency-Key возвращает тот же ответ.',
+  })
+  @ApiHeader(idempotencyHeader)
+  @ApiBody({ type: PutFundingRulesBatchRequest })
+  @ApiOkResponse({ type: FundingRulesBatchResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  async putFundingRules(
+    @Param('budgetId') budgetId: string,
+    @Body(new ZodValidationPipe(putFundingRulesBatchSchema)) input: PutFundingRulesBatchInput,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (
+      await this.fundingRules.putBatch(
+        contextOf(request).userId,
+        budgetId,
+        input,
+        validKey(key),
+        request.id,
+      )
+    ).body;
   }
 
   @Put('envelopes/:envelopeId/funding-rule')

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 
+import type { Prisma } from '@prisma/client';
 import {
   BadRequestException,
   Inject,
@@ -35,8 +36,51 @@ function validationFailed(detail: string, field: string): BadRequestException {
   });
 }
 
-function unprocessable(code: string, detail: string): UnprocessableEntityException {
-  return new UnprocessableEntityException({ code, detail });
+function unprocessable(code: string, detail: string, field?: string): UnprocessableEntityException {
+  return new UnprocessableEntityException({
+    code,
+    detail,
+    ...(field ? { fieldErrors: [{ field, message: detail, code: 'invalid' }] } : {}),
+  });
+}
+
+/**
+ * Same-budget checks of the suggestion references: the category must be an active INCOME
+ * category and the envelope active. With `fieldPrefix` the 422 errors carry a field path.
+ */
+export async function assertSuggestionReferences(
+  tx: Prisma.TransactionClient,
+  repository: IncomeCategorySuggestionRepository,
+  budgetId: string,
+  input: PutIncomeCategorySuggestionInput,
+  fieldPrefix?: string,
+): Promise<void> {
+  const field = (name: string) => (fieldPrefix ? `${fieldPrefix}.${name}` : undefined);
+  if (input.sourceCategoryId !== null) {
+    const category = await repository.findCategory(tx, budgetId, input.sourceCategoryId);
+    if (!category) throw resourceNotFound();
+    if (category.archivedAt) {
+      throw unprocessable(
+        'CATEGORY_ARCHIVED',
+        'Категория архивирована.',
+        field('sourceCategoryId'),
+      );
+    }
+    if (category.categoryType !== 'INCOME') {
+      throw unprocessable(
+        'CATEGORY_TYPE_MISMATCH',
+        'Нужна категория дохода.',
+        field('sourceCategoryId'),
+      );
+    }
+  }
+  if (input.targetEnvelopeId !== null) {
+    const envelope = await repository.findEnvelope(tx, budgetId, input.targetEnvelopeId);
+    if (!envelope) throw resourceNotFound();
+    if (envelope.archivedAt) {
+      throw unprocessable('ENVELOPE_ARCHIVED', 'Конверт архивирован.', field('targetEnvelopeId'));
+    }
+  }
 }
 
 /**
@@ -97,31 +141,7 @@ export class IncomeCategorySuggestionApplicationService {
           });
           if (!membership || !this.rolePolicy.canManage(membership.role)) throw forbidden();
 
-          if (input.sourceCategoryId !== null) {
-            const category = await this.repository.findCategory(
-              tx,
-              budgetId,
-              input.sourceCategoryId,
-            );
-            if (!category) throw resourceNotFound();
-            if (category.archivedAt) {
-              throw unprocessable('CATEGORY_ARCHIVED', 'Категория архивирована.');
-            }
-            if (category.categoryType !== 'INCOME') {
-              throw unprocessable('CATEGORY_TYPE_MISMATCH', 'Нужна категория дохода.');
-            }
-          }
-          if (input.targetEnvelopeId !== null) {
-            const envelope = await this.repository.findEnvelope(
-              tx,
-              budgetId,
-              input.targetEnvelopeId,
-            );
-            if (!envelope) throw resourceNotFound();
-            if (envelope.archivedAt) {
-              throw unprocessable('ENVELOPE_ARCHIVED', 'Конверт архивирован.');
-            }
-          }
+          await assertSuggestionReferences(tx, this.repository, budgetId, input);
 
           const body = await this.repository.save(tx, {
             budgetId,

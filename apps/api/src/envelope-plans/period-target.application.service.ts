@@ -19,7 +19,12 @@ import { CycleRevisionRepository } from '../cycles/cycle-revision.repository.js'
 import { PrismaService } from '../database/prisma.service.js';
 import { EnvelopePlanRepository } from './envelope-plan.repository.js';
 import type { PutFundingRuleInput, PutPeriodTargetInput } from './envelope-plan.schemas.js';
-import { type EnvelopePeriodRecord, FundingRuleRepository } from './funding-rule.repository.js';
+import {
+  type EnvelopePeriodRecord,
+  type FundingRuleBody,
+  FundingRuleRepository,
+  toRuleBody,
+} from './funding-rule.repository.js';
 
 const RUB_SCALE = 2;
 const PUT_FUNDING_RULE_OPERATION = 'PUT_FUNDING_RULE';
@@ -28,14 +33,7 @@ const CONFIRM_TARGET_OPERATION = 'CONFIRM_PERIOD_TARGET';
 const REJECT_TARGET_OPERATION = 'REJECT_PERIOD_TARGET';
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-export type FundingRuleBody = {
-  id: string;
-  envelopeId: string;
-  type: string;
-  priority: number;
-  fixedAmountMinor: string | null;
-  percentBasisPoints: number | null;
-};
+export type { FundingRuleBody };
 
 export type PeriodTargetBody = {
   periodId: string;
@@ -142,17 +140,7 @@ export class PeriodTargetApplicationService {
             percentBasisPoints,
             requestId,
           });
-          return {
-            status: 200,
-            body: {
-              id: rule.id,
-              envelopeId: rule.envelopeId,
-              type: rule.type,
-              priority: rule.priority,
-              fixedAmountMinor: rule.fixedMinor === null ? null : formatMinorUnits(rule.fixedMinor),
-              percentBasisPoints: rule.percentBasisPoints,
-            },
-          };
+          return { status: 200, body: toRuleBody(rule) };
         },
       );
     });

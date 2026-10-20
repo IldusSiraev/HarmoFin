@@ -101,6 +101,13 @@ defineOptions({ name: 'ReferencePageLayout' });
     font-size: 1.75rem;
   }
 
+  /* Several header actions wrap onto the next line instead of widening the page. */
+  .reference-page-layout__actions {
+    flex-shrink: 1;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
   .reference-page-layout__filters {
     margin-top: var(--hf-space-4);
   }

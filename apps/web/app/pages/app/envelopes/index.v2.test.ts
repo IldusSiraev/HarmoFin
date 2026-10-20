@@ -1,7 +1,7 @@
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiRequestError } from '../../composables/useApiClient.js';
+import { ApiRequestError } from '../../../composables/useApiClient.js';
 
 enableAutoUnmount(afterEach);
 
@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
     archiveEnvelope: vi.fn(),
     move: vi.fn(),
     assignFree: vi.fn(),
+    listFundingRules: vi.fn().mockResolvedValue({ items: [] }),
   },
   route: { path: '/app/envelopes', query: {} as Record<string, string> },
   navigateTo: vi.fn(),
@@ -34,16 +35,16 @@ vi.mock('#imports', () => ({
   navigateTo: mocks.navigateTo,
   useRoute: () => mocks.route,
 }));
-vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => mocks.auth }));
-vi.mock('../../composables/useBudgetReferenceData.js', () => ({
+vi.mock('../../../composables/useAuth.js', () => ({ useAuth: () => mocks.auth }));
+vi.mock('../../../composables/useBudgetReferenceData.js', () => ({
   useBudgetReferenceData: () => mocks.v1,
 }));
-vi.mock('../../composables/useEnvelopePlanV2.js', () => ({
+vi.mock('../../../composables/useEnvelopePlanV2.js', () => ({
   useEnvelopePlanV2: () => mocks.v2,
 }));
 
-import { selectOption } from '../../test/select-option.js';
-import EnvelopesPage from './envelopes.vue';
+import { selectOption } from '../../../test/select-option.js';
+import EnvelopesPage from './index.vue';
 
 function plan(overrides: Record<string, unknown>) {
   return {
@@ -144,6 +145,7 @@ describe('envelopes page, plan model v2', () => {
     };
     mocks.v2.listEnvelopes.mockResolvedValue({ items: [repair, savings, food, mandatory] });
     mocks.v2.getEnvelopeHistory.mockResolvedValue({ items: [], nextCursor: null });
+    mocks.v2.listFundingRules.mockResolvedValue({ items: [] });
     mocks.v2.move.mockResolvedValue({
       movementId: 'm1',
       amountMinor: '2800000',
