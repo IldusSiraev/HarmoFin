@@ -4,9 +4,11 @@ import { Menu, X } from '@lucide/vue';
 
 import UiButton from '../ui/Button.vue';
 import { landingNavLinks } from '../../data/landing.js';
+import { useLandingSession } from '../../composables/useLandingSession.js';
 
 defineOptions({ name: 'LandingHeader' });
 
+const { status: sessionStatus } = useLandingSession();
 const menuOpen = ref(false);
 const scrolled = ref(false);
 
@@ -54,9 +56,18 @@ onBeforeUnmount(() => {
         </a>
       </nav>
 
-      <div class="landing-header__actions">
-        <UiButton to="/login" variant="tertiary" size="md">Войти</UiButton>
-        <UiButton to="/register" variant="brand" size="md">Начать бесплатно</UiButton>
+      <div
+        class="landing-header__actions"
+        :class="{ 'landing-header__actions--pending': sessionStatus === 'pending' }"
+        :aria-hidden="sessionStatus === 'pending' ? 'true' : undefined"
+      >
+        <UiButton v-if="sessionStatus === 'authenticated'" to="/app" variant="brand" size="md">
+          Открыть приложение
+        </UiButton>
+        <template v-else>
+          <UiButton to="/login" variant="tertiary" size="md">Войти</UiButton>
+          <UiButton to="/register" variant="brand" size="md">Начать бесплатно</UiButton>
+        </template>
       </div>
 
       <button
@@ -83,8 +94,19 @@ onBeforeUnmount(() => {
       >
         {{ link.label }}
       </a>
-      <UiButton to="/login" variant="secondary" size="lg" full-width>Войти</UiButton>
-      <UiButton to="/register" variant="brand" size="lg" full-width>Начать бесплатно</UiButton>
+      <UiButton
+        v-if="sessionStatus === 'authenticated'"
+        to="/app"
+        variant="brand"
+        size="lg"
+        full-width
+      >
+        Открыть приложение
+      </UiButton>
+      <template v-else-if="sessionStatus === 'guest'">
+        <UiButton to="/login" variant="secondary" size="lg" full-width>Войти</UiButton>
+        <UiButton to="/register" variant="brand" size="lg" full-width>Начать бесплатно</UiButton>
+      </template>
     </div>
   </header>
 </template>
@@ -137,6 +159,12 @@ onBeforeUnmount(() => {
   display: none;
   align-items: center;
   gap: var(--hf-space-3);
+}
+
+/* Keeps the slot's width while the session is unknown, so the header does not
+   shift and the wrong set of buttons is never shown. */
+.landing-header__actions--pending {
+  visibility: hidden;
 }
 
 .landing-header__toggle {

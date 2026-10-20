@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { navigateTo, useSeoMeta } from '#imports';
 
 import LandingFooter from '../components/landing/LandingFooter.vue';
@@ -17,12 +16,15 @@ import SecuritySection from '../components/landing/sections/SecuritySection.vue'
 import { landingSeo } from '../data/landing-seo.js';
 import { useAuth } from '../composables/useAuth.js';
 
+// Only a session already known when the page is entered (in-app navigation)
+// redirects. A fresh visit learns about the session after mount, in the header,
+// and must keep showing the landing instead of blanking it.
 const { currentData } = useAuth();
-const isAuthenticated = computed(() => !!currentData.value?.user);
+const isAuthenticated = !!currentData.value?.user;
 
 useSeoMeta(landingSeo);
 
-if (isAuthenticated.value) {
+if (isAuthenticated) {
   await navigateTo('/app');
 }
 </script>
