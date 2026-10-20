@@ -1,6 +1,7 @@
 import type { FundingRuleType, Prisma, TargetStatus } from '@prisma/client';
 
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
+import { formatMinorUnits } from '../common/money/minor-units.js';
 import type { CycleSettings } from '../cycles/cycle-period.domain.js';
 
 export type FundingRuleRecord = {
@@ -43,6 +44,26 @@ export type EnvelopePeriodRecord = {
 };
 
 export type OpenedPeriod = EnvelopePeriodRecord & { created: boolean };
+
+export type FundingRuleBody = {
+  id: string;
+  envelopeId: string;
+  type: string;
+  priority: number;
+  fixedAmountMinor: string | null;
+  percentBasisPoints: number | null;
+};
+
+export function toRuleBody(rule: FundingRuleRecord): FundingRuleBody {
+  return {
+    id: rule.id,
+    envelopeId: rule.envelopeId,
+    type: rule.type,
+    priority: rule.priority,
+    fixedAmountMinor: rule.fixedMinor === null ? null : formatMinorUnits(rule.fixedMinor),
+    percentBasisPoints: rule.percentBasisPoints,
+  };
+}
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -98,6 +119,15 @@ export class FundingRuleRepository {
       where: { budgetId, envelopeId },
       select: RULE_SELECT,
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  /** All saved rules of the budget in the preview order: priority, then envelope id. */
+  async listRules(tx: Prisma.TransactionClient, budgetId: string): Promise<FundingRuleRecord[]> {
+    return tx.envelopeFundingRule.findMany({
+      where: { budgetId },
+      select: RULE_SELECT,
+      orderBy: [{ priority: 'asc' }, { envelopeId: 'asc' }],
     });
   }
 

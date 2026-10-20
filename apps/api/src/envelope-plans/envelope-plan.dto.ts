@@ -193,6 +193,11 @@ export class FundingRuleResponse {
   percentBasisPoints!: number | null;
 }
 
+export class FundingRuleListResponse {
+  @ApiProperty({ type: [FundingRuleResponse] })
+  items!: FundingRuleResponse[];
+}
+
 export class PutPeriodTargetRequest {
   @ApiProperty({
     type: String,

@@ -6,6 +6,7 @@ import { PrismaService } from '../database/prisma.service.js';
 import { AssignmentApplicationService } from './assignment.application.service.js';
 import { EnvelopePlanApplicationService } from './envelope-plan.application.service.js';
 import { EnvelopePlanController } from './envelope-plan.controller.js';
+import { FundingRulesBatchApplicationService } from './funding-rules-batch.application.service.js';
 import { MovementApplicationService } from './movement.application.service.js';
 import { PeriodTargetApplicationService } from './period-target.application.service.js';
 
@@ -50,6 +51,16 @@ export class EnvelopePlanModule {
           provide: PeriodTargetApplicationService,
           useFactory: (prisma: PrismaService) =>
             new PeriodTargetApplicationService(
+              prisma,
+              new IdempotencyService(),
+              new PlanModelPolicy(prisma),
+            ),
+          inject: [PrismaService],
+        },
+        {
+          provide: FundingRulesBatchApplicationService,
+          useFactory: (prisma: PrismaService) =>
+            new FundingRulesBatchApplicationService(
               prisma,
               new IdempotencyService(),
               new PlanModelPolicy(prisma),

@@ -46,6 +46,7 @@ import {
   AssignmentResultResponse,
   EnvelopePlanResponse,
   MovementResultResponse,
+  FundingRuleListResponse,
   FundingRuleResponse,
   MoveEnvelopeRequest,
   PeriodTargetResponse,
@@ -55,6 +56,7 @@ import {
   UpdateEnvelopeRequest,
 } from './envelope-plan.dto.js';
 import { EnvelopePlanApplicationService } from './envelope-plan.application.service.js';
+import { FundingRulesBatchApplicationService } from './funding-rules-batch.application.service.js';
 import {
   createAssignmentSchema,
   createEnvelopeSchema,
@@ -96,6 +98,8 @@ export class EnvelopePlanController {
     private readonly movements: MovementApplicationService,
     @Inject(PeriodTargetApplicationService)
     private readonly periodTargets: PeriodTargetApplicationService,
+    @Inject(FundingRulesBatchApplicationService)
+    private readonly fundingRules: FundingRulesBatchApplicationService,
   ) {}
 
   @Get('envelopes')
@@ -218,6 +222,17 @@ export class EnvelopePlanController {
     @Req() request: AuthenticatedRequest,
   ) {
     return (await this.plans.history(contextOf(request).userId, budgetId, envelopeId, query)).body;
+  }
+
+  @Get('funding-rules')
+  @ApiOkResponse({ type: FundingRuleListResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  async listFundingRules(@Param('budgetId') budgetId: string, @Req() request: AuthenticatedRequest) {
+    return (await this.fundingRules.list(contextOf(request).userId, budgetId)).body;
   }
 
   @Put('envelopes/:envelopeId/funding-rule')
