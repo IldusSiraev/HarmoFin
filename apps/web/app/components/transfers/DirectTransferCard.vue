@@ -3,6 +3,7 @@ import type { DirectTransferResponse } from '../../composables/useEnvelopePlanV2
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiCard from '../ui/Card.vue';
 import UiStatus from '../ui/Status.vue';
+import { formatPlainDate } from '../obligations/format-plain-date.js';
 
 // Read-only card for a v2 transfer: either account to account, or a historical
 // transfer with envelope parts (shown, never editable).
@@ -31,7 +32,7 @@ const STATUS: Record<
       <div class="direct-transfer-card__header">
         <div>
           <p>Перевод</p>
-          <h2>{{ transfer.occurredOn }}</h2>
+          <h2>{{ formatPlainDate(transfer.occurredOn) }}</h2>
         </div>
         <UiStatus :label="STATUS[transfer.status].label" :tone="STATUS[transfer.status].tone" />
       </div>

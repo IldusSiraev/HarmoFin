@@ -79,18 +79,34 @@ defineOptions({ name: 'ReferencePageLayout' });
   margin-top: var(--hf-space-5);
 }
 
+/* Phones: the list is what matters, so the page head is compressed — no
+   kicker (the bottom navigation already names the section), actions beside
+   the title when they fit, tighter gaps above the filters and the list. */
 @media (max-width: 47.9375rem) {
   .reference-page-layout {
-    padding: var(--hf-space-5);
+    padding: var(--hf-space-4);
   }
 
   .reference-page-layout__header {
-    align-items: stretch;
-    flex-direction: column;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--hf-space-3);
   }
 
-  .reference-page-layout__header > :last-child {
-    align-self: start;
+  .reference-page-layout__kicker {
+    display: none;
+  }
+
+  .reference-page-layout h1 {
+    font-size: 1.75rem;
+  }
+
+  .reference-page-layout__filters {
+    margin-top: var(--hf-space-4);
+  }
+
+  .reference-page-layout__content {
+    margin-top: var(--hf-space-4);
   }
 }
 </style>

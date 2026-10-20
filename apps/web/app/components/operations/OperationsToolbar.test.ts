@@ -19,16 +19,11 @@ const options = [
   { value: 'second-account-id', label: 'Наличные' },
 ];
 
-const mountToolbar = (
-  overrides: Partial<OperationFilters> = {},
-  activeCount = 0,
-  canViewDeleted = true,
-) =>
+const mountToolbar = (overrides: Partial<OperationFilters> = {}, canViewDeleted = true) =>
   mount(OperationsToolbar, {
     attachTo: document.body,
     props: {
       filters: { ...filters, ...overrides },
-      activeCount,
       accounts: options,
       categories: [{ value: 'category-id', label: 'Продукты' }],
       envelopes: [{ value: 'envelope-id', label: 'Текущие' }],
@@ -56,18 +51,17 @@ describe('OperationsToolbar', () => {
 
   it('offers deleted operations to the owner only', async () => {
     const statusOptions = async (canViewDeleted: boolean) => {
-      const wrapper = mountToolbar({}, 0, canViewDeleted);
-      await wrapper.get('[data-testid="more-filters"]').trigger('click');
+      const wrapper = mountToolbar({}, canViewDeleted);
+      await wrapper.get('[data-testid="chip-status"]').trigger('click');
       const values = wrapper
-        .findComponent({ name: 'UiSelect' })
-        .props('options')
-        .map((option: { value: string }) => option.value);
+        .findAll('[role="option"]')
+        .map((option) => option.attributes('data-testid')?.replace('chip-option-status-', ''));
       wrapper.unmount();
       return values;
     };
 
-    expect(await statusOptions(true)).toEqual(['', 'DRAFT', 'CONFIRMED', 'CANCELLED', 'DELETED']);
-    expect(await statusOptions(false)).toEqual(['', 'DRAFT', 'CONFIRMED', 'CANCELLED']);
+    expect(await statusOptions(true)).toEqual(['DRAFT', 'CONFIRMED', 'CANCELLED', 'DELETED']);
+    expect(await statusOptions(false)).toEqual(['DRAFT', 'CONFIRMED', 'CANCELLED']);
   });
 
   it('selects a transaction type from the tabs', async () => {
@@ -92,7 +86,7 @@ describe('OperationsToolbar', () => {
     const wrapper = mountToolbar({ accountId: 'account-id' });
 
     expect(wrapper.get('[data-testid="chip-accountId"]').text()).toContain('Основная карта');
-    expect(wrapper.get('[data-testid="chip-accountId"]').attributes('aria-pressed')).toBe('true');
+    expect(wrapper.find('[data-testid="chip-clear"]').exists()).toBe(true);
   });
 
   it('reports a chosen chip value', async () => {
@@ -119,7 +113,7 @@ describe('OperationsToolbar', () => {
     await wrapper.get('[data-testid="chip-accountId"]').trigger('click');
 
     const list = wrapper.get('[data-testid="chip-options"]').element;
-    expect(list.closest('.operations-toolbar__chips')).toBeNull();
+    expect(list.closest('.ui-filter-bar__chips')).toBeNull();
     expect(list.closest('.operations-toolbar')).not.toBeNull();
   });
 
@@ -145,17 +139,41 @@ describe('OperationsToolbar', () => {
     expect(wrapper.find('[data-testid="chip-options"]').exists()).toBe(false);
   });
 
-  it('counts active filters on the more-filters button', () => {
-    expect(
-      mountToolbar({ status: 'DRAFT' }, 1).get('[data-testid="more-filters"]').text(),
-    ).toContain('1');
+  it('keeps every filter in the bar, without a drawer or dialog', () => {
+    const wrapper = mountToolbar();
+
+    expect(wrapper.find('[data-testid="more-filters"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="chip-status"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="chip-period"]').exists()).toBe(true);
   });
 
-  it('opens the extra filters in a drawer and resets from there', async () => {
-    const wrapper = mountToolbar({ status: 'DRAFT' }, 1);
+  it('shows the chosen period on its chip and clears both bounds', async () => {
+    const wrapper = mountToolbar({ from: '2026-10-01', to: '2026-10-20' });
+    const period = wrapper.get('[data-testid="chip-period"]');
 
-    await wrapper.get('[data-testid="more-filters"]').trigger('click');
-    expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(true);
+    expect(period.text()).toContain('01.10 – 20.10.2026');
+    await period.element
+      .parentElement!.querySelector<HTMLElement>('[data-testid="chip-clear"]')!
+      .click();
+
+    expect(wrapper.emitted('change')).toEqual([
+      ['from', ''],
+      ['to', ''],
+    ]);
+  });
+
+  it('clears a chosen value from the chip itself', async () => {
+    const wrapper = mountToolbar({ categoryId: 'category-id' });
+
+    expect(wrapper.get('[data-testid="chip-categoryId"]').text()).toContain('Продукты');
+    await wrapper.get('[data-testid="chip-clear"]').trigger('click');
+
+    expect(wrapper.emitted('change')).toEqual([['categoryId', '']]);
+  });
+
+  it('offers a reset only while some filter is set', async () => {
+    expect(mountToolbar().find('[data-testid="reset-filters"]').exists()).toBe(false);
+    const wrapper = mountToolbar({ status: 'DRAFT' });
 
     await wrapper.get('[data-testid="reset-filters"]').trigger('click');
 

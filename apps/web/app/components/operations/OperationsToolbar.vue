@@ -1,22 +1,17 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
-import { SlidersHorizontal } from '@lucide/vue';
+import { computed } from 'vue';
 
-import UiButton from '../ui/Button.vue';
-import UiChip from '../ui/Chip.vue';
-import UiDatePicker from '../ui/DatePicker.vue';
-import UiDrawer from '../ui/Drawer.vue';
-import UiSelect from '../ui/Select.vue';
+import UiButtonGroup from '../ui/ButtonGroup.vue';
+import UiDateChip from '../ui/DateChip.vue';
+import UiFilterBar, { type FilterBarChip } from '../ui/FilterBar.vue';
 import type { OperationFilters } from '../../composables/useOperationFilters.js';
 
 defineOptions({ name: 'OperationsToolbar' });
 
 type Option = { value: string; label: string };
-type ChipKey = 'accountId' | 'categoryId' | 'envelopeId';
 
 const props = defineProps<{
   filters: OperationFilters;
-  activeCount: number;
   accounts: ReadonlyArray<Option>;
   categories: ReadonlyArray<Option>;
   envelopes: ReadonlyArray<Option>;
@@ -29,302 +24,74 @@ const emit = defineEmits<{
   reset: [];
 }>();
 
-const openChip = ref<ChipKey | null>(null);
-const moreOpen = ref(false);
-const root = ref<HTMLElement | null>(null);
-const chipsRow = ref<HTMLElement | null>(null);
-const optionsLeft = ref(0);
 const typeTabs: Option[] = [
   { value: '', label: 'Все' },
   { value: 'INCOME', label: 'Доходы' },
   { value: 'EXPENSE', label: 'Расходы' },
 ];
 
-const chips = computed<Array<{ key: ChipKey; label: string; options: ReadonlyArray<Option> }>>(
-  () => [
-    { key: 'accountId', label: 'Счёт', options: props.accounts },
-    { key: 'categoryId', label: 'Категория', options: props.categories },
-    { key: 'envelopeId', label: 'Конверт', options: props.envelopes },
-  ],
-);
-
-const statusOptions = computed(() => [
-  { value: '', label: 'Активные' },
+// No status chosen means the default view (drafts and confirmed), so the
+// status chip offers only the departures from it.
+const statusOptions = computed<Option[]>(() => [
   { value: 'DRAFT', label: 'Черновики' },
   { value: 'CONFIRMED', label: 'Подтверждённые' },
   { value: 'CANCELLED', label: 'Отменённые' },
   ...(props.canViewDeleted ? [{ value: 'DELETED', label: 'Удалённые' }] : []),
 ]);
 
-const openChipData = computed(
-  () => chips.value.find((chip) => chip.key === openChip.value) ?? null,
-);
+const chips = computed<FilterBarChip[]>(() => [
+  { key: 'accountId', label: 'Счёт', options: props.accounts },
+  { key: 'categoryId', label: 'Категория', options: props.categories },
+  { key: 'envelopeId', label: 'Конверт', options: props.envelopes },
+  { key: 'status', label: 'Статус', options: statusOptions.value },
+]);
 
-function chosenLabel(key: ChipKey, options: ReadonlyArray<Option>): string | undefined {
-  const current = props.filters[key];
-  if (!current) return undefined;
-  return options.find((option) => option.value === current)?.label ?? current;
+const chipValues = computed<Record<string, string>>(() => ({
+  accountId: props.filters.accountId,
+  categoryId: props.filters.categoryId,
+  envelopeId: props.filters.envelopeId,
+  status: props.filters.status,
+}));
+
+const canReset = computed(() => Object.values(props.filters).some((value) => value !== ''));
+
+function onChipChange(key: string, value: string): void {
+  emit('change', key as keyof OperationFilters, value);
 }
 
-function chipTrigger(key: ChipKey): HTMLElement | null {
-  return chipsRow.value?.querySelector<HTMLElement>(`[data-testid="chip-${key}"]`) ?? null;
+function onPeriodChange(value: { from: string; to: string }): void {
+  if (value.from !== props.filters.from) emit('change', 'from', value.from);
+  if (value.to !== props.filters.to) emit('change', 'to', value.to);
 }
-
-// The chip row scrolls horizontally, and a scroll container clips on both axes,
-// so the option list lives outside it and is placed under its own chip.
-function placeOptions(key: ChipKey): void {
-  const trigger = chipTrigger(key);
-  if (!trigger || !root.value) return;
-  const triggerBox = trigger.getBoundingClientRect();
-  const rootBox = root.value.getBoundingClientRect();
-  const maxLeft = Math.max(0, rootBox.width - OPTIONS_WIDTH_REM * 16);
-  optionsLeft.value = Math.max(0, Math.min(triggerBox.left - rootBox.left, maxLeft));
-}
-
-const OPTIONS_WIDTH_REM = 12;
-
-function toggleChip(key: ChipKey): void {
-  if (openChip.value === key) {
-    openChip.value = null;
-    return;
-  }
-  openChip.value = key;
-  void nextTick(() => placeOptions(key));
-}
-
-function closeOptions(returnFocus: boolean): void {
-  const key = openChip.value;
-  if (key === null) return;
-  openChip.value = null;
-  if (returnFocus) chipTrigger(key)?.focus();
-}
-
-// Choosing the value that is already applied clears the filter — the chip is a
-// toggle, not a one-way switch.
-function chooseOption(key: ChipKey, value: string): void {
-  openChip.value = null;
-  emit('change', key, props.filters[key] === value ? '' : value);
-}
-
-function handleDocumentKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Escape') closeOptions(true);
-}
-
-function handleDocumentClick(event: MouseEvent): void {
-  if (openChip.value === null) return;
-  const target = event.target;
-  if (target instanceof Node && root.value?.contains(target)) return;
-  closeOptions(false);
-}
-
-onMounted(() => {
-  document.addEventListener('keydown', handleDocumentKeydown);
-  document.addEventListener('click', handleDocumentClick);
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener('keydown', handleDocumentKeydown);
-  document.removeEventListener('click', handleDocumentClick);
-});
 </script>
 
 <template>
-  <div ref="root" class="operations-toolbar">
-    <div class="operations-toolbar__primary">
-      <div class="operations-toolbar__tabs" role="group" aria-label="Тип операций">
-        <button
-          v-for="tab in typeTabs"
-          :key="tab.value"
-          type="button"
-          class="operations-toolbar__tab"
-          :class="{ 'operations-toolbar__tab--active': filters.type === tab.value }"
-          :aria-pressed="filters.type === tab.value ? 'true' : 'false'"
-          :data-testid="`type-tab-${tab.value || 'all'}`"
-          @click="emit('change', 'type', tab.value)"
-        >
-          {{ tab.label }}
-        </button>
-      </div>
-    </div>
-
-    <div ref="chipsRow" class="operations-toolbar__chips">
-      <UiChip
-        v-for="chip in chips"
-        v-show="chip.options.length > 0"
-        :key="chip.key"
-        :label="chip.label"
-        :value="chosenLabel(chip.key, chip.options)"
-        :active="Boolean(filters[chip.key])"
-        :data-testid="`chip-${chip.key}`"
-        @click="toggleChip(chip.key)"
+  <UiFilterBar
+    class="operations-toolbar"
+    :chips="chips"
+    :values="chipValues"
+    :can-reset="canReset"
+    @change="onChipChange"
+    @reset="emit('reset')"
+  >
+    <template #leading>
+      <UiButtonGroup
+        :options="typeTabs"
+        :model-value="filters.type"
+        label="Тип операций"
+        testid-prefix="type-tab"
+        @update:model-value="emit('change', 'type', $event)"
       />
+    </template>
 
-      <UiButton variant="secondary" data-testid="more-filters" @click="moreOpen = true">
-        <SlidersHorizontal :size="16" aria-hidden="true" />
-        Ещё фильтры{{ activeCount > 0 ? ` (${activeCount})` : '' }}
-      </UiButton>
-    </div>
-
-    <div
-      v-if="openChipData"
-      class="operations-toolbar__options"
-      data-testid="chip-options"
-      role="listbox"
-      :style="{ left: `${optionsLeft}px` }"
-    >
-      <button
-        v-for="option in openChipData.options"
-        :key="option.value"
-        type="button"
-        role="option"
-        class="operations-toolbar__option"
-        :aria-selected="filters[openChipData.key] === option.value ? 'true' : 'false'"
-        :data-testid="`chip-option-${openChipData.key}-${option.value}`"
-        @click="chooseOption(openChipData.key, option.value)"
-      >
-        {{ option.label }}
-      </button>
-    </div>
-
-    <UiDrawer :open="moreOpen" title="Фильтры" @close="moreOpen = false">
-      <div class="operations-toolbar__more">
-        <UiSelect
-          name="status"
-          label="Статус"
-          :model-value="filters.status"
-          :options="statusOptions"
-          @update:model-value="emit('change', 'status', $event)"
-        />
-        <UiDatePicker
-          name="from"
-          label="Дата с"
-          :model-value="filters.from"
-          @update:model-value="emit('change', 'from', $event)"
-        />
-        <UiDatePicker
-          name="to"
-          label="Дата по"
-          :model-value="filters.to"
-          @update:model-value="emit('change', 'to', $event)"
-        />
-      </div>
-
-      <template #footer>
-        <UiButton variant="tertiary" data-testid="reset-filters" @click="emit('reset')">
-          Сбросить всё
-        </UiButton>
-        <UiButton variant="secondary" @click="moreOpen = false">Готово</UiButton>
-      </template>
-    </UiDrawer>
-  </div>
+    <template #extra>
+      <UiDateChip
+        label="Период"
+        :from="filters.from"
+        :to="filters.to"
+        data-testid="chip-period"
+        @change="onPeriodChange"
+      />
+    </template>
+  </UiFilterBar>
 </template>
-
-<style scoped>
-.operations-toolbar {
-  /* ReferencePageLayout's #filters slot is a flex row now (fixed elsewhere so
-     a single filter chip there doesn't stretch full width) — a flex item's
-     main-axis size defaults to shrink-to-fit, so this toolbar needs its own
-     explicit full width or it shrinks to its content instead of the row. */
-  width: 100%;
-  position: relative;
-  display: grid;
-  gap: var(--hf-space-3);
-}
-
-.operations-toolbar__primary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--hf-space-3);
-  align-items: center;
-}
-
-.operations-toolbar__tabs {
-  display: flex;
-  flex-shrink: 0;
-  gap: var(--hf-space-2);
-}
-
-.operations-toolbar__tab {
-  min-height: var(--hf-control-height-md);
-  padding: 0 var(--hf-space-4);
-  border: 1px solid var(--hf-color-border-strong);
-  border-radius: var(--hf-radius-xl);
-  background: var(--hf-color-surface);
-  color: var(--hf-color-text);
-  font: inherit;
-  font-weight: var(--hf-font-weight-medium);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.operations-toolbar__tab:hover {
-  background: var(--hf-color-action-secondary-hover);
-}
-
-.operations-toolbar__tab:focus-visible {
-  outline: 2px solid var(--hf-color-action-primary);
-  outline-offset: 2px;
-}
-
-.operations-toolbar__tab--active {
-  border-color: var(--hf-color-brand);
-  background: var(--hf-color-brand-soft);
-  color: var(--hf-color-brand);
-}
-
-.operations-toolbar__chips {
-  display: flex;
-  gap: var(--hf-space-2);
-  align-items: center;
-  overflow-x: auto;
-  padding-bottom: var(--hf-space-1);
-}
-
-.operations-toolbar__chips > * {
-  flex-shrink: 0;
-}
-
-/* Match the weight of the type tabs above so the two rows read as one
-   consistent set of filters rather than the chips looking like an
-   afterthought next to them. */
-.operations-toolbar__chips :deep(.ui-chip) {
-  font-weight: var(--hf-font-weight-medium);
-}
-
-.operations-toolbar__options {
-  position: absolute;
-  top: 100%;
-  z-index: 110;
-  display: grid;
-  width: 12rem;
-  max-height: 16rem;
-  overflow-y: auto;
-  padding: var(--hf-space-2);
-  border: 1px solid var(--hf-color-border);
-  border-radius: var(--hf-radius-lg);
-  background: var(--hf-color-surface);
-  box-shadow: var(--hf-shadow-md);
-}
-
-.operations-toolbar__option {
-  min-height: 2.75rem;
-  padding: 0 var(--hf-space-3);
-  border: 0;
-  border-radius: var(--hf-radius-md);
-  background: transparent;
-  color: var(--hf-color-text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.operations-toolbar__option:hover,
-.operations-toolbar__option[aria-selected='true'] {
-  background: var(--hf-color-action-secondary-hover);
-}
-
-.operations-toolbar__more {
-  display: grid;
-  gap: var(--hf-space-4);
-}
-</style>

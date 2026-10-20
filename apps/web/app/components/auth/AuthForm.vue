@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 
+import UiButton from '../ui/Button.vue';
+
 const props = defineProps<{
   title: string;
   subtitle: string;
   submitLabel: string;
+  loadingLabel?: string | undefined;
   onSubmit: () => void | Promise<void>;
   loading?: boolean;
   summary?: string;
@@ -31,16 +34,16 @@ function submit(): void | Promise<void> {
         <i />
         <i />
       </div>
-      <p class="eyebrow">Личный ритм денег</p>
-      <h1>Деньги на счетах.<br />Назначение — под контролем.</h1>
+      <p class="eyebrow">Бюджет для семьи, пары или одного человека</p>
+      <h1>Деньги на счетах.<br />Конверты — на что они отложены.</h1>
       <p class="intro-copy">
-        Учет семейного бюджета по вашему финансовому циклу — без лишних сложностей.
+        HarmoFin считает, сколько можно потратить сейчас, не задевая обязательные платежи и
+        накопления.
       </p>
     </section>
 
     <section class="auth-panel" aria-labelledby="auth-title">
       <div class="form-frame">
-        <p class="form-kicker">HarmoFin</p>
         <h2 id="auth-title">{{ props.title }}</h2>
         <p class="form-subtitle">{{ props.subtitle }}</p>
         <form @submit.prevent="submit">
@@ -48,14 +51,18 @@ function submit(): void | Promise<void> {
             {{ props.summary }}
           </p>
           <slot />
-          <button
+          <UiButton
             class="primary-action"
             type="submit"
-            :disabled="props.loading || props.submitDisabled"
+            variant="brand"
+            size="lg"
+            full-width
+            :loading="props.loading"
+            :disabled="props.submitDisabled"
             :aria-describedby="props.submitDescribedBy"
           >
-            {{ props.loading ? 'Подождите…' : props.submitLabel }}
-          </button>
+            {{ props.loading ? (props.loadingLabel ?? 'Подождите…') : props.submitLabel }}
+          </UiButton>
         </form>
         <slot name="footer" />
       </div>
@@ -71,14 +78,16 @@ function submit(): void | Promise<void> {
   background: var(--hf-color-page-background);
 }
 
+/* Always-dark brand panel: fixed navy instead of --hf-color-text, which turns
+   light in the dark theme, so the white copy stays readable in both themes. */
 .auth-intro {
   position: relative;
   overflow: hidden;
   padding: clamp(2rem, 6vw, 6.5rem);
   color: var(--hf-color-white);
   background:
-    radial-gradient(circle at 95% 0%, var(--hf-color-action-primary) 0, transparent 32%),
-    linear-gradient(145deg, var(--hf-color-text), var(--hf-color-action-primary));
+    radial-gradient(circle at 95% 0%, var(--hf-color-brand) 0, transparent 32%),
+    linear-gradient(145deg, var(--hf-color-navy), var(--hf-color-brand));
 }
 
 .auth-intro::after {
@@ -124,11 +133,10 @@ function submit(): void | Promise<void> {
 .cycle-mark i:last-child {
   right: 0;
   bottom: 0;
-  border-color: var(--hf-color-status-warning-background);
+  border-color: var(--hf-color-primary-bright);
 }
 
-.eyebrow,
-.form-kicker {
+.eyebrow {
   margin: clamp(7rem, 22vh, 15rem) 0 1rem;
   color: var(--hf-color-brand-bright);
   font-size: 0.74rem;
@@ -139,17 +147,18 @@ function submit(): void | Promise<void> {
 
 h1 {
   position: relative;
-  max-width: 11ch;
+  max-width: 16ch;
   margin: 0;
-  font-size: clamp(2.5rem, 5vw, 5.5rem);
-  line-height: 0.96;
-  letter-spacing: -0.04em;
+  font-size: var(--hf-font-size-h1);
+  line-height: var(--hf-line-height-h1);
+  letter-spacing: -0.02em;
 }
 
 .intro-copy {
-  max-width: 33ch;
-  margin: 2rem 0 0;
-  color: var(--hf-color-slate-200);
+  position: relative;
+  max-width: 36ch;
+  margin: 1.5rem 0 0;
+  color: color-mix(in srgb, var(--hf-color-white) 82%, transparent);
   font-size: 1.05rem;
   line-height: 1.6;
 }
@@ -161,24 +170,25 @@ h1 {
 }
 
 .form-frame {
+  box-sizing: border-box;
   width: min(100%, 28rem);
-}
-
-.form-kicker {
-  margin: 0 0 0.75rem;
-  color: var(--hf-color-action-primary-hover);
+  padding: clamp(var(--hf-space-6), 4vw, var(--hf-space-10));
+  border: 1px solid var(--hf-color-border);
+  border-radius: var(--hf-radius-lg);
+  background: var(--hf-color-surface);
+  box-shadow: var(--hf-shadow-sm);
 }
 
 h2 {
   margin: 0;
   color: var(--hf-color-text);
-  font-size: clamp(2rem, 3vw, 2.8rem);
-  line-height: 1;
-  letter-spacing: -0.04em;
+  font-size: var(--hf-font-size-h2);
+  line-height: var(--hf-line-height-h2);
+  letter-spacing: -0.02em;
 }
 
 .form-subtitle {
-  margin: 0.95rem 0 2rem;
+  margin: 0.75rem 0 1.5rem;
   color: var(--hf-color-text-muted);
   line-height: 1.5;
 }
@@ -192,30 +202,10 @@ h2 {
   font-size: 0.9rem;
 }
 
-.primary-action {
-  width: 100%;
-  min-height: var(--hf-control-height-lg);
+/* UiButton renders its own root (tooltip wrapper), so the class lands below
+   this component's scope. */
+:deep(.primary-action) {
   margin-top: 1.5rem;
-  color: var(--hf-color-white);
-  border: 0;
-  border-radius: var(--hf-button-radius);
-  background: var(--hf-color-action-primary);
-  font: inherit;
-  font-weight: var(--hf-font-weight-bold);
-  cursor: pointer;
-  transition:
-    background-color 180ms ease,
-    transform 180ms ease;
-}
-
-.primary-action:hover:not(:disabled) {
-  background: var(--hf-color-action-primary-hover);
-  transform: translateY(-1px);
-}
-
-.primary-action:disabled {
-  cursor: wait;
-  opacity: 0.65;
 }
 
 :deep(.field) {
@@ -224,13 +214,15 @@ h2 {
   margin-top: 1rem;
 }
 
-:deep(label) {
+:deep(.field label) {
   color: var(--hf-color-text);
   font-size: 0.86rem;
   font-weight: var(--hf-font-weight-bold);
 }
 
-:deep(input) {
+/* Raw inputs of the remaining auth pages only; UiInput and the consent
+   checkboxes style their own controls. */
+:deep(.field > input) {
   box-sizing: border-box;
   width: 100%;
   min-height: var(--hf-control-height-md);
@@ -242,8 +234,7 @@ h2 {
   font: inherit;
 }
 
-:deep(input:focus-visible),
-.primary-action:focus-visible,
+:deep(.field > input:focus-visible),
 .wordmark:focus-visible {
   outline: none;
   box-shadow: var(--hf-focus-indicator);
@@ -257,9 +248,11 @@ h2 {
 
 :deep(.form-links) {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 1rem;
-  margin-top: 1.25rem;
+  gap: 0.5rem 1rem;
+  margin: 1.25rem 0 0;
+  color: var(--hf-color-text-muted);
   font-size: 0.9rem;
 }
 
@@ -268,37 +261,34 @@ h2 {
   font-weight: var(--hf-font-weight-bold);
 }
 
+/* Single column: the intro collapses to a short brand strip so the form
+   stays above the fold. */
 @media (max-width: 760px) {
   .auth-shell {
     grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
   }
 
   .auth-intro {
-    min-height: 13rem;
-    padding: 1.75rem;
+    padding: 1.25rem 1.25rem 1.5rem;
   }
 
-  .eyebrow {
-    margin-top: 3rem;
-  }
-
-  h1 {
-    font-size: 2.35rem;
-  }
-
+  .cycle-mark,
+  .eyebrow,
   .intro-copy {
     display: none;
   }
 
-  .cycle-mark {
-    top: 2rem;
-    right: 2rem;
-    transform: scale(0.55) rotate(-35deg);
-    transform-origin: top right;
+  h1 {
+    max-width: none;
+    margin-top: 1rem;
+    font-size: 1.375rem;
+    line-height: 1.3;
   }
 
   .auth-panel {
-    padding: 2rem 1.25rem 3rem;
+    place-items: start center;
+    padding: 1.5rem 1rem 3rem;
   }
 }
 </style>

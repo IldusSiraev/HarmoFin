@@ -155,7 +155,10 @@ jobs:
         run: pnpm test:integration
 
   e2e:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04, where Playwright 1.55.1 cannot
+    # install Chromium or its system dependencies. Unpin after upgrading
+    # Playwright to a release that supports the new image.
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:18-alpine

@@ -3,13 +3,13 @@ import { computed, onMounted, ref, watch, type Component } from 'vue';
 import { definePageMeta, navigateTo, useRoute } from '#imports';
 
 import ExportPanelV2 from '../../components/analytics/ExportPanelV2.vue';
-import ReportFilters, { type AnalyticsFilters } from '../../components/analytics/ReportFilters.vue';
 import CashFlowTab from '../../components/analytics/tabs/CashFlowTab.vue';
 import EnvelopesTab from '../../components/analytics/tabs/EnvelopesTab.vue';
 import ExpensesTab from '../../components/analytics/tabs/ExpensesTab.vue';
 import OverviewTab from '../../components/analytics/tabs/OverviewTab.vue';
 import SavingsTab from '../../components/analytics/tabs/SavingsTab.vue';
-import FilterPanel from '../../components/ui/FilterPanel.vue';
+import UiDateChip from '../../components/ui/DateChip.vue';
+import UiFilterBar, { type FilterBarChip } from '../../components/ui/FilterBar.vue';
 import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
 import UiTabs from '../../components/ui/Tabs.vue';
@@ -20,6 +20,13 @@ import { type ReportV2Filters, useEnvelopePlanV2 } from '../../composables/useEn
 defineOptions({ name: 'BudgetAnalyticsPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
 
+type AnalyticsFilters = {
+  from: string;
+  to: string;
+  accountId: string;
+  categoryId: string;
+  envelopeId: string;
+};
 type TabId = 'overview' | 'expenses' | 'cash-flow' | 'envelopes' | 'savings';
 type FilterName = keyof AnalyticsFilters;
 
@@ -88,7 +95,28 @@ const tabFilters = computed<ReportV2Filters>(() => {
   }
   return result;
 });
-const activeFilterCount = computed(() => Object.keys(tabFilters.value).length);
+
+/** Account, category and envelope are chips; the period lives in the drawer. */
+const CHIP_LABELS: Partial<Record<FilterName, string>> = {
+  accountId: 'Счёт',
+  categoryId: 'Категория',
+  envelopeId: 'Конверт',
+};
+const chips = computed<FilterBarChip[]>(() => {
+  const options: Partial<Record<FilterName, Array<{ value: string; label: string }>>> = {
+    accountId: accounts.value,
+    categoryId: categories.value,
+    envelopeId: envelopes.value,
+  };
+  return activeTab.value.filters.flatMap((name) => {
+    const label = CHIP_LABELS[name];
+    return label ? [{ key: name, label, options: options[name] ?? [] }] : [];
+  });
+});
+/** A tab with both bounds gets a period chip; "Накопления" has only "на дату". */
+const hasFrom = computed(() => activeTab.value.filters.includes('from'));
+const hasTo = computed(() => activeTab.value.filters.includes('to'));
+const canReset = computed(() => Object.keys(tabFilters.value).length > 0);
 
 function tabFromQuery(): TabId {
   const value = route.query.tab;
@@ -125,6 +153,24 @@ function selectTab(value: string) {
 function updateFilters(value: AnalyticsFilters) {
   filters.value = value;
   syncUrl();
+}
+
+function changeFilter(key: string, value: string) {
+  updateFilters({ ...filters.value, [key]: value });
+}
+
+function changePeriod(value: { from: string; to: string }) {
+  updateFilters({
+    ...filters.value,
+    from: hasFrom.value ? value.from : filters.value.from,
+    to: value.to,
+  });
+}
+
+function resetTabFilters() {
+  const next = { ...filters.value };
+  for (const name of activeTab.value.filters) next[name] = '';
+  updateFilters(next);
 }
 
 // A browser back/forward move or an in-app link (e.g. "Все категории" →
@@ -182,16 +228,24 @@ onMounted(async () => {
       <template #kicker>Аналитика</template>
       <template #title>Отчёты бюджета</template>
       <template v-if="activeTab.filters.length > 0" #filters>
-        <FilterPanel :active-count="activeFilterCount">
-          <ReportFilters
-            :model-value="filters"
-            :fields="activeTab.filters"
-            :accounts="accounts"
-            :categories="categories"
-            :envelopes="envelopes"
-            @update:model-value="updateFilters"
-          />
-        </FilterPanel>
+        <UiFilterBar
+          :chips="chips"
+          :values="filters"
+          :can-reset="canReset"
+          @change="changeFilter"
+          @reset="resetTabFilters"
+        >
+          <template v-if="hasTo" #extra>
+            <UiDateChip
+              :label="hasFrom ? 'Период' : 'На дату'"
+              :range="hasFrom"
+              :from="filters.from"
+              :to="filters.to"
+              data-testid="chip-period"
+              @change="changePeriod"
+            />
+          </template>
+        </UiFilterBar>
       </template>
       <template #content>
         <UiTabs

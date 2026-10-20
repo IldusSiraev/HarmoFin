@@ -35,7 +35,7 @@ describe('AccountDrawer', () => {
     expect(text).toContain('Банковская карта');
     expect(text).toContain('Банк');
     expect(text).toContain('1234');
-    expect(text).toContain('2026-09-01');
+    expect(text).toContain('01.09.2026');
     expect(text).toContain('Основная карта семьи');
     wrapper.unmount();
   });

@@ -378,13 +378,14 @@ async function downloadCsv() {
         >
           <Download :size="18" aria-hidden="true" />
         </UiButton>
-        <UiButton data-action="create-operation" @click="openChoose">Добавить операцию</UiButton>
+        <UiButton data-action="create-operation" class="operations-page__add" @click="openChoose">
+          Добавить операцию
+        </UiButton>
       </template>
 
       <template #filters>
         <OperationsToolbar
           :filters="filters"
-          :active-count="activeCount"
           :accounts="accounts"
           :categories="categoryOptions"
           :envelopes="envelopes"
@@ -541,5 +542,13 @@ async function downloadCsv() {
 
 .operations-page__export {
   padding-inline: 0;
+}
+
+/* Below 1024px the bottom navigation has its own "+" for the same dialog;
+   a second add button would only push the list down. */
+@media (max-width: 1023px) {
+  .reference-page-layout__actions .operations-page__add {
+    display: none;
+  }
 }
 </style>

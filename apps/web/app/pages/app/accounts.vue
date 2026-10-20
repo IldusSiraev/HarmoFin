@@ -7,7 +7,7 @@ import AccountRow from '../../components/accounts/AccountRow.vue';
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../components/ui/Button.vue';
-import UiChip from '../../components/ui/Chip.vue';
+import UiButtonGroup from '../../components/ui/ButtonGroup.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
 import UiDatePicker from '../../components/ui/DatePicker.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
@@ -160,8 +160,14 @@ async function loadPage() {
   }
 }
 
-async function toggleArchived(): Promise<void> {
-  status.value = status.value === 'archived' ? 'active' : 'archived';
+const STATUS_OPTIONS = [
+  { value: 'active', label: 'Активные' },
+  { value: 'archived', label: 'В архиве' },
+];
+
+async function changeStatus(value: string): Promise<void> {
+  if (value === status.value) return;
+  status.value = value === 'archived' ? 'archived' : 'active';
   await navigateTo(
     { path: route.path, query: status.value === 'archived' ? { status: 'archived' } : {} },
     { replace: true },
@@ -336,11 +342,12 @@ onMounted(() => {
         <UiButton data-action="create-account" @click="startCreate">Создать счёт</UiButton>
       </template>
       <template #filters>
-        <UiChip
-          label="В архиве"
-          :active="status === 'archived'"
-          data-testid="chip-archived"
-          @click="toggleArchived"
+        <UiButtonGroup
+          :options="STATUS_OPTIONS"
+          :model-value="status"
+          label="Показать счета"
+          testid-prefix="status"
+          @update:model-value="changeStatus"
         />
       </template>
       <template #content>
@@ -454,6 +461,7 @@ onMounted(() => {
           <span>Комментарий</span>
           <textarea
             v-model="form.comment"
+            autocomplete="off"
             name="comment"
             :aria-invalid="getFieldError('comment') ? 'true' : undefined"
           />

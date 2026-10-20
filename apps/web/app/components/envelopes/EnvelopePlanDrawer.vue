@@ -18,6 +18,7 @@ import {
   decimalToMinor,
   planScopeNote,
 } from './envelope-plan-kind.js';
+import { formatPlainDate } from '../obligations/format-plain-date.js';
 
 defineOptions({ name: 'EnvelopePlanDrawer' });
 
@@ -176,7 +177,7 @@ const operationsLink = computed(() =>
           <li v-for="(item, index) in items" :key="`${item.effectiveOn}-${index}`">
             <span class="plan-drawer__kind">{{ KIND_LABELS[item.kind] }}</span>
             <FinanceMoney :minor-units="item.amountMinor" currency="RUB" :scale="2" />
-            <time :datetime="item.effectiveOn">{{ item.effectiveOn }}</time>
+            <time :datetime="item.effectiveOn">{{ formatPlainDate(item.effectiveOn) }}</time>
           </li>
         </ul>
         <UiSkeleton v-else-if="loading" :count="3" />

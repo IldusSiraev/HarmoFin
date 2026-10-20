@@ -57,7 +57,7 @@ test('owner creates, edits and archives an account through server-confirmed data
   await page.locator('dialog[open] [data-confirm]').click();
   await expect(page.locator('dialog[open]')).toHaveCount(0);
 
-  await page.getByTestId('chip-archived').click();
+  await page.getByTestId('status-archived').click();
   await expect(accountCard(page, 'Пустой счёт').getByTestId('account-row-archived')).toBeVisible();
 });
 

@@ -54,6 +54,7 @@ function step(delta: 1 | -1): void {
         type="text"
         inputmode="decimal"
         name="amount"
+        autocomplete="off"
         :value="modelValue"
         :style="{ width: inputWidth }"
         :aria-invalid="error ? 'true' : undefined"

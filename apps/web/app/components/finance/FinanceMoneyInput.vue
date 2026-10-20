@@ -20,7 +20,7 @@ withDefaults(
   }>(),
   {
     id: undefined,
-    autocomplete: undefined,
+    autocomplete: 'off',
     placeholder: undefined,
     tooltip: undefined,
     hint: undefined,

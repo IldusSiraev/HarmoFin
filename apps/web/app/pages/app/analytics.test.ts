@@ -104,7 +104,32 @@ describe('analytics page', () => {
   it('обзор не показывает панель фильтров', async () => {
     const wrapper = mount(AnalyticsPage, { global });
     await flushPromises();
-    expect(wrapper.find('[aria-label="Фильтры аналитики"]').exists()).toBe(false);
+    expect(wrapper.find('.ui-filter-bar').exists()).toBe(false);
+  });
+
+  it('фильтры вкладки: чипы счёта и конверта и чип периода', async () => {
+    route.query = { tab: 'expenses', from: '2026-03-01' };
+    api.listAccounts.mockResolvedValue([{ id: 'acc', name: 'Карта' }]);
+    api.listCategories.mockResolvedValue([{ id: 'cat', name: 'Продукты' }]);
+    v2.listEnvelopes.mockResolvedValue({
+      items: [{ id: 'env', name: 'Текущие', archivedAt: null }],
+    });
+    const wrapper = mount(AnalyticsPage, { global });
+    await flushPromises();
+    expect(wrapper.find('[data-testid="chip-accountId"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="chip-envelopeId"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="chip-categoryId"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="chip-period"]').text()).toContain('с 01.03.2026');
+    expect(wrapper.find('[data-testid="more-filters"]').exists()).toBe(false);
+  });
+
+  it('накопления фильтруются одной датой, а не периодом', async () => {
+    route.query = { tab: 'savings', to: '2026-03-31' };
+    const wrapper = mount(AnalyticsPage, { global });
+    await flushPromises();
+    const chip = wrapper.get('[data-testid="chip-period"]');
+    expect(chip.text()).toContain('На дату');
+    expect(chip.text()).toContain('31.03.2026');
   });
 
   it('старая ссылка ?report= переводится на вкладку', async () => {
