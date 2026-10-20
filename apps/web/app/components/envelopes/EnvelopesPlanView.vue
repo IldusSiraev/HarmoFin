@@ -17,16 +17,18 @@ import {
   type CreateEnvelopePlanRequest,
   type EnvelopePlanDto,
   type EnvelopePlanKind,
+  type FundingRuleResponse,
   useEnvelopePlanV2,
 } from '../../composables/useEnvelopePlanV2.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js';
 import { useToast } from '../../composables/useToast.js';
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
-import RuleSettingsSheet from '../funding/RuleSettingsSheet.vue';
+import { describeRule } from '../funding-rules/funding-rule-text.js';
 import EnvelopeMovePanel, { type MovePanelResult } from './EnvelopeMovePanel.vue';
 import EnvelopePlanDialog from './EnvelopePlanDialog.vue';
 import EnvelopePlanRow from './EnvelopePlanRow.vue';
+import PeriodTargetDialog from './PeriodTargetDialog.vue';
 import {
   PLAN_GROUPS,
   PLAN_SCOPE_LABELS,
@@ -52,6 +54,13 @@ const loadError = ref('');
 const statusMessage = ref('');
 const detailed = ref<EnvelopePlanDto | null>(null);
 const pageHeading = ref<HTMLElement | null>(null);
+
+// Saved funding rules, for the read-only summary in the details dialog. A failed
+// read only hides that line; the page keeps working.
+const rules = ref<FundingRuleResponse[] | null>(null);
+const detailedRule = computed(() =>
+  detailed.value ? describeRule(detailed.value.id, rules.value) : null,
+);
 
 // Focus returns to whatever opened a panel; if that row is gone, to the heading.
 let focusOrigin: HTMLElement | null = null;
@@ -102,6 +111,11 @@ async function load(): Promise<void> {
     // The v2 list returns active envelopes only.
     const response = await planV2.listEnvelopes(props.budgetId);
     envelopes.value = response.items;
+    try {
+      rules.value = (await planV2.listFundingRules(props.budgetId)).items;
+    } catch {
+      rules.value = null;
+    }
   } catch (error) {
     loadError.value = v2ErrorMessage(error, 'Не удалось загрузить конверты. Повторите попытку.');
   } finally {
@@ -277,43 +291,49 @@ async function onMoveDone(result: MovePanelResult): Promise<void> {
   void restoreFocus();
 }
 
-// Funding rule panel. The envelope DTO carries neither the rule nor the period,
-// so the current period is taken from the dashboard only when it demonstrably
-// belongs to this envelope (an assignment of the envelope in that period).
+// Period target dialog. The envelope DTO does not carry the current period, so
+// it is taken from the dashboard only when it demonstrably belongs to this
+// envelope (an assignment of the envelope in that period).
+// The dialog resets only when it opens, so the period is resolved first and the
+// dialog opens afterwards with its final periodStart.
 
-const ruleEnvelope = ref<EnvelopePlanDto | null>(null);
-const rulePeriodStart = ref<string | null>(null);
-let ruleSeq = 0;
+const targetEnvelope = ref<EnvelopePlanDto | null>(null);
+const targetPeriodStart = ref<string | null>(null);
+let targetSeq = 0;
 
-async function startRules(envelope: EnvelopePlanDto): Promise<void> {
+async function startTarget(envelope: EnvelopePlanDto): Promise<void> {
   rememberFocus();
   detailed.value = null;
-  rulePeriodStart.value = null;
-  const seq = ++ruleSeq;
-  ruleEnvelope.value = envelope;
+  targetEnvelope.value = null;
+  const seq = ++targetSeq;
+  let periodStart: string | null = null;
   try {
     const dashboard = await planV2.getDashboard(props.budgetId);
-    if (seq !== ruleSeq) return;
+    if (seq !== targetSeq) return;
     const periodId = dashboard.period.periodId;
     const belongs =
       periodId !== null &&
       dashboard.protectedAssignments.some(
         (item) => item.envelopeId === envelope.id && item.periodId === periodId,
       );
-    rulePeriodStart.value = belongs ? dashboard.period.start : null;
+    periodStart = belongs ? dashboard.period.start : null;
   } catch {
-    if (seq === ruleSeq) rulePeriodStart.value = null;
+    if (seq !== targetSeq) return;
+    periodStart = null;
   }
+  targetPeriodStart.value = periodStart;
+  targetEnvelope.value = envelope;
 }
 
-function closeRules(): void {
-  ruleSeq++;
-  ruleEnvelope.value = null;
+function closeTarget(): void {
+  targetSeq++;
+  targetEnvelope.value = null;
   void restoreFocus();
 }
 
-async function onRuleChanged(message: string): Promise<void> {
+async function onTargetChanged(message: string): Promise<void> {
   statusMessage.value = message;
+  closeTarget();
   await load();
 }
 
@@ -391,6 +411,9 @@ onMounted(() => {
       общие: конверты делят их по назначению.
     </template>
     <template #actions>
+      <UiButton variant="secondary" to="/app/envelopes/rules" data-action="envelope-rules">
+        Задать правила
+      </UiButton>
       <UiButton data-action="create-envelope" @click="startCreate">Создать конверт</UiButton>
     </template>
     <template #content>
@@ -477,16 +500,6 @@ onMounted(() => {
                         v-if="!envelope.archivedAt"
                         type="button"
                         role="menuitem"
-                        data-testid="row-rules"
-                        data-action="rules-envelope"
-                        @click="startRules(envelope)"
-                      >
-                        Правило пополнения
-                      </button>
-                      <button
-                        v-if="!envelope.archivedAt"
-                        type="button"
-                        role="menuitem"
                         data-testid="row-edit"
                         data-action="edit-envelope"
                         @click="startEdit(envelope)"
@@ -524,23 +537,24 @@ onMounted(() => {
   <EnvelopePlanDialog
     :budget-id="budgetId"
     :envelope="detailed"
+    :rule-summary="detailedRule"
     @close="
       detailed = null;
       restoreFocus();
     "
     @edit="startEdit"
     @reassign="startReassign"
-    @rules="startRules"
+    @target="startTarget"
     @archive="requestArchive"
   />
 
-  <RuleSettingsSheet
-    :open="ruleEnvelope !== null"
+  <PeriodTargetDialog
+    :open="targetEnvelope !== null"
     :budget-id="budgetId"
-    :envelope="ruleEnvelope"
-    :period-start="rulePeriodStart"
-    @close="closeRules"
-    @changed="onRuleChanged"
+    :envelope="targetEnvelope"
+    :period-start="targetPeriodStart"
+    @close="closeTarget"
+    @changed="onTargetChanged"
   />
 
   <EnvelopeMovePanel

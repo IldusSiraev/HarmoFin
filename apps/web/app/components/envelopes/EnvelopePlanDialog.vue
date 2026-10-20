@@ -25,13 +25,18 @@ defineOptions({ name: 'EnvelopePlanDialog' });
 // Details of an assignment envelope: what was assigned, spent and moved, with
 // dates. Everything is read from the server; cancelled facts are shown only on
 // request and stay read-only.
-const props = defineProps<{ budgetId: string; envelope: EnvelopePlanDto | null }>();
+const props = defineProps<{
+  budgetId: string;
+  envelope: EnvelopePlanDto | null;
+  // Read-only funding rule summary; null or absent hides the line.
+  ruleSummary?: string | null;
+}>();
 
 const emit = defineEmits<{
   close: [];
   edit: [envelope: EnvelopePlanDto];
   reassign: [envelope: EnvelopePlanDto];
-  rules: [envelope: EnvelopePlanDto];
+  target: [envelope: EnvelopePlanDto];
   archive: [envelope: EnvelopePlanDto];
 }>();
 
@@ -138,6 +143,10 @@ const operationsLink = computed(() =>
           <dt>Половина периода</dt>
           <dd>{{ slotLabel }}</dd>
         </div>
+        <div v-if="ruleSummary" data-testid="plan-dialog-rule">
+          <dt>Правило пополнения</dt>
+          <dd>{{ ruleSummary }}</dd>
+        </div>
         <div>
           <dt>Отложено</dt>
           <dd><FinanceMoney :minor-units="envelope.fundedMinor" currency="RUB" :scale="2" /></dd>
@@ -222,10 +231,10 @@ const operationsLink = computed(() =>
       <UiButton
         v-if="!envelope.archivedAt"
         variant="secondary"
-        data-testid="plan-dialog-rules"
-        @click="emit('rules', envelope)"
+        data-testid="plan-dialog-target"
+        @click="emit('target', envelope)"
       >
-        Правило пополнения
+        Изменить цель периода
       </UiButton>
       <UiButton
         v-if="!envelope.archivedAt"

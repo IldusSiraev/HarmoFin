@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
     archiveEnvelope: vi.fn(),
     move: vi.fn(),
     assignFree: vi.fn(),
+    listFundingRules: vi.fn().mockResolvedValue({ items: [] }),
   },
   route: { path: '/app/envelopes', query: {} as Record<string, string> },
   navigateTo: vi.fn(),
@@ -144,6 +145,7 @@ describe('envelopes page, plan model v2', () => {
     };
     mocks.v2.listEnvelopes.mockResolvedValue({ items: [repair, savings, food, mandatory] });
     mocks.v2.getEnvelopeHistory.mockResolvedValue({ items: [], nextCursor: null });
+    mocks.v2.listFundingRules.mockResolvedValue({ items: [] });
     mocks.v2.move.mockResolvedValue({
       movementId: 'm1',
       amountMinor: '2800000',
