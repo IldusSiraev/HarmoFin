@@ -79,8 +79,9 @@ test('funding rules page: reorder, change a rule and save once', async ({ page }
   // 2. Move the first envelope down and give it a fixed amount.
   await page.getByTestId(`rule-down-${first.id}`).click();
   await expect(page.getByTestId('rules-announce')).toContainText('позиция 2 из 2');
-  await page.getByTestId(`rule-type-${first.id}`).selectOption('FIXED_PER_PERIOD');
-  await page.getByTestId(`rule-fixed-${first.id}`).fill('15000');
+  await page.getByTestId(`rule-type-${first.id}`).getByRole('combobox').click();
+  await page.getByRole('option', { name: 'Фиксированная цель на период' }).click();
+  await page.getByTestId(`rule-fixed-${first.id}`).locator('input').fill('15000');
   await page.getByTestId('rules-save').click();
   await expect(page.getByText('Правила сохранены')).toBeVisible();
   await expect(page.getByTestId('rules-save')).toBeDisabled();

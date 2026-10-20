@@ -5,6 +5,7 @@ import { AlertTriangle, ArrowDown } from '@lucide/vue';
 import UiButton from '../ui/Button.vue';
 import UiEmptyState from '../ui/EmptyState.vue';
 import UiInfoTooltip from '../ui/InfoTooltip.vue';
+import UiSelect from '../ui/Select.vue';
 import UiSkeleton from '../ui/Skeleton.vue';
 import { ApiRequestError } from '../../composables/useApiClient.js';
 import { useBudgetReferenceData } from '../../composables/useBudgetReferenceData.js';
@@ -72,8 +73,13 @@ const incomeLabel = computed(() => {
 });
 const labelFor = (envelopeId: string) =>
   incomeLabel.value?.envelopeId === envelopeId ? incomeLabel.value.text : null;
-const allCards = computed(() =>
-  state.value ? [...state.value.queue, ...state.value.outside] : [],
+const categoryOptions = computed(() =>
+  categories.value.map((item) => ({ value: item.id, label: item.name })),
+);
+const envelopeOptions = computed(() =>
+  (state.value ? [...state.value.queue, ...state.value.outside] : [])
+    .map((card) => ({ value: card.envelopeId, label: card.name }))
+    .sort((left, right) => left.label.localeCompare(right.label, 'ru')),
 );
 
 function apply(next: EditorState): void {
@@ -257,68 +263,34 @@ async function save(): Promise<void> {
             :checked="state.suggestion.enabled"
             @change="setSuggestion({ enabled: ($event.target as HTMLInputElement).checked })"
           />
-          Включено
+          Предлагать направить доход в конверт
         </label>
         <div class="rules-editor__suggestion">
-          <label class="rules-editor__field">
-            <span>Доход категории</span>
-            <select
-              class="rules-editor__input"
-              data-testid="suggestion-category"
-              :disabled="saving || !state.suggestion.enabled"
-              :value="state.suggestion.sourceCategoryId"
-              :aria-invalid="suggestionErrors.sourceCategoryId ? 'true' : undefined"
-              :aria-describedby="
-                suggestionErrors.sourceCategoryId ? 'suggestion-category-error' : undefined
-              "
-              @change="
-                setSuggestion({ sourceCategoryId: ($event.target as HTMLSelectElement).value })
-              "
-            >
-              <option value="">Не выбрана</option>
-              <option v-for="item in categories" :key="item.id" :value="item.id">
-                {{ item.name }}
-              </option>
-            </select>
-          </label>
-          <label class="rules-editor__field">
-            <span>предлагать в конверт</span>
-            <select
-              class="rules-editor__input"
-              data-testid="suggestion-envelope"
-              :disabled="saving || !state.suggestion.enabled"
-              :value="state.suggestion.targetEnvelopeId"
-              :aria-invalid="suggestionErrors.targetEnvelopeId ? 'true' : undefined"
-              :aria-describedby="
-                suggestionErrors.targetEnvelopeId ? 'suggestion-envelope-error' : undefined
-              "
-              @change="
-                setSuggestion({ targetEnvelopeId: ($event.target as HTMLSelectElement).value })
-              "
-            >
-              <option value="">Не выбран</option>
-              <option v-for="card in allCards" :key="card.envelopeId" :value="card.envelopeId">
-                {{ card.name }}
-              </option>
-            </select>
-          </label>
+          <UiSelect
+            id="suggestion-category"
+            name="suggestion-category"
+            data-testid="suggestion-category"
+            label="Категория дохода"
+            placeholder="Не выбрана"
+            :model-value="state.suggestion.sourceCategoryId"
+            :options="categoryOptions"
+            :error="suggestionErrors.sourceCategoryId"
+            :disabled="saving || !state.suggestion.enabled"
+            @update:model-value="setSuggestion({ sourceCategoryId: $event })"
+          />
+          <UiSelect
+            id="suggestion-envelope"
+            name="suggestion-envelope"
+            data-testid="suggestion-envelope"
+            label="Конверт"
+            placeholder="Не выбран"
+            :model-value="state.suggestion.targetEnvelopeId"
+            :options="envelopeOptions"
+            :error="suggestionErrors.targetEnvelopeId"
+            :disabled="saving || !state.suggestion.enabled"
+            @update:model-value="setSuggestion({ targetEnvelopeId: $event })"
+          />
         </div>
-        <p
-          v-if="suggestionErrors.sourceCategoryId"
-          id="suggestion-category-error"
-          class="rules-editor__error"
-        >
-          <AlertTriangle :size="14" aria-hidden="true" />
-          {{ suggestionErrors.sourceCategoryId }}
-        </p>
-        <p
-          v-if="suggestionErrors.targetEnvelopeId"
-          id="suggestion-envelope-error"
-          class="rules-editor__error"
-        >
-          <AlertTriangle :size="14" aria-hidden="true" />
-          {{ suggestionErrors.targetEnvelopeId }}
-        </p>
       </section>
 
       <section class="rules-editor__block" aria-labelledby="queue-title">
@@ -445,32 +417,6 @@ async function save(): Promise<void> {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
   gap: var(--hf-space-3);
-}
-
-.rules-editor__field {
-  display: grid;
-  gap: var(--hf-space-1);
-  font-size: var(--hf-font-size-small);
-}
-
-.rules-editor__input {
-  min-width: 0;
-  min-height: 44px;
-  padding: 0 var(--hf-space-3);
-  border: 1px solid var(--hf-color-border);
-  border-radius: var(--hf-control-radius);
-  background: var(--hf-color-surface);
-  color: var(--hf-color-text);
-  font: inherit;
-}
-
-.rules-editor__input:focus-visible {
-  outline: 2px solid var(--hf-color-action-primary);
-  outline-offset: 2px;
-}
-
-.rules-editor__input[aria-invalid='true'] {
-  border-color: var(--hf-color-border-danger);
 }
 
 .rules-editor__queue,

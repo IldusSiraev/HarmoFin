@@ -168,6 +168,13 @@ function handleClick(event: MouseEvent, loading: boolean, disabled: boolean) {
   opacity: 0.6;
 }
 
+/* An icon next to the text sits on the text's centre line, not its baseline. */
+.ui-button__content {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hf-space-2);
+}
+
 .ui-button__loader {
   width: 1rem;
   height: 1rem;

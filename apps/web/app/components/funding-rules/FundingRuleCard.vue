@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { AlertTriangle, ChevronDown, ChevronUp, GripVertical, Wallet } from '@lucide/vue';
+import { ChevronDown, ChevronUp, GripVertical, Wallet } from '@lucide/vue';
 
+import FinanceMoneyInput from '../finance/FinanceMoneyInput.vue';
 import UiButton from '../ui/Button.vue';
 import UiCard from '../ui/Card.vue';
-import UiInfoTooltip from '../ui/InfoTooltip.vue';
+import UiInput from '../ui/Input.vue';
+import UiSelect from '../ui/Select.vue';
 import type { FundingRuleType } from '../../composables/useEnvelopePlanV2.js';
 import { RULE_TYPE_HINTS, RULE_TYPE_LABELS, ruleTypeOptions } from './funding-rule-text.js';
 import type { RuleCard, RuleField } from './rules-editor-state.js';
@@ -33,10 +35,15 @@ const emit = defineEmits<{
 }>();
 
 const id = computed(() => props.card.envelopeId);
-const options = computed(() => ruleTypeOptions(props.card.envelopeType));
+const options = computed(() =>
+  ruleTypeOptions(props.card.envelopeType).map((value) => ({
+    value,
+    label: RULE_TYPE_LABELS[value],
+  })),
+);
 const typeHint = computed(() =>
   props.card.type === ''
-    ? 'Тип определяет, как сервер предлагает сумму.'
+    ? 'Тип определяет, какую сумму приложение предложит отложить в этот конверт.'
     : RULE_TYPE_HINTS[props.card.type],
 );
 const showsFixed = computed(
@@ -55,136 +62,115 @@ const fixedLabel = computed(() =>
     :data-testid="`rule-card-${id}`"
     :aria-label="position === null ? card.name : `${position}. ${card.name}`"
   >
-    <div class="rule-card__head">
-      <span
-        v-if="position !== null"
-        class="rule-card__handle"
-        aria-hidden="true"
-        :data-testid="`rule-handle-${id}`"
-        @pointerdown="!disabled && emit('grab', $event)"
-      >
-        <GripVertical :size="20" />
-      </span>
-      <span v-if="position !== null" class="rule-card__position">{{ position }}</span>
-      <h3 class="rule-card__name">{{ card.name }}</h3>
-      <div v-if="position !== null" class="rule-card__moves">
-        <UiButton
-          variant="tertiary"
-          size="sm"
-          :aria-label="`Переместить выше: ${card.name}`"
-          tooltip="Выше"
-          :disabled="disabled || !canMoveUp"
-          :data-testid="`rule-up-${id}`"
-          @click="emit('up')"
+    <div class="rule-card__body">
+      <div class="rule-card__head">
+        <span
+          v-if="position !== null"
+          class="rule-card__handle"
+          aria-hidden="true"
+          :data-testid="`rule-handle-${id}`"
+          @pointerdown="!disabled && emit('grab', $event)"
         >
-          <ChevronUp :size="18" aria-hidden="true" />
-        </UiButton>
-        <UiButton
-          variant="tertiary"
-          size="sm"
-          :aria-label="`Переместить ниже: ${card.name}`"
-          tooltip="Ниже"
-          :disabled="disabled || !canMoveDown"
-          :data-testid="`rule-down-${id}`"
-          @click="emit('down')"
-        >
-          <ChevronDown :size="18" aria-hidden="true" />
-        </UiButton>
+          <GripVertical :size="20" />
+        </span>
+        <span v-if="position !== null" class="rule-card__position">{{ position }}</span>
+        <h3 class="rule-card__name">{{ card.name }}</h3>
+        <div v-if="position !== null" class="rule-card__moves">
+          <UiButton
+            variant="tertiary"
+            size="sm"
+            :aria-label="`Переместить выше: ${card.name}`"
+            tooltip="Выше"
+            :disabled="disabled || !canMoveUp"
+            :data-testid="`rule-up-${id}`"
+            @click="emit('up')"
+          >
+            <ChevronUp :size="18" aria-hidden="true" />
+          </UiButton>
+          <UiButton
+            variant="tertiary"
+            size="sm"
+            :aria-label="`Переместить ниже: ${card.name}`"
+            tooltip="Ниже"
+            :disabled="disabled || !canMoveDown"
+            :data-testid="`rule-down-${id}`"
+            @click="emit('down')"
+          >
+            <ChevronDown :size="18" aria-hidden="true" />
+          </UiButton>
+        </div>
       </div>
-    </div>
 
-    <p v-if="incomeLabel" class="rule-card__badge" :data-testid="`rule-income-${id}`">
-      <Wallet :size="14" aria-hidden="true" />
-      {{ incomeLabel }}
-    </p>
-    <p v-if="card.type === ''" class="rule-card__muted">Правило не задано</p>
+      <div v-if="incomeLabel || card.type === ''" class="rule-card__meta">
+        <p v-if="incomeLabel" class="rule-card__badge" :data-testid="`rule-income-${id}`">
+          <Wallet :size="14" aria-hidden="true" />
+          {{ incomeLabel }}
+        </p>
+        <p v-if="card.type === ''" class="rule-card__muted">Правило не задано</p>
+      </div>
 
-    <div class="rule-card__field">
-      <span class="rule-card__label">
-        <label :for="`rule-type-${id}`">Тип правила</label>
-        <UiInfoTooltip :text="typeHint" :label="`Подсказка: тип правила, ${card.name}`" />
-      </span>
-      <select
-        :id="`rule-type-${id}`"
-        class="rule-card__input"
-        :data-testid="`rule-type-${id}`"
-        :disabled="disabled"
-        :value="card.type"
-        :aria-invalid="errors.type ? 'true' : undefined"
-        :aria-describedby="errors.type ? `rule-type-error-${id}` : undefined"
-        @change="emit('type', ($event.target as HTMLSelectElement).value as FundingRuleType | '')"
-      >
-        <option value="" disabled>Выберите тип</option>
-        <option v-for="value in options" :key="value" :value="value">
-          {{ RULE_TYPE_LABELS[value] }}
-        </option>
-      </select>
-      <p v-if="errors.type" :id="`rule-type-error-${id}`" class="rule-card__error">
-        <AlertTriangle :size="14" aria-hidden="true" />
-        {{ errors.type }}
-      </p>
-    </div>
+      <div class="rule-card__fields">
+        <UiSelect
+          :id="`rule-type-${id}`"
+          :name="`rule-type-${id}`"
+          :data-testid="`rule-type-${id}`"
+          label="Тип правила"
+          placeholder="Выберите тип"
+          :tooltip="typeHint"
+          :model-value="card.type"
+          :options="options"
+          :error="errors.type"
+          :disabled="disabled"
+          @update:model-value="emit('type', $event as FundingRuleType | '')"
+        />
 
-    <div v-if="showsFixed" class="rule-card__field">
-      <label class="rule-card__label" :for="`rule-fixed-${id}`">{{ fixedLabel }}</label>
-      <input
-        :id="`rule-fixed-${id}`"
-        class="rule-card__input"
-        type="text"
-        inputmode="decimal"
-        autocomplete="off"
-        :data-testid="`rule-fixed-${id}`"
-        :disabled="disabled"
-        :value="card.fixed"
-        :aria-invalid="errors.fixedAmount ? 'true' : undefined"
-        :aria-describedby="`rule-fixed-hint-${id}${errors.fixedAmount ? ` rule-fixed-error-${id}` : ''}`"
-        @input="emit('fixed', ($event.target as HTMLInputElement).value)"
-      />
-      <p :id="`rule-fixed-hint-${id}`" class="rule-card__muted">
-        Сумма больше нуля, не более двух знаков после запятой.
-      </p>
-      <p v-if="errors.fixedAmount" :id="`rule-fixed-error-${id}`" class="rule-card__error">
-        <AlertTriangle :size="14" aria-hidden="true" />
-        {{ errors.fixedAmount }}
-      </p>
-    </div>
+        <FinanceMoneyInput
+          v-if="showsFixed"
+          :id="`rule-fixed-${id}`"
+          :name="`rule-fixed-${id}`"
+          :data-testid="`rule-fixed-${id}`"
+          :label="fixedLabel"
+          hint="Больше нуля, до двух знаков после запятой."
+          :model-value="card.fixed"
+          :error="errors.fixedAmount"
+          :disabled="disabled"
+          @update:model-value="emit('fixed', $event)"
+        />
 
-    <div v-if="card.type === 'PERCENT_OF_INCOME'" class="rule-card__field">
-      <label class="rule-card__label" :for="`rule-percent-${id}`">Процент от дохода, %</label>
-      <input
-        :id="`rule-percent-${id}`"
-        class="rule-card__input"
-        type="text"
-        inputmode="decimal"
-        autocomplete="off"
-        :data-testid="`rule-percent-${id}`"
-        :disabled="disabled"
-        :value="card.percent"
-        :aria-invalid="errors.percentBasisPoints ? 'true' : undefined"
-        :aria-describedby="`rule-percent-hint-${id}${errors.percentBasisPoints ? ` rule-percent-error-${id}` : ''}`"
-        @input="emit('percent', ($event.target as HTMLInputElement).value)"
-      />
-      <p :id="`rule-percent-hint-${id}`" class="rule-card__muted">
-        Значение от 0 до 100, не более двух знаков после запятой.
-      </p>
-      <p v-if="errors.percentBasisPoints" :id="`rule-percent-error-${id}`" class="rule-card__error">
-        <AlertTriangle :size="14" aria-hidden="true" />
-        {{ errors.percentBasisPoints }}
-      </p>
+        <UiInput
+          v-if="card.type === 'PERCENT_OF_INCOME'"
+          :id="`rule-percent-${id}`"
+          :name="`rule-percent-${id}`"
+          :data-testid="`rule-percent-${id}`"
+          label="Процент от дохода, %"
+          inputmode="decimal"
+          hint="От 0 до 100, до двух знаков после запятой."
+          :model-value="card.percent"
+          :error="errors.percentBasisPoints"
+          :disabled="disabled"
+          @update:model-value="emit('percent', $event)"
+        />
+      </div>
     </div>
   </UiCard>
 </template>
 
 <style scoped>
-.rule-card {
-  display: grid;
-  gap: var(--hf-space-3);
+/* Tooltips and the select list open outside the card, so it must not clip them. */
+.rule-card.ui-card {
+  overflow: visible;
   min-width: 0;
 }
 
 .rule-card--dragging {
   outline: 2px solid var(--hf-color-action-primary);
   outline-offset: 2px;
+}
+
+.rule-card__body {
+  display: grid;
+  gap: var(--hf-space-3);
+  min-width: 0;
 }
 
 .rule-card__head {
@@ -229,6 +215,13 @@ const fixedLabel = computed(() =>
   gap: var(--hf-space-1);
 }
 
+.rule-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hf-space-2);
+}
+
 .rule-card__badge {
   display: inline-flex;
   align-items: center;
@@ -242,51 +235,16 @@ const fixedLabel = computed(() =>
   font-size: var(--hf-font-size-small);
 }
 
-.rule-card__field {
+.rule-card__fields {
   display: grid;
-  gap: var(--hf-space-1);
-  font-size: var(--hf-font-size-small);
-}
-
-.rule-card__label {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--hf-space-1);
-}
-
-.rule-card__input {
-  min-width: 0;
-  min-height: 44px;
-  padding: 0 var(--hf-space-3);
-  border: 1px solid var(--hf-color-border);
-  border-radius: var(--hf-control-radius);
-  background: var(--hf-color-surface);
-  color: var(--hf-color-text);
-  font: inherit;
-  font-variant-numeric: tabular-nums;
-}
-
-.rule-card__input:focus-visible {
-  outline: 2px solid var(--hf-color-action-primary);
-  outline-offset: 2px;
-}
-
-.rule-card__input[aria-invalid='true'] {
-  border-color: var(--hf-color-border-danger);
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--hf-space-3);
+  align-items: start;
 }
 
 .rule-card__muted {
   margin: 0;
   color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-small);
-}
-
-.rule-card__error {
-  display: flex;
-  align-items: center;
-  gap: var(--hf-space-1);
-  margin: 0;
-  color: var(--hf-color-text-danger);
   font-size: var(--hf-font-size-small);
 }
 </style>

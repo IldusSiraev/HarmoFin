@@ -19,6 +19,7 @@ vi.mock('../../composables/useBudgetReferenceData.js', () => ({
 }));
 vi.mock('../../composables/useToast.js', () => ({ useToast: () => ({ push: mocks.push }) }));
 
+import { selectOption } from '../../test/select-option.js';
 import FundingRulesEditor from './FundingRulesEditor.vue';
 
 const envelope = (id: string, name: string, envelopeType = 'CURRENT_EXPENSES') => ({
@@ -92,7 +93,7 @@ describe('FundingRulesEditor', () => {
   it('смена типа переносит карточку между зонами и включает сохранение', async () => {
     const wrapper = await mountEditor();
     const emitted = () => wrapper.emitted('dirty') ?? [];
-    await wrapper.find('[data-testid="rule-type-a"]').setValue('MANUAL');
+    await selectOption(wrapper, 'rule-type-a', 'MANUAL');
     expect(queueIds(wrapper)).toEqual(['b']);
     expect(wrapper.find('[data-testid="rules-outside"]').text()).toContain('Еда');
     expect(emitted().at(-1)).toEqual([true]);
@@ -153,12 +154,18 @@ describe('FundingRulesEditor', () => {
     await wrapper.find('[data-testid="rule-down-b"]').trigger('click');
     expect(queueIds(wrapper)).toEqual(['b', 'a']);
     expect(wrapper.find('[data-testid="rule-down-b"]').attributes('disabled')).toBeDefined();
-    expect(wrapper.find('[data-testid="rule-type-a"]').attributes('disabled')).toBeDefined();
-    expect(wrapper.find('[data-testid="rule-fixed-a"]').attributes('disabled')).toBeDefined();
-    expect(wrapper.find('[data-testid="rule-type-c"]').attributes('disabled')).toBeDefined();
+    expect(
+      wrapper.find('[data-testid="rule-type-a"] [role="combobox"]').attributes('aria-disabled'),
+    ).toBeDefined();
+    expect(wrapper.find('[data-testid="rule-fixed-a"] input').attributes('disabled')).toBeDefined();
+    expect(
+      wrapper.find('[data-testid="rule-type-c"] [role="combobox"]').attributes('aria-disabled'),
+    ).toBeDefined();
     expect(wrapper.find('[data-testid="suggestion-enabled"]').attributes('disabled')).toBeDefined();
     expect(
-      wrapper.find('[data-testid="suggestion-category"]').attributes('disabled'),
+      wrapper
+        .find('[data-testid="suggestion-category"] [role="combobox"]')
+        .attributes('aria-disabled'),
     ).toBeDefined();
 
     resolveSave({
@@ -169,19 +176,23 @@ describe('FundingRulesEditor', () => {
       incomeSuggestion: { enabled: true, sourceCategoryId: 'cat', targetEnvelopeId: 'b' },
     });
     await flushPromises();
-    expect(wrapper.find('[data-testid="rule-type-a"]').attributes('disabled')).toBeUndefined();
+    expect(
+      wrapper.find('[data-testid="rule-type-a"] [role="combobox"]').attributes('aria-disabled'),
+    ).toBeUndefined();
     expect(wrapper.find('[data-testid="rule-down-b"]').attributes('disabled')).toBeUndefined();
   });
 
   it('ошибка формы показывается у поля, запрос не уходит', async () => {
     const wrapper = await mountEditor();
-    await wrapper.find('[data-testid="rule-fixed-a"]').setValue('0');
+    await wrapper.find('[data-testid="rule-fixed-a"] input').setValue('0');
     await wrapper.find('[data-testid="rules-save"]').trigger('click');
     expect(mocks.v2.saveFundingRules).not.toHaveBeenCalled();
     expect(wrapper.find('[data-testid="rule-card-a"]').text()).toContain(
       'Укажите сумму больше нуля',
     );
-    expect(wrapper.find('[data-testid="rule-fixed-a"]').attributes('aria-invalid')).toBe('true');
+    expect(wrapper.find('[data-testid="rule-fixed-a"] input').attributes('aria-invalid')).toBe(
+      'true',
+    );
   });
 
   it('ошибка сервера с путём показывается в нужной карточке', async () => {
@@ -196,7 +207,7 @@ describe('FundingRulesEditor', () => {
       } as never),
     );
     const wrapper = await mountEditor();
-    await wrapper.find('[data-testid="rule-percent-b"]').setValue('11');
+    await wrapper.find('[data-testid="rule-percent-b"] input').setValue('11');
     await wrapper.find('[data-testid="rules-save"]').trigger('click');
     await flushPromises();
     expect(wrapper.find('[data-testid="rule-card-b"]').text()).toContain('Проверьте тип правила');
