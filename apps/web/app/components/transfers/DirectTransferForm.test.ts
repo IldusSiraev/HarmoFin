@@ -18,6 +18,7 @@ function mountForm(model: Partial<Record<string, string>> = {}, errors = {}) {
         occurredOn: '2026-10-17',
         sourceAccountId: '',
         destinationAccountId: '',
+        comment: '',
         ...model,
       },
       accounts,
@@ -79,5 +80,29 @@ describe('DirectTransferForm', () => {
       { destinationAccountId: 'Счёт недоступен' },
     );
     expect(errorOf(wrapper, 'destinationAccountId')).toBe('Счёт недоступен');
+  });
+
+  it('sends the comment and uses a custom submit label', async () => {
+    const wrapper = mount(DirectTransferForm, {
+      attachTo: document.body,
+      props: {
+        model: {
+          total: '700',
+          occurredOn: '2026-10-17',
+          sourceAccountId: 'source-account',
+          destinationAccountId: 'destination-account',
+          comment: '',
+        },
+        accounts,
+        errors: {},
+        submitLabel: 'Сохранить изменения',
+      },
+    });
+
+    expect(wrapper.text()).toContain('Сохранить изменения');
+    await wrapper.get('input[name="comment"]').setValue('Отпуск');
+    await wrapper.get('form').trigger('submit');
+
+    expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({ comment: 'Отпуск' });
   });
 });
