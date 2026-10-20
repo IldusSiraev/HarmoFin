@@ -7,6 +7,9 @@ export default defineNuxtConfig({
   app: {
     head: {
       htmlAttrs: { lang: 'ru' },
+      // Fallback for pages without their own title (the /app area, auth pages);
+      // otherwise a reload leaves the tab untitled.
+      title: 'HarmoFin',
       link: [
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
         { rel: 'manifest', href: '/manifest.webmanifest' },
