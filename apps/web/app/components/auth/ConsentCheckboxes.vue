@@ -7,7 +7,7 @@ const pd = defineModel<boolean>('pd', { required: true });
 
 <template>
   <fieldset class="consent-checkboxes">
-    <legend class="consent-checkboxes__legend">Документы</legend>
+    <legend class="consent-checkboxes__legend">Согласия</legend>
     <label class="consent-checkboxes__item">
       <input v-model="terms" name="consent-terms" type="checkbox" />
       <span>

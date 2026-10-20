@@ -80,6 +80,35 @@ describe('register page', () => {
     expect(mocks.navigateTo).toHaveBeenCalledWith('/app');
   });
 
+  it('links the password hint and asks only for an optional budget name', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const password = wrapper.get('#password');
+    expect(password.attributes('aria-describedby')).toBe('password-hint');
+    expect(wrapper.get('#password-hint').text()).toBe('Минимум 10 символов.');
+    expect(password.attributes('minlength')).toBe('10');
+    expect(wrapper.find('#workspace').exists()).toBe(false);
+    expect(wrapper.get('#budget').attributes('maxlength')).toBe('120');
+  });
+
+  it('sends the budget name when provided', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+    await wrapper.get('#email').setValue('user@harmofin.test');
+    await wrapper.get('#password').setValue('correct-password-10');
+    await wrapper.get('#budget').setValue('Семья Ивановых');
+    await wrapper.get('[name="consent-terms"]').setValue(true);
+    await wrapper.get('[name="consent-pd"]').setValue(true);
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(mocks.register).toHaveBeenCalledWith(
+      expect.objectContaining({ budgetName: 'Семья Ивановых' }),
+    );
+    expect(mocks.register.mock.calls[0]?.[0]).not.toHaveProperty('workspaceName');
+  });
+
   it('does not register when the document versions failed to load', async () => {
     mocks.loadDocuments.mockRejectedValue(new Error('offline'));
     const wrapper = mountPage();

@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { navigateTo } from '#app';
 
+import UiInput from '../components/ui/Input.vue';
 import { errorMessage, useAuth } from '../composables/useAuth.js';
 
 defineOptions({ name: 'LoginPage' });
@@ -35,41 +36,38 @@ async function submit() {
     title="С возвращением"
     subtitle="Войдите, чтобы продолжить работу с бюджетом."
     submit-label="Войти"
+    loading-label="Входим…"
     :loading="loading"
     :summary="summary"
     :on-submit="submit"
   >
-    <div class="field">
-      <label for="email">Email</label>
-      <input
-        id="email"
-        v-model="email"
-        autocomplete="email"
-        inputmode="email"
-        required
-        type="email"
-        :aria-describedby="fieldErrors.email ? 'email-error' : undefined"
-      />
-      <p v-if="fieldErrors.email" id="email-error" class="field-error">{{ fieldErrors.email }}</p>
-    </div>
-    <div class="field">
-      <label for="password">Пароль</label>
-      <input
-        id="password"
-        v-model="password"
-        autocomplete="current-password"
-        required
-        type="password"
-        :aria-describedby="fieldErrors.password ? 'password-error' : undefined"
-      />
-      <p v-if="fieldErrors.password" id="password-error" class="field-error">
-        {{ fieldErrors.password }}
-      </p>
-    </div>
+    <UiInput
+      id="email"
+      v-model="email"
+      class="field"
+      name="email"
+      label="Email"
+      type="email"
+      autocomplete="email"
+      inputmode="email"
+      required
+      :error="fieldErrors.email"
+    />
+    <UiInput
+      id="password"
+      v-model="password"
+      class="field"
+      name="password"
+      label="Пароль"
+      type="password"
+      autocomplete="current-password"
+      required
+      :error="fieldErrors.password"
+    />
     <template #footer>
       <p class="form-links">
-        <NuxtLink to="/forgot-password">Забыли пароль?</NuxtLink
-        ><NuxtLink to="/register">Создать аккаунт</NuxtLink>
+        <NuxtLink to="/forgot-password">Забыли пароль?</NuxtLink>
+        <span>Нет аккаунта? <NuxtLink to="/register">Зарегистрироваться</NuxtLink></span>
       </p>
     </template>
   </AuthForm>

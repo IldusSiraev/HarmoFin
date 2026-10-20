@@ -14,6 +14,8 @@ const props = withDefaults(
     inputmode?: string | undefined;
     placeholder?: string | undefined;
     hint?: string | undefined;
+    minlength?: number | undefined;
+    maxlength?: number | undefined;
     error?: string | undefined;
     tooltip?: string | undefined;
     required?: boolean;
@@ -28,6 +30,8 @@ const props = withDefaults(
     inputmode: undefined,
     placeholder: undefined,
     hint: undefined,
+    minlength: undefined,
+    maxlength: undefined,
     error: undefined,
     tooltip: undefined,
     required: false,
@@ -115,6 +119,8 @@ function handleInput(event: Event) {
         :autocomplete="autocomplete"
         :inputmode="getInputMode()"
         :placeholder="placeholder"
+        :minlength="minlength"
+        :maxlength="maxlength"
         :aria-describedby="getDescribedBy()"
         :aria-invalid="error ? 'true' : undefined"
         :aria-required="required || undefined"

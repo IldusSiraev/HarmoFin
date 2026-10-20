@@ -3,6 +3,9 @@
      Blue/Mint) on a light, soft-shadow surface instead of a generic
      Tailwind slate/blue SaaS palette. */
   --hf-color-white: #ffffff;
+  /* Fixed brand navy for always-dark surfaces (auth intro panel). Unlike
+     slate-900 it is not flipped by the dark theme. */
+  --hf-color-navy: #0d1b2a;
   --hf-color-brand: #1ba39c;
   --hf-color-brand-hover: #168f89;
   --hf-color-brand-active: #127a75;
