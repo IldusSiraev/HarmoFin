@@ -70,6 +70,7 @@ function getDescribedBy(): string | undefined {
 const inputAttrs = computed(() => ({
   id: getInputId(),
   name: props.name,
+  autocomplete: 'off',
   required: props.required,
   clearable: !props.required,
   'aria-describedby': getDescribedBy(),

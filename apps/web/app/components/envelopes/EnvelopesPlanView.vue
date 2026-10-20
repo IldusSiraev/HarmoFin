@@ -605,6 +605,7 @@ onMounted(() => {
         <span>Комментарий</span>
         <textarea
           v-model="form.comment"
+          autocomplete="off"
           name="comment"
           :aria-invalid="fieldError('comment') ? 'true' : undefined"
         />

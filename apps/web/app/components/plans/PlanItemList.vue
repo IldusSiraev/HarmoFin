@@ -338,6 +338,23 @@ defineExpose({ focus: () => root.value?.focus() });
   gap: var(--hf-space-1);
   min-width: 0;
 }
+/* Fixed columns from tablet width up: with flex space-between each row
+   centred its amount between name and actions of differing widths, so
+   amounts drifted row to row. Right-aligned tabular numbers line up. */
+@media (min-width: 40rem) {
+  .obligation-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 10rem calc(3 * 2.75rem + 2 * var(--hf-space-2));
+  }
+  .obligation-row__amounts {
+    justify-items: end;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .obligation-row__actions {
+    justify-content: flex-end;
+  }
+}
 .obligation-row__name {
   font-weight: var(--hf-font-weight-medium);
   overflow-wrap: anywhere;

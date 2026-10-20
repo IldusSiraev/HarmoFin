@@ -356,7 +356,7 @@ describe('envelopes page, plan model v2', () => {
 
     expect(mocks.v2.getEnvelopeHistory).toHaveBeenCalledWith('budget-id', 'env-repair', {});
     const drawer = wrapper.get('[data-testid="drawer"]');
-    expect(drawer.text()).toContain('2026-09-30');
+    expect(drawer.text()).toContain('30.09.2026');
     expect(drawer.text()).toContain('Расход');
     expect(drawer.text()).not.toContain('Начальный баланс');
 
@@ -365,7 +365,7 @@ describe('envelopes page, plan model v2', () => {
     expect(mocks.v2.getEnvelopeHistory).toHaveBeenLastCalledWith('budget-id', 'env-repair', {
       cursor: 'cur-1',
     });
-    expect(wrapper.get('[data-testid="drawer"]').text()).toContain('2026-09-01');
+    expect(wrapper.get('[data-testid="drawer"]').text()).toContain('01.09.2026');
     expect(wrapper.find('[data-testid="history-more"]').exists()).toBe(false);
   });
 

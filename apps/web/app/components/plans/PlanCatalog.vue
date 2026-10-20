@@ -145,6 +145,21 @@ const emit = defineEmits<{
   gap: var(--hf-space-1);
   min-width: 0;
 }
+/* Same fixed columns as the upcoming list, so amounts line up row to row. */
+@media (min-width: 40rem) {
+  .obligation-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 10rem 8.5rem;
+  }
+  .obligation-row__amounts {
+    justify-items: end;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .obligation-row__actions {
+    justify-content: flex-end;
+  }
+}
 .obligation-row__name {
   font-weight: var(--hf-font-weight-medium);
   overflow-wrap: anywhere;

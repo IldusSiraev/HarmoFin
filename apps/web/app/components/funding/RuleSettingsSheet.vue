@@ -13,6 +13,7 @@ import { useBudgetReferenceData } from '../../composables/useBudgetReferenceData
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
 import UiButton from '../ui/Button.vue';
 import UiDrawer from '../ui/Drawer.vue';
+import { formatPlainDate } from '../obligations/format-plain-date.js';
 
 defineOptions({ name: 'RuleSettingsSheet' });
 
@@ -543,8 +544,8 @@ function requestClose(): void {
         </p>
         <template v-else>
           <p v-if="!targetOpen" class="rule-sheet__muted">
-            Подтверждённая цель текущего периода ({{ periodStart }}) меняется только отдельным
-            действием.
+            Подтверждённая цель текущего периода ({{ formatPlainDate(periodStart ?? '') }}) меняется
+            только отдельным действием.
           </p>
           <div v-if="!targetOpen" class="rule-sheet__actions">
             <UiButton variant="secondary" data-testid="target-open" @click="openTarget">

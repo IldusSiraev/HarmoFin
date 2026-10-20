@@ -6,6 +6,7 @@ import UiButton from '../ui/Button.vue';
 import UiDrawer from '../ui/Drawer.vue';
 import UiStatus from '../ui/Status.vue';
 import type { AccountDto } from '../../composables/useBudgetReferenceData.js';
+import { formatPlainDate } from '../obligations/format-plain-date.js';
 
 defineOptions({ name: 'AccountDrawer' });
 
@@ -78,7 +79,7 @@ const transferLink = computed(() =>
         </div>
         <div>
           <dt>Дата начала учёта</dt>
-          <dd>{{ account.accountingStartDate }}</dd>
+          <dd>{{ formatPlainDate(account.accountingStartDate) }}</dd>
         </div>
         <div v-if="account.comment">
           <dt>Комментарий</dt>

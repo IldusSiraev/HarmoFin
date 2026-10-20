@@ -100,13 +100,20 @@ async function submit() {
     </div>
     <div class="field">
       <label for="workspace">Рабочее пространство <span>необязательно</span></label>
-      <input id="workspace" v-model="workspaceName" maxlength="120" placeholder="Например, Семья" />
+      <input
+        id="workspace"
+        v-model="workspaceName"
+        autocomplete="off"
+        maxlength="120"
+        placeholder="Например, Семья"
+      />
     </div>
     <div class="field">
       <label for="budget">Первый бюджет <span>необязательно</span></label>
       <input
         id="budget"
         v-model="budgetName"
+        autocomplete="off"
         maxlength="120"
         placeholder="Например, Семейный бюджет"
       />

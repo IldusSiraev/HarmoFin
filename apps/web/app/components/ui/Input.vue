@@ -24,7 +24,7 @@ const props = withDefaults(
   {
     id: undefined,
     type: 'text',
-    autocomplete: undefined,
+    autocomplete: 'off',
     inputmode: undefined,
     placeholder: undefined,
     hint: undefined,

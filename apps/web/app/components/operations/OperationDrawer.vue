@@ -12,6 +12,7 @@ import {
 } from '../../composables/useBudgetReferenceData.js';
 import type { TransactionJournalV2Item } from '../../composables/useEnvelopePlanV2.js';
 import { availableActions, canEditTransaction } from '../../composables/useOperationMutations.js';
+import { formatPlainDate } from '../obligations/format-plain-date.js';
 
 defineOptions({ name: 'OperationDrawer' });
 
@@ -91,7 +92,7 @@ watch(
       <dl class="operation-drawer__rows">
         <div>
           <dt>Дата</dt>
-          <dd>{{ transaction.occurredOn }}</dd>
+          <dd>{{ formatPlainDate(transaction.occurredOn) }}</dd>
         </div>
         <div>
           <dt>Категория</dt>

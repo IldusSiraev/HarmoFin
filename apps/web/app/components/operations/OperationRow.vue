@@ -6,6 +6,7 @@ import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiListRow from '../ui/ListRow.vue';
 import UiStatus from '../ui/Status.vue';
 import type { TransactionJournalV2Item } from '../../composables/useEnvelopePlanV2.js';
+import { formatPlainDate } from '../obligations/format-plain-date.js';
 
 defineOptions({ name: 'OperationRow' });
 
@@ -52,7 +53,8 @@ const SCALE = 2;
 const isPlanPayment = computed(() => props.transaction.planOccurrenceIds.length > 0);
 
 const rowLabel = computed(
-  () => `Открыть операцию «${props.categoryName}» от ${props.transaction.occurredOn}`,
+  () =>
+    `Открыть операцию «${props.categoryName}» от ${formatPlainDate(props.transaction.occurredOn)}`,
 );
 </script>
 
