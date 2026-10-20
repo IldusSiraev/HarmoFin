@@ -134,8 +134,6 @@ describe('v2 жизненный цикл прямого перевода (изм
     for (const key of Object.keys(emails) as Array<keyof typeof emails>) {
       await cleanupUser(ctx[key]?.userId ?? '');
     }
-    await app.close();
-    await prisma.$disconnect();
   });
 
   const today = todayInTimezone(new Date(), 'UTC');
@@ -450,6 +448,175 @@ describe('v2 жизненный цикл прямого перевода (изм
         service.update(ctx.owner!.userId, budgetId(), created.id, { comment: 'z' }, key),
       )).status,
     ).toBe(409);
+  });
+});
+
+describe('HTTP-контракт мутаций перевода', () => {
+  type FixtureUser = {
+    userId: string;
+    workspaceId: string;
+    budgetId: string;
+    cookie: string;
+    csrfToken: string;
+  };
+  const httpEmails = {
+    owner: `v2-transfer-http-owner-${randomUUID()}@harmofin.test`,
+  };
+  const fCtx: Partial<Record<keyof typeof httpEmails, FixtureUser>> = {};
+  let httpSrcAccount: string;
+  let httpDestAccount: string;
+
+  function authCookieHeaders(user: FixtureUser | undefined): Record<string, string> {
+    return { origin, cookie: `harmofin_session=${user?.cookie ?? ''}` };
+  }
+
+  function mutationHeaders(
+    user: FixtureUser | undefined,
+    idempotencyKey: string,
+  ): Record<string, string> {
+    return {
+      ...authCookieHeaders(user),
+      'x-csrf-token': user?.csrfToken ?? '',
+      'idempotency-key': idempotencyKey,
+    };
+  }
+
+  async function registerFixture(email: string): Promise<FixtureUser> {
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/auth/register',
+      headers: { origin },
+      payload: { email, password },
+    });
+    expect(response.statusCode).toBe(201);
+    const body = response.json<{
+      user: { id: string };
+      workspace: { id: string };
+      budget: { id: string };
+      csrfToken: string;
+    }>();
+    const setCookieRaw = response.headers['set-cookie'];
+    const setCookie = Array.isArray(setCookieRaw) ? setCookieRaw.join('; ') : (setCookieRaw ?? '');
+    const match = /harmofin_session=([^;]+)/.exec(setCookie);
+    const cookie = match ? decodeURIComponent(match[1]!) : '';
+    expect(cookie).not.toHaveLength(0);
+    return {
+      userId: body.user.id,
+      workspaceId: body.workspace.id,
+      budgetId: body.budget.id,
+      cookie,
+      csrfToken: body.csrfToken,
+    };
+  }
+
+  const httpToday = todayInTimezone(new Date(), 'UTC');
+
+  async function createViaHttp(amount: string): Promise<Record<string, unknown>> {
+    const response = await server.inject({
+      method: 'POST',
+      url: `/api/v2/budgets/${fCtx.owner!.budgetId}/transfers`,
+      headers: mutationHeaders(fCtx.owner, randomUUID()),
+      payload: {
+        sourceAccountId: httpSrcAccount,
+        destinationAccountId: httpDestAccount,
+        amount,
+        occurredOn: httpToday,
+      },
+    });
+    expect(response.statusCode).toBe(201);
+    return response.json<Record<string, unknown>>();
+  }
+
+  beforeAll(async () => {
+    for (const key of Object.keys(httpEmails) as Array<keyof typeof httpEmails>) {
+      fCtx[key] = await registerFixture(httpEmails[key]);
+    }
+    await prisma.budget.update({
+      where: { id: fCtx.owner!.budgetId },
+      data: { planModelVersion: 2, planModelActivatedOn: d(-60), timezone: 'UTC' },
+    });
+    httpSrcAccount = await createRawAccount(fCtx.owner!.budgetId, 'RUB', 10_000_000n);
+    httpDestAccount = await createRawAccount(fCtx.owner!.budgetId, 'RUB', 0n);
+  });
+
+  afterAll(async () => {
+    for (const key of Object.keys(httpEmails) as Array<keyof typeof httpEmails>) {
+      await cleanupUser(fCtx[key]?.userId ?? '');
+    }
+    await app.close();
+    await prisma.$disconnect();
+  });
+
+  const owner = () => fCtx.owner!;
+
+  it('PATCH → 200 с kind TRANSFER; без Idempotency-Key → 400; без CSRF → 403', async () => {
+    const created = await createViaHttp('3.00');
+    const url = `/api/v2/budgets/${owner().budgetId}/transfers/${created.id}`;
+    const ok = await server.inject({
+      method: 'PATCH',
+      url,
+      headers: mutationHeaders(owner(), randomUUID()),
+      payload: { comment: 'HTTP' },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json()).toMatchObject({ kind: 'TRANSFER', id: created.id, comment: 'HTTP' });
+
+    const noKey = await server.inject({
+      method: 'PATCH',
+      url,
+      headers: { ...authCookieHeaders(owner()), 'x-csrf-token': owner().csrfToken },
+      payload: { comment: 'x' },
+    });
+    expect(noKey.statusCode).toBe(400);
+
+    const noCsrf = await server.inject({
+      method: 'PATCH',
+      url,
+      headers: { ...authCookieHeaders(owner()), 'idempotency-key': randomUUID() },
+      payload: { comment: 'x' },
+    });
+    expect(noCsrf.statusCode).toBe(403);
+  });
+
+  it('PATCH с пустым телом или лишним полем → 400; transferId не uuid → 400', async () => {
+    const created = await createViaHttp('1.00');
+    const url = `/api/v2/budgets/${owner().budgetId}/transfers/${created.id}`;
+    for (const payload of [{}, { status: 'DELETED' }]) {
+      const response = await server.inject({
+        method: 'PATCH',
+        url,
+        headers: mutationHeaders(owner(), randomUUID()),
+        payload,
+      });
+      expect(response.statusCode).toBe(400);
+    }
+    const bad = await server.inject({
+      method: 'PATCH',
+      url: `/api/v2/budgets/${owner().budgetId}/transfers/not-a-uuid`,
+      headers: mutationHeaders(owner(), randomUUID()),
+      payload: { comment: 'x' },
+    });
+    expect(bad.statusCode).toBe(400);
+  });
+
+  it('DELETE → 200 DELETED; POST restore → 200 CONFIRMED', async () => {
+    const created = await createViaHttp('1.00');
+    const url = `/api/v2/budgets/${owner().budgetId}/transfers/${created.id}`;
+    const removed = await server.inject({
+      method: 'DELETE',
+      url,
+      headers: mutationHeaders(owner(), randomUUID()),
+    });
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json()).toMatchObject({ status: 'DELETED' });
+    const restored = await server.inject({
+      method: 'POST',
+      url: `${url}/restore`,
+      headers: mutationHeaders(owner(), randomUUID()),
+      payload: {},
+    });
+    expect(restored.statusCode).toBe(200);
+    expect(restored.json()).toMatchObject({ status: 'CONFIRMED', deletedAt: null });
   });
 });
 

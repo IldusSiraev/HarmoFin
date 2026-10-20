@@ -63,3 +63,58 @@ export class DirectTransferListResponse {
   @ApiProperty({ type: String, nullable: true, example: null })
   nextCursor!: string | null;
 }
+
+export class UpdateDirectTransferInput {
+  @ApiProperty({ type: String, required: false, example: '0195f3c3-aaaa-bbbb-cccc-000000000003' })
+  sourceAccountId?: string;
+
+  @ApiProperty({ type: String, required: false, example: '0195f3c3-aaaa-bbbb-cccc-000000000004' })
+  destinationAccountId?: string;
+
+  @ApiProperty({ type: String, required: false, example: '1500.00' })
+  amount?: string;
+
+  @ApiProperty({ type: String, required: false, example: '2026-10-20' })
+  occurredOn?: string;
+
+  @ApiProperty({ type: String, required: false, nullable: true, maxLength: 500, example: 'Отпуск' })
+  comment?: string | null;
+}
+
+export class TransferJournalItemResponse {
+  @ApiProperty({ type: String, enum: ['TRANSFER'], example: 'TRANSFER' })
+  kind!: 'TRANSFER';
+
+  @ApiProperty({ type: String, format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ type: String, format: 'uuid' })
+  budgetId!: string;
+
+  @ApiProperty({ type: String, enum: ['CONFIRMED', 'DELETED'] })
+  status!: 'CONFIRMED' | 'DELETED';
+
+  @ApiProperty({ type: String, example: '150000' })
+  amountMinor!: string;
+
+  @ApiProperty({ type: String, example: 'RUB' })
+  currency!: string;
+
+  @ApiProperty({ type: String, example: '2026-10-20' })
+  occurredOn!: string;
+
+  @ApiProperty({ type: String, format: 'uuid' })
+  sourceAccountId!: string;
+
+  @ApiProperty({ type: String, format: 'uuid' })
+  destinationAccountId!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  comment!: string | null;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: string;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  deletedAt!: string | null;
+}
