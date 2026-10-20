@@ -58,7 +58,7 @@ type JournalPage = { items: JournalItem[]; nextCursor: string | null };
 
 - Порядок: `occurredOn desc`, `createdAt desc`, `id desc` — общий для обеих таблиц.
 - Курсор непрозрачный (base64url JSON `{ occurredOn, createdAt, id }`), проверяется схемой; некорректный — 400 `VALIDATION_FAILED`.
-- Запрос: один SQL `UNION ALL` из `transactions` и `transfers` с keyset-условием `(occurred_on, created_at, id) < (cursor…)` и `LIMIT limit + 1` над объединением. Каждая часть фильтрует `budget_id` в `WHERE`. `limit` — как у журнала сейчас (по умолчанию и максимум те же).
+- Запрос: два keyset-запроса Prisma — к `transactions` и к `transfers` — с одинаковым условием `(occurred_on, created_at, id) < (cursor…)` и `take: limit + 1` каждый; результаты сливаются в памяти по тому же порядку и обрезаются до `limit + 1`. Этого достаточно для точной страницы: в первые `limit + 1` строк объединения не может попасть строка, не вошедшая в первые `limit + 1` строк своей таблицы. Каждый запрос фильтрует `budget_id` в `WHERE`. `limit` — как у журнала сейчас (по умолчанию 25, максимум 100).
 - Для операций после выборки подтягиваются связи с планами (`findPlanOccurrenceLinks`), как в текущем журнале.
 
 ### 4.3. Фильтры
