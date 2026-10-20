@@ -1,8 +1,9 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import AccountDialog from './AccountDialog.vue';
 import type { AccountDto } from '../../composables/useBudgetReferenceData.js';
+import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 
 const account: AccountDto = {
   id: 'account-id',
@@ -32,6 +33,10 @@ const mountDialog = (overrides: Partial<AccountDto> = {}) =>
     },
   });
 
+afterEach(() => {
+  useOperationDialogs().close();
+});
+
 describe('AccountDialog', () => {
   it('shows what the account is', () => {
     const wrapper = mountDialog();
@@ -56,15 +61,18 @@ describe('AccountDialog', () => {
     wrapper.unmount();
   });
 
-  it('links to the journal and to a transfer from this account', () => {
+  it('links to the journal and opens a transfer from this account', async () => {
     const wrapper = mountDialog();
 
     expect(wrapper.get('[data-testid="account-dialog-operations"]').attributes('href')).toBe(
       '/app/operations?accountId=account-id',
     );
-    expect(wrapper.get('[data-testid="account-dialog-transfer"]').attributes('href')).toBe(
-      '/app/transfers?sourceAccountId=account-id',
-    );
+
+    const dialogs = useOperationDialogs();
+    await wrapper.get('[data-testid="account-dialog-transfer"]').trigger('click');
+    expect(dialogs.entryType.value).toBe('TRANSFER');
+    expect(dialogs.transferSourceAccountId.value).toBe('account-id');
+    expect(wrapper.emitted('close')).toHaveLength(1);
     wrapper.unmount();
   });
 

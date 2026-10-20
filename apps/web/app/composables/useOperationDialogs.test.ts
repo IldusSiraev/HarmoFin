@@ -56,4 +56,13 @@ describe('useOperationDialogs', () => {
 
     expect(openDialog.value).toBe('none');
   });
+
+  it('remembers the source account of a transfer opened from an account', () => {
+    const dialogs = useOperationDialogs();
+    dialogs.openTransfer('account-id');
+    expect(dialogs.entryType.value).toBe('TRANSFER');
+    expect(dialogs.transferSourceAccountId.value).toBe('account-id');
+    dialogs.close();
+    expect(dialogs.transferSourceAccountId.value).toBe('');
+  });
 });

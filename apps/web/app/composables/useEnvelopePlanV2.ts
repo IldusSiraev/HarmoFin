@@ -495,11 +495,6 @@ export interface DirectTransferResponse {
   destinationAccountId: string | null;
 }
 
-export interface DirectTransferListResponse {
-  items: DirectTransferResponse[];
-  nextCursor: string | null;
-}
-
 // Obligations
 
 export interface ObligationPayRequest {
@@ -1231,9 +1226,6 @@ export function useEnvelopePlanV2() {
         {},
         idempotencyKey,
       ),
-    // The v2 list is strict: only cursor and limit, no status filter.
-    listDirectTransfers: (budgetId: string, filter: { cursor?: string; limit?: string } = {}) =>
-      get<DirectTransferListResponse>(`${base(budgetId)}/transfers${query({ ...filter })}`),
     listObligationPlans: (budgetId: string, status?: PlanListStatus) =>
       get<{ items: ObligationPlanResponse[] }>(
         `${base(budgetId)}/obligations/plans${query({ status })}`,

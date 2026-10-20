@@ -24,7 +24,7 @@ defineOptions({ name: 'AppOperationDialogs' });
 
 const emit = defineEmits<{ saved: [] }>();
 
-const { openDialog, entryType, openChoose, openOperation, openTransfer, close } =
+const { openDialog, entryType, transferSourceAccountId, openChoose, openOperation, openTransfer, close } =
   useOperationDialogs();
 const { accountDetails, categories, envelopes, envelopePlans, budgetId, load } =
   useOperationReferenceData();
@@ -218,6 +218,7 @@ async function saveDirectTransfer(input: CreateDirectTransferRequest): Promise<v
       :envelopes="envelopes"
       :mandatory-envelope-ids="mandatoryEnvelopeIds"
       :current-period-envelope-ids="currentPeriodEnvelopeIds"
+      :initial-source-account-id="transferSourceAccountId"
       :pending="pending"
       :error="formError"
       @close="close"

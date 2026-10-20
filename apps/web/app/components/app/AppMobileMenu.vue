@@ -97,15 +97,6 @@ watch(
               Операции
             </NuxtLink>
             <NuxtLink
-              to="/app/transfers"
-              class="mobile-menu__link"
-              active-class="mobile-menu__link--active"
-              :aria-current="currentPage('/app/transfers')"
-              @click="handleClose"
-            >
-              Переводы
-            </NuxtLink>
-            <NuxtLink
               to="/app/accounts"
               class="mobile-menu__link"
               active-class="mobile-menu__link--active"

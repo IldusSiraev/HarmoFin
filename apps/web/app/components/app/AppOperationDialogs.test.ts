@@ -145,6 +145,20 @@ describe('AppOperationDialogs', () => {
     wrapper.unmount();
   });
 
+  it('prefills the source account when a transfer is opened from an account', async () => {
+    const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
+
+    useOperationDialogs().openTransfer('account-id');
+    await flushPromises();
+
+    expect(
+      document
+        .querySelector('[data-testid="pill-transferSource-account-id"]')
+        ?.getAttribute('aria-checked'),
+    ).toBe('true');
+    wrapper.unmount();
+  });
+
   it('saves income through the v2 endpoint and then offers the optional assignment', async () => {
     v2.createTransaction.mockResolvedValue({ id: 'income-id' });
     const wrapper = mount(AppOperationDialogs, { attachTo: document.body });

@@ -136,8 +136,8 @@ function cancelForm() {
 async function loadAccounts(): Promise<void> {
   const id = budgetId.value;
   if (!id) return;
-  // A reference record may have just changed, so the shared cache the journal,
-  // the transfers page and the global dialogs read must not stay on old names.
+  // A reference record may have just changed, so the shared cache the journal
+  // and the global dialogs read must not stay on old names.
   useOperationReferenceData().invalidate();
   const [items, totals] = await Promise.all([
     api.listAccounts(id, status.value),
