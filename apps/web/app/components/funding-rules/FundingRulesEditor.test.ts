@@ -137,6 +137,42 @@ describe('FundingRulesEditor', () => {
     expect(wrapper.find('[data-testid="rules-save"]').attributes('disabled')).toBeDefined();
   });
 
+  it('пока идёт сохранение, правки заблокированы', async () => {
+    let resolveSave: (value: unknown) => void = () => {};
+    mocks.v2.saveFundingRules.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSave = resolve;
+      }),
+    );
+    const wrapper = await mountEditor();
+    await wrapper.find('[data-testid="rule-up-b"]').trigger('click');
+    await wrapper.find('[data-testid="rules-save"]').trigger('click');
+    await flushPromises();
+    expect(mocks.v2.saveFundingRules).toHaveBeenCalledTimes(1);
+
+    await wrapper.find('[data-testid="rule-down-b"]').trigger('click');
+    expect(queueIds(wrapper)).toEqual(['b', 'a']);
+    expect(wrapper.find('[data-testid="rule-down-b"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('[data-testid="rule-type-a"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('[data-testid="rule-fixed-a"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('[data-testid="rule-type-c"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('[data-testid="suggestion-enabled"]').attributes('disabled')).toBeDefined();
+    expect(
+      wrapper.find('[data-testid="suggestion-category"]').attributes('disabled'),
+    ).toBeDefined();
+
+    resolveSave({
+      items: [
+        rule('b', 'PERCENT_OF_INCOME', 10, { percentBasisPoints: 1000 }),
+        rule('a', 'FIXED_PER_PERIOD', 20, { fixedAmountMinor: '1500000' }),
+      ],
+      incomeSuggestion: { enabled: true, sourceCategoryId: 'cat', targetEnvelopeId: 'b' },
+    });
+    await flushPromises();
+    expect(wrapper.find('[data-testid="rule-type-a"]').attributes('disabled')).toBeUndefined();
+    expect(wrapper.find('[data-testid="rule-down-b"]').attributes('disabled')).toBeUndefined();
+  });
+
   it('ошибка формы показывается у поля, запрос не уходит', async () => {
     const wrapper = await mountEditor();
     await wrapper.find('[data-testid="rule-fixed-a"]').setValue('0');

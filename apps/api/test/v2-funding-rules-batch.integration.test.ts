@@ -415,6 +415,26 @@ describe('v2 funding rules batch', () => {
     expect(enabledWithoutCategory.status).toBe(400);
     expect(fields(enabledWithoutCategory)).toContain('incomeSuggestion.sourceCategoryId');
 
+    const disabledWithCategory = await bad({
+      queue: [],
+      outside: [],
+      incomeSuggestion: {
+        enabled: false,
+        sourceCategoryId: incomeCategory,
+        targetEnvelopeId: null,
+      },
+    });
+    expect(disabledWithCategory.status).toBe(400);
+    expect(fields(disabledWithCategory)).toContain('incomeSuggestion.sourceCategoryId');
+
+    const disabledWithEnvelope = await bad({
+      queue: [],
+      outside: [],
+      incomeSuggestion: { enabled: false, sourceCategoryId: null, targetEnvelopeId: savings },
+    });
+    expect(disabledWithEnvelope.status).toBe(400);
+    expect(fields(disabledWithEnvelope)).toContain('incomeSuggestion.targetEnvelopeId');
+
     const expenseSource = await bad({
       queue: [],
       outside: [],

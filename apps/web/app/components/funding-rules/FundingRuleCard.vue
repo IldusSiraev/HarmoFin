@@ -20,6 +20,8 @@ const props = defineProps<{
   canMoveUp: boolean;
   canMoveDown: boolean;
   dragging: boolean;
+  /** Locks every control while the page is saving. */
+  disabled?: boolean;
 }>();
 const emit = defineEmits<{
   type: [value: FundingRuleType | ''];
@@ -59,7 +61,7 @@ const fixedLabel = computed(() =>
         class="rule-card__handle"
         aria-hidden="true"
         :data-testid="`rule-handle-${id}`"
-        @pointerdown="emit('grab', $event)"
+        @pointerdown="!disabled && emit('grab', $event)"
       >
         <GripVertical :size="20" />
       </span>
@@ -71,7 +73,7 @@ const fixedLabel = computed(() =>
           size="sm"
           :aria-label="`Переместить выше: ${card.name}`"
           tooltip="Выше"
-          :disabled="!canMoveUp"
+          :disabled="disabled || !canMoveUp"
           :data-testid="`rule-up-${id}`"
           @click="emit('up')"
         >
@@ -82,7 +84,7 @@ const fixedLabel = computed(() =>
           size="sm"
           :aria-label="`Переместить ниже: ${card.name}`"
           tooltip="Ниже"
-          :disabled="!canMoveDown"
+          :disabled="disabled || !canMoveDown"
           :data-testid="`rule-down-${id}`"
           @click="emit('down')"
         >
@@ -106,6 +108,7 @@ const fixedLabel = computed(() =>
         :id="`rule-type-${id}`"
         class="rule-card__input"
         :data-testid="`rule-type-${id}`"
+        :disabled="disabled"
         :value="card.type"
         :aria-invalid="errors.type ? 'true' : undefined"
         :aria-describedby="errors.type ? `rule-type-error-${id}` : undefined"
@@ -131,6 +134,7 @@ const fixedLabel = computed(() =>
         inputmode="decimal"
         autocomplete="off"
         :data-testid="`rule-fixed-${id}`"
+        :disabled="disabled"
         :value="card.fixed"
         :aria-invalid="errors.fixedAmount ? 'true' : undefined"
         :aria-describedby="`rule-fixed-hint-${id}${errors.fixedAmount ? ` rule-fixed-error-${id}` : ''}`"
@@ -154,6 +158,7 @@ const fixedLabel = computed(() =>
         inputmode="decimal"
         autocomplete="off"
         :data-testid="`rule-percent-${id}`"
+        :disabled="disabled"
         :value="card.percent"
         :aria-invalid="errors.percentBasisPoints ? 'true' : undefined"
         :aria-describedby="`rule-percent-hint-${id}${errors.percentBasisPoints ? ` rule-percent-error-${id}` : ''}`"

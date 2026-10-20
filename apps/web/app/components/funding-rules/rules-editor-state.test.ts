@@ -19,10 +19,38 @@ const envelopes = [
   { id: 'z', name: 'Архив', envelopeType: 'CUSTOM', archivedAt: '2026-01-01T00:00:00Z' },
 ];
 const rules = [
-  { id: 'r0', envelopeId: 'c', type: 'MANUAL' as const, priority: 0, fixedAmountMinor: null, percentBasisPoints: null },
-  { id: 'r1', envelopeId: 'm', type: 'SUM_OF_PLANS' as const, priority: 10, fixedAmountMinor: null, percentBasisPoints: null },
-  { id: 'r2', envelopeId: 'a', type: 'FIXED_PER_PERIOD' as const, priority: 20, fixedAmountMinor: '1500000', percentBasisPoints: null },
-  { id: 'r3', envelopeId: 'z', type: 'PERCENT_OF_INCOME' as const, priority: 30, fixedAmountMinor: null, percentBasisPoints: 100 },
+  {
+    id: 'r0',
+    envelopeId: 'c',
+    type: 'MANUAL' as const,
+    priority: 0,
+    fixedAmountMinor: null,
+    percentBasisPoints: null,
+  },
+  {
+    id: 'r1',
+    envelopeId: 'm',
+    type: 'SUM_OF_PLANS' as const,
+    priority: 10,
+    fixedAmountMinor: null,
+    percentBasisPoints: null,
+  },
+  {
+    id: 'r2',
+    envelopeId: 'a',
+    type: 'FIXED_PER_PERIOD' as const,
+    priority: 20,
+    fixedAmountMinor: '1500000',
+    percentBasisPoints: null,
+  },
+  {
+    id: 'r3',
+    envelopeId: 'z',
+    type: 'PERCENT_OF_INCOME' as const,
+    priority: 30,
+    fixedAmountMinor: null,
+    percentBasisPoints: 100,
+  },
 ];
 const suggestion = { enabled: true, sourceCategoryId: 'cat', targetEnvelopeId: 'b' };
 
@@ -36,7 +64,11 @@ describe('rules-editor-state', () => {
     expect(ids(state.outside)).toEqual(['c', 'b']);
     expect(state.queue[1]).toMatchObject({ type: 'FIXED_PER_PERIOD', fixed: '15000.00' });
     expect(state.outside.find((card) => card.envelopeId === 'b')?.type).toBe('');
-    expect(state.suggestion).toEqual({ enabled: true, sourceCategoryId: 'cat', targetEnvelopeId: 'b' });
+    expect(state.suggestion).toEqual({
+      enabled: true,
+      sourceCategoryId: 'cat',
+      targetEnvelopeId: 'b',
+    });
   });
 
   it('тип определяет зону', () => {
@@ -82,18 +114,24 @@ describe('rules-editor-state', () => {
 
   it('buildRequest: ошибки формы у карточки и у предложения', () => {
     let state = updateCard(initial(), 'a', { fixed: '0' });
-    state = { ...state, suggestion: { enabled: true, sourceCategoryId: '', targetEnvelopeId: 'b' } };
+    state = {
+      ...state,
+      suggestion: { enabled: true, sourceCategoryId: '', targetEnvelopeId: 'b' },
+    };
     const result = buildRequest(state);
     expect(result.body).toBeNull();
     expect(result.cardErrors).toEqual({ a: { fixedAmount: FIELD_TEXT.fixedAmount } });
     expect(result.suggestionErrors.sourceCategoryId).toBeDefined();
   });
 
-  it('buildRequest: выключенное предложение сохраняет выбор, пустое — null', () => {
-    const state = { ...initial(), suggestion: { enabled: false, sourceCategoryId: 'cat', targetEnvelopeId: '' } };
+  it('buildRequest: выключенное предложение отправляет категорию и конверт как null', () => {
+    const state = {
+      ...initial(),
+      suggestion: { enabled: false, sourceCategoryId: 'cat', targetEnvelopeId: 'env' },
+    };
     expect(buildRequest(state).body?.incomeSuggestion).toEqual({
       enabled: false,
-      sourceCategoryId: 'cat',
+      sourceCategoryId: null,
       targetEnvelopeId: null,
     });
   });

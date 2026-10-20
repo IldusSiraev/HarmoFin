@@ -65,7 +65,9 @@ describe('useSortableList', () => {
     const { wrapper, onMove } = harness();
     wrapper
       .find('[data-handle="0"]')
-      .element.dispatchEvent(new MouseEvent('pointerdown', { button: 2, clientY: 20, bubbles: true }));
+      .element.dispatchEvent(
+        new MouseEvent('pointerdown', { button: 2, clientY: 20, bubbles: true }),
+      );
     window.dispatchEvent(pointer('pointermove', 110));
     expect(onMove).not.toHaveBeenCalled();
   });

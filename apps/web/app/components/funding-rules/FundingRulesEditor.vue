@@ -117,16 +117,17 @@ function reset(): void {
   apply(JSON.parse(initial.value) as EditorState);
 }
 
+// While a save is in flight the page is read-only: the answer replaces the state.
 function onType(envelopeId: string, type: FundingRuleType | ''): void {
-  if (!state.value) return;
+  if (!state.value || saving.value) return;
   state.value = setType(state.value, envelopeId, type);
   delete cardErrors.value[envelopeId];
 }
 function onFixed(envelopeId: string, fixed: string): void {
-  if (state.value) state.value = updateCard(state.value, envelopeId, { fixed });
+  if (state.value && !saving.value) state.value = updateCard(state.value, envelopeId, { fixed });
 }
 function onPercent(envelopeId: string, percent: string): void {
-  if (state.value) state.value = updateCard(state.value, envelopeId, { percent });
+  if (state.value && !saving.value) state.value = updateCard(state.value, envelopeId, { percent });
 }
 
 function announce(index: number): void {
@@ -136,7 +137,7 @@ function announce(index: number): void {
 }
 
 function moveBy(index: number, delta: -1 | 1): void {
-  if (!state.value) return;
+  if (!state.value || saving.value) return;
   const to = index + delta;
   const card = state.value.queue[index];
   const next = move(state.value, index, to);
@@ -156,13 +157,17 @@ const sortable = useSortableList({
   container: queueList,
   itemSelector: '[data-queue-item]',
   onMove: (from, to) => {
-    if (state.value) state.value = move(state.value, from, to);
+    if (state.value && !saving.value) state.value = move(state.value, from, to);
   },
   onDrop: announce,
 });
 
+function startDrag(event: PointerEvent, index: number): void {
+  if (!saving.value) sortable.startDrag(event, index);
+}
+
 function setSuggestion(patch: Partial<EditorState['suggestion']>): void {
-  if (!state.value) return;
+  if (!state.value || saving.value) return;
   state.value = { ...state.value, suggestion: { ...state.value.suggestion, ...patch } };
   suggestionErrors.value = {};
 }
@@ -248,6 +253,7 @@ async function save(): Promise<void> {
             type="checkbox"
             role="switch"
             data-testid="suggestion-enabled"
+            :disabled="saving"
             :checked="state.suggestion.enabled"
             @change="setSuggestion({ enabled: ($event.target as HTMLInputElement).checked })"
           />
@@ -259,7 +265,7 @@ async function save(): Promise<void> {
             <select
               class="rules-editor__input"
               data-testid="suggestion-category"
-              :disabled="!state.suggestion.enabled"
+              :disabled="saving || !state.suggestion.enabled"
               :value="state.suggestion.sourceCategoryId"
               :aria-invalid="suggestionErrors.sourceCategoryId ? 'true' : undefined"
               :aria-describedby="
@@ -280,7 +286,7 @@ async function save(): Promise<void> {
             <select
               class="rules-editor__input"
               data-testid="suggestion-envelope"
-              :disabled="!state.suggestion.enabled"
+              :disabled="saving || !state.suggestion.enabled"
               :value="state.suggestion.targetEnvelopeId"
               :aria-invalid="suggestionErrors.targetEnvelopeId ? 'true' : undefined"
               :aria-describedby="
@@ -339,12 +345,13 @@ async function save(): Promise<void> {
               :can-move-up="index > 0"
               :can-move-down="index < state.queue.length - 1"
               :dragging="sortable.draggingIndex.value === index"
+              :disabled="saving"
               @type="onType(card.envelopeId, $event)"
               @fixed="onFixed(card.envelopeId, $event)"
               @percent="onPercent(card.envelopeId, $event)"
               @up="moveBy(index, -1)"
               @down="moveBy(index, 1)"
-              @grab="sortable.startDrag($event, index)"
+              @grab="startDrag($event, index)"
             />
             <ArrowDown
               v-if="index < state.queue.length - 1"
@@ -374,6 +381,7 @@ async function save(): Promise<void> {
               :can-move-up="false"
               :can-move-down="false"
               :dragging="false"
+              :disabled="saving"
               @type="onType(card.envelopeId, $event)"
               @fixed="onFixed(card.envelopeId, $event)"
               @percent="onPercent(card.envelopeId, $event)"

@@ -396,10 +396,13 @@ describe('useEnvelopePlanV2', () => {
   it('listFundingRules и saveFundingRules вызывают v2 funding-rules', async () => {
     const v2 = useEnvelopePlanV2();
     await v2.listFundingRules('budget-1');
-    expect(fetchSpy.mock.calls.find(
-      ([input]) => String(input).endsWith('/api/v2/budgets/budget-1/funding-rules') &&
-        !String(input).includes('csrf'),
-    )).toBeDefined();
+    expect(
+      fetchSpy.mock.calls.find(
+        ([input]) =>
+          String(input).endsWith('/api/v2/budgets/budget-1/funding-rules') &&
+          !String(input).includes('csrf'),
+      ),
+    ).toBeDefined();
 
     const body = {
       queue: [{ envelopeId: 'e1', type: 'PERCENT_OF_INCOME' as const, percentBasisPoints: 1000 }],

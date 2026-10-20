@@ -56,10 +56,18 @@ const detailed = ref<EnvelopePlanDto | null>(null);
 const pageHeading = ref<HTMLElement | null>(null);
 
 // Saved funding rules, for the read-only summary in the details dialog. A failed
-// read only hides that line; the page keeps working.
+// read only hides that line; the page keeps working. Rules of archived envelopes
+// are not in the queue the rules page shows, so they do not count in the number.
 const rules = ref<FundingRuleResponse[] | null>(null);
+const activeRules = computed(() => {
+  if (rules.value === null) return null;
+  const active = new Set(
+    envelopes.value.filter((item) => item.archivedAt === null).map((item) => item.id),
+  );
+  return rules.value.filter((rule) => active.has(rule.envelopeId));
+});
 const detailedRule = computed(() =>
-  detailed.value ? describeRule(detailed.value.id, rules.value) : null,
+  detailed.value ? describeRule(detailed.value.id, activeRules.value) : null,
 );
 
 // Focus returns to whatever opened a panel; if that row is gone, to the heading.

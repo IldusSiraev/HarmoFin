@@ -146,6 +146,18 @@ export class FundingRulesBatchApplicationService {
         'incomeSuggestion.targetEnvelopeId',
       );
     }
+    if (!suggestion.enabled && suggestion.sourceCategoryId !== null) {
+      throw validationFailed(
+        'Для выключенного предложения категория и конверт не передаются.',
+        'incomeSuggestion.sourceCategoryId',
+      );
+    }
+    if (!suggestion.enabled && suggestion.targetEnvelopeId !== null) {
+      throw validationFailed(
+        'Для выключенного предложения категория и конверт не передаются.',
+        'incomeSuggestion.targetEnvelopeId',
+      );
+    }
     const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
     const requestHash = createHash('sha256')
       .update(

@@ -78,7 +78,8 @@ export function buildState(
       envelopeType: envelope.envelopeType,
       type: rule?.type ?? '',
       fixed: rule?.fixedAmountMinor ? toDecimalText(rule.fixedAmountMinor) : '',
-      percent: rule?.percentBasisPoints == null ? '' : basisPointsToPercent(rule.percentBasisPoints),
+      percent:
+        rule?.percentBasisPoints == null ? '' : basisPointsToPercent(rule.percentBasisPoints),
     };
   };
   const activeById = new Map(active.map((envelope) => [envelope.id, envelope]));
@@ -115,7 +116,9 @@ export function setType(
     return {
       ...state,
       queue: state.queue.filter((item) => item.envelopeId !== envelopeId),
-      outside: [...state.outside.filter((item) => item.envelopeId !== envelopeId), next].sort(byName),
+      outside: [...state.outside.filter((item) => item.envelopeId !== envelopeId), next].sort(
+        byName,
+      ),
     };
   }
   if (inQueue) {
@@ -193,19 +196,21 @@ export function buildRequest(state: EditorState): {
     suggestionErrors.targetEnvelopeId = SUGGESTION_TEXT.targetEnvelopeId;
   }
 
-  const invalid =
-    Object.keys(cardErrors).length > 0 || Object.keys(suggestionErrors).length > 0;
+  const invalid = Object.keys(cardErrors).length > 0 || Object.keys(suggestionErrors).length > 0;
   return {
     body: invalid
       ? null
       : {
           queue,
           outside,
-          incomeSuggestion: {
-            enabled: suggestion.enabled,
-            sourceCategoryId: suggestion.sourceCategoryId || null,
-            targetEnvelopeId: suggestion.targetEnvelopeId || null,
-          },
+          // A disabled suggestion carries no category and envelope (the server rejects them).
+          incomeSuggestion: suggestion.enabled
+            ? {
+                enabled: true,
+                sourceCategoryId: suggestion.sourceCategoryId,
+                targetEnvelopeId: suggestion.targetEnvelopeId,
+              }
+            : { enabled: false, sourceCategoryId: null, targetEnvelopeId: null },
         },
     cardErrors,
     suggestionErrors,

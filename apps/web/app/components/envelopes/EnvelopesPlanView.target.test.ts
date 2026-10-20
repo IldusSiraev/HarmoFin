@@ -156,6 +156,38 @@ describe('EnvelopesPlanView: правила и цель периода', () => {
     expect(document.body.textContent).toContain('Процент от дохода, 10 % · №2 в очереди');
   });
 
+  it('правило архивного конверта не сдвигает номер в очереди', async () => {
+    mocks.v2.listEnvelopes.mockResolvedValue({
+      items: [
+        envelope('env-a', 'Продукты'),
+        { ...envelope('env-z', 'Старый'), archivedAt: '2026-09-01T00:00:00.000Z' },
+      ],
+    });
+    mocks.v2.listFundingRules.mockResolvedValue({
+      items: [
+        {
+          id: 'r0',
+          envelopeId: 'env-z',
+          type: 'SUM_OF_PLANS',
+          priority: 10,
+          fixedAmountMinor: null,
+          percentBasisPoints: null,
+        },
+        {
+          id: 'r2',
+          envelopeId: 'env-a',
+          type: 'PERCENT_OF_INCOME',
+          priority: 20,
+          fixedAmountMinor: null,
+          percentBasisPoints: 1000,
+        },
+      ],
+    });
+    const wrapper = await mountView();
+    await openDetails(wrapper, 'env-a');
+    expect(document.body.textContent).toContain('Процент от дохода, 10 % · №1 в очереди');
+  });
+
   it('если правила не загрузились, страница работает без строки правила', async () => {
     mocks.v2.listFundingRules.mockRejectedValue(new Error('boom'));
     const wrapper = await mountView();

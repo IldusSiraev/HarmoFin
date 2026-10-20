@@ -43,7 +43,9 @@ describe('funding-rule-text', () => {
     ];
     expect(describeRule('b', rules)).toBe('Процент от дохода, 10 % · №2 в очереди');
     expect(describeRule('a', rules)).toBe('Сумма планов обязательных · №1 в очереди');
-    expect(describeRule('c', rules)).toMatch(/^Фиксированная цель на период, 15\s000,00\s₽ · №3 в очереди$/);
+    expect(describeRule('c', rules)).toMatch(
+      /^Фиксированная цель на период, 15\s000,00\s₽ · №3 в очереди$/,
+    );
     expect(describeRule('m', rules)).toBe('Вручную');
     expect(describeRule('x', rules)).toBe('Правило не задано');
     expect(describeRule('b', null)).toBeNull();
