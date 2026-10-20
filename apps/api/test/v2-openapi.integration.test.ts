@@ -30,6 +30,7 @@ type Schema = {
   items?: Schema;
   properties?: Record<string, Schema>;
   additionalProperties?: boolean | Schema;
+  discriminator?: { propertyName?: string; mapping?: Record<string, string> };
 };
 type Operation = {
   tags?: string[];
@@ -100,6 +101,7 @@ const EXPECTED_V2: Array<[Method, string]> = [
   ['patch', '/api/v2/budgets/{budgetId}/transfers/{transferId}'],
   ['delete', '/api/v2/budgets/{budgetId}/transfers/{transferId}'],
   ['post', '/api/v2/budgets/{budgetId}/transfers/{transferId}/restore'],
+  ['get', '/api/v2/budgets/{budgetId}/journal'],
   ['get', '/api/v2/budgets/{budgetId}/reports/{key}'],
   ['get', '/api/v2/budgets/{budgetId}/exports/transactions.csv'],
   ['get', '/api/v2/budgets/{budgetId}/exports/assignments.csv'],
@@ -478,6 +480,28 @@ describe('v2 OpenAPI contract (P06)', () => {
     expect(responseRef('get', `${base}/envelopes`, '200')).toBe(
       '#/components/schemas/EnvelopePlanListResponse',
     );
+  });
+
+  it('лента журнала: items — oneOf двух схем с дискриминатором kind и полной картой mapping', () => {
+    const schemas = document.components.schemas;
+    const journalOp = v2Ops.find(
+      (op) => op.method === 'get' && op.path === '/api/v2/budgets/{budgetId}/journal',
+    );
+    const pageRef = journalOp?.operation.responses?.['200']?.content?.['application/json']?.schema
+      ?.$ref;
+    expect(pageRef).toBe('#/components/schemas/JournalPageResponse');
+    const pageSchema = schemas[refName(pageRef!)];
+    const itemsSchema = pageSchema?.properties?.['items'];
+    const transactionRef = '#/components/schemas/TransactionFeedItemResponse';
+    const transferRef = '#/components/schemas/TransferJournalItemResponse';
+    expect(itemsSchema?.items?.oneOf?.map((s) => s.$ref)).toEqual([transactionRef, transferRef]);
+    expect(itemsSchema?.items?.discriminator?.propertyName).toBe('kind');
+    expect(itemsSchema?.items?.discriminator?.mapping).toEqual({
+      TRANSACTION: transactionRef,
+      TRANSFER: transferRef,
+    });
+    expect(schemas[refName(transactionRef)]).toBeDefined();
+    expect(schemas[refName(transferRef)]).toBeDefined();
   });
 
   it('мутации v2 требуют Idempotency-Key (кроме предпросмотров) и описывают 403', () => {
