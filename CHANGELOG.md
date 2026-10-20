@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.1.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.0.0...v1.1.0) (2026-10-20)
+
+
+### Новое
+
+* **web:** единая панель фильтров и правки интерфейса ([f29d148](https://github.com/IldusSiraev/HarmoFin/commit/f29d148458325c1fc6074240f4a1ffe05f6fadfe))
+* **web:** единая панель фильтров с выбором периода ([8f69821](https://github.com/IldusSiraev/HarmoFin/commit/8f6982151368b00ee3307f1c3eb1c454d779d27f))
+
+
+### Исправления
+
+* **web:** автозаполнение, формат дат и выравнивание сумм в планах ([7a2a9b6](https://github.com/IldusSiraev/HarmoFin/commit/7a2a9b643c6f42bc6177a9441db368987e8356b5))
+* **web:** заголовок вкладки по умолчанию для страниц приложения ([01c3cd1](https://github.com/IldusSiraev/HarmoFin/commit/01c3cd1b50a3edea678b9fa8013b20907c947bcd))
+* **web:** кнопка перехода в приложение на лендинге для авторизованных ([3aaa587](https://github.com/IldusSiraev/HarmoFin/commit/3aaa58732dcb9939aeee39d7f784e420f85b7ea9))
+* **web:** тексты и вёрстка страниц входа и регистрации по глоссарию и Calm Fintech ([79a0da0](https://github.com/IldusSiraev/HarmoFin/commit/79a0da05bd47da9a63aad02476e69b1ad3639d55))
+
 ## 1.0.0 (2026-10-19)
 
 
