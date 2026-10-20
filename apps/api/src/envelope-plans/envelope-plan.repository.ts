@@ -103,6 +103,19 @@ export class EnvelopePlanRepository {
     `;
   }
 
+  /** Envelopes of the budget among `ids`; ids of other budgets are simply absent. */
+  async findManyByIds(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    ids: string[],
+  ): Promise<Array<{ id: string; envelopeType: EnvelopeType; archivedAt: Date | null }>> {
+    if (ids.length === 0) return [];
+    return tx.envelope.findMany({
+      where: { budgetId, id: { in: ids } },
+      select: { id: true, envelopeType: true, archivedAt: true },
+    });
+  }
+
   async listActive(tx: Prisma.TransactionClient, budgetId: string): Promise<EnvelopePlanRecord[]> {
     return tx.envelope.findMany({
       where: { budgetId, archivedAt: null },

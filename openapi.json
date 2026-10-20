@@ -1972,6 +1972,18 @@
         ],
         "type": "object"
       },
+      "FundingRuleListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FundingRuleResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": ["items"],
+        "type": "object"
+      },
       "FundingRuleResponse": {
         "properties": {
           "envelopeId": {
@@ -2016,6 +2028,63 @@
           "fixedAmountMinor",
           "percentBasisPoints"
         ],
+        "type": "object"
+      },
+      "FundingRulesBatchOutsideItem": {
+        "properties": {
+          "envelopeId": {
+            "example": "0195f3c3-aaaa-bbbb-cccc-000000000002",
+            "type": "string"
+          },
+          "type": {
+            "enum": ["MANUAL"],
+            "example": "MANUAL",
+            "type": "string"
+          }
+        },
+        "required": ["envelopeId", "type"],
+        "type": "object"
+      },
+      "FundingRulesBatchQueueItem": {
+        "properties": {
+          "envelopeId": {
+            "example": "0195f3c3-aaaa-bbbb-cccc-000000000001",
+            "type": "string"
+          },
+          "fixedAmount": {
+            "description": "Только FIXED_PER_PERIOD и SUGGESTED_FIXED; обязателен для них.",
+            "example": "15000.00",
+            "type": "string"
+          },
+          "percentBasisPoints": {
+            "description": "Только PERCENT_OF_INCOME; обязателен для него.",
+            "example": 1000,
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "number"
+          },
+          "type": {
+            "enum": ["SUM_OF_PLANS", "FIXED_PER_PERIOD", "SUGGESTED_FIXED", "PERCENT_OF_INCOME"],
+            "example": "PERCENT_OF_INCOME",
+            "type": "string"
+          }
+        },
+        "required": ["envelopeId", "type"],
+        "type": "object"
+      },
+      "FundingRulesBatchResponse": {
+        "properties": {
+          "incomeSuggestion": {
+            "$ref": "#/components/schemas/IncomeSuggestionState"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FundingRuleResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": ["items", "incomeSuggestion"],
         "type": "object"
       },
       "HealthDependenciesResponse": {
@@ -2586,6 +2655,26 @@
           "comment",
           "accountBalanceMinor"
         ],
+        "type": "object"
+      },
+      "IncomeSuggestionState": {
+        "properties": {
+          "enabled": {
+            "example": false,
+            "type": "boolean"
+          },
+          "sourceCategoryId": {
+            "example": null,
+            "nullable": true,
+            "type": "string"
+          },
+          "targetEnvelopeId": {
+            "example": null,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": ["enabled", "sourceCategoryId", "targetEnvelopeId"],
         "type": "object"
       },
       "LegalDocumentResponse": {
@@ -3884,6 +3973,29 @@
           }
         },
         "required": ["type", "priority"],
+        "type": "object"
+      },
+      "PutFundingRulesBatchRequest": {
+        "properties": {
+          "incomeSuggestion": {
+            "$ref": "#/components/schemas/IncomeSuggestionState"
+          },
+          "outside": {
+            "description": "Конверты вне очереди (MANUAL, priority 0).",
+            "items": {
+              "$ref": "#/components/schemas/FundingRulesBatchOutsideItem"
+            },
+            "type": "array"
+          },
+          "queue": {
+            "description": "Очередь распределения: порядок массива = порядок. priority присваивает сервер: (индекс + 1) * 10.",
+            "items": {
+              "$ref": "#/components/schemas/FundingRulesBatchQueueItem"
+            },
+            "type": "array"
+          }
+        },
+        "required": ["queue", "outside", "incomeSuggestion"],
         "type": "object"
       },
       "PutPeriodTargetRequest": {
@@ -9613,6 +9725,185 @@
         ],
         "summary": "CSV транзакций модели 2",
         "tags": ["exports (v2)"]
+      }
+    },
+    "/api/v2/budgets/{budgetId}/funding-rules": {
+      "get": {
+        "operationId": "EnvelopePlanController_listFundingRules_v2",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FundingRuleListResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["envelope-plans (v2)"]
+      },
+      "put": {
+        "description": "Одна транзакция: правила конвертов, порядок очереди и предложение «категория дохода → конверт». Конверты вне тела не меняются. Распределения, остатки и цели периодов не меняются. Только OWNER; повтор с тем же Idempotency-Key возвращает тот же ответ.",
+        "operationId": "EnvelopePlanController_putFundingRules_v2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutFundingRulesBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FundingRulesBatchResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Сохранить очередь и правила пополнения конвертов",
+        "tags": ["envelope-plans (v2)"]
       }
     },
     "/api/v2/budgets/{budgetId}/funding/confirm": {

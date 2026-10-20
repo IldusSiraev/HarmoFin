@@ -62,6 +62,7 @@ const EXPECTED_V2: Array<[Method, string]> = [
   ['post', '/api/v2/budgets/{budgetId}/envelopes/{envelopeId}/archive'],
   ['get', '/api/v2/budgets/{budgetId}/envelopes/{envelopeId}/history'],
   ['get', '/api/v2/budgets/{budgetId}/funding-rules'],
+  ['put', '/api/v2/budgets/{budgetId}/funding-rules'],
   ['put', '/api/v2/budgets/{budgetId}/envelopes/{envelopeId}/funding-rule'],
   ['put', '/api/v2/budgets/{budgetId}/envelopes/{envelopeId}/periods/{periodStart}/target'],
   ['post', '/api/v2/budgets/{budgetId}/periods/{periodId}/confirm-target'],

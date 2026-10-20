@@ -124,8 +124,22 @@ describe('v2 funding rules batch', () => {
     const budgetId = ctx.owner!.budgetId;
     await prisma.envelopeFundingRule.createMany({
       data: [
-        { id: randomUUID(), budgetId, envelopeId: savings, type: 'PERCENT_OF_INCOME', priority: 20, percentBasisPoints: 1000 },
-        { id: randomUUID(), budgetId, envelopeId: currentA, type: 'FIXED_PER_PERIOD', priority: 10, fixedMinor: 1_500_000n },
+        {
+          id: randomUUID(),
+          budgetId,
+          envelopeId: savings,
+          type: 'PERCENT_OF_INCOME',
+          priority: 20,
+          percentBasisPoints: 1000,
+        },
+        {
+          id: randomUUID(),
+          budgetId,
+          envelopeId: currentA,
+          type: 'FIXED_PER_PERIOD',
+          priority: 10,
+          fixedMinor: 1_500_000n,
+        },
         { id: randomUUID(), budgetId, envelopeId: currentB, type: 'MANUAL', priority: 0 },
       ],
     });
@@ -177,6 +191,351 @@ describe('v2 funding rules batch', () => {
     expect(anonymous.statusCode).toBe(401);
 
     await prisma.envelopeFundingRule.deleteMany({ where: { budgetId } });
+  });
+
+  const off = { enabled: false, sourceCategoryId: null, targetEnvelopeId: null };
+
+  async function rulesOf(budgetId: string) {
+    return prisma.envelopeFundingRule.findMany({
+      where: { budgetId },
+      orderBy: [{ priority: 'asc' }, { envelopeId: 'asc' }],
+      select: {
+        envelopeId: true,
+        type: true,
+        priority: true,
+        fixedMinor: true,
+        percentBasisPoints: true,
+      },
+    });
+  }
+  async function ruleAudits(budgetId: string): Promise<number> {
+    return prisma.auditEvent.count({ where: { budgetId, entityType: 'envelope_funding_rule' } });
+  }
+
+  it('PUT: порядок queue задаёт priority, outside — MANUAL с 0, предложение сохраняется', async () => {
+    const budgetId = ctx.owner!.budgetId;
+    const response = await putBatch(
+      ctx.owner,
+      {
+        queue: [
+          { envelopeId: mandatory, type: 'SUM_OF_PLANS' },
+          { envelopeId: currentA, type: 'FIXED_PER_PERIOD', fixedAmount: '15000' },
+          { envelopeId: savings, type: 'PERCENT_OF_INCOME', percentBasisPoints: 1000 },
+        ],
+        outside: [{ envelopeId: currentB, type: 'MANUAL' }],
+        incomeSuggestion: {
+          enabled: true,
+          sourceCategoryId: incomeCategory,
+          targetEnvelopeId: savings,
+        },
+      },
+      `batch-${randomUUID()}`,
+    );
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{
+      items: Array<{ envelopeId: string; priority: number; fixedAmountMinor: string | null }>;
+      incomeSuggestion: Record<string, unknown>;
+    }>();
+    expect(body.items.map((item) => [item.envelopeId, item.priority])).toEqual([
+      [currentB, 0],
+      [mandatory, 10],
+      [currentA, 20],
+      [savings, 30],
+    ]);
+    expect(body.items[2]!.fixedAmountMinor).toBe('1500000');
+    expect(body.incomeSuggestion).toEqual({
+      enabled: true,
+      sourceCategoryId: incomeCategory,
+      targetEnvelopeId: savings,
+    });
+    const budget = await prisma.budget.findUniqueOrThrow({ where: { id: budgetId } });
+    expect(budget.incomeAllocationTargetEnvelopeId).toBe(savings);
+  });
+
+  it('PUT: неизменённые правила не перезаписываются и не пишут audit; конверты вне тела не трогаются', async () => {
+    const budgetId = ctx.owner!.budgetId;
+    const before = await ruleAudits(budgetId);
+    const suggestionBefore = await prisma.auditEvent.count({
+      where: { budgetId, entityType: 'income_category_suggestion' },
+    });
+    const response = await putBatch(
+      ctx.owner,
+      {
+        queue: [
+          { envelopeId: mandatory, type: 'SUM_OF_PLANS' },
+          { envelopeId: savings, type: 'PERCENT_OF_INCOME', percentBasisPoints: 1000 },
+        ],
+        outside: [],
+        incomeSuggestion: {
+          enabled: true,
+          sourceCategoryId: incomeCategory,
+          targetEnvelopeId: savings,
+        },
+      },
+      `batch-${randomUUID()}`,
+    );
+    expect(response.statusCode).toBe(200);
+    // mandatory 10 -> 10 (без изменений), savings 30 -> 20 (изменён); currentA и currentB вне тела.
+    expect(await ruleAudits(budgetId)).toBe(before + 1);
+    expect(
+      await prisma.auditEvent.count({
+        where: { budgetId, entityType: 'income_category_suggestion' },
+      }),
+    ).toBe(suggestionBefore);
+    const rules = await rulesOf(budgetId);
+    expect(rules.find((rule) => rule.envelopeId === currentA)).toMatchObject({
+      type: 'FIXED_PER_PERIOD',
+      priority: 20,
+    });
+    expect(rules.find((rule) => rule.envelopeId === currentB)).toMatchObject({
+      type: 'MANUAL',
+      priority: 0,
+    });
+  });
+
+  it('PUT: ошибка в одном элементе — не сохранено ничего', async () => {
+    const budgetId = ctx.owner!.budgetId;
+    const snapshot = await rulesOf(budgetId);
+    const audits = await ruleAudits(budgetId);
+    const response = await putBatch(
+      ctx.owner,
+      {
+        queue: [
+          { envelopeId: savings, type: 'FIXED_PER_PERIOD', fixedAmount: '100' },
+          { envelopeId: archived, type: 'PERCENT_OF_INCOME', percentBasisPoints: 500 },
+        ],
+        outside: [],
+        incomeSuggestion: off,
+      },
+      `batch-${randomUUID()}`,
+    );
+    expect(response.statusCode).toBe(422);
+    expect(response.json()).toMatchObject({
+      code: 'ENVELOPE_ARCHIVED',
+      fieldErrors: [expect.objectContaining({ field: 'queue.1.envelopeId' })],
+    });
+    expect(await rulesOf(budgetId)).toEqual(snapshot);
+    expect(await ruleAudits(budgetId)).toBe(audits);
+    const budget = await prisma.budget.findUniqueOrThrow({ where: { id: budgetId } });
+    expect(budget.incomeAllocationRuleEnabled).toBe(true);
+  });
+
+  it('PUT: матрица валидации с путями полей', async () => {
+    const bad = async (payload: Record<string, unknown>) => {
+      const response = await putBatch(ctx.owner, payload, `batch-bad-${randomUUID()}`);
+      return {
+        status: response.statusCode,
+        body: response.json<{ code: string; fieldErrors?: Array<{ field: string }> }>(),
+      };
+    };
+    const fields = (result: { body: { fieldErrors?: Array<{ field: string }> } }) =>
+      (result.body.fieldErrors ?? []).map((item) => item.field);
+
+    const manualInQueue = await bad({
+      queue: [{ envelopeId: savings, type: 'MANUAL' }],
+      outside: [],
+      incomeSuggestion: off,
+    });
+    expect(manualInQueue.status).toBe(400);
+    expect(fields(manualInQueue)).toContain('queue.0.type');
+
+    const typedOutside = await bad({
+      queue: [],
+      outside: [{ envelopeId: savings, type: 'PERCENT_OF_INCOME' }],
+      incomeSuggestion: off,
+    });
+    expect(typedOutside.status).toBe(400);
+    expect(fields(typedOutside)).toContain('outside.0.type');
+
+    const duplicate = await bad({
+      queue: [{ envelopeId: savings, type: 'PERCENT_OF_INCOME', percentBasisPoints: 1 }],
+      outside: [{ envelopeId: savings, type: 'MANUAL' }],
+      incomeSuggestion: off,
+    });
+    expect(duplicate.status).toBe(400);
+    expect(fields(duplicate)).toContain('outside.0.envelopeId');
+
+    const missingFixed = await bad({
+      queue: [{ envelopeId: savings, type: 'FIXED_PER_PERIOD' }],
+      outside: [],
+      incomeSuggestion: off,
+    });
+    expect(fields(missingFixed)).toContain('queue.0.fixedAmount');
+
+    const zeroFixed = await bad({
+      queue: [{ envelopeId: savings, type: 'FIXED_PER_PERIOD', fixedAmount: '0' }],
+      outside: [],
+      incomeSuggestion: off,
+    });
+    expect(zeroFixed.status).toBe(400);
+    expect(fields(zeroFixed)).toContain('queue.0.fixedAmount');
+
+    const extraPercent = await bad({
+      queue: [
+        { envelopeId: savings, type: 'SUGGESTED_FIXED', fixedAmount: '1', percentBasisPoints: 5 },
+      ],
+      outside: [],
+      incomeSuggestion: off,
+    });
+    expect(fields(extraPercent)).toContain('queue.0.percentBasisPoints');
+
+    const clientPriority = await bad({
+      queue: [
+        { envelopeId: savings, type: 'PERCENT_OF_INCOME', percentBasisPoints: 1, priority: 5 },
+      ],
+      outside: [],
+      incomeSuggestion: off,
+    });
+    expect(clientPriority.status).toBe(400);
+
+    const sumOfPlans = await bad({
+      queue: [{ envelopeId: savings, type: 'SUM_OF_PLANS' }],
+      outside: [],
+      incomeSuggestion: off,
+    });
+    expect(sumOfPlans.status).toBe(422);
+    expect(sumOfPlans.body.code).toBe('FUNDING_RULE_TYPE_NOT_ALLOWED');
+    expect(fields(sumOfPlans)).toContain('queue.0.type');
+
+    const foreign = await bad({
+      queue: [{ envelopeId: outsiderEnvelope, type: 'PERCENT_OF_INCOME', percentBasisPoints: 1 }],
+      outside: [],
+      incomeSuggestion: off,
+    });
+    expect(foreign.status).toBe(404);
+
+    const noSuggestion = await bad({ queue: [], outside: [] });
+    expect(fields(noSuggestion)).toContain('incomeSuggestion');
+
+    const enabledWithoutCategory = await bad({
+      queue: [],
+      outside: [],
+      incomeSuggestion: { enabled: true, sourceCategoryId: null, targetEnvelopeId: savings },
+    });
+    expect(enabledWithoutCategory.status).toBe(400);
+    expect(fields(enabledWithoutCategory)).toContain('incomeSuggestion.sourceCategoryId');
+
+    const expenseSource = await bad({
+      queue: [],
+      outside: [],
+      incomeSuggestion: {
+        enabled: true,
+        sourceCategoryId: expenseCategory,
+        targetEnvelopeId: savings,
+      },
+    });
+    expect(expenseSource.status).toBe(422);
+    expect(expenseSource.body.code).toBe('CATEGORY_TYPE_MISMATCH');
+    expect(fields(expenseSource)).toContain('incomeSuggestion.sourceCategoryId');
+  });
+
+  it('PUT: роли, CSRF, ключ идемпотентности, replay и конфликт', async () => {
+    const payload = {
+      queue: [{ envelopeId: savings, type: 'PERCENT_OF_INCOME', percentBasisPoints: 700 }],
+      outside: [],
+      incomeSuggestion: off,
+    };
+    expect((await putBatch(ctx.viewer, payload, `batch-${randomUUID()}`)).statusCode).toBe(403);
+    expect((await putBatch(ctx.editor, payload, `batch-${randomUUID()}`)).statusCode).toBe(403);
+    expect((await putBatch(ctx.outsider, payload, `batch-${randomUUID()}`)).statusCode).toBe(404);
+
+    const noCsrf = await server.inject({
+      method: 'PUT',
+      url: `/api/v2/budgets/${ctx.owner!.budgetId}/funding-rules`,
+      headers: { ...authHeaders(ctx.owner), 'idempotency-key': `batch-${randomUUID()}` },
+      payload,
+    });
+    expect(noCsrf.statusCode).toBe(403);
+    const noKey = await server.inject({
+      method: 'PUT',
+      url: `/api/v2/budgets/${ctx.owner!.budgetId}/funding-rules`,
+      headers: { ...authHeaders(ctx.owner), 'x-csrf-token': ctx.owner!.csrfToken },
+      payload,
+    });
+    expect(noKey.statusCode).toBe(400);
+
+    const budgetId = ctx.owner!.budgetId;
+    const key = `batch-replay-${randomUUID()}`;
+    const first = await putBatch(ctx.owner, payload, key);
+    expect(first.statusCode).toBe(200);
+    const audits = await ruleAudits(budgetId);
+    const replay = await putBatch(ctx.owner, payload, key);
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json()).toEqual(first.json());
+    expect(await ruleAudits(budgetId)).toBe(audits);
+
+    const conflict = await putBatch(
+      ctx.owner,
+      {
+        ...payload,
+        queue: [{ envelopeId: savings, type: 'PERCENT_OF_INCOME', percentBasisPoints: 701 }],
+      },
+      key,
+    );
+    expect(conflict.statusCode).toBe(409);
+    expect(conflict.json<{ code: string }>().code).toBe('IDEMPOTENCY_CONFLICT');
+  });
+
+  it('preview распределения идёт в порядке сохранённой очереди', async () => {
+    // Period-slot envelopes (currentA/currentB) enter preview only with a current-period row,
+    // which SUGGESTED_FIXED never creates; the queue therefore uses the non-period envelopes.
+    const budgetId = ctx.owner!.budgetId;
+    for (const queueOrder of [
+      [savings, mandatory],
+      [mandatory, savings],
+    ]) {
+      const saved = await putBatch(
+        ctx.owner,
+        {
+          queue: queueOrder.map((envelopeId) => ({
+            envelopeId,
+            type: 'SUGGESTED_FIXED',
+            fixedAmount: '100',
+          })),
+          outside: [
+            { envelopeId: currentA, type: 'MANUAL' },
+            { envelopeId: currentB, type: 'MANUAL' },
+          ],
+          incomeSuggestion: off,
+        },
+        `batch-${randomUUID()}`,
+      );
+      expect(saved.statusCode).toBe(200);
+      const preview = await server.inject({
+        method: 'POST',
+        url: `/api/v2/budgets/${budgetId}/funding/preview`,
+        headers: { ...authHeaders(ctx.owner), 'x-csrf-token': ctx.owner!.csrfToken },
+        payload: { sourceKind: 'FREE' },
+      });
+      expect(preview.statusCode).toBe(200);
+      const lines = preview.json<{ lines: Array<{ envelopeId: string; suggestedMinor: string }> }>()
+        .lines;
+      const order = lines
+        .filter((line) => line.suggestedMinor !== '0')
+        .map((line) => line.envelopeId);
+      expect(order).toEqual(queueOrder);
+    }
+  });
+
+  it('OpenAPI описывает GET и PUT funding-rules', async () => {
+    const document = (await server.inject({ method: 'GET', url: '/openapi.json' })).json<{
+      paths: Record<
+        string,
+        {
+          get?: { responses: Record<string, unknown> };
+          put?: { responses: Record<string, unknown>; parameters?: unknown[] };
+        }
+      >;
+      components: { schemas: Record<string, unknown> };
+    }>();
+    const path = document.paths['/api/v2/budgets/{budgetId}/funding-rules'];
+    expect(path?.get?.responses['200']).toBeDefined();
+    for (const code of ['200', '400', '401', '403', '404', '409', '422']) {
+      expect(path?.put?.responses[code], code).toBeDefined();
+    }
+    expect(JSON.stringify(path?.put?.parameters)).toContain('Idempotency-Key');
+    expect(document.components.schemas.PutFundingRulesBatchRequest).toBeDefined();
+    expect(document.components.schemas.FundingRulesBatchResponse).toBeDefined();
   });
 });
 

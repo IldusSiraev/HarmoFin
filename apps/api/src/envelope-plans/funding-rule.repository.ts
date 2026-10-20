@@ -109,6 +109,20 @@ function targetAudit(period: {
 }
 
 export class FundingRuleRepository {
+  /** True when a saved rule already has exactly this type, priority and amounts. */
+  static same(
+    rule: FundingRuleRecord | undefined,
+    next: Pick<FundingRuleRecord, 'type' | 'priority' | 'fixedMinor' | 'percentBasisPoints'>,
+  ): boolean {
+    return (
+      rule !== undefined &&
+      rule.type === next.type &&
+      rule.priority === next.priority &&
+      rule.fixedMinor === next.fixedMinor &&
+      rule.percentBasisPoints === next.percentBasisPoints
+    );
+  }
+
   /** The single active rule of an envelope (one rule per envelope). Query filters budget_id. */
   async findRule(
     tx: Prisma.TransactionClient,

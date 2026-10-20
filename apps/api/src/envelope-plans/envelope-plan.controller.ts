@@ -21,6 +21,7 @@ import {
   ApiCreatedResponse,
   ApiHeader,
   ApiOkResponse,
+  ApiOperation,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -48,9 +49,11 @@ import {
   MovementResultResponse,
   FundingRuleListResponse,
   FundingRuleResponse,
+  FundingRulesBatchResponse,
   MoveEnvelopeRequest,
   PeriodTargetResponse,
   PutFundingRuleRequest,
+  PutFundingRulesBatchRequest,
   PutPeriodTargetRequest,
   ReviseAssignmentRequest,
   UpdateEnvelopeRequest,
@@ -62,6 +65,7 @@ import {
   createEnvelopeSchema,
   envelopeHistorySchema,
   putFundingRuleSchema,
+  putFundingRulesBatchSchema,
   putPeriodTargetSchema,
   updateEnvelopeSchema,
   uuidParamSchema,
@@ -69,6 +73,7 @@ import {
   type CreateEnvelopeInput,
   type EnvelopeHistoryQuery,
   type PutFundingRuleInput,
+  type PutFundingRulesBatchInput,
   type PutPeriodTargetInput,
   type UpdateEnvelopeInput,
 } from './envelope-plan.schemas.js';
@@ -231,8 +236,44 @@ export class EnvelopePlanController {
   @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
-  async listFundingRules(@Param('budgetId') budgetId: string, @Req() request: AuthenticatedRequest) {
+  async listFundingRules(
+    @Param('budgetId') budgetId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
     return (await this.fundingRules.list(contextOf(request).userId, budgetId)).body;
+  }
+
+  @Put('funding-rules')
+  @UseGuards(CsrfGuard)
+  @ApiOperation({
+    summary: 'Сохранить очередь и правила пополнения конвертов',
+    description:
+      'Одна транзакция: правила конвертов, порядок очереди и предложение «категория дохода → конверт». Конверты вне тела не меняются. Распределения, остатки и цели периодов не меняются. Только OWNER; повтор с тем же Idempotency-Key возвращает тот же ответ.',
+  })
+  @ApiHeader(idempotencyHeader)
+  @ApiBody({ type: PutFundingRulesBatchRequest })
+  @ApiOkResponse({ type: FundingRulesBatchResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  async putFundingRules(
+    @Param('budgetId') budgetId: string,
+    @Body(new ZodValidationPipe(putFundingRulesBatchSchema)) input: PutFundingRulesBatchInput,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (
+      await this.fundingRules.putBatch(
+        contextOf(request).userId,
+        budgetId,
+        input,
+        validKey(key),
+        request.id,
+      )
+    ).body;
   }
 
   @Put('envelopes/:envelopeId/funding-rule')
