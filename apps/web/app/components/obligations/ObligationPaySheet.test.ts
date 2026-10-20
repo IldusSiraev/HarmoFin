@@ -35,6 +35,7 @@ function mountSheet(overrides: Record<string, unknown> = {}) {
   const wrapper = mount(ObligationPaySheet, {
     props: baseProps(overrides),
     attachTo: document.body,
+    global: { stubs: { teleport: true } },
   });
   wrappers.push(wrapper);
   return wrapper;

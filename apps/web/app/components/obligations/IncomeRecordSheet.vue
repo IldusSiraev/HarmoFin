@@ -6,7 +6,7 @@ import { formatMinorUnits } from '../finance/money-format.js';
 import { formatPlainDateShort } from './format-plain-date.js';
 import UiButton from '../ui/Button.vue';
 import UiDatePicker from '../ui/DatePicker.vue';
-import UiDrawer from '../ui/Drawer.vue';
+import UiModal from '../ui/Modal.vue';
 import UiPillSelect from '../ui/PillSelect.vue';
 
 defineOptions({ name: 'IncomeRecordSheet' });
@@ -167,7 +167,7 @@ function handleSubmit(): void {
 </script>
 
 <template>
-  <UiDrawer :open="open" title="Записать доход" @close="emit('close')">
+  <UiModal :open="open" title="Записать доход" @close="emit('close')">
     <form id="income-record-form" class="income-sheet" novalidate @submit.prevent="handleSubmit">
       <section class="income-sheet__head" aria-label="План дохода">
         <p class="income-sheet__name">{{ occurrence.name }}</p>
@@ -262,7 +262,7 @@ function handleSubmit(): void {
         </UiButton>
       </div>
     </template>
-  </UiDrawer>
+  </UiModal>
 </template>
 
 <style scoped>

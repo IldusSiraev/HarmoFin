@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, nextTick, ref } from 'vue';
 
-import UiDrawer from './Drawer.vue';
+import UiModal from './Modal.vue';
 import UiSelect from './Select.vue';
 
 const options = [
@@ -338,26 +338,34 @@ describe('UiSelect edge cases', () => {
     expect(wrapper.get('[role="listbox"]').classes()).not.toContain('ui-select__listbox--up');
   });
 
-  it('Escape with an open list closes only the list inside a UiDrawer', async () => {
+  it('Escape with an open list closes only the list inside a UiModal', async () => {
     const Host = defineComponent({
-      components: { UiDrawer, UiSelect },
+      components: { UiModal, UiSelect },
       setup() {
         const open = ref(true);
         return { open, options };
       },
-      template: `<UiDrawer :open="open" title="Фильтры" @close="open = false">
+      template: `<UiModal :open="open" title="Фильтры" @close="open = false">
         <UiSelect model-value="a" name="status" label="Статус" :options="options" />
-      </UiDrawer>`,
+      </UiModal>`,
     });
     const wrapper = mount(Host, { attachTo: document.body });
     await nextTick();
-    const trigger = wrapper.get('[role="combobox"]');
-    await trigger.trigger('click');
-    await trigger.trigger('keydown', { key: 'Escape' });
-    expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(true);
-    expect(trigger.attributes('aria-expanded')).toBe('false');
-    await trigger.trigger('keydown', { key: 'Escape' });
-    expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(false);
+    // UiModal teleports to <body>, so the dialog is outside the wrapper.
+    const trigger = document.querySelector<HTMLElement>('[role="combobox"]')!;
+    const escape = () =>
+      trigger.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
+      );
+    trigger.click();
+    await nextTick();
+    escape();
+    await nextTick();
+    expect(document.querySelector('[data-testid="modal"]')).not.toBeNull();
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    escape();
+    await nextTick();
+    expect(wrapper.vm.open).toBe(false);
     wrapper.unmount();
   });
 });

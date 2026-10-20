@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { definePageMeta, useRoute } from '#imports';
 import { Download } from '@lucide/vue';
 
-import OperationDrawer from '../../components/operations/OperationDrawer.vue';
+import OperationDialog from '../../components/operations/OperationDialog.vue';
 import OperationForm from '../../components/operations/OperationForm.vue';
 import OperationGroup from '../../components/operations/OperationGroup.vue';
 import OperationRow from '../../components/operations/OperationRow.vue';
@@ -296,7 +296,7 @@ async function runConfirmation() {
       ? await mutations.remove(budget.value.id, current.transaction)
       : await mutations.restore(budget.value.id, current.transaction);
   if (!result) return;
-  // The row changed shape (it left or re-entered the list): close its drawer and
+  // The row changed shape (it left or re-entered the list): close its dialog and
   // read the list again instead of patching a half-known row.
   if (detailed.value?.id === current.transaction.id) detailed.value = null;
   void load();
@@ -475,7 +475,7 @@ async function downloadCsv() {
       </template>
     </UiReferencePageLayout>
 
-    <OperationDrawer
+    <OperationDialog
       v-if="budget"
       :transaction="detailed"
       :budget-id="budget.id"

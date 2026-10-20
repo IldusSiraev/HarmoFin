@@ -5,7 +5,7 @@ import { AlertTriangle, Ban, Info } from '@lucide/vue';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiActionMenu from '../ui/ActionMenu.vue';
 import UiButton from '../ui/Button.vue';
-import UiDrawer from '../ui/Drawer.vue';
+import UiModal from '../ui/Modal.vue';
 import {
   type DashboardV2Response,
   type EnvelopePlanDto,
@@ -384,7 +384,7 @@ defineExpose({ confirmMove, decideTarget });
       <NuxtLink :to="warning.actionPath" class="period-decision__link">Покрыть превышение</NuxtLink>
     </div>
 
-    <UiDrawer :open="sheet !== null" title="Перенести остаток" @close="closeSheet">
+    <UiModal :open="sheet !== null" title="Перенести остаток" @close="closeSheet">
       <div v-if="sheet" class="period-decision__sheet">
         <dl class="period-decision__route">
           <div>
@@ -492,7 +492,7 @@ defineExpose({ confirmMove, decideTarget });
           </UiButton>
         </div>
       </template>
-    </UiDrawer>
+    </UiModal>
   </section>
 </template>
 

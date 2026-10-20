@@ -25,7 +25,7 @@ import { useToast } from '../../composables/useToast.js';
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
 import RuleSettingsSheet from '../funding/RuleSettingsSheet.vue';
 import EnvelopeMovePanel, { type MovePanelResult } from './EnvelopeMovePanel.vue';
-import EnvelopePlanDrawer from './EnvelopePlanDrawer.vue';
+import EnvelopePlanDialog from './EnvelopePlanDialog.vue';
 import EnvelopePlanRow from './EnvelopePlanRow.vue';
 import {
   PLAN_GROUPS,
@@ -521,7 +521,7 @@ onMounted(() => {
     </template>
   </ReferencePageLayout>
 
-  <EnvelopePlanDrawer
+  <EnvelopePlanDialog
     :budget-id="budgetId"
     :envelope="detailed"
     @close="

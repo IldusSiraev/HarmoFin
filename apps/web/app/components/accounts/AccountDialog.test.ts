@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 
-import AccountDrawer from './AccountDrawer.vue';
+import AccountDialog from './AccountDialog.vue';
 import type { AccountDto } from '../../composables/useBudgetReferenceData.js';
 
 const account: AccountDto = {
@@ -20,16 +20,21 @@ const account: AccountDto = {
   archivedAt: null,
 };
 
-const mountDrawer = (overrides: Partial<AccountDto> = {}) =>
-  mount(AccountDrawer, {
+const mountDialog = (overrides: Partial<AccountDto> = {}) =>
+  mount(AccountDialog, {
     props: { account: { ...account, ...overrides } },
     attachTo: document.body,
-    global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } },
+    global: {
+      stubs: {
+        teleport: true,
+        NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+      },
+    },
   });
 
-describe('AccountDrawer', () => {
+describe('AccountDialog', () => {
   it('shows what the account is', () => {
-    const wrapper = mountDrawer();
+    const wrapper = mountDialog();
     const text = wrapper.text();
 
     expect(text).toContain('Банковская карта');
@@ -41,10 +46,10 @@ describe('AccountDrawer', () => {
   });
 
   it('hands editing and archiving back to the page', async () => {
-    const wrapper = mountDrawer();
+    const wrapper = mountDialog();
 
-    await wrapper.get('[data-testid="account-drawer-edit"]').trigger('click');
-    await wrapper.get('[data-testid="account-drawer-archive"]').trigger('click');
+    await wrapper.get('[data-testid="account-dialog-edit"]').trigger('click');
+    await wrapper.get('[data-testid="account-dialog-archive"]').trigger('click');
 
     expect(wrapper.emitted('edit')?.[0]?.[0]).toMatchObject({ id: 'account-id' });
     expect(wrapper.emitted('archive')?.[0]?.[0]).toMatchObject({ id: 'account-id' });
@@ -52,28 +57,28 @@ describe('AccountDrawer', () => {
   });
 
   it('links to the journal and to a transfer from this account', () => {
-    const wrapper = mountDrawer();
+    const wrapper = mountDialog();
 
-    expect(wrapper.get('[data-testid="account-drawer-operations"]').attributes('href')).toBe(
+    expect(wrapper.get('[data-testid="account-dialog-operations"]').attributes('href')).toBe(
       '/app/operations?accountId=account-id',
     );
-    expect(wrapper.get('[data-testid="account-drawer-transfer"]').attributes('href')).toBe(
+    expect(wrapper.get('[data-testid="account-dialog-transfer"]').attributes('href')).toBe(
       '/app/transfers?sourceAccountId=account-id',
     );
     wrapper.unmount();
   });
 
   it('offers no archiving for an account already in the archive', () => {
-    const wrapper = mountDrawer({ archivedAt: '2026-09-10T00:00:00.000Z' });
+    const wrapper = mountDialog({ archivedAt: '2026-09-10T00:00:00.000Z' });
 
-    expect(wrapper.find('[data-testid="account-drawer-archive"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="account-dialog-archive"]').exists()).toBe(false);
     wrapper.unmount();
   });
 
   it('offers no transfer for an account already in the archive', () => {
-    const wrapper = mountDrawer({ archivedAt: '2026-09-10T00:00:00.000Z' });
+    const wrapper = mountDialog({ archivedAt: '2026-09-10T00:00:00.000Z' });
 
-    expect(wrapper.find('[data-testid="account-drawer-transfer"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="account-dialog-transfer"]').exists()).toBe(false);
     wrapper.unmount();
   });
 });

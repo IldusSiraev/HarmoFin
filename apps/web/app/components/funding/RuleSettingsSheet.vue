@@ -12,7 +12,7 @@ import { ApiRequestError } from '../../composables/useApiClient.js';
 import { useBudgetReferenceData } from '../../composables/useBudgetReferenceData.js';
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
 import UiButton from '../ui/Button.vue';
-import UiDrawer from '../ui/Drawer.vue';
+import UiModal from '../ui/Modal.vue';
 import { formatPlainDate } from '../obligations/format-plain-date.js';
 
 defineOptions({ name: 'RuleSettingsSheet' });
@@ -387,7 +387,7 @@ function requestClose(): void {
 </script>
 
 <template>
-  <UiDrawer :open="open" title="Правило пополнения" @close="requestClose">
+  <UiModal :open="open" title="Правило пополнения" @close="requestClose">
     <div v-if="envelope" class="rule-sheet">
       <p class="rule-sheet__muted rule-sheet__name">{{ envelope.name }}</p>
 
@@ -699,7 +699,7 @@ function requestClose(): void {
         </UiButton>
       </div>
     </template>
-  </UiDrawer>
+  </UiModal>
 </template>
 
 <style scoped>

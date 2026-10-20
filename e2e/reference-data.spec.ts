@@ -21,15 +21,15 @@ test('owner creates, edits and archives an account through server-confirmed data
   await expect(page.getByText(/1.*234.*50/).first()).toBeVisible();
 
   await accountCard(page, 'Основной счёт').click();
-  await expect(page.getByTestId('drawer')).toBeVisible();
-  await page.getByTestId('account-drawer-edit').click();
+  await expect(page.getByTestId('modal')).toBeVisible();
+  await page.getByTestId('account-dialog-edit').click();
   await page.getByLabel('Название счёта').fill('Основной счёт обновлён');
   await page.getByRole('button', { name: 'Сохранить счёт' }).click();
   await expect(accountCard(page, 'Основной счёт обновлён')).toBeVisible();
 
   await accountCard(page, 'Основной счёт обновлён').click();
-  await expect(page.getByTestId('drawer')).toBeVisible();
-  const archiveButton = page.getByTestId('account-drawer-archive');
+  await expect(page.getByTestId('modal')).toBeVisible();
+  const archiveButton = page.getByTestId('account-dialog-archive');
   await archiveButton.click();
   await expect(page.locator('dialog[open]')).toBeVisible();
   await page.keyboard.press('Escape');
@@ -52,8 +52,8 @@ test('owner creates, edits and archives an account through server-confirmed data
   await page.getByRole('button', { name: 'Сохранить счёт' }).click();
   await expect(accountCard(page, 'Пустой счёт')).toBeVisible();
   await accountCard(page, 'Пустой счёт').click();
-  await expect(page.getByTestId('drawer')).toBeVisible();
-  await page.getByTestId('account-drawer-archive').click();
+  await expect(page.getByTestId('modal')).toBeVisible();
+  await page.getByTestId('account-dialog-archive').click();
   await page.locator('dialog[open] [data-confirm]').click();
   await expect(page.locator('dialog[open]')).toHaveCount(0);
 

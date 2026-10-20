@@ -11,7 +11,7 @@ vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) =>
   useBudgetReferenceData: () => api,
 }));
 
-import OperationDrawer from './OperationDrawer.vue';
+import OperationDialog from './OperationDialog.vue';
 import { useToast } from '../../composables/useToast.js';
 import type { TransactionJournalV2Item } from '../../composables/useEnvelopePlanV2.js';
 
@@ -37,8 +37,8 @@ const transaction: TransactionJournalV2Item = {
   createdAt: '2026-09-14T10:00:00.000Z',
 };
 
-const mountDrawer = (overrides: Partial<TransactionJournalV2Item> = {}, busy = false) =>
-  mount(OperationDrawer, {
+const mountDialog = (overrides: Partial<TransactionJournalV2Item> = {}, busy = false) =>
+  mount(OperationDialog, {
     props: {
       transaction: { ...transaction, ...overrides },
       budgetId: 'budget-id',
@@ -48,6 +48,7 @@ const mountDrawer = (overrides: Partial<TransactionJournalV2Item> = {}, busy = f
       busy,
     },
     attachTo: document.body,
+    global: { stubs: { teleport: true } },
   });
 
 beforeEach(() => {
@@ -56,9 +57,9 @@ beforeEach(() => {
   api.listTransactionAudit.mockResolvedValue([]);
 });
 
-describe('OperationDrawer', () => {
+describe('OperationDialog', () => {
   it('shows what the operation is', async () => {
-    const wrapper = mountDrawer();
+    const wrapper = mountDialog();
     await flushPromises();
 
     const text = wrapper.text();
@@ -70,7 +71,7 @@ describe('OperationDrawer', () => {
   });
 
   it('loads only the audit history when it opens, no allocations', async () => {
-    const wrapper = mountDrawer();
+    const wrapper = mountDialog();
     await flushPromises();
 
     expect(api.listTransactionAudit).toHaveBeenCalledWith('budget-id', 'transaction-id');
@@ -81,7 +82,7 @@ describe('OperationDrawer', () => {
 
   it('announces when the history cannot be loaded', async () => {
     api.listTransactionAudit.mockRejectedValue(new Error('network'));
-    const wrapper = mountDrawer();
+    const wrapper = mountDialog();
     await flushPromises();
 
     expect(wrapper.get('[role="alert"]').text()).toContain('Не удалось загрузить');
@@ -102,10 +103,10 @@ describe('OperationDrawer', () => {
         newValues: null,
       },
     ]);
-    const wrapper = mountDrawer();
+    const wrapper = mountDialog();
     await flushPromises();
 
-    const entry = wrapper.get('[data-testid="drawer-audit-event"]').text();
+    const entry = wrapper.get('[data-testid="operation-dialog-audit-event"]').text();
     expect(entry).toContain('Подтверждена');
     expect(entry).toContain('owner@harmofin.test');
     expect(entry).not.toContain('CONFIRMED');
@@ -114,55 +115,59 @@ describe('OperationDrawer', () => {
   });
 
   it('has no confirm or cancel: a v2 fact is edited, deleted or restored', async () => {
-    const wrapper = mountDrawer({ status: 'DRAFT' });
+    const wrapper = mountDialog({ status: 'DRAFT' });
     await flushPromises();
 
     expect(wrapper.text()).toContain('Черновик');
-    expect(wrapper.find('[data-testid="drawer-confirm"]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="drawer-cancel"]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="drawer-edit"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="operation-dialog-confirm"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="operation-dialog-cancel"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="operation-dialog-edit"]').exists()).toBe(true);
     wrapper.unmount();
   });
 
   it('asks the page to edit, delete or restore instead of doing it itself', async () => {
-    const wrapper = mountDrawer();
+    const wrapper = mountDialog();
     await flushPromises();
 
-    await wrapper.get('[data-testid="drawer-edit"]').trigger('click');
-    await wrapper.get('[data-testid="drawer-delete"]').trigger('click');
+    await wrapper.get('[data-testid="operation-dialog-edit"]').trigger('click');
+    await wrapper.get('[data-testid="operation-dialog-delete"]').trigger('click');
 
     expect(wrapper.emitted('edit')).toHaveLength(1);
     expect(wrapper.emitted('request-delete')).toHaveLength(1);
     wrapper.unmount();
 
-    const deleted = mountDrawer({ status: 'DELETED' });
+    const deleted = mountDialog({ status: 'DELETED' });
     await flushPromises();
-    await deleted.get('[data-testid="drawer-restore"]').trigger('click');
+    await deleted.get('[data-testid="operation-dialog-restore"]').trigger('click');
     expect(deleted.emitted('request-restore')).toHaveLength(1);
     deleted.unmount();
   });
 
   it('offers restore for a deleted operation and nothing else', async () => {
-    const wrapper = mountDrawer({ status: 'DELETED' });
+    const wrapper = mountDialog({ status: 'DELETED' });
     await flushPromises();
 
-    expect(wrapper.find('[data-testid="drawer-edit"]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="drawer-delete"]').exists()).toBe(false);
-    expect(wrapper.get('[data-testid="drawer-restore"]')).toBeTruthy();
+    expect(wrapper.find('[data-testid="operation-dialog-edit"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="operation-dialog-delete"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="operation-dialog-restore"]')).toBeTruthy();
     wrapper.unmount();
   });
 
   it('disables the actions while a request is running', async () => {
-    const wrapper = mountDrawer({}, true);
+    const wrapper = mountDialog({}, true);
     await flushPromises();
 
-    expect(wrapper.get('[data-testid="drawer-delete"]').attributes('disabled')).toBeDefined();
-    expect(wrapper.get('[data-testid="drawer-edit"]').attributes('disabled')).toBeDefined();
+    expect(
+      wrapper.get('[data-testid="operation-dialog-delete"]').attributes('disabled'),
+    ).toBeDefined();
+    expect(
+      wrapper.get('[data-testid="operation-dialog-edit"]').attributes('disabled'),
+    ).toBeDefined();
     wrapper.unmount();
   });
 
   it('marks a payment made against a plan', async () => {
-    const wrapper = mountDrawer({ planOccurrenceIds: ['occurrence-id'] });
+    const wrapper = mountDialog({ planOccurrenceIds: ['occurrence-id'] });
     await flushPromises();
 
     expect(wrapper.text()).toContain('По плану');

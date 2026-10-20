@@ -5,7 +5,7 @@ import { AlertTriangle } from '@lucide/vue';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import { formatMinorUnits } from '../finance/money-format.js';
 import UiButton from '../ui/Button.vue';
-import UiDrawer from '../ui/Drawer.vue';
+import UiModal from '../ui/Modal.vue';
 import {
   type AssignFreeResponse,
   type EnvelopePeriodDto,
@@ -281,7 +281,7 @@ defineExpose({ confirm });
 </script>
 
 <template>
-  <UiDrawer :open="source !== null" :title="title" @close="close">
+  <UiModal :open="source !== null" :title="title" @close="close">
     <div v-if="source" class="move-panel" data-testid="move-panel">
       <p v-if="mode === 'archive'" class="move-panel__muted" data-testid="move-archive-note">
         В конверте «{{ source.name }}» остались деньги. Выберите, куда их направить: после переноса
@@ -433,7 +433,7 @@ defineExpose({ confirm });
         </UiButton>
       </div>
     </template>
-  </UiDrawer>
+  </UiModal>
 </template>
 
 <style scoped>

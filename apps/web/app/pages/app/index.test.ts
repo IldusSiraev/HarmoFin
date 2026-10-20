@@ -147,7 +147,10 @@ describe('dashboard page', () => {
       mandatoryPlansDeclined: false,
     },
   };
-  const stubs = { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } };
+  const stubs = {
+    teleport: true,
+    NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();

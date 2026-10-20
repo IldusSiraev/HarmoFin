@@ -3,12 +3,12 @@ import { computed } from 'vue';
 
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiButton from '../ui/Button.vue';
-import UiDrawer from '../ui/Drawer.vue';
+import UiModal from '../ui/Modal.vue';
 import UiStatus from '../ui/Status.vue';
 import type { AccountDto } from '../../composables/useBudgetReferenceData.js';
 import { formatPlainDate } from '../obligations/format-plain-date.js';
 
-defineOptions({ name: 'AccountDrawer' });
+defineOptions({ name: 'AccountDialog' });
 
 const props = defineProps<{ account: AccountDto | null }>();
 
@@ -36,9 +36,9 @@ const transferLink = computed(() =>
 </script>
 
 <template>
-  <UiDrawer :open="account !== null" title="Счёт" @close="emit('close')">
-    <div v-if="account" class="account-drawer">
-      <p class="account-drawer__amount">
+  <UiModal :open="account !== null" title="Счёт" size="sm" @close="emit('close')">
+    <div v-if="account" class="account-dialog">
+      <p class="account-dialog__amount">
         <FinanceMoney
           :minor-units="account.currentBalanceMinor"
           :currency="account.currency"
@@ -50,7 +50,7 @@ const transferLink = computed(() =>
         :tone="account.archivedAt ? 'neutral' : 'success'"
       />
 
-      <dl class="account-drawer__rows">
+      <dl class="account-dialog__rows">
         <div>
           <dt>Название</dt>
           <dd>{{ account.name }}</dd>
@@ -89,16 +89,16 @@ const transferLink = computed(() =>
     </div>
 
     <template v-if="account" #footer>
-      <UiButton data-testid="account-drawer-edit" @click="emit('edit', account)">
+      <UiButton data-testid="account-dialog-edit" @click="emit('edit', account)">
         Изменить
       </UiButton>
-      <UiButton variant="secondary" data-testid="account-drawer-operations" :to="operationsLink">
+      <UiButton variant="secondary" data-testid="account-dialog-operations" :to="operationsLink">
         Операции счёта
       </UiButton>
       <UiButton
         v-if="!account.archivedAt"
         variant="secondary"
-        data-testid="account-drawer-transfer"
+        data-testid="account-dialog-transfer"
         :to="transferLink"
       >
         Перевести со счёта
@@ -106,45 +106,45 @@ const transferLink = computed(() =>
       <UiButton
         v-if="!account.archivedAt"
         variant="tertiary"
-        data-testid="account-drawer-archive"
+        data-testid="account-dialog-archive"
         @click="emit('archive', account)"
       >
         Переместить в архив
       </UiButton>
     </template>
-  </UiDrawer>
+  </UiModal>
 </template>
 
 <style scoped>
-.account-drawer {
+.account-dialog {
   display: grid;
   gap: var(--hf-space-4);
 }
 
-.account-drawer__amount {
+.account-dialog__amount {
   margin: 0;
   font-size: var(--hf-font-size-h2);
   font-weight: var(--hf-font-weight-bold);
   line-height: var(--hf-line-height-h2);
 }
 
-.account-drawer__rows {
+.account-dialog__rows {
   display: grid;
   gap: var(--hf-space-2);
   margin: 0;
 }
 
-.account-drawer__rows div {
+.account-dialog__rows div {
   display: flex;
   gap: var(--hf-space-3);
   justify-content: space-between;
 }
 
-.account-drawer__rows dt {
+.account-dialog__rows dt {
   color: var(--hf-color-text-muted);
 }
 
-.account-drawer__rows dd {
+.account-dialog__rows dd {
   margin: 0;
   text-align: right;
 }

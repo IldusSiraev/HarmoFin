@@ -51,7 +51,10 @@ function envelope(id: string, name: string, envelopeType: string) {
   };
 }
 
-const stubs = { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } };
+const stubs = {
+  teleport: true,
+  NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+};
 
 function mountCard(
   warnings: Warning[],
@@ -113,7 +116,7 @@ describe('PeriodDecisionCard', () => {
     expect(text).toContain('10 000,00 ₽');
     expect(text).toContain('Текущие');
     expect(v2Api.move).not.toHaveBeenCalled();
-    expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="modal"]').exists()).toBe(false);
   });
 
   it('moves to free only after explicit confirmation, once, with a stable key', async () => {
@@ -295,15 +298,15 @@ describe('PeriodDecisionCard', () => {
     expect(next.attributes('aria-disabled')).toBe('true');
     expect(next.text()).toContain('период ещё не создан');
     await next.trigger('click');
-    expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="modal"]').exists()).toBe(false);
     expect(v2Api.move).not.toHaveBeenCalled();
   });
 
   it('keep-for-now and closing the panel never call the API', async () => {
     const wrapper = mountCard([leftover]);
     await chooseAction(wrapper, 'leftover-free');
-    await wrapper.get('[data-testid="drawer-close"]').trigger('click');
-    expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(false);
+    await wrapper.get('[data-testid="modal-close"]').trigger('click');
+    expect(wrapper.find('[data-testid="modal"]').exists()).toBe(false);
     expect(wrapper.text().replace(/\s/g, ' ')).toContain('10 000,00');
 
     await chooseAction(wrapper, 'leftover-keep');

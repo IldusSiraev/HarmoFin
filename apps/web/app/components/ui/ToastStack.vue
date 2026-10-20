@@ -27,7 +27,7 @@ const { toasts, dismiss, hold, release } = useToast();
 </template>
 
 <style scoped>
-/* Toasts stay under modals and drawers (200): those overlays keep their
+/* Toasts stay under modals (200): those overlays keep their
    actions at the bottom, and dialogs confirm their own results inline. */
 .ui-toast-stack {
   position: fixed;

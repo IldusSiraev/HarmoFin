@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { definePageMeta, navigateTo, useRoute } from '#imports';
 
-import AccountDrawer from '../../components/accounts/AccountDrawer.vue';
+import AccountDialog from '../../components/accounts/AccountDialog.vue';
 import AccountRow from '../../components/accounts/AccountRow.vue';
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
@@ -120,7 +120,7 @@ function startEdit(account: AccountDto) {
   fieldErrors.value = {};
   editingId.value = account.id;
   editingAccount.value = account;
-  // Close the drawer first, otherwise the modal opens stacked on top of it.
+  // Close the account dialog first, otherwise the form opens stacked on top of it.
   detailed.value = null;
   formVisible.value = true;
   statusMessage.value = '';
@@ -393,7 +393,7 @@ onMounted(() => {
       </template>
     </ReferencePageLayout>
 
-    <AccountDrawer
+    <AccountDialog
       :account="detailed"
       @close="detailed = null"
       @edit="startEdit"

@@ -14,6 +14,7 @@ const occurrence = {
 function mountSheet(overrides: Record<string, unknown> = {}) {
   return mount(IncomeRecordSheet, {
     attachTo: document.body,
+    global: { stubs: { teleport: true } },
     props: {
       open: true,
       occurrence,
