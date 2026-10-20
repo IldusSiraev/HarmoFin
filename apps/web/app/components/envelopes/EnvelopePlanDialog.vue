@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue';
 
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiButton from '../ui/Button.vue';
-import UiDrawer from '../ui/Drawer.vue';
+import UiModal from '../ui/Modal.vue';
 import UiSkeleton from '../ui/Skeleton.vue';
 import UiStatus from '../ui/Status.vue';
 import {
@@ -20,7 +20,7 @@ import {
 } from './envelope-plan-kind.js';
 import { formatPlainDate } from '../obligations/format-plain-date.js';
 
-defineOptions({ name: 'EnvelopePlanDrawer' });
+defineOptions({ name: 'EnvelopePlanDialog' });
 
 // Details of an assignment envelope: what was assigned, spent and moved, with
 // dates. Everything is read from the server; cancelled facts are shown only on
@@ -111,11 +111,11 @@ const operationsLink = computed(() =>
 </script>
 
 <template>
-  <UiDrawer :open="envelope !== null" title="Конверт" @close="emit('close')">
-    <div v-if="envelope" class="plan-drawer">
+  <UiModal :open="envelope !== null" title="Конверт" size="sm" @close="emit('close')">
+    <div v-if="envelope" class="plan-dialog">
       <div>
-        <p class="plan-drawer__caption">Осталось</p>
-        <p class="plan-drawer__amount">
+        <p class="plan-dialog__caption">Осталось</p>
+        <p class="plan-dialog__amount">
           <FinanceMoney :minor-units="envelope.balanceMinor" currency="RUB" :scale="2" />
         </p>
       </div>
@@ -123,9 +123,9 @@ const operationsLink = computed(() =>
         :label="envelope.archivedAt ? 'В архиве' : 'Активен'"
         :tone="envelope.archivedAt ? 'neutral' : 'success'"
       />
-      <p class="plan-drawer__caption">{{ planScopeNote(envelope.envelopeType) }}</p>
+      <p class="plan-dialog__caption">{{ planScopeNote(envelope.envelopeType) }}</p>
 
-      <dl class="plan-drawer__rows">
+      <dl class="plan-dialog__rows">
         <div>
           <dt>Название</dt>
           <dd>{{ envelope.name }}</dd>
@@ -163,31 +163,31 @@ const operationsLink = computed(() =>
       </dl>
 
       <section
-        class="plan-drawer__history"
+        class="plan-dialog__history"
         data-testid="plan-history"
         aria-labelledby="plan-history-title"
       >
-        <h3 id="plan-history-title" class="plan-drawer__section-title">
+        <h3 id="plan-history-title" class="plan-dialog__section-title">
           {{ showDeleted ? 'Отменённые записи' : 'Распределения, переносы и расходы' }}
         </h3>
-        <p v-if="showDeleted" class="plan-drawer__caption">
+        <p v-if="showDeleted" class="plan-dialog__caption">
           Только для чтения: эти записи отменены и не влияют на остаток.
         </p>
-        <ul v-if="items.length > 0" class="plan-drawer__list">
+        <ul v-if="items.length > 0" class="plan-dialog__list">
           <li v-for="(item, index) in items" :key="`${item.effectiveOn}-${index}`">
-            <span class="plan-drawer__kind">{{ KIND_LABELS[item.kind] }}</span>
+            <span class="plan-dialog__kind">{{ KIND_LABELS[item.kind] }}</span>
             <FinanceMoney :minor-units="item.amountMinor" currency="RUB" :scale="2" />
             <time :datetime="item.effectiveOn">{{ formatPlainDate(item.effectiveOn) }}</time>
           </li>
         </ul>
         <UiSkeleton v-else-if="loading" :count="3" />
-        <p v-else-if="error" class="plan-drawer__error" role="alert" data-testid="history-error">
+        <p v-else-if="error" class="plan-dialog__error" role="alert" data-testid="history-error">
           {{ error }}
         </p>
-        <p v-else class="plan-drawer__caption" data-testid="history-empty">Записей пока нет.</p>
-        <p v-if="error && items.length > 0" class="plan-drawer__error" role="alert">{{ error }}</p>
+        <p v-else class="plan-dialog__caption" data-testid="history-empty">Записей пока нет.</p>
+        <p v-if="error && items.length > 0" class="plan-dialog__error" role="alert">{{ error }}</p>
 
-        <div class="plan-drawer__more">
+        <div class="plan-dialog__more">
           <UiButton
             v-if="nextCursor !== null"
             variant="secondary"
@@ -214,7 +214,7 @@ const operationsLink = computed(() =>
     <template v-if="envelope" #footer>
       <UiButton
         v-if="!envelope.archivedAt"
-        data-testid="plan-drawer-reassign"
+        data-testid="plan-dialog-reassign"
         @click="emit('reassign', envelope)"
       >
         Переложить
@@ -222,7 +222,7 @@ const operationsLink = computed(() =>
       <UiButton
         v-if="!envelope.archivedAt"
         variant="secondary"
-        data-testid="plan-drawer-rules"
+        data-testid="plan-dialog-rules"
         @click="emit('rules', envelope)"
       >
         Правило пополнения
@@ -230,80 +230,80 @@ const operationsLink = computed(() =>
       <UiButton
         v-if="!envelope.archivedAt"
         variant="secondary"
-        data-testid="plan-drawer-edit"
+        data-testid="plan-dialog-edit"
         @click="emit('edit', envelope)"
       >
         Изменить
       </UiButton>
-      <UiButton variant="secondary" data-testid="plan-drawer-operations" :to="operationsLink">
+      <UiButton variant="secondary" data-testid="plan-dialog-operations" :to="operationsLink">
         Операции конверта
       </UiButton>
       <UiButton
         v-if="!envelope.archivedAt"
         variant="tertiary"
-        data-testid="plan-drawer-archive"
+        data-testid="plan-dialog-archive"
         @click="emit('archive', envelope)"
       >
         Архивировать
       </UiButton>
     </template>
-  </UiDrawer>
+  </UiModal>
 </template>
 
 <style scoped>
-.plan-drawer {
+.plan-dialog {
   display: grid;
   gap: var(--hf-space-4);
 }
 
-.plan-drawer__amount {
+.plan-dialog__amount {
   margin: 0;
   font-size: var(--hf-font-size-h2);
   font-weight: var(--hf-font-weight-bold);
   line-height: var(--hf-line-height-h2);
 }
 
-.plan-drawer__caption {
+.plan-dialog__caption {
   margin: 0;
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-caption);
   line-height: var(--hf-line-height-caption);
 }
 
-.plan-drawer__rows {
+.plan-dialog__rows {
   display: grid;
   gap: var(--hf-space-2);
   margin: 0;
 }
 
-.plan-drawer__rows div {
+.plan-dialog__rows div {
   display: flex;
   gap: var(--hf-space-3);
   justify-content: space-between;
 }
 
-.plan-drawer__rows dt {
+.plan-dialog__rows dt {
   color: var(--hf-color-text-muted);
 }
 
-.plan-drawer__rows dd {
+.plan-dialog__rows dd {
   margin: 0;
   text-align: right;
 }
 
-.plan-drawer__section-title {
+.plan-dialog__section-title {
   margin: 0 0 var(--hf-space-2);
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-small);
   font-weight: var(--hf-font-weight-semibold);
 }
 
-.plan-drawer__history {
+.plan-dialog__history {
   display: grid;
   gap: var(--hf-space-2);
 }
 
-.plan-drawer__list {
+.plan-dialog__list {
   display: grid;
   gap: var(--hf-space-2);
   margin: 0;
@@ -311,30 +311,30 @@ const operationsLink = computed(() =>
   list-style: none;
 }
 
-.plan-drawer__list li {
+.plan-dialog__list li {
   display: flex;
   flex-wrap: wrap;
   gap: var(--hf-space-2);
   align-items: baseline;
 }
 
-.plan-drawer__kind {
+.plan-dialog__kind {
   font-weight: var(--hf-font-weight-medium);
 }
 
-.plan-drawer__list time {
+.plan-dialog__list time {
   margin-left: auto;
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-caption);
 }
 
-.plan-drawer__more {
+.plan-dialog__more {
   display: flex;
   flex-wrap: wrap;
   gap: var(--hf-space-2);
 }
 
-.plan-drawer__error {
+.plan-dialog__error {
   margin: 0;
   color: var(--hf-color-text-danger);
 }

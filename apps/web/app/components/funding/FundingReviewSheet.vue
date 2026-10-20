@@ -5,7 +5,7 @@ import { AlertTriangle, RefreshCw } from '@lucide/vue';
 import type { FundingPreviewResponse } from '../../composables/useEnvelopePlanV2.js';
 import { formatMinorUnits } from '../finance/money-format.js';
 import UiButton from '../ui/Button.vue';
-import UiDrawer from '../ui/Drawer.vue';
+import UiModal from '../ui/Modal.vue';
 
 defineOptions({ name: 'FundingReviewSheet' });
 
@@ -182,7 +182,7 @@ function handleConfirm(): void {
 </script>
 
 <template>
-  <UiDrawer :open="open" title="Распределить деньги" @close="emit('later')">
+  <UiModal :open="open" title="Распределить деньги" @close="emit('later')">
     <div class="funding-sheet">
       <section class="funding-sheet__source" aria-label="Сумма источника">
         <p class="funding-sheet__caption">Можно распределить</p>
@@ -365,7 +365,7 @@ function handleConfirm(): void {
         </div>
       </div>
     </template>
-  </UiDrawer>
+  </UiModal>
 </template>
 
 <style scoped>

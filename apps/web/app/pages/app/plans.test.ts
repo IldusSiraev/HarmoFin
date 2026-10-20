@@ -632,7 +632,7 @@ describe('plans page', () => {
       expect.any(String),
     );
     expect(v2.getPlansCalendar).toHaveBeenCalledTimes(2);
-    expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="modal"]').exists()).toBe(false);
     expect(
       wrapper.get('[data-testid="obligation-row-occ-daycare"]').text().replace(/\s/g, ' '),
     ).toContain('1 000,00');
@@ -752,7 +752,7 @@ describe('plans page', () => {
     await flushPromises();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     await flushPromises();
-    expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="modal"]').exists()).toBe(false);
     expect(document.activeElement).toBe(pay.element);
   });
 
@@ -859,7 +859,7 @@ describe('plans page', () => {
       });
       // No automatic assignment and no deletion: dismissing the offer leaves the income.
       expect(v2.createTransaction).not.toHaveBeenCalled();
-      expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="modal"]').exists()).toBe(false);
     });
 
     it('leaves the recorded income untouched when the funding offer is dismissed', async () => {

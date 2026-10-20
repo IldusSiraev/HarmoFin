@@ -41,6 +41,7 @@ function mountSheet(overrides: Record<string, unknown> = {}) {
   const wrapper = mount(FundingReviewSheet, {
     props: baseProps(overrides),
     attachTo: document.body,
+    global: { stubs: { teleport: true } },
   });
   wrappers.push(wrapper);
   return wrapper;
@@ -342,10 +343,10 @@ describe('FundingReviewSheet', () => {
     expect(document.activeElement).toBe(opener);
   });
 
-  it('closes via later when the drawer asks to close', async () => {
+  it('closes via later when the dialog asks to close', async () => {
     const wrapper = mountSheet();
 
-    await wrapper.get('[data-testid="drawer-close"]').trigger('click');
+    await wrapper.get('[data-testid="modal-close"]').trigger('click');
 
     expect(wrapper.emitted('later')).toHaveLength(1);
   });

@@ -103,6 +103,7 @@ function mountPage() {
     attachTo: document.body,
     global: {
       stubs: {
+        teleport: true,
         NuxtLink: { template: '<a><slot /></a>' },
         UiConfirmDialog: {
           props: ['open'],
@@ -336,7 +337,7 @@ describe('envelopes page, plan model v2', () => {
     expect(mocks.v2.move).not.toHaveBeenCalled();
   });
 
-  it('shows the drawer history with dates and loads more by cursor', async () => {
+  it('shows the dialog history with dates and loads more by cursor', async () => {
     mocks.v2.getEnvelopeHistory
       .mockResolvedValueOnce({
         items: [{ kind: 'SPENDING', amountMinor: '120000', effectiveOn: '2026-09-30' }],
@@ -355,17 +356,17 @@ describe('envelopes page, plan model v2', () => {
     await flushPromises();
 
     expect(mocks.v2.getEnvelopeHistory).toHaveBeenCalledWith('budget-id', 'env-repair', {});
-    const drawer = wrapper.get('[data-testid="drawer"]');
-    expect(drawer.text()).toContain('30.09.2026');
-    expect(drawer.text()).toContain('Расход');
-    expect(drawer.text()).not.toContain('Начальный баланс');
+    const dialog = wrapper.get('[data-testid="modal"]');
+    expect(dialog.text()).toContain('30.09.2026');
+    expect(dialog.text()).toContain('Расход');
+    expect(dialog.text()).not.toContain('Начальный баланс');
 
     await wrapper.get('[data-testid="history-more"]').trigger('click');
     await flushPromises();
     expect(mocks.v2.getEnvelopeHistory).toHaveBeenLastCalledWith('budget-id', 'env-repair', {
       cursor: 'cur-1',
     });
-    expect(wrapper.get('[data-testid="drawer"]').text()).toContain('01.09.2026');
+    expect(wrapper.get('[data-testid="modal"]').text()).toContain('01.09.2026');
     expect(wrapper.find('[data-testid="history-more"]').exists()).toBe(false);
   });
 
@@ -948,7 +949,7 @@ describe('envelopes page, plan model v2', () => {
     expect(normalize(wrapper.get('[data-testid="plan-row-target"]').text())).toContain('5 000,00');
     await wrapper.get('[data-testid="list-row-select"]').trigger('click');
     await flushPromises();
-    expect(normalize(wrapper.get('[data-testid="drawer"]').text())).toContain('5 000,00');
-    expect(wrapper.get('[data-testid="drawer"]').text()).not.toContain('50,00');
+    expect(normalize(wrapper.get('[data-testid="modal"]').text())).toContain('5 000,00');
+    expect(wrapper.get('[data-testid="modal"]').text()).not.toContain('50,00');
   });
 });

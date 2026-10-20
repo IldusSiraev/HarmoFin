@@ -62,7 +62,10 @@ function setBudgetVersion(version: 2): void {
 
 const wrappers: Array<{ unmount: () => void }> = [];
 function mountHost() {
-  const wrapper = mount(FundingEntryHost, { attachTo: document.body });
+  const wrapper = mount(FundingEntryHost, {
+    attachTo: document.body,
+    global: { stubs: { teleport: true } },
+  });
   wrappers.push(wrapper);
   return wrapper;
 }

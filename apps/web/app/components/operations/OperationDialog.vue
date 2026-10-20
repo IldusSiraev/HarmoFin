@@ -4,7 +4,7 @@ import { computed, ref, watch } from 'vue';
 import { auditActionLabel, auditActorName, formatAuditMoment } from './audit-event.js';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiButton from '../ui/Button.vue';
-import UiDrawer from '../ui/Drawer.vue';
+import UiModal from '../ui/Modal.vue';
 import UiStatus from '../ui/Status.vue';
 import {
   useBudgetReferenceData,
@@ -14,7 +14,7 @@ import type { TransactionJournalV2Item } from '../../composables/useEnvelopePlan
 import { availableActions, canEditTransaction } from '../../composables/useOperationMutations.js';
 import { formatPlainDate } from '../obligations/format-plain-date.js';
 
-defineOptions({ name: 'OperationDrawer' });
+defineOptions({ name: 'OperationDialog' });
 
 const props = defineProps<{
   transaction: TransactionJournalV2Item | null;
@@ -75,21 +75,21 @@ watch(
 </script>
 
 <template>
-  <UiDrawer :open="transaction !== null" title="Операция" @close="emit('close')">
-    <div v-if="transaction" class="operation-drawer">
-      <p class="operation-drawer__amount">
+  <UiModal :open="transaction !== null" title="Операция" size="sm" @close="emit('close')">
+    <div v-if="transaction" class="operation-dialog">
+      <p class="operation-dialog__amount">
         <FinanceMoney
           :minor-units="transaction.amountMinor"
           :currency="transaction.currency"
           :scale="SCALE"
         />
       </p>
-      <p class="operation-drawer__badges">
+      <p class="operation-dialog__badges">
         <UiStatus :label="statusLabel" tone="neutral" />
         <UiStatus v-if="planPayment" label="По плану" tone="info" />
       </p>
 
-      <dl class="operation-drawer__rows">
+      <dl class="operation-dialog__rows">
         <div>
           <dt>Дата</dt>
           <dd>{{ formatPlainDate(transaction.occurredOn) }}</dd>
@@ -120,16 +120,20 @@ watch(
         </div>
       </dl>
 
-      <p v-if="detailsError" class="operation-drawer__error" role="alert">{{ detailsError }}</p>
+      <p v-if="detailsError" class="operation-dialog__error" role="alert">{{ detailsError }}</p>
 
-      <section aria-labelledby="operation-drawer-audit">
-        <h3 id="operation-drawer-audit">История изменений</h3>
-        <ol v-if="auditEvents.length > 0" class="operation-drawer__history">
-          <li v-for="event in auditEvents" :key="event.id" data-testid="drawer-audit-event">
-            <span class="operation-drawer__history-action">{{
+      <section aria-labelledby="operation-dialog-audit">
+        <h3 id="operation-dialog-audit">История изменений</h3>
+        <ol v-if="auditEvents.length > 0" class="operation-dialog__history">
+          <li
+            v-for="event in auditEvents"
+            :key="event.id"
+            data-testid="operation-dialog-audit-event"
+          >
+            <span class="operation-dialog__history-action">{{
               auditActionLabel(event.action)
             }}</span>
-            <span class="operation-drawer__history-meta">
+            <span class="operation-dialog__history-meta">
               {{ formatAuditMoment(event.createdAt) }} · {{ auditActorName(event) }}
             </span>
           </li>
@@ -142,7 +146,7 @@ watch(
       <UiButton
         v-if="editable"
         variant="secondary"
-        data-testid="drawer-edit"
+        data-testid="operation-dialog-edit"
         :disabled="busy"
         @click="emit('edit', transaction)"
       >
@@ -151,7 +155,7 @@ watch(
       <UiButton
         v-if="actions.includes('delete')"
         variant="tertiary"
-        data-testid="drawer-delete"
+        data-testid="operation-dialog-delete"
         :disabled="busy"
         @click="emit('request-delete', transaction)"
       >
@@ -160,58 +164,58 @@ watch(
       <UiButton
         v-if="actions.includes('restore')"
         variant="secondary"
-        data-testid="drawer-restore"
+        data-testid="operation-dialog-restore"
         :disabled="busy"
         @click="emit('request-restore', transaction)"
       >
         Восстановить
       </UiButton>
     </template>
-  </UiDrawer>
+  </UiModal>
 </template>
 
 <style scoped>
-.operation-drawer {
+.operation-dialog {
   display: grid;
   gap: var(--hf-space-4);
 }
 
-.operation-drawer__amount {
+.operation-dialog__amount {
   margin: 0;
   font-size: var(--hf-font-size-h2);
   font-weight: var(--hf-font-weight-bold);
   line-height: var(--hf-line-height-h2);
 }
 
-.operation-drawer__rows {
+.operation-dialog__rows {
   display: grid;
   gap: var(--hf-space-2);
   margin: 0;
 }
 
-.operation-drawer__rows div {
+.operation-dialog__rows div {
   display: flex;
   gap: var(--hf-space-3);
   justify-content: space-between;
 }
 
-.operation-drawer__rows dt {
+.operation-dialog__rows dt {
   color: var(--hf-color-text-muted);
 }
 
-.operation-drawer__rows dd {
+.operation-dialog__rows dd {
   margin: 0;
   text-align: right;
 }
 
-.operation-drawer__badges {
+.operation-dialog__badges {
   display: flex;
   flex-wrap: wrap;
   gap: var(--hf-space-2);
   margin: 0;
 }
 
-.operation-drawer__notice {
+.operation-dialog__notice {
   margin: 0;
   padding: var(--hf-space-3);
   border: 1px solid var(--hf-color-border);
@@ -219,7 +223,7 @@ watch(
   background: var(--hf-color-surface-subtle);
 }
 
-.operation-drawer__history {
+.operation-dialog__history {
   display: grid;
   gap: var(--hf-space-2);
   margin: 0;
@@ -227,22 +231,22 @@ watch(
   list-style: none;
 }
 
-.operation-drawer__history li {
+.operation-dialog__history li {
   display: grid;
   gap: 0.125rem;
 }
 
-.operation-drawer__history-action {
+.operation-dialog__history-action {
   font-weight: var(--hf-font-weight-medium);
 }
 
-.operation-drawer__history-meta {
+.operation-dialog__history-meta {
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-caption);
   line-height: var(--hf-line-height-caption);
 }
 
-.operation-drawer__error {
+.operation-dialog__error {
   margin: 0;
   color: var(--hf-color-text-danger);
 }

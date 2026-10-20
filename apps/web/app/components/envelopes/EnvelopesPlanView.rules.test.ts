@@ -19,7 +19,7 @@ vi.mock('../../composables/useOperationReferenceData.js', () => ({
 vi.mock('../../composables/useToast.js', () => ({ useToast: () => ({ push: vi.fn() }) }));
 
 import EnvelopesPlanView from './EnvelopesPlanView.vue';
-import EnvelopePlanDrawer from './EnvelopePlanDrawer.vue';
+import EnvelopePlanDialog from './EnvelopePlanDialog.vue';
 
 function envelope(id: string, name: string) {
   return {
@@ -89,7 +89,7 @@ async function mountView() {
         RuleSettingsSheet: SheetStub,
         EnvelopeMovePanel: true,
         NuxtLink: true,
-        EnvelopePlanDrawer: true,
+        EnvelopePlanDialog: true,
       },
     },
   });
@@ -185,17 +185,17 @@ describe('EnvelopesPlanView rule settings entry', () => {
   });
 });
 
-describe('EnvelopePlanDrawer rules action', () => {
+describe('EnvelopePlanDialog rules action', () => {
   it('emits rules with the envelope', async () => {
     const item = envelope('e-a', 'Продукты');
-    const wrapper = mount(EnvelopePlanDrawer, {
+    const wrapper = mount(EnvelopePlanDialog, {
       props: { budgetId: BUDGET, envelope: item },
       attachTo: document.body,
     });
     wrappers.push(wrapper);
     await flushPromises();
 
-    q<HTMLElement>('[data-testid="plan-drawer-rules"]')?.click();
+    q<HTMLElement>('[data-testid="plan-dialog-rules"]')?.click();
     expect(wrapper.emitted('rules')?.[0]).toEqual([item]);
   });
 });

@@ -222,7 +222,7 @@ function close(): void {
   active = null;
   entry.dismiss();
   // The control that opened the flow may be gone (dialog closed, list
-  // re-rendered), and the drawer then leaves focus on <body>.
+  // re-rendered), and the dialog then leaves focus on <body>.
   void nextTick(() => {
     const active = document.activeElement;
     if (active && active !== document.body) return;

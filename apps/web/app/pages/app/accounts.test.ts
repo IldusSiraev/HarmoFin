@@ -1,4 +1,4 @@
-import { flushPromises, mount } from '@vue/test-utils';
+import { DOMWrapper, flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -51,6 +51,9 @@ const account = {
 };
 
 const normalize = (value: string): string => value.replace(/[\u00a0\u202f]/g, ' ');
+
+// The account dialog teleports to <body>, outside the page wrapper.
+const body = () => new DOMWrapper(document.body);
 
 function mountPage() {
   return mount(AccountsPage, {
@@ -261,10 +264,10 @@ describe('accounts page', () => {
     wrapper = mountPage();
 
     await flushPromises();
-    // The archive action lives in the account drawer now, not on the card
+    // The archive action lives in the account dialog now, not on the card
     // itself, so the card has to be opened first.
     await wrapper.get('[data-testid="account-card-select"]').trigger('click');
-    await wrapper.get('[data-testid="account-drawer-archive"]').trigger('click');
+    await body().get('[data-testid="account-dialog-archive"]').trigger('click');
     expect(mocks.api.archiveAccount).not.toHaveBeenCalled();
     await wrapper.get('[data-confirm="archive-account"]').trigger('click');
     await flushPromises();
@@ -283,7 +286,7 @@ describe('accounts page', () => {
 
     await flushPromises();
     await wrapper.get('[data-testid="account-card-select"]').trigger('click');
-    await wrapper.get('[data-testid="account-drawer-archive"]').trigger('click');
+    await body().get('[data-testid="account-dialog-archive"]').trigger('click');
     await wrapper.get('[data-confirm="archive-account"]').trigger('click');
     await flushPromises();
 
@@ -299,7 +302,7 @@ describe('accounts page', () => {
 
     await flushPromises();
     await wrapper.get('[data-testid="account-card-select"]').trigger('click');
-    const link = wrapper.get('[data-testid="account-drawer-transfer"]');
+    const link = body().get('[data-testid="account-dialog-transfer"]');
     expect(link.text()).toContain('Перевести со счёта');
     expect(link.attributes('to')).toContain('sourceAccountId=account-id');
   });
@@ -314,14 +317,14 @@ describe('accounts page', () => {
     expect(mocks.api.getAccountsSummary).toHaveBeenCalledWith('budget-id', 'active');
   });
 
-  it('opens the drawer from a card', async () => {
+  it('opens the dialog from a card', async () => {
     mocks.api.listAccounts.mockResolvedValue([account]);
     wrapper = mountPage();
     await flushPromises();
 
     await wrapper.get('[data-testid="account-card-select"]').trigger('click');
 
-    expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(true);
+    expect(body().find('[data-testid="modal"]').exists()).toBe(true);
   });
 
   it('switches both requests to the archive from the status switch', async () => {

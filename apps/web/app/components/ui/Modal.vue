@@ -9,10 +9,16 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 defineOptions({ name: 'UiModal' });
 
-const props = defineProps<{
-  open: boolean;
-  title: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    open: boolean;
+    title: string;
+    // `sm` suits compact detail dialogs (operation, account, envelope);
+    // `md` suits forms.
+    size?: 'sm' | 'md';
+  }>(),
+  { size: 'md' },
+);
 
 const emit = defineEmits<{
   close: [];
@@ -113,6 +119,8 @@ onBeforeUnmount(release);
         <div
           ref="dialog"
           class="modal"
+          :class="{ 'modal--sm': size === 'sm' }"
+          data-testid="modal"
           role="dialog"
           :aria-label="title"
           aria-modal="true"
@@ -121,7 +129,13 @@ onBeforeUnmount(release);
           <div class="modal__header">
             <slot name="header">
               <h2 class="modal__title">{{ title }}</h2>
-              <button type="button" class="modal__close" aria-label="Закрыть" @click="handleClose">
+              <button
+                type="button"
+                class="modal__close"
+                data-testid="modal-close"
+                aria-label="Закрыть"
+                @click="handleClose"
+              >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path
                     d="M18 6L6 18M6 6l12 12"
@@ -170,9 +184,22 @@ onBeforeUnmount(release);
   overflow: hidden;
 }
 
+.modal--sm {
+  max-width: 30rem;
+}
+
+/* Detail dialogs list several peer actions, primary first; keep them in
+   reading order instead of pushing a wrapped row to the right. */
+.modal--sm .modal__footer {
+  justify-content: flex-start;
+}
+
 @media (max-width: 767px) {
-  .modal {
+  .modal,
+  .modal--sm {
     max-width: none;
+    height: 100vh;
+    height: 100dvh;
     max-height: 100vh;
     max-height: 100dvh;
     border-radius: 0;
@@ -180,6 +207,10 @@ onBeforeUnmount(release);
 
   .modal-backdrop {
     padding: 0;
+  }
+
+  .modal .modal__footer {
+    padding-bottom: max(var(--hf-space-3), env(safe-area-inset-bottom));
   }
 }
 
@@ -238,6 +269,7 @@ onBeforeUnmount(release);
 .modal__footer {
   display: flex;
   flex: none;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--hf-space-2);
   padding: var(--hf-space-3) var(--hf-space-6);

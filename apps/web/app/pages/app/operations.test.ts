@@ -109,7 +109,10 @@ describe('operations page (v2 journal)', () => {
   let wrapper: ReturnType<typeof mount> | null = null;
 
   const mountPage = () => {
-    wrapper = mount(OperationsPage, { attachTo: document.body });
+    wrapper = mount(OperationsPage, {
+      attachTo: document.body,
+      global: { stubs: { teleport: true } },
+    });
     return wrapper;
   };
   const withItems = (...items: Array<Record<string, unknown>>) =>
@@ -224,7 +227,7 @@ describe('operations page (v2 journal)', () => {
     );
   });
 
-  it('opens the drawer from a row and reads the audit from the model-agnostic route', async () => {
+  it('opens the dialog from a row and reads the audit from the model-agnostic route', async () => {
     withItems(expense);
     mountPage();
     await flushPromises();
@@ -232,17 +235,17 @@ describe('operations page (v2 journal)', () => {
     await wrapper!.get('[data-testid="list-row-select"]').trigger('click');
     await flushPromises();
 
-    expect(wrapper!.find('[data-testid="drawer"]').exists()).toBe(true);
+    expect(wrapper!.find('[data-testid="modal"]').exists()).toBe(true);
     expect(v1.listTransactionAudit).toHaveBeenCalledWith('budget-id', expense.id);
   });
 
-  it('opens the drawer for the operation named in the query through the v2 read', async () => {
+  it('opens the dialog for the operation named in the query through the v2 read', async () => {
     routeQuery.operationId = expense.id;
     mountPage();
     await flushPromises();
 
     expect(v2.getTransaction).toHaveBeenCalledWith('budget-id', expense.id);
-    expect(wrapper!.find('[data-testid="drawer"]').exists()).toBe(true);
+    expect(wrapper!.find('[data-testid="modal"]').exists()).toBe(true);
   });
 
   it('announces a load failure in Russian and retries', async () => {

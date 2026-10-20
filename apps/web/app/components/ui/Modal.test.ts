@@ -104,3 +104,47 @@ describe('UiModal stacking and Shift+Tab', () => {
     upper.unmount();
   });
 });
+
+describe('UiModal size and test hooks', () => {
+  it('exposes stable test ids and defaults to the medium size', async () => {
+    const wrapper = mount(UiModal, {
+      props: { open: true, title: 'Диалог' },
+      attachTo: document.body,
+    });
+    await wrapper.vm.$nextTick();
+    const dialog = document.querySelector<HTMLElement>('[data-testid="modal"]');
+    expect(dialog?.classList.contains('modal--sm')).toBe(false);
+    document.querySelector<HTMLElement>('[data-testid="modal-close"]')?.click();
+    expect(wrapper.emitted('close')).toHaveLength(1);
+    wrapper.unmount();
+  });
+
+  it('applies the small size for compact detail dialogs', async () => {
+    const wrapper = mount(UiModal, {
+      props: { open: true, title: 'Счёт', size: 'sm' },
+      attachTo: document.body,
+    });
+    await wrapper.vm.$nextTick();
+    const dialog = document.querySelector<HTMLElement>('[data-testid="modal"]');
+    expect(dialog?.classList.contains('modal--sm')).toBe(true);
+    wrapper.unmount();
+  });
+});
+
+describe('UiModal under a native dialog', () => {
+  it('leaves Escape to a native confirm dialog stacked on top', async () => {
+    const wrapper = mount(UiModal, {
+      props: { open: true, title: 'Счёт' },
+      attachTo: document.body,
+    });
+    const confirm = document.createElement('dialog');
+    confirm.setAttribute('open', '');
+    document.body.append(confirm);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(wrapper.emitted('close')).toBeUndefined();
+
+    confirm.remove();
+    wrapper.unmount();
+  });
+});

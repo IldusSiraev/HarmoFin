@@ -6,7 +6,7 @@ import { formatMinorUnits } from '../finance/money-format.js';
 import { formatPlainDateShort } from './format-plain-date.js';
 import UiButton from '../ui/Button.vue';
 import UiDatePicker from '../ui/DatePicker.vue';
-import UiDrawer from '../ui/Drawer.vue';
+import UiModal from '../ui/Modal.vue';
 import UiPillSelect from '../ui/PillSelect.vue';
 
 defineOptions({ name: 'ObligationPaySheet' });
@@ -99,8 +99,8 @@ function reset(): void {
 
 watch(() => [props.open, props.occurrence.id] as const, reset, { immediate: true });
 
-// The drawer focuses its first control (close) on open; the amount is the
-// field the user edits next, so move focus there once the drawer settled.
+// The dialog focuses itself on open; the amount is the field the user
+// edits next, so move focus there once the dialog settled.
 watch(
   () => props.open,
   (open) => {
@@ -178,7 +178,7 @@ function handleSubmit(): void {
 </script>
 
 <template>
-  <UiDrawer :open="open" title="Оплатить платёж" @close="emit('close')">
+  <UiModal :open="open" title="Оплатить платёж" @close="emit('close')">
     <form id="obligation-pay-form" class="pay-sheet" novalidate @submit.prevent="handleSubmit">
       <section class="pay-sheet__head" aria-label="План">
         <p class="pay-sheet__name">{{ occurrence.name }}</p>
@@ -292,7 +292,7 @@ function handleSubmit(): void {
         </UiButton>
       </div>
     </template>
-  </UiDrawer>
+  </UiModal>
 </template>
 
 <style scoped>
