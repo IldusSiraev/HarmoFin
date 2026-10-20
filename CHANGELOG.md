@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.2.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.1.0...v1.2.0) (2026-10-20)
+
+
+### Новое
+
+* **api:** пакетное сохранение очереди и правил пополнения ([5e0f3e2](https://github.com/IldusSiraev/HarmoFin/commit/5e0f3e2929ef42c22d8f5e87ea2d0be4676970b0))
+* **api:** чтение правил пополнения бюджета ([d477114](https://github.com/IldusSiraev/HarmoFin/commit/d477114a33adf1859e6f425c185c810fc45469b0))
+* **web:** диалог изменения цели текущего периода ([f11fdfe](https://github.com/IldusSiraev/HarmoFin/commit/f11fdfeebdc4021b8bd6876d9b89acac3c95effb))
+* **web:** клиент и тексты правил пополнения ([22bef8f](https://github.com/IldusSiraev/HarmoFin/commit/22bef8f1bbb0d9cf2db1479ffaa9c64123dd4239))
+* **web:** модель состояния редактора правил пополнения ([a121feb](https://github.com/IldusSiraev/HarmoFin/commit/a121febb15bd0e435dab3f3a5748cb217a4bfeae))
+* **web:** перетаскивание в вертикальном списке на pointer events ([22c686f](https://github.com/IldusSiraev/HarmoFin/commit/22c686f3a545aa79632ee69a83a422229afdc422))
+* **web:** правило в деталях конверта, цель периода отдельным диалогом ([3357d2b](https://github.com/IldusSiraev/HarmoFin/commit/3357d2bc54c000c08da921b11b69735fb7bb1a1e))
+* **web:** редактор очереди и правил пополнения ([e69a1bf](https://github.com/IldusSiraev/HarmoFin/commit/e69a1bf377285f12f8f27c5efd9cd57d0de2a802))
+* **web:** страница правил пополнения конвертов ([4748124](https://github.com/IldusSiraev/HarmoFin/commit/4748124461530d6151a596110b80bdc68bb6f596))
+* страница правил пополнения конвертов ([8af040f](https://github.com/IldusSiraev/HarmoFin/commit/8af040f47c4a2316a7bf56c6feb575f5b7fe025f))
+
+
+### Исправления
+
+* **web:** перенос кнопок шапки справочников на узком экране ([34ef62c](https://github.com/IldusSiraev/HarmoFin/commit/34ef62cbd2ab2530e2b740e27ffdb03206d4cb03))
+* **web:** поля и подсказки страницы правил пополнения ([dd3c587](https://github.com/IldusSiraev/HarmoFin/commit/dd3c58708f76293c12c78e0e7b0264fe884abc71))
+* правила пополнения — замечания финального ревью ([9ebfb2d](https://github.com/IldusSiraev/HarmoFin/commit/9ebfb2d8684dae1d84480fd56b03c82b8293bec0))
+
 ## [1.1.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.0.0...v1.1.0) (2026-10-20)
 
 
