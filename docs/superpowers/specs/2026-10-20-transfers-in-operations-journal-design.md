@@ -1,0 +1,168 @@
+# Переводы в журнале операций — дизайн
+
+Дата: 2026-10-20. Область: `apps/api/src/v2-transfers`, новый модуль общей ленты журнала, OpenAPI, клиентские типы `apps/web/app/composables/useEnvelopePlanV2.ts`, `apps/web/app/pages/app/operations.vue` и компоненты журнала, удаление `apps/web/app/pages/app/transfers.vue`.
+
+Авторитетные документы: функциональная спецификация (разделы 12 «Переводы», 16 «Редактирование, удаление и журнал изменений»), development-спецификация, [Envelope Plan Model v2.2](<2026-09-29 HarmoFin_Envelope_Plan_Model_v2.2.md>), [Calm Fintech visual guidelines](2026-09-17-calm-fintech-visual-guidelines.md).
+
+## 1. Проблема
+
+- Переводы живут на отдельной странице `/app/transfers`, а доходы и расходы — в журнале `/app/operations`. Пользователю приходится переключаться между страницами, хотя диалог добавления операции уже содержит вкладку «Перевод».
+- Перевод нельзя изменить или удалить: у `/api/v2/budgets/:budgetId/transfers` есть только `GET` (список, один перевод) и `POST`.
+- Журнал читает `GET /transactions`, который возвращает только `INCOME` и `EXPENSE`; переводы хранятся в отдельной таблице `transfers` со своим курсором.
+
+## 2. Решение
+
+1. Новый эндпоинт общей ленты `GET /api/v2/budgets/:budgetId/journal`: операции и переводы в одном порядке с единым keyset-курсором.
+2. Новые мутации перевода: `PATCH`, `DELETE`, `POST …/restore` по образцу операций v2.
+3. Журнал показывает переводы отдельной строкой, позволяет их просматривать, изменять, удалять и восстанавливать; вкладка фильтра «Переводы».
+4. Страница `/app/transfers` и её пункты меню удаляются без редиректа.
+
+Вне области: последние операции на дашборде и страница планов продолжают читать `GET /transactions`; экспорт, отчёты и аналитика не меняются.
+
+## 3. Данные
+
+- Миграция схемы не нужна: у `Transfer` уже есть `status` (`CONFIRMED`, `DELETED`, …), `deletedAt`, `updatedByUserId`, индексы `(budget_id, occurred_on, created_at)`, `(budget_id, source_account_id)`, `(budget_id, destination_account_id)`.
+- В ленту и мутации попадают только переводы `mode = 'ACCOUNT_ONLY'`. Данных старой модели (`LEGACY_PARTS`) в системе нет; такие строки исключаются запросом, а мутации на них отвечают 404.
+- Баланс счёта уже учитывает только `CONFIRMED` переводы (`FinancialBalanceRepository`), поэтому смена статуса на `DELETED` и обратно сразу меняет балансы без доработки расчёта.
+
+## 4. Чтение: `GET /api/v2/budgets/:budgetId/journal`
+
+Читать может любой активный участник бюджета; бюджет должен быть в модели v2 (`PlanModelPolicy.requireModel(…, 2)`).
+
+### 4.1. Ответ
+
+```ts
+type JournalItem =
+  | ({ kind: 'TRANSACTION' } & TransactionJournalV2Item)
+  | {
+      kind: 'TRANSFER';
+      id: string;
+      budgetId: string;
+      status: 'CONFIRMED' | 'DELETED';
+      amountMinor: string;
+      currency: string;
+      occurredOn: string; // YYYY-MM-DD
+      sourceAccountId: string;
+      destinationAccountId: string;
+      comment: string | null;
+      createdAt: string;
+      deletedAt: string | null;
+    };
+
+type JournalPage = { items: JournalItem[]; nextCursor: string | null };
+```
+
+В OpenAPI элемент описывается `oneOf` с `discriminator: kind`. Клиентские типы и методы (`listJournal`, `updateTransfer`, `deleteTransfer`, `restoreTransfer`) добавляются в `useEnvelopePlanV2.ts` рядом с текущими типами журнала.
+
+### 4.2. Порядок и курсор
+
+- Порядок: `occurredOn desc`, `createdAt desc`, `id desc` — общий для обеих таблиц.
+- Курсор непрозрачный (base64url JSON `{ occurredOn, createdAt, id }`), проверяется схемой; некорректный — 400 `VALIDATION_FAILED`.
+- Запрос: один SQL `UNION ALL` из `transactions` и `transfers` с keyset-условием `(occurred_on, created_at, id) < (cursor…)` и `LIMIT limit + 1` над объединением. Каждая часть фильтрует `budget_id` в `WHERE`. `limit` — как у журнала сейчас (по умолчанию и максимум те же).
+- Для операций после выборки подтягиваются связи с планами (`findPlanOccurrenceLinks`), как в текущем журнале.
+
+### 4.3. Фильтры
+
+| Параметр | Операции | Переводы |
+|---|---|---|
+| `type=INCOME\|EXPENSE` | по типу | исключаются |
+| `type=TRANSFER` | исключаются | все |
+| `status` (по умолчанию без `DELETED`) | как сейчас | только `CONFIRMED`/`DELETED` совпадают; `DRAFT`/`CANCELLED` исключают переводы |
+| `status=DELETED` | только OWNER, иначе 403 | то же |
+| `accountId` | `account_id` | `source_account_id` или `destination_account_id` |
+| `categoryId`, `envelopeId` | по полю | переводы исключаются |
+| `from`, `to` | по `occurred_on` | по `occurred_on` |
+
+Ссылки на счёт, категорию или конверт из другого бюджета — 404 `RESOURCE_NOT_FOUND`, как в текущем журнале.
+
+### 4.4. Слои
+
+- Новый модуль `apps/api/src/v2-journal`: controller (только HTTP и Zod), application service (доступ, роль, проверка ссылок, сборка ответа), repository (SQL ленты).
+- `GET /transactions` и `GET /transfers` не меняются.
+
+## 5. Мутации перевода
+
+Эндпоинты в существующем `direct-transfer.controller.ts`:
+
+| Действие | Запрос | Роли |
+|---|---|---|
+| Изменить | `PATCH /api/v2/budgets/:budgetId/transfers/:transferId` | OWNER, EDITOR |
+| Удалить | `DELETE …/:transferId` | OWNER, EDITOR |
+| Восстановить | `POST …/:transferId/restore` | OWNER |
+
+Общее для всех трёх: `CsrfGuard`, обязательный заголовок `Idempotency-Key` (повтор с тем же ключом и телом возвращает сохранённый ответ, с другим телом — 409), ответ 200 с переводом в форме элемента ленты `kind: 'TRANSFER'`. Ошибки — Problem Details: 400, 401, 403, 404, 409, 422 по аналогии с операциями v2.
+
+### 5.1. `PATCH`
+
+- Тело: необязательные `amount` (десятичная строка), `occurredOn`, `sourceAccountId`, `destinationAccountId`, `comment` (`null` очищает; до 500 символов). Пустое тело — 400.
+- Изменять можно только `CONFIRMED`; иначе 409 `TRANSFER_NOT_EDITABLE`.
+- Проверки итоговых значений, как в `create`: сумма > 0; счета различаются (`TRANSFER_ACCOUNTS_MUST_DIFFER`); оба счёта этого бюджета, не архивные, `RUB`, scale 2 (иначе `INVALID_REFERENCE` или 404 для чужого счёта); дата не позже сегодняшнего дня в часовом поясе бюджета.
+
+### 5.2. `DELETE`
+
+Логическое удаление: `status = DELETED`, `deletedAt = now()`, `updatedByUserId`. Уже удалённый перевод — 409 `TRANSFER_ALREADY_DELETED`.
+
+### 5.3. `restore`
+
+Только из `DELETED` (иначе 409 `TRANSFER_NOT_DELETED`): `status = CONFIRMED`, `deletedAt = null`. Если один из счетов перевода архивный — 409 `INVALID_REFERENCE`.
+
+### 5.4. Баланс
+
+Только если у бюджета `allowNegativeBalance = false`. Сервер считает изменение баланса каждого затронутого счёта (старые и новые источник и назначение) как разницу «после − до» и для каждого счёта с отрицательной разницей проверяет `текущий баланс + разница ≥ 0`. Нарушение — 409 `INSUFFICIENT_BALANCE`, изменений нет. Следствия:
+
+- удаление проверяет счёт назначения (теряет поступление);
+- восстановление проверяет счёт-источник;
+- изменение суммы или счетов проверяет те счета, баланс которых уменьшается.
+
+Проверка идёт по текущему балансу, как в существующем `create`.
+
+### 5.5. Транзакционность и аудит
+
+- Одна транзакция; блокировки в порядке: строка бюджета → idempotency → строка перевода `FOR UPDATE` с `budget_id` → все затронутые счета, отсортированные по id.
+- Перевод чужого бюджета или не `ACCOUNT_ONLY` — 404.
+- Аудит (`entityType: 'transfer'`, `source: 'API'`, `requestId`): `UPDATED` со `oldValues`/`newValues` только изменённых полей, `DELETED`, `RESTORED`.
+- Финансовые правила — в `DirectTransferApplicationService`; запросы и блокировки — в `DirectTransferRepository`; контроллер только переводит HTTP.
+
+## 6. Web
+
+### 6.1. Журнал
+
+- `operations.vue` загружает `GET /journal` вместо `listTransactions`; курсор, фильтры, группировка по дням (`group-by-day`) работают с обоими видами элементов.
+- Строка перевода — новый компонент `components/operations/TransferRow.vue`: иконка стрелок (Lucide), заголовок «Перевод», подпись «Счёт A → Счёт B», комментарий при наличии; сумма без знака «+»/«−» в нейтральном цвете; статус «Удалён» — текстом и бейджем, не только цветом.
+- `OperationsToolbar`: вкладка типа «Переводы». `useOperationFilters` принимает `type=TRANSFER` (сейчас отбрасывает его как устаревшее значение).
+- При фильтре по категории или конверту переводы скрывает сервер; клиент не фильтрует.
+
+### 6.2. Просмотр и действия
+
+- Клик по строке перевода открывает `components/operations/TransferDialog.vue`: сумма, счета, дата, комментарий, кнопки «Изменить» и «Удалить» (или «Восстановить» для удалённого).
+- «Изменить» открывает модальное окно с существующей `DirectTransferForm`, заполненной текущими значениями; отправляется `PATCH` только с изменёнными полями.
+- Удаление и восстановление — через общий диалог подтверждения журнала:
+  - «Удалить перевод?» — «Перевод останется в истории, но перестанет влиять на балансы счетов.»
+  - «Восстановить перевод?» — «Перевод снова начнёт влиять на балансы счетов.»
+- Новый composable `useTransferMutations`: `update`, `remove`, `restore`; ключ `Idempotency-Key` на попытку (новый ключ при изменении тела); ошибки: `INSUFFICIENT_BALANCE` → «На счёте недостаточно средств для этого изменения.», ошибки полей — под полями формы.
+- После любого успешного действия журнал перезагружает текущую выборку.
+
+### 6.3. Удаление страницы переводов
+
+- Удаляются `pages/app/transfers.vue`, `components/transfers/DirectTransferCard.vue`, их тесты и пункты «Переводы» в `AppSidebar` и `AppMobileMenu`. Редирект со старого маршрута не нужен.
+- Ссылка «Перевести» в `AccountDialog` открывает глобальный диалог перевода (`useOperationDialogs().openTransfer`, в который добавляется необязательный `sourceAccountId`) с заполненным счётом-источником.
+- Клиентский метод `listDirectTransfers` и тип `DirectTransferListResponse` удаляются (потребителей не остаётся); серверные `GET /transfers` остаются (контракт `/api/v2` не ломаем).
+
+## 7. Тесты
+
+- API integration (Vitest + Supertest, PostgreSQL):
+  - лента: общий порядок и курсор на смеси операций и переводов, включая одинаковые `occurredOn` и `createdAt` на границе страницы; каждый фильтр по таблице 4.3; `DELETED` только для OWNER; изоляция бюджета (чужие строки не попадают, чужие ссылки — 404); некорректный курсор — 400;
+  - `PATCH`/`DELETE`/`restore`: роли; валидация (одинаковые счета, будущая дата, архивный и чужой счёт, сумма ≤ 0, пустое тело); `INSUFFICIENT_BALANCE` для удаления, восстановления, смены счёта и увеличения суммы; idempotency (повтор и конфликт тела); аудит со старыми и новыми значениями; балансы счетов до и после; откат при ошибке;
+  - OpenAPI (`apps/api/test/v2-openapi.integration.test.ts`): новые пути, схемы и коды ошибок.
+- Web (Vitest): `TransferRow`, `TransferDialog`, `useTransferMutations`, вкладка и фильтр `TRANSFER`, журнал со смешанной лентой, `openTransfer` с заполненным счётом, отсутствие пункта «Переводы» в меню.
+- E2E (Playwright, только в CI): сценарий страницы переводов заменяется сценарием «создать, изменить, удалить, восстановить перевод в журнале».
+- Ревью по routing matrix: Financial, Security, API, UI/UX, QA, Final.
+
+## 8. Критерии приёмки
+
+1. Переводы показываются в журнале операций вместе с доходами и расходами в общем порядке по дате; пагинация не теряет и не дублирует записи.
+2. Вкладка «Переводы» показывает только переводы; фильтр по счёту находит перевод по источнику и назначению.
+3. Перевод можно изменить, удалить и восстановить из журнала; балансы счетов меняются соответственно; при запрете отрицательного баланса действие, уводящее счёт в минус, отклоняется с понятным сообщением.
+4. Удалённые переводы видит только владелец через фильтр статуса.
+5. Каждое изменение перевода записано в аудит.
+6. Страницы `/app/transfers` и пункта меню «Переводы» нет; перевод со счёта открывает диалог перевода.
