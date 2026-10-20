@@ -44,7 +44,6 @@ describe('useOperationFilters', () => {
   it('drops values from old links that the v2 API would reject', () => {
     route.query = {
       status: 'all',
-      type: 'TRANSFER',
       search: 'кафе',
       sortBy: 'amount',
       cycleStart: '2026-09-01',
@@ -57,6 +56,15 @@ describe('useOperationFilters', () => {
 
     expect(toListInput()).toEqual({ accountId: 'account-id' });
     expect(activeCount.value).toBe(1);
+  });
+
+  it('keeps the transfer type as a journal filter', () => {
+    route.query = { type: 'TRANSFER' };
+
+    const { filters, toListInput } = useOperationFilters();
+
+    expect(filters.value.type).toBe('TRANSFER');
+    expect(toListInput()).toEqual({ type: 'TRANSFER' });
   });
 
   it('writes a changed filter into the query', async () => {

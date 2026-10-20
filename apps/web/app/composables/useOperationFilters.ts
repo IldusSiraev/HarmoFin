@@ -1,12 +1,11 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue';
 import { navigateTo, useRoute } from '#imports';
 
-import type { TransactionJournalV2Query } from './useEnvelopePlanV2.js';
+import type { JournalQuery } from './useEnvelopePlanV2.js';
 
-// Exactly the filters GET /api/v2/budgets/:id/transactions accepts. The order
-// (newest first) is fixed by the server, so there is no search or sort here.
+// Exactly the filters GET /api/v2/budgets/:id/journal accepts.
 export interface OperationFilters {
-  type: '' | 'INCOME' | 'EXPENSE';
+  type: '' | 'INCOME' | 'EXPENSE' | 'TRANSFER';
   status: '' | 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED';
   from: string;
   to: string;
@@ -25,7 +24,7 @@ const DEFAULTS: OperationFilters = {
   envelopeId: '',
 };
 
-const TYPES: ReadonlyArray<OperationFilters['type']> = ['INCOME', 'EXPENSE'];
+const TYPES = ['INCOME', 'EXPENSE', 'TRANSFER'] as const;
 const STATUSES: ReadonlyArray<OperationFilters['status']> = [
   'DRAFT',
   'CONFIRMED',
@@ -55,7 +54,7 @@ function readOneOf<T extends string>(
 export function useOperationFilters(): {
   filters: Ref<OperationFilters>;
   activeCount: ComputedRef<number>;
-  toListInput: () => TransactionJournalV2Query;
+  toListInput: () => JournalQuery;
   set: <K extends keyof OperationFilters>(key: K, value: OperationFilters[K]) => void;
   reset: () => void;
   syncQuery: () => Promise<void>;
@@ -77,7 +76,7 @@ export function useOperationFilters(): {
     () => FILTER_KEYS.filter((key) => filters.value[key] !== DEFAULTS[key]).length,
   );
 
-  function toListInput(): TransactionJournalV2Query {
+  function toListInput(): JournalQuery {
     const current = filters.value;
     return {
       ...(current.type ? { type: current.type } : {}),
