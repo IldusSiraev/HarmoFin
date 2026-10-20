@@ -23,7 +23,9 @@ function contextOf(request: AuthenticatedRequest): RequestContext {
 @UseGuards(SessionAuthGuard)
 @ApiCookieAuth('session')
 export class JournalController {
-  constructor(@Inject(JournalApplicationService) private readonly service: JournalApplicationService) {}
+  constructor(
+    @Inject(JournalApplicationService) private readonly service: JournalApplicationService,
+  ) {}
 
   @Get()
   @ApiOkResponse({ type: JournalPageResponse })

@@ -3,14 +3,20 @@ import { describe, expect, it } from 'vitest';
 import { comparePositions, mergeNewestFirst, type FeedPosition } from './journal.merge.js';
 
 const p = (occurredOn: string, createdAt: string, id: string): FeedPosition => ({
-  occurredOn, createdAt, id,
+  occurredOn,
+  createdAt,
+  id,
 });
 
 describe('journal merge', () => {
   it('новые раньше: дата, затем время создания, затем id', () => {
     expect(comparePositions(p('2026-10-20', 'a', '1'), p('2026-10-19', 'z', '9'))).toBeLessThan(0);
-    expect(comparePositions(p('2026-10-20', '2026-10-20T10:00:00.000Z', '1'),
-      p('2026-10-20', '2026-10-20T09:00:00.000Z', '9'))).toBeLessThan(0);
+    expect(
+      comparePositions(
+        p('2026-10-20', '2026-10-20T10:00:00.000Z', '1'),
+        p('2026-10-20', '2026-10-20T09:00:00.000Z', '9'),
+      ),
+    ).toBeLessThan(0);
     expect(comparePositions(p('2026-10-20', 't', 'b'), p('2026-10-20', 't', 'a'))).toBeLessThan(0);
   });
 

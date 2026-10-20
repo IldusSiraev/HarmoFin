@@ -24,8 +24,15 @@ defineOptions({ name: 'AppOperationDialogs' });
 
 const emit = defineEmits<{ saved: [] }>();
 
-const { openDialog, entryType, transferSourceAccountId, openChoose, openOperation, openTransfer, close } =
-  useOperationDialogs();
+const {
+  openDialog,
+  entryType,
+  transferSourceAccountId,
+  openChoose,
+  openOperation,
+  openTransfer,
+  close,
+} = useOperationDialogs();
 const { accountDetails, categories, envelopes, envelopePlans, budgetId, load } =
   useOperationReferenceData();
 const { push } = useToast();

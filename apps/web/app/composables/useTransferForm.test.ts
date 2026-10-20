@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { createTransferForm, toDirectTransferInput, toTransferPatch, transferFormFrom } from './useTransferForm.js';
+import {
+  createTransferForm,
+  toDirectTransferInput,
+  toTransferPatch,
+  transferFormFrom,
+} from './useTransferForm.js';
 
 describe('useTransferForm', () => {
   it('serializes an account-to-account transfer without envelopes or parts', () => {

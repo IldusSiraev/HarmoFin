@@ -403,11 +403,14 @@ export class DirectTransferApplicationService {
     requestId?: string,
   ): Promise<TransferJournalItem> {
     const amount =
-      input.amount === undefined ? undefined : parseDecimalToMinorUnits(input.amount, RUB_SCALE, false);
+      input.amount === undefined
+        ? undefined
+        : parseDecimalToMinorUnits(input.amount, RUB_SCALE, false);
     if (amount !== undefined && amount <= 0n) {
       throw validationFailed('Сумма перевода должна быть больше нуля.');
     }
-    const occurredOn = input.occurredOn === undefined ? undefined : parseOccurredOn(input.occurredOn);
+    const occurredOn =
+      input.occurredOn === undefined ? undefined : parseOccurredOn(input.occurredOn);
     return this.mutate(
       'update',
       userId,

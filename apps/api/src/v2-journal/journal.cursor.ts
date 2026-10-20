@@ -27,8 +27,15 @@ export function decodeFeedCursor(value: string): FeedPosition {
     ) {
       throw new Error('invalid');
     }
-    return { occurredOn: parsed.occurredOn, createdAt: parsed.createdAt, id: parsed.id.toLowerCase() };
+    return {
+      occurredOn: parsed.occurredOn,
+      createdAt: parsed.createdAt,
+      id: parsed.id.toLowerCase(),
+    };
   } catch {
-    throw new BadRequestException({ code: 'VALIDATION_FAILED', detail: 'Некорректный курсор журнала.' });
+    throw new BadRequestException({
+      code: 'VALIDATION_FAILED',
+      detail: 'Некорректный курсор журнала.',
+    });
   }
 }

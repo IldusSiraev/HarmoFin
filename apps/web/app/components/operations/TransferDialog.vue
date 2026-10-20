@@ -57,7 +57,10 @@ function name(accountId: string): string {
 
 const confirmCopy = computed(() =>
   confirming.value === 'restore'
-    ? { title: 'Восстановить перевод?', description: 'Перевод снова начнёт влиять на балансы счетов.' }
+    ? {
+        title: 'Восстановить перевод?',
+        description: 'Перевод снова начнёт влиять на балансы счетов.',
+      }
     : {
         title: 'Удалить перевод?',
         description: 'Перевод останется в истории, но перестанет влиять на балансы счетов.',
@@ -95,9 +98,13 @@ async function save(input: CreateDirectTransferRequest): Promise<void> {
       exception instanceof ApiRequestError
         ? Object.fromEntries((exception.problem.fieldErrors ?? []).map((f) => [f.field, f.message]))
         : {};
-    formError.value = v2ErrorMessage(exception, 'Не удалось сохранить перевод. Повторите попытку.', {
-      INSUFFICIENT_BALANCE: 'На счёте недостаточно средств для этого изменения.',
-    });
+    formError.value = v2ErrorMessage(
+      exception,
+      'Не удалось сохранить перевод. Повторите попытку.',
+      {
+        INSUFFICIENT_BALANCE: 'На счёте недостаточно средств для этого изменения.',
+      },
+    );
   }
 }
 
@@ -115,22 +122,33 @@ async function confirm(): Promise<void> {
 </script>
 
 <template>
-  <UiModal
-    :open="transfer !== null && !editing"
-    title="Перевод"
-    size="sm"
-    @close="emit('close')"
-  >
+  <UiModal :open="transfer !== null && !editing" title="Перевод" size="sm" @close="emit('close')">
     <div v-if="transfer" class="transfer-dialog">
       <p class="transfer-dialog__amount">
-        <FinanceMoney :minor-units="transfer.amountMinor" :currency="transfer.currency" :scale="SCALE" />
+        <FinanceMoney
+          :minor-units="transfer.amountMinor"
+          :currency="transfer.currency"
+          :scale="SCALE"
+        />
       </p>
       <p v-if="deleted"><UiStatus label="Удалён" tone="danger" /></p>
       <dl class="transfer-dialog__rows">
-        <div><dt>Дата</dt><dd>{{ formatPlainDate(transfer.occurredOn) }}</dd></div>
-        <div><dt>Со счёта</dt><dd>{{ name(transfer.sourceAccountId) }}</dd></div>
-        <div><dt>На счёт</dt><dd>{{ name(transfer.destinationAccountId) }}</dd></div>
-        <div v-if="transfer.comment"><dt>Комментарий</dt><dd>{{ transfer.comment }}</dd></div>
+        <div>
+          <dt>Дата</dt>
+          <dd>{{ formatPlainDate(transfer.occurredOn) }}</dd>
+        </div>
+        <div>
+          <dt>Со счёта</dt>
+          <dd>{{ name(transfer.sourceAccountId) }}</dd>
+        </div>
+        <div>
+          <dt>На счёт</dt>
+          <dd>{{ name(transfer.destinationAccountId) }}</dd>
+        </div>
+        <div v-if="transfer.comment">
+          <dt>Комментарий</dt>
+          <dd>{{ transfer.comment }}</dd>
+        </div>
       </dl>
     </div>
 

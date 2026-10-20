@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { definePageMeta, navigateTo, useRoute } from '#imports';
 
 import AccountDialog from '../../components/accounts/AccountDialog.vue';
@@ -18,6 +18,7 @@ import UiSkeleton from '../../components/ui/Skeleton.vue';
 import UiStatus from '../../components/ui/Status.vue';
 import { ApiRequestError } from '../../composables/useApiClient.js';
 import { useAuth } from '../../composables/useAuth.js';
+import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import {
   type AccountDto,
@@ -52,6 +53,7 @@ const formHelper = useReferenceDataForm(accountFields);
 const { push } = useToast();
 const funding = useFundingEntry();
 const v2 = useEnvelopePlanV2();
+const { openDialog: globalOperationDialog } = useOperationDialogs();
 const accounts = ref<AccountDto[]>([]);
 const summary = ref<ReferenceSummaryDto | null>(null);
 const detailed = ref<AccountDto | null>(null);
@@ -317,6 +319,12 @@ async function confirmArchive() {
 onMounted(() => {
   hydrated.value = true;
   void loadPage();
+});
+
+// A transfer made through the global "Перевести со счёта" dialog changes account
+// balances; without this the page would keep showing stale balances until reload.
+watch(globalOperationDialog, (value, previous) => {
+  if (value === 'none' && previous !== 'none') void loadAccounts();
 });
 </script>
 

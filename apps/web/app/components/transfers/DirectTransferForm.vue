@@ -111,9 +111,9 @@ function submit(): void {
       :error="errors.comment"
       :maxlength="500"
     />
-    <UiButton type="submit" full-width :loading="pending" :disabled="pending"
-      >{{ submitLabel }}</UiButton
-    >
+    <UiButton type="submit" full-width :loading="pending" :disabled="pending">{{
+      submitLabel
+    }}</UiButton>
   </form>
 </template>
 

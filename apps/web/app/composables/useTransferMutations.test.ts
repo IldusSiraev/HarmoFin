@@ -14,9 +14,18 @@ import { useTransferMutations } from './useTransferMutations.js';
 import type { TransferJournalItem } from './useEnvelopePlanV2.js';
 
 const transfer: TransferJournalItem = {
-  kind: 'TRANSFER', id: 't1', budgetId: 'b1', status: 'CONFIRMED', amountMinor: '10000', currency: 'RUB',
-  occurredOn: '2026-10-20', sourceAccountId: 'a', destinationAccountId: 'b', comment: null,
-  createdAt: '2026-10-20T10:00:00.000Z', deletedAt: null,
+  kind: 'TRANSFER',
+  id: 't1',
+  budgetId: 'b1',
+  status: 'CONFIRMED',
+  amountMinor: '10000',
+  currency: 'RUB',
+  occurredOn: '2026-10-20',
+  sourceAccountId: 'a',
+  destinationAccountId: 'b',
+  comment: null,
+  createdAt: '2026-10-20T10:00:00.000Z',
+  deletedAt: null,
 };
 
 beforeEach(() => {
@@ -53,7 +62,9 @@ describe('useTransferMutations', () => {
     const result = await remove('b1', transfer);
 
     expect(result?.status).toBe('DELETED');
-    expect(push).toHaveBeenCalledWith(expect.objectContaining({ tone: 'success', title: 'Перевод удалён' }));
+    expect(push).toHaveBeenCalledWith(
+      expect.objectContaining({ tone: 'success', title: 'Перевод удалён' }),
+    );
   });
 
   it('explains an insufficient balance on restore', async () => {

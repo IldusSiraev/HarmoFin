@@ -105,7 +105,9 @@ describe('TransferDialog', () => {
       new ApiRequestError(400, {
         code: 'VALIDATION_FAILED',
         detail: 'x',
-        fieldErrors: [{ field: 'amount', message: 'Сумма должна быть больше нуля.', code: 'invalid' }],
+        fieldErrors: [
+          { field: 'amount', message: 'Сумма должна быть больше нуля.', code: 'invalid' },
+        ],
       }),
     );
     const wrapper = mountDialog();

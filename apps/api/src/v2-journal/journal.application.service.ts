@@ -16,7 +16,8 @@ import { mergeNewestFirst, type FeedPosition } from './journal.merge.js';
 import { JournalRepository } from './journal.repository.js';
 import type { ListJournalInput } from './journal.schemas.js';
 
-export type JournalItem = ({ kind: 'TRANSACTION' } & TransactionJournalV2Item) | TransferJournalItem;
+export type JournalItem =
+  ({ kind: 'TRANSACTION' } & TransactionJournalV2Item) | TransferJournalItem;
 export type JournalPage = { items: JournalItem[]; nextCursor: string | null };
 
 const positionOf = (item: JournalItem): FeedPosition => ({

@@ -21,7 +21,11 @@ const transfer: TransferJournalItem = {
 
 function mountRow(overrides: Partial<TransferJournalItem> = {}) {
   return mount(TransferRow, {
-    props: { transfer: { ...transfer, ...overrides }, sourceName: 'Карта', destinationName: 'Вклад' },
+    props: {
+      transfer: { ...transfer, ...overrides },
+      sourceName: 'Карта',
+      destinationName: 'Вклад',
+    },
   });
 }
 

@@ -96,7 +96,7 @@ type JournalPage = { items: JournalItem[]; nextCursor: string | null };
 
 - Тело: необязательные `amount` (десятичная строка), `occurredOn`, `sourceAccountId`, `destinationAccountId`, `comment` (`null` очищает; до 500 символов). Пустое тело — 400.
 - Изменять можно только `CONFIRMED`; иначе 409 `TRANSFER_NOT_EDITABLE`.
-- Проверки итоговых значений, как в `create`: сумма > 0; счета различаются (`TRANSFER_ACCOUNTS_MUST_DIFFER`); оба счёта этого бюджета, не архивные, `RUB`, scale 2 (иначе `INVALID_REFERENCE` или 404 для чужого счёта); дата не позже сегодняшнего дня в часовом поясе бюджета.
+- Проверки итоговых значений, как в `create`: сумма > 0; счета различаются (`TRANSFER_ACCOUNTS_MUST_DIFFER`); оба счёта этого бюджета, не архивные, `RUB`, scale 2 (иначе `REFERENCE_INVALID`, ответ 400, или 404 для чужого счёта); дата не позже сегодняшнего дня в часовом поясе бюджета.
 
 ### 5.2. `DELETE`
 
@@ -104,7 +104,7 @@ type JournalPage = { items: JournalItem[]; nextCursor: string | null };
 
 ### 5.3. `restore`
 
-Только из `DELETED` (иначе 409 `TRANSFER_NOT_DELETED`): `status = CONFIRMED`, `deletedAt = null`. Если один из счетов перевода архивный — 409 `INVALID_REFERENCE`.
+Только из `DELETED` (иначе 409 `TRANSFER_NOT_DELETED`): `status = CONFIRMED`, `deletedAt = null`. Если один из счетов перевода архивный — 409 `REFERENCE_INVALID` (конфликт состояния при восстановлении, в отличие от 400 для невалидных счетов в `PATCH`, см. §5.1).
 
 ### 5.4. Баланс
 

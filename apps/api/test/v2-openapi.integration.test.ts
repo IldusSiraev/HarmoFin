@@ -487,8 +487,8 @@ describe('v2 OpenAPI contract (P06)', () => {
     const journalOp = v2Ops.find(
       (op) => op.method === 'get' && op.path === '/api/v2/budgets/{budgetId}/journal',
     );
-    const pageRef = journalOp?.operation.responses?.['200']?.content?.['application/json']?.schema
-      ?.$ref;
+    const pageRef =
+      journalOp?.operation.responses?.['200']?.content?.['application/json']?.schema?.$ref;
     expect(pageRef).toBe('#/components/schemas/JournalPageResponse');
     const pageSchema = schemas[refName(pageRef!)];
     const itemsSchema = pageSchema?.properties?.['items'];

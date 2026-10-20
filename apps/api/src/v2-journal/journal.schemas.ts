@@ -18,7 +18,11 @@ export const listJournalSchema = z
   .strict()
   .superRefine((input, context) => {
     if (input.from && input.to && input.from > input.to) {
-      context.addIssue({ code: 'custom', path: ['to'], message: 'Дата окончания не может быть раньше даты начала.' });
+      context.addIssue({
+        code: 'custom',
+        path: ['to'],
+        message: 'Дата окончания не может быть раньше даты начала.',
+      });
     }
   });
 

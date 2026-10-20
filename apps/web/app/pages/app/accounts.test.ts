@@ -313,6 +313,23 @@ describe('accounts page', () => {
     dialogs.close();
   });
 
+  it('reloads accounts after the global operation dialog closes', async () => {
+    mocks.api.listAccounts.mockResolvedValue([account]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    const callsBefore = mocks.api.listAccounts.mock.calls.length;
+    const dialogs = useOperationDialogs();
+    dialogs.openTransfer('account-id');
+    await flushPromises();
+    expect(mocks.api.listAccounts.mock.calls.length).toBe(callsBefore);
+
+    dialogs.close();
+    await flushPromises();
+
+    expect(mocks.api.listAccounts.mock.calls.length).toBe(callsBefore + 1);
+  });
+
   it('lists accounts as cards with the server total above them', async () => {
     mocks.api.listAccounts.mockResolvedValue([account]);
     wrapper = mountPage();

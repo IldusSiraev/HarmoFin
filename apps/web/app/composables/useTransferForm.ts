@@ -54,7 +54,8 @@ export function toTransferPatch(
   const amount = normalizeDecimal(model.total);
   if (decimalToMinor(amount) !== original.amountMinor) patch.amount = withCents(amount);
   if (model.occurredOn !== original.occurredOn) patch.occurredOn = model.occurredOn;
-  if (model.sourceAccountId !== original.sourceAccountId) patch.sourceAccountId = model.sourceAccountId;
+  if (model.sourceAccountId !== original.sourceAccountId)
+    patch.sourceAccountId = model.sourceAccountId;
   if (model.destinationAccountId !== original.destinationAccountId) {
     patch.destinationAccountId = model.destinationAccountId;
   }

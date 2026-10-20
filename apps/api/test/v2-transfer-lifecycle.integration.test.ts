@@ -205,12 +205,7 @@ describe('v2 жизненный цикл прямого перевода (изм
     expect(removed.status).toBe('DELETED');
     expect(removed.deletedAt).not.toBeNull();
     expect(await balance(b)).toBe(bBefore - 10_000n);
-    const restored = await service.restore(
-      ctx.owner!.userId,
-      budgetId(),
-      created.id,
-      randomUUID(),
-    );
+    const restored = await service.restore(ctx.owner!.userId, budgetId(), created.id, randomUUID());
     expect(restored).toMatchObject({ status: 'CONFIRMED', deletedAt: null });
     expect(await balance(b)).toBe(bBefore);
     const actions = await prisma.auditEvent.findMany({
@@ -232,9 +227,9 @@ describe('v2 жизненный цикл прямого перевода (изм
     expect(
       await expectError(service.remove(ctx.owner!.userId, budgetId(), created.id, randomUUID())),
     ).toEqual({ status: 409, code: 'INSUFFICIENT_BALANCE' });
-    expect(
-      (await prisma.transfer.findUniqueOrThrow({ where: { id: created.id } })).status,
-    ).toBe('CONFIRMED');
+    expect((await prisma.transfer.findUniqueOrThrow({ where: { id: created.id } })).status).toBe(
+      'CONFIRMED',
+    );
   });
 
   it('строгий бюджет: восстановление и рост суммы проверяют счёт-источник', async () => {
@@ -336,7 +331,13 @@ describe('v2 жизненный цикл прямого перевода (изм
     const created = await service.create(
       ctx.owner!.userId,
       budgetId(),
-      { sourceAccountId: a, destinationAccountId: b, amount: '1.00', occurredOn: today, comment: 'без изменений' },
+      {
+        sourceAccountId: a,
+        destinationAccountId: b,
+        amount: '1.00',
+        occurredOn: today,
+        comment: 'без изменений',
+      },
       randomUUID(),
     );
     const before = await prisma.transfer.findUniqueOrThrow({ where: { id: created.id } });
@@ -418,14 +419,23 @@ describe('v2 жизненный цикл прямого перевода (изм
     expect(
       await expectError(service.remove(ctx.viewer!.userId, budgetId(), created.id, randomUUID())),
     ).toEqual({ status: 403, code: 'FORBIDDEN' });
-    await service.update(ctx.editor!.userId, budgetId(), created.id, { comment: 'e' }, randomUUID());
+    await service.update(
+      ctx.editor!.userId,
+      budgetId(),
+      created.id,
+      { comment: 'e' },
+      randomUUID(),
+    );
     await service.remove(ctx.editor!.userId, budgetId(), created.id, randomUUID());
     expect(
       await expectError(service.restore(ctx.editor!.userId, budgetId(), created.id, randomUUID())),
     ).toEqual({ status: 403, code: 'FORBIDDEN' });
     expect(
-      (await expectError(service.remove(ctx.outsider!.userId, budgetId(), created.id, randomUUID())))
-        .status,
+      (
+        await expectError(
+          service.remove(ctx.outsider!.userId, budgetId(), created.id, randomUUID()),
+        )
+      ).status,
     ).toBe(404);
     expect(
       await expectError(
@@ -437,16 +447,30 @@ describe('v2 жизненный цикл прямого перевода (изм
   it('idempotency: тот же ключ и тело — тот же ответ без второго аудита; другое тело — 409', async () => {
     const created = await newTransfer(a, b, '1.00');
     const key = randomUUID();
-    const first = await service.update(ctx.owner!.userId, budgetId(), created.id, { comment: 'k' }, key);
-    const second = await service.update(ctx.owner!.userId, budgetId(), created.id, { comment: 'k' }, key);
+    const first = await service.update(
+      ctx.owner!.userId,
+      budgetId(),
+      created.id,
+      { comment: 'k' },
+      key,
+    );
+    const second = await service.update(
+      ctx.owner!.userId,
+      budgetId(),
+      created.id,
+      { comment: 'k' },
+      key,
+    );
     expect(second).toEqual(first);
     expect(
       await prisma.auditEvent.count({ where: { entityId: created.id, action: 'UPDATED' } }),
     ).toBe(1);
     expect(
-      (await expectError(
-        service.update(ctx.owner!.userId, budgetId(), created.id, { comment: 'z' }, key),
-      )).status,
+      (
+        await expectError(
+          service.update(ctx.owner!.userId, budgetId(), created.id, { comment: 'z' }, key),
+        )
+      ).status,
     ).toBe(409);
   });
 });
@@ -597,6 +621,16 @@ describe('HTTP-контракт мутаций перевода', () => {
       payload: { comment: 'x' },
     });
     expect(bad.statusCode).toBe(400);
+
+    // A malformed budgetId path param must be a 400 Problem Details response,
+    // not a PrismaClientValidationError surfaced as a 500.
+    const badBudget = await server.inject({
+      method: 'PATCH',
+      url: `/api/v2/budgets/not-a-uuid/transfers/${created.id}`,
+      headers: mutationHeaders(owner(), randomUUID()),
+      payload: { comment: 'x' },
+    });
+    expect(badBudget.statusCode).toBe(400);
   });
 
   it('DELETE → 200 DELETED; POST restore → 200 CONFIRMED', async () => {

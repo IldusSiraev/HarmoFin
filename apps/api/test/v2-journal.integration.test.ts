@@ -183,7 +183,10 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
     do {
       const response = await page(user, { ...query, limit: '2', ...(cursor ? { cursor } : {}) });
       expect(response.statusCode).toBe(200);
-      const body = response.json<{ items: Array<{ id: string; kind: string }>; nextCursor: string | null }>();
+      const body = response.json<{
+        items: Array<{ id: string; kind: string }>;
+        nextCursor: string | null;
+      }>();
       ids.push(...body.items.map((item) => item.id));
       cursor = body.nextCursor;
     } while (cursor);
@@ -254,7 +257,11 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
       createdAt: '2026-10-10T10:00:00.000Z',
       deletedAt: null,
     });
-    expect(body.items[1]).toMatchObject({ kind: 'TRANSACTION', transactionType: 'EXPENSE', planOccurrenceIds: [] });
+    expect(body.items[1]).toMatchObject({
+      kind: 'TRANSACTION',
+      transactionType: 'EXPENSE',
+      planOccurrenceIds: [],
+    });
   });
 
   it('type: TRANSFER — только переводы; INCOME/EXPENSE — без переводов', async () => {
@@ -268,8 +275,14 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
   it('accountId находит перевод по источнику и по назначению', async () => {
     await reset();
     const c = await createRawAccount(owner().budgetId, 'RUB', 0n);
-    const out = await transfer('2026-10-10', '2026-10-10T10:00:00.000Z', { source: c, destination: b });
-    const inn = await transfer('2026-10-09', '2026-10-09T10:00:00.000Z', { source: a, destination: c });
+    const out = await transfer('2026-10-10', '2026-10-10T10:00:00.000Z', {
+      source: c,
+      destination: b,
+    });
+    const inn = await transfer('2026-10-09', '2026-10-09T10:00:00.000Z', {
+      source: a,
+      destination: c,
+    });
     await transfer('2026-10-08', '2026-10-08T10:00:00.000Z');
     expect(await all(owner(), { accountId: c })).toEqual([out.id, inn.id]);
   });
@@ -286,7 +299,9 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
     await reset();
     const live = await transfer('2026-10-10', '2026-10-10T10:00:00.000Z');
     const gone = await transfer('2026-10-09', '2026-10-09T10:00:00.000Z', { status: 'DELETED' });
-    const draft = await tx('EXPENSE', '2026-10-08', '2026-10-08T10:00:00.000Z', { status: 'DRAFT' });
+    const draft = await tx('EXPENSE', '2026-10-08', '2026-10-08T10:00:00.000Z', {
+      status: 'DRAFT',
+    });
     expect(await all(owner(), {})).toEqual([live.id, draft.id]);
     expect(await all(owner(), { status: 'DRAFT' })).toEqual([draft.id]);
     expect(await all(owner(), { status: 'DELETED' })).toEqual([gone.id]);
@@ -374,7 +389,10 @@ async function createRawAccount(
   return account.id;
 }
 
-async function createCategory(budgetId: string, categoryType: 'INCOME' | 'EXPENSE'): Promise<string> {
+async function createCategory(
+  budgetId: string,
+  categoryType: 'INCOME' | 'EXPENSE',
+): Promise<string> {
   const category = await prisma.category.create({
     data: {
       id: randomUUID(),

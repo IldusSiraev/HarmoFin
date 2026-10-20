@@ -17,17 +17,41 @@ export type FeedFilter = {
 
 // Same fields the transaction journal maps (transactionSelect in transaction.repository.ts).
 const transactionFeedSelect = {
-  id: true, budgetId: true, transactionType: true, status: true, amountMinor: true, currency: true,
-  scale: true, occurredOn: true, accountId: true, categoryId: true, envelopeId: true,
-  sourceDescription: true, merchantName: true, isPlanned: true, comment: true, confirmedAt: true,
-  cancelledAt: true, deletedAt: true, preDeleteStatus: true, createdAt: true, accountingModelVersion: true,
+  id: true,
+  budgetId: true,
+  transactionType: true,
+  status: true,
+  amountMinor: true,
+  currency: true,
+  scale: true,
+  occurredOn: true,
+  accountId: true,
+  categoryId: true,
+  envelopeId: true,
+  sourceDescription: true,
+  merchantName: true,
+  isPlanned: true,
+  comment: true,
+  confirmedAt: true,
+  cancelledAt: true,
+  deletedAt: true,
+  preDeleteStatus: true,
+  createdAt: true,
+  accountingModelVersion: true,
 } as const;
 
-export type TransactionFeedRow = Prisma.TransactionGetPayload<{ select: typeof transactionFeedSelect }>;
+export type TransactionFeedRow = Prisma.TransactionGetPayload<{
+  select: typeof transactionFeedSelect;
+}>;
 
 function dateRange(filter: FeedFilter) {
   return filter.from || filter.to
-    ? { occurredOn: { ...(filter.from ? { gte: filter.from } : {}), ...(filter.to ? { lte: filter.to } : {}) } }
+    ? {
+        occurredOn: {
+          ...(filter.from ? { gte: filter.from } : {}),
+          ...(filter.to ? { lte: filter.to } : {}),
+        },
+      }
     : {};
 }
 
@@ -58,7 +82,9 @@ export class JournalRepository {
   includesTransfers(filter: FeedFilter): boolean {
     if (filter.type === 'INCOME' || filter.type === 'EXPENSE') return false;
     if (filter.categoryId || filter.envelopeId) return false;
-    return filter.status === undefined || filter.status === 'CONFIRMED' || filter.status === 'DELETED';
+    return (
+      filter.status === undefined || filter.status === 'CONFIRMED' || filter.status === 'DELETED'
+    );
   }
 
   async transactions(budgetId: string, filter: FeedFilter): Promise<TransactionFeedRow[]> {
@@ -93,7 +119,12 @@ export class JournalRepository {
             ? { status: filter.status as 'CONFIRMED' | 'DELETED' }
             : { status: { in: ['CONFIRMED'] } },
           filter.accountId
-            ? { OR: [{ sourceAccountId: filter.accountId }, { destinationAccountId: filter.accountId }] }
+            ? {
+                OR: [
+                  { sourceAccountId: filter.accountId },
+                  { destinationAccountId: filter.accountId },
+                ],
+              }
             : {},
           dateRange(filter),
           after(filter.cursor),

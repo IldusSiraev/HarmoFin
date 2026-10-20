@@ -423,11 +423,7 @@ async function downloadCsv() {
           {{ error }} <UiButton variant="tertiary" @click="load()">Повторить</UiButton>
         </p>
 
-        <div
-          v-if="loading && items.length === 0"
-          data-testid="operations-loading"
-          aria-busy="true"
-        >
+        <div v-if="loading && items.length === 0" data-testid="operations-loading" aria-busy="true">
           <UiSkeleton variant="row" :count="6" />
         </div>
 

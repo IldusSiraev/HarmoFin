@@ -13,15 +13,15 @@ describe('journal cursor', () => {
     expect(decodeFeedCursor(encodeFeedCursor(position))).toEqual(position);
   });
 
-  it.each(['garbage', Buffer.from('{"v":2}').toString('base64url'),
+  it.each([
+    'garbage',
+    Buffer.from('{"v":2}').toString('base64url'),
     encodeFeedCursor({ ...position, id: 'not-uuid' }),
     encodeFeedCursor({ ...position, occurredOn: '20-10-2026' }),
-    encodeFeedCursor({ ...position, createdAt: '2026' })])(
-    'некорректный курсор %s — 400 VALIDATION_FAILED',
-    (value) => {
-      expect(() => decodeFeedCursor(value)).toThrowError(
-        expect.objectContaining({ response: expect.objectContaining({ code: 'VALIDATION_FAILED' }) }),
-      );
-    },
-  );
+    encodeFeedCursor({ ...position, createdAt: '2026' }),
+  ])('некорректный курсор %s — 400 VALIDATION_FAILED', (value) => {
+    expect(() => decodeFeedCursor(value)).toThrowError(
+      expect.objectContaining({ response: expect.objectContaining({ code: 'VALIDATION_FAILED' }) }),
+    );
+  });
 });
