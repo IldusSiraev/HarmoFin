@@ -15,8 +15,8 @@ import {
   type PlanProgress,
   balanceSign,
   decimalToMinor,
+  envelopeCaption,
   planBadge,
-  planScopeNote,
 } from './envelope-plan-kind.js';
 
 defineOptions({ name: 'EnvelopePlanRow' });
@@ -33,25 +33,17 @@ const props = defineProps<{
 
 defineEmits<{ select: [] }>();
 
-const SLOT_CAPTIONS: Record<string, string> = {
-  FIRST: 'Лимит на первую половину периода',
-  SECOND: 'Лимит на вторую половину периода',
-};
-
 // The goal arrives as decimal rubles; convert to minor text for display.
 const targetMinor = computed(() =>
   props.envelope.targetAmountMinor === null
     ? null
     : decimalToMinor(props.envelope.targetAmountMinor),
 );
-const slotCaption = computed(() =>
-  props.envelope.periodSlot ? (SLOT_CAPTIONS[props.envelope.periodSlot] ?? null) : null,
-);
+const caption = computed(() => envelopeCaption(props.envelope));
 const factsText = computed(
   () =>
     `Отложено ${money(props.envelope.fundedMinor)} · потрачено ${money(props.envelope.spentMinor)}`,
 );
-const scopeNote = computed(() => planScopeNote(props.envelope.envelopeType));
 const overspent = computed(() => balanceSign(props.envelope.balanceMinor) === 'negative');
 
 // Landing/demo pass no badge: fall back to the overspent badge so the status
@@ -100,17 +92,16 @@ const rowLabel = computed(() => {
       <span class="plan-row__grid" :class="{ 'plan-row__grid--side': hasSide }">
         <span class="plan-row__identity">
           <span class="plan-row__title">{{ envelope.name }}</span>
-          <span v-if="slotCaption" class="plan-row__muted" data-testid="plan-row-scope">
-            {{ slotCaption }}
-          </span>
           <span
-            v-else-if="targetMinor !== null"
+            v-if="caption.targetMinor !== null"
             class="plan-row__muted"
             data-testid="plan-row-scope"
           >
-            Цель <span data-testid="plan-row-target">{{ money(targetMinor) }}</span>
+            Цель <span data-testid="plan-row-target">{{ money(caption.targetMinor) }}</span>
           </span>
-          <span v-else class="plan-row__muted" data-testid="plan-row-scope">{{ scopeNote }}</span>
+          <span v-else class="plan-row__muted" data-testid="plan-row-scope">{{
+            caption.text
+          }}</span>
           <UiStatus v-if="envelope.archivedAt" label="В архиве" tone="neutral" />
         </span>
 

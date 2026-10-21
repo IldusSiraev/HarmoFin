@@ -33,6 +33,11 @@ export function planIcon(envelope: Pick<EnvelopePlanDto, 'envelopeType'>): typeo
   );
 }
 
+export const SLOT_CAPTIONS: Record<string, string> = {
+  FIRST: 'Лимит на первую половину периода',
+  SECOND: 'Лимит на вторую половину периода',
+};
+
 export type EnvelopeTone = 'current' | 'mandatory' | 'savings' | 'reserve' | 'custom';
 
 const TONES: Record<string, EnvelopeTone> = {
@@ -59,6 +64,22 @@ export function planScopeNote(envelopeType: string): string {
     return 'Остаток прошлого периода переносится только по вашему решению';
   }
   return 'Деньги на любую цель без привязки к периоду';
+}
+
+// Card and dialog subtitle: half of period for a period envelope, the goal
+// amount for an envelope with one, otherwise the scope note. Shared so the
+// card row and the details dialog never drift apart in wording.
+export function envelopeCaption(
+  envelope: Pick<EnvelopePlanDto, 'periodSlot' | 'targetAmountMinor' | 'envelopeType'>,
+): { text: string; targetMinor: string | null } {
+  const slot = envelope.periodSlot ? (SLOT_CAPTIONS[envelope.periodSlot] ?? null) : null;
+  if (slot) return { text: slot, targetMinor: null };
+  const targetMinor =
+    envelope.targetAmountMinor === null ? null : decimalToMinor(envelope.targetAmountMinor);
+  if (targetMinor !== null) {
+    return { text: `Цель ${formatMinorUnits(targetMinor, 'RUB', 2)}`, targetMinor };
+  }
+  return { text: planScopeNote(envelope.envelopeType), targetMinor: null };
 }
 
 export type BalanceSign = 'negative' | 'zero' | 'positive';
@@ -198,6 +219,26 @@ export function planBadge(
     return { tone: 'warning', text: `Нужно пополнить на ${formatMoneyText(mandatoryGapMinor)}` };
   }
   return null;
+}
+
+export type EnvelopeHistoryKind = 'ASSIGNMENT' | 'MOVEMENT' | 'SPENDING';
+
+// The server returns amountMinor as an unsigned magnitude for every history
+// kind; the sign shown to the user comes from the kind, not from arithmetic.
+// Assignment adds money to the envelope ("+"); spending leaves it ("−"). A
+// movement's direction relative to this envelope (source or destination) is
+// not in the record, so it stays unsigned and neutral in colour.
+export function historySign(kind: EnvelopeHistoryKind): '+' | '−' | null {
+  if (kind === 'ASSIGNMENT') return '+';
+  if (kind === 'SPENDING') return '−';
+  return null;
+}
+
+// Display text for a history row amount: a sign character prefixed to the
+// server's own formatted text, or no sign for a movement. No arithmetic.
+export function historyAmountText(kind: EnvelopeHistoryKind, amountMinor: string): string {
+  const sign = historySign(kind);
+  return `${sign ?? ''}${formatMoneyText(amountMinor)}`;
 }
 
 const RU_PLURAL = new Intl.PluralRules('ru');

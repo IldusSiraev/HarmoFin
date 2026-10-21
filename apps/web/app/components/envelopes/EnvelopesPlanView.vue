@@ -711,6 +711,7 @@ onMounted(() => {
     :budget-id="budgetId"
     :envelope="detailed"
     :rule-summary="detailedRule"
+    :badge="detailed ? planBadge(detailed, dashboard?.mandatoryGapMinor ?? null) : null"
     @close="
       detailed = null;
       restoreFocus();

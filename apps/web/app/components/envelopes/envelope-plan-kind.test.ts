@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   decimalToMinor,
+  envelopeCaption,
   envelopeTone,
   formatDayMonth,
+  historyAmountText,
+  historySign,
   periodRangeText,
   planBadge,
   pluralRu,
@@ -180,6 +183,41 @@ describe('planBadge', () => {
         '0',
       ),
     ).toBeNull();
+  });
+});
+
+describe('envelopeCaption', () => {
+  const base = { envelopeType: 'CUSTOM', periodSlot: null, targetAmountMinor: null };
+
+  it('подпись периодного конверта — половина периода', () => {
+    expect(
+      envelopeCaption({ ...base, envelopeType: 'CURRENT_EXPENSES', periodSlot: 'SECOND' }),
+    ).toEqual({ text: 'Лимит на вторую половину периода', targetMinor: null });
+  });
+
+  it('подпись конверта с целью — цель в минорных единицах', () => {
+    expect(
+      envelopeCaption({ ...base, envelopeType: 'SAVINGS_GOAL', targetAmountMinor: '5000' }),
+    ).toEqual({ text: expect.stringMatching(/^Цель 5\s000,00/), targetMinor: '500000' });
+  });
+
+  it('иначе — заметка об области действия', () => {
+    expect(envelopeCaption({ ...base, envelopeType: 'RESERVE' }).text).toContain('не сбрасывается');
+    expect(envelopeCaption({ ...base, envelopeType: 'RESERVE' }).targetMinor).toBeNull();
+  });
+});
+
+describe('historySign / historyAmountText', () => {
+  it('распределение — «+», расход — «−», перенос — без знака (направление не известно)', () => {
+    expect(historySign('ASSIGNMENT')).toBe('+');
+    expect(historySign('SPENDING')).toBe('−');
+    expect(historySign('MOVEMENT')).toBeNull();
+  });
+
+  it('знак формируется без арифметики, из вида записи', () => {
+    expect(historyAmountText('ASSIGNMENT', '1200000')).toMatch(/^\+12\s000,00/);
+    expect(historyAmountText('SPENDING', '465000')).toMatch(/^−4\s650,00/);
+    expect(historyAmountText('MOVEMENT', '700000')).toMatch(/^7\s000,00/);
   });
 });
 
