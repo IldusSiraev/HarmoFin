@@ -28,6 +28,7 @@ const typeTabs: Option[] = [
   { value: '', label: 'Все' },
   { value: 'INCOME', label: 'Доходы' },
   { value: 'EXPENSE', label: 'Расходы' },
+  { value: 'TRANSFER', label: 'Переводы' },
 ];
 
 // No status chosen means the default view (drafts and confirmed), so the

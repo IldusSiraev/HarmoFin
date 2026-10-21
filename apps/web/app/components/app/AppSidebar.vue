@@ -2,7 +2,6 @@
 import { onMounted, ref } from 'vue';
 import { navigateTo, useRoute } from '#imports';
 import {
-  ArrowLeftRight,
   BarChart3,
   Bell,
   CalendarClock,
@@ -97,13 +96,6 @@ async function handleLogout() {
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app/operations')"
           ><Receipt :size="18" aria-hidden="true" />Операции</NuxtLink
-        >
-        <NuxtLink
-          to="/app/transfers"
-          class="app-sidebar__link"
-          active-class="app-sidebar__link--active"
-          :aria-current="currentPage('/app/transfers')"
-          ><ArrowLeftRight :size="18" aria-hidden="true" />Переводы</NuxtLink
         >
         <NuxtLink
           to="/app/plans"

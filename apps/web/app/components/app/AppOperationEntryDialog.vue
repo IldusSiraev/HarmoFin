@@ -51,12 +51,14 @@ const props = withDefaults(
     currentPeriodEnvelopeIds?: ReadonlyArray<string>;
     pending?: boolean;
     error?: string;
+    initialSourceAccountId?: string;
   }>(),
   {
     mandatoryEnvelopeIds: () => [],
     currentPeriodEnvelopeIds: () => [],
     pending: false,
     error: '',
+    initialSourceAccountId: '',
   },
 );
 
@@ -148,7 +150,7 @@ watch(
       transactionType: props.initialType === 'INCOME' ? 'INCOME' : 'EXPENSE',
       envelopeId: defaultEnvelopeId.value,
     });
-    Object.assign(transfer, createTransferForm());
+    Object.assign(transfer, createTransferForm(props.initialSourceAccountId));
     void loadPopularCategories(props.initialType);
     if (props.initialType !== 'TRANSFER') void focusAmount();
   },

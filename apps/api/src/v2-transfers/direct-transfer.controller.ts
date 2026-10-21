@@ -2,9 +2,12 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
+  HttpCode,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -27,17 +30,22 @@ import { ProblemDetailsResponse } from '../common/errors/problem-details.dto.js'
 import type { RequestContext } from '../common/request-context/request-context.js';
 import { CsrfGuard } from '../common/security/csrf.guard.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
+import { budgetIdParamSchema } from '../v2-transactions/transaction-v2.schemas.js';
 import {
   directTransferSchema,
   directTransferListSchema,
   transferIdParamSchema,
+  updateDirectTransferSchema,
   type CreateDirectTransferInput,
   type DirectTransferListQuery,
+  type UpdateDirectTransferInput,
 } from './direct-transfer.schemas.js';
 import {
   CreateDirectTransferInput as CreateDirectTransferInputDto,
   DirectTransferListResponse,
   DirectTransferResponse,
+  TransferJournalItemResponse,
+  UpdateDirectTransferInput as UpdateDirectTransferInputDto,
 } from './direct-transfer.dto.js';
 import {
   DirectTransferApplicationService,
@@ -89,7 +97,7 @@ export class DirectTransferController {
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   async list(
-    @Param('budgetId') budgetId: string,
+    @Param('budgetId', new ZodValidationPipe(budgetIdParamSchema)) budgetId: string,
     @Query(new ZodValidationPipe(directTransferListSchema)) query: DirectTransferListQuery,
     @Req() request: AuthenticatedRequest,
   ) {
@@ -104,7 +112,7 @@ export class DirectTransferController {
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   async get(
-    @Param('budgetId') budgetId: string,
+    @Param('budgetId', new ZodValidationPipe(budgetIdParamSchema)) budgetId: string,
     @Param('transferId', new ZodValidationPipe(transferIdParamSchema)) transferId: string,
     @Req() request: AuthenticatedRequest,
   ) {
@@ -123,7 +131,7 @@ export class DirectTransferController {
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
   async create(
-    @Param('budgetId') budgetId: string,
+    @Param('budgetId', new ZodValidationPipe(budgetIdParamSchema)) budgetId: string,
     @Body(new ZodValidationPipe(directTransferSchema)) input: CreateDirectTransferInput,
     @Headers('idempotency-key') key: string | undefined,
     @Req() request: AuthenticatedRequest,
@@ -142,6 +150,98 @@ export class DirectTransferController {
       contextOf(request).userId,
       budgetId,
       serviceInput,
+      validKey(key),
+      request.id,
+    );
+  }
+
+  @Patch(':transferId')
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiBody({ type: UpdateDirectTransferInputDto })
+  @ApiOkResponse({ type: TransferJournalItemResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 409,
+    type: ProblemDetailsResponse,
+    description: 'TRANSFER_NOT_EDITABLE, INSUFFICIENT_BALANCE или конфликт ключа идемпотентности.',
+  })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  update(
+    @Param('budgetId', new ZodValidationPipe(budgetIdParamSchema)) budgetId: string,
+    @Param('transferId', new ZodValidationPipe(transferIdParamSchema)) transferId: string,
+    @Body(new ZodValidationPipe(updateDirectTransferSchema)) input: UpdateDirectTransferInput,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.update(
+      contextOf(request).userId,
+      budgetId,
+      transferId,
+      input,
+      validKey(key),
+      request.id,
+    );
+  }
+
+  @Delete(':transferId')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiOkResponse({ type: TransferJournalItemResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 409,
+    type: ProblemDetailsResponse,
+    description:
+      'TRANSFER_ALREADY_DELETED, INSUFFICIENT_BALANCE или конфликт ключа идемпотентности.',
+  })
+  remove(
+    @Param('budgetId', new ZodValidationPipe(budgetIdParamSchema)) budgetId: string,
+    @Param('transferId', new ZodValidationPipe(transferIdParamSchema)) transferId: string,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.remove(
+      contextOf(request).userId,
+      budgetId,
+      transferId,
+      validKey(key),
+      request.id,
+    );
+  }
+
+  @Post(':transferId/restore')
+  @HttpCode(200)
+  @UseGuards(CsrfGuard)
+  @ApiHeader(idempotencyHeader)
+  @ApiOkResponse({ type: TransferJournalItemResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 409,
+    type: ProblemDetailsResponse,
+    description:
+      'TRANSFER_NOT_DELETED, REFERENCE_INVALID, INSUFFICIENT_BALANCE или конфликт ключа идемпотентности.',
+  })
+  restore(
+    @Param('budgetId', new ZodValidationPipe(budgetIdParamSchema)) budgetId: string,
+    @Param('transferId', new ZodValidationPipe(transferIdParamSchema)) transferId: string,
+    @Headers('idempotency-key') key: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.restore(
+      contextOf(request).userId,
+      budgetId,
+      transferId,
       validKey(key),
       request.id,
     );

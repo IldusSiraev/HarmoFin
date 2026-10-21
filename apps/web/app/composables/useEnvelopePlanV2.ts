@@ -403,6 +403,44 @@ export interface TransactionJournalV2Query {
   envelopeId?: string;
 }
 
+// Shared journal feed: v2 transactions and direct transfers in one order.
+export interface TransferJournalItem {
+  kind: 'TRANSFER';
+  id: string;
+  budgetId: string;
+  status: 'CONFIRMED' | 'DELETED';
+  amountMinor: string;
+  currency: string;
+  occurredOn: string;
+  sourceAccountId: string;
+  destinationAccountId: string;
+  comment: string | null;
+  createdAt: string;
+  deletedAt: string | null;
+}
+
+export type TransactionFeedItem = { kind: 'TRANSACTION' } & TransactionJournalV2Item;
+export type JournalItem = TransactionFeedItem | TransferJournalItem;
+
+export interface JournalResponse {
+  items: JournalItem[];
+  nextCursor: string | null;
+}
+
+export type JournalQuery = Omit<TransactionJournalV2Query, 'type'> & {
+  type?: 'INCOME' | 'EXPENSE' | 'TRANSFER';
+};
+
+// Only the fields that change; status moves through delete/restore.
+export interface UpdateDirectTransferRequest {
+  sourceAccountId?: string;
+  destinationAccountId?: string;
+  /** Decimal rubles, e.g. "1250.00". */
+  amount?: string;
+  occurredOn?: string;
+  comment?: string | null;
+}
+
 // Only the fields that change. Status moves through delete/restore, never here.
 export interface UpdateTransactionV2Request {
   /** Decimal rubles, e.g. "1250.00". */
@@ -455,11 +493,6 @@ export interface DirectTransferResponse {
   occurredOn: string;
   sourceAccountId: string | null;
   destinationAccountId: string | null;
-}
-
-export interface DirectTransferListResponse {
-  items: DirectTransferResponse[];
-  nextCursor: string | null;
 }
 
 // Obligations
@@ -1131,6 +1164,13 @@ export function useEnvelopePlanV2() {
           limit: filter.limit === undefined ? undefined : String(filter.limit),
         })}`,
       ),
+    listJournal: (budgetId: string, filter: JournalQuery = {}) =>
+      get<JournalResponse>(
+        `${base(budgetId)}/journal${query({
+          ...filter,
+          limit: filter.limit === undefined ? undefined : String(filter.limit),
+        })}`,
+      ),
     getPlansCalendar: (budgetId: string, month: string) =>
       get<PlansCalendarResponse>(`${base(budgetId)}/plans/calendar${query({ month })}`),
     getTransaction: (budgetId: string, transactionId: string) =>
@@ -1164,9 +1204,28 @@ export function useEnvelopePlanV2() {
       input: CreateDirectTransferRequest,
       idempotencyKey: string,
     ) => postKeyed<DirectTransferResponse>(`${base(budgetId)}/transfers`, input, idempotencyKey),
-    // The v2 list is strict: only cursor and limit, no status filter.
-    listDirectTransfers: (budgetId: string, filter: { cursor?: string; limit?: string } = {}) =>
-      get<DirectTransferListResponse>(`${base(budgetId)}/transfers${query({ ...filter })}`),
+    updateTransfer: (
+      budgetId: string,
+      transferId: string,
+      input: UpdateDirectTransferRequest,
+      idempotencyKey: string,
+    ) =>
+      patchKeyed<TransferJournalItem>(
+        `${base(budgetId)}/transfers/${encodeURIComponent(transferId)}`,
+        input,
+        idempotencyKey,
+      ),
+    deleteTransfer: (budgetId: string, transferId: string, idempotencyKey: string) =>
+      api.request<TransferJournalItem>(
+        `${base(budgetId)}/transfers/${encodeURIComponent(transferId)}`,
+        { method: 'DELETE', headers: { 'Idempotency-Key': idempotencyKey } },
+      ),
+    restoreTransfer: (budgetId: string, transferId: string, idempotencyKey: string) =>
+      postKeyed<TransferJournalItem>(
+        `${base(budgetId)}/transfers/${encodeURIComponent(transferId)}/restore`,
+        {},
+        idempotencyKey,
+      ),
     listObligationPlans: (budgetId: string, status?: PlanListStatus) =>
       get<{ items: ObligationPlanResponse[] }>(
         `${base(budgetId)}/obligations/plans${query({ status })}`,

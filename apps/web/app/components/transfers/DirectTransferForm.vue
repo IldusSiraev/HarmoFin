@@ -9,6 +9,7 @@ import type { CreateDirectTransferRequest } from '../../composables/useEnvelopeP
 import FinanceMoneyInput from '../finance/FinanceMoneyInput.vue';
 import UiButton from '../ui/Button.vue';
 import UiDatePicker from '../ui/DatePicker.vue';
+import UiInput from '../ui/Input.vue';
 import UiSelect from '../ui/Select.vue';
 
 // Envelope Plan v2.2 transfer: account to account only. No envelopes, parts or
@@ -21,8 +22,9 @@ const props = withDefaults(
     accounts: ReadonlyArray<{ value: string; label: string }>;
     errors?: Partial<Record<string, string>>;
     pending?: boolean;
+    submitLabel?: string;
   }>(),
-  { errors: () => ({}), pending: false },
+  { errors: () => ({}), pending: false, submitLabel: 'Сохранить перевод' },
 );
 
 const emit = defineEmits<{ submit: [input: CreateDirectTransferRequest] }>();
@@ -102,9 +104,16 @@ function submit(): void {
       :error="fieldError('destinationAccountId')"
       required
     />
-    <UiButton type="submit" full-width :loading="pending" :disabled="pending"
-      >Сохранить перевод</UiButton
-    >
+    <UiInput
+      v-model="form.comment"
+      name="comment"
+      label="Комментарий"
+      :error="errors.comment"
+      :maxlength="500"
+    />
+    <UiButton type="submit" full-width :loading="pending" :disabled="pending">{{
+      submitLabel
+    }}</UiButton>
   </form>
 </template>
 

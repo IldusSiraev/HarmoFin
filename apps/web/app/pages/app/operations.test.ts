@@ -8,7 +8,7 @@ const v1 = {
   listTransactionAudit: vi.fn(),
 };
 const v2 = {
-  listTransactions: vi.fn(),
+  listJournal: vi.fn(),
   getTransaction: vi.fn(),
   updateTransaction: vi.fn(),
   deleteTransaction: vi.fn(),
@@ -33,7 +33,10 @@ const auth = {
   loadMe: vi.fn(),
 };
 const reference = {
-  accounts: ref([{ value: 'account-id', label: 'Основная карта' }]),
+  accounts: ref([
+    { value: 'account-id', label: 'Основная карта' },
+    { value: 'account-id-2', label: 'Накопительный счёт' },
+  ]),
   categories: ref([
     {
       id: 'category-id',
@@ -105,6 +108,23 @@ const lifecycle = (status: string) => ({
   occurrences: [],
 });
 
+const accountA = 'Основная карта';
+const accountB = 'Накопительный счёт';
+const transferFixture = {
+  kind: 'TRANSFER' as const,
+  id: '00000000-0000-4000-8000-000000000003',
+  budgetId: 'budget-id',
+  status: 'CONFIRMED',
+  amountMinor: '500000',
+  currency: 'RUB',
+  occurredOn: '2026-09-05',
+  sourceAccountId: 'account-id',
+  destinationAccountId: 'account-id-2',
+  comment: null,
+  createdAt: '2026-09-05T00:00:00.000Z',
+  deletedAt: null,
+};
+
 describe('operations page (v2 journal)', () => {
   let wrapper: ReturnType<typeof mount> | null = null;
 
@@ -116,13 +136,18 @@ describe('operations page (v2 journal)', () => {
     return wrapper;
   };
   const withItems = (...items: Array<Record<string, unknown>>) =>
-    v2.listTransactions.mockResolvedValue({ items, nextCursor: null });
+    v2.listJournal.mockResolvedValue({
+      items: items.map((item) => ({ kind: 'TRANSACTION', ...item })),
+      nextCursor: null,
+    });
   const openRowAction = async (testId: string) => {
     await wrapper!.get('[data-testid="action-menu-trigger"]').trigger('click');
     await wrapper!.get(`[data-testid="${testId}"]`).trigger('click');
   };
   const confirmDialog = async () => {
-    await wrapper!.get('[data-confirm]').trigger('click');
+    // The transfer dialog mounts its own always-present confirm button, so the
+    // operation confirm dialog is the one that's actually open.
+    await wrapper!.get('dialog[open] [data-confirm]').trigger('click');
     await flushPromises();
   };
   const submitEditForm = async (comment: string) => {
@@ -150,7 +175,7 @@ describe('operations page (v2 journal)', () => {
     vi.clearAllMocks();
     useOperationDialogs().close();
     for (const key of Object.keys(routeQuery)) delete routeQuery[key];
-    v2.listTransactions.mockResolvedValue({ items: [], nextCursor: null });
+    v2.listJournal.mockResolvedValue({ items: [], nextCursor: null });
     v2.getTransaction.mockResolvedValue(expense);
     v1.listTransactionAudit.mockResolvedValue([]);
     reference.load.mockResolvedValue(undefined);
@@ -166,7 +191,7 @@ describe('operations page (v2 journal)', () => {
     mountPage();
     await flushPromises();
 
-    expect(v2.listTransactions).toHaveBeenCalledWith('budget-id', {});
+    expect(v2.listJournal).toHaveBeenCalledWith('budget-id', {});
     await wrapper!.get('[data-action="create-operation"]').trigger('click');
     expect(useOperationDialogs().openDialog.value).toBe('choose');
   });
@@ -176,7 +201,7 @@ describe('operations page (v2 journal)', () => {
     routeQuery.from = '2026-09-01';
     mountPage();
     await flushPromises();
-    expect(v2.listTransactions).toHaveBeenLastCalledWith('budget-id', {
+    expect(v2.listJournal).toHaveBeenLastCalledWith('budget-id', {
       status: 'DRAFT',
       from: '2026-09-01',
     });
@@ -184,7 +209,7 @@ describe('operations page (v2 journal)', () => {
     await wrapper!.get('[data-testid="type-tab-EXPENSE"]').trigger('click');
     await flushPromises();
 
-    expect(v2.listTransactions).toHaveBeenLastCalledWith('budget-id', {
+    expect(v2.listJournal).toHaveBeenLastCalledWith('budget-id', {
       type: 'EXPENSE',
       status: 'DRAFT',
       from: '2026-09-01',
@@ -194,7 +219,7 @@ describe('operations page (v2 journal)', () => {
   it('reloads the journal after the shared quick-add dialog closes', async () => {
     mountPage();
     await flushPromises();
-    expect(v2.listTransactions).toHaveBeenCalledTimes(1);
+    expect(v2.listJournal).toHaveBeenCalledTimes(1);
 
     const dialogs = useOperationDialogs();
     dialogs.openOperation('EXPENSE');
@@ -202,13 +227,23 @@ describe('operations page (v2 journal)', () => {
     dialogs.close();
     await flushPromises();
 
-    expect(v2.listTransactions).toHaveBeenCalledTimes(2);
+    expect(v2.listJournal).toHaveBeenCalledTimes(2);
   });
 
   it('lists operations as rows grouped by day and pages with the cursor', async () => {
-    v2.listTransactions.mockResolvedValueOnce({ items: [expense], nextCursor: 'cursor-1' });
-    v2.listTransactions.mockResolvedValueOnce({
-      items: [{ ...expense, id: '00000000-0000-4000-8000-000000000002', occurredOn: '2026-09-04' }],
+    v2.listJournal.mockResolvedValueOnce({
+      items: [{ kind: 'TRANSACTION', ...expense }],
+      nextCursor: 'cursor-1',
+    });
+    v2.listJournal.mockResolvedValueOnce({
+      items: [
+        {
+          kind: 'TRANSACTION',
+          ...expense,
+          id: '00000000-0000-4000-8000-000000000002',
+          occurredOn: '2026-09-04',
+        },
+      ],
       nextCursor: null,
     });
     mountPage();
@@ -220,7 +255,7 @@ describe('operations page (v2 journal)', () => {
     await more!.trigger('click');
     await flushPromises();
 
-    expect(v2.listTransactions).toHaveBeenLastCalledWith('budget-id', { cursor: 'cursor-1' });
+    expect(v2.listJournal).toHaveBeenLastCalledWith('budget-id', { cursor: 'cursor-1' });
     expect(wrapper!.findAll('[data-testid="list-row-select"]')).toHaveLength(2);
     expect(wrapper!.findAll('button').some((button) => button.text() === 'Показать ещё')).toBe(
       false,
@@ -249,7 +284,7 @@ describe('operations page (v2 journal)', () => {
   });
 
   it('announces a load failure in Russian and retries', async () => {
-    v2.listTransactions.mockRejectedValueOnce(new Error('network'));
+    v2.listJournal.mockRejectedValueOnce(new Error('network'));
     mountPage();
     await flushPromises();
 
@@ -259,7 +294,7 @@ describe('operations page (v2 journal)', () => {
     await retry!.trigger('click');
     await flushPromises();
 
-    expect(v2.listTransactions).toHaveBeenCalledTimes(2);
+    expect(v2.listJournal).toHaveBeenCalledTimes(2);
   });
 
   it('edits a field through PATCH with only that field, after a confirmation', async () => {
@@ -283,7 +318,7 @@ describe('operations page (v2 journal)', () => {
       expect.any(String),
     );
     expect(useToast().toasts.value.at(-1)?.title).toBe('Операция обновлена');
-    expect(v2.listTransactions).toHaveBeenCalledTimes(2);
+    expect(v2.listJournal).toHaveBeenCalledTimes(2);
     expect(document.querySelector('.operation-form')).toBeNull();
   });
 
@@ -337,14 +372,14 @@ describe('operations page (v2 journal)', () => {
     await flushPromises();
 
     await openRowAction('row-delete');
-    const button = wrapper!.get('[data-confirm]');
+    const button = wrapper!.get('dialog[open] [data-confirm]');
     await Promise.all([button.trigger('click'), button.trigger('click')]);
     await flushPromises();
 
     expect(v2.deleteTransaction).toHaveBeenCalledTimes(1);
     expect(v2.deleteTransaction).toHaveBeenCalledWith('budget-id', expense.id, expect.any(String));
     expect(useToast().toasts.value.at(-1)?.title).toBe('Операция удалена');
-    expect(v2.listTransactions).toHaveBeenCalledTimes(2);
+    expect(v2.listJournal).toHaveBeenCalledTimes(2);
   });
 
   it('says in Russian why an income with assignments cannot be deleted', async () => {
@@ -424,7 +459,7 @@ describe('operations page (v2 journal)', () => {
   });
 
   it('shows skeletons while the first page is loading', async () => {
-    v2.listTransactions.mockReturnValueOnce(new Promise(() => {}));
+    v2.listJournal.mockReturnValueOnce(new Promise(() => {}));
     mountPage();
     await wrapper!.vm.$nextTick();
 
@@ -449,6 +484,85 @@ describe('operations page (v2 journal)', () => {
     await flushPromises();
 
     expect(wrapper!.text()).toContain('Бюджет не выбран');
-    expect(v2.listTransactions).not.toHaveBeenCalled();
+    expect(v2.listJournal).not.toHaveBeenCalled();
+  });
+
+  it('renders a transfer from the feed as a transfer row', async () => {
+    v2.listJournal.mockResolvedValueOnce({
+      items: [{ ...transferFixture }, { kind: 'TRANSACTION', ...expense }],
+      nextCursor: null,
+    });
+    mountPage();
+    await flushPromises();
+
+    expect(wrapper!.text()).toContain('Перевод');
+    expect(wrapper!.text()).toContain(`${accountA} → ${accountB}`);
+  });
+
+  it('opens the transfer dialog on a transfer row and reloads after a change', async () => {
+    v2.listJournal.mockResolvedValue({ items: [{ ...transferFixture }], nextCursor: null });
+    mountPage();
+    await flushPromises();
+
+    await wrapper!.findComponent({ name: 'TransferRow' }).vm.$emit('select');
+    await wrapper!.vm.$nextTick();
+
+    const dialog = wrapper!.findComponent({ name: 'TransferDialog' });
+    expect(dialog.props('transfer')).toMatchObject({ id: transferFixture.id });
+
+    const calls = v2.listJournal.mock.calls.length;
+    dialog.vm.$emit('changed');
+    await flushPromises();
+
+    expect(v2.listJournal.mock.calls.length).toBe(calls + 1);
+    expect(wrapper!.findComponent({ name: 'TransferDialog' }).props('transfer')).toBeNull();
+  });
+
+  it('offers edit and delete in the transfer row menu and opens the dialog on that action', async () => {
+    v2.listJournal.mockResolvedValue({ items: [{ ...transferFixture }], nextCursor: null });
+    mountPage();
+    await flushPromises();
+
+    await wrapper!.get('[data-testid="action-menu-trigger"]').trigger('click');
+    expect(wrapper!.find('[data-testid="transfer-row-restore"]').exists()).toBe(false);
+    await wrapper!.get('[data-testid="transfer-row-delete"]').trigger('click');
+    await wrapper!.vm.$nextTick();
+
+    const dialog = wrapper!.findComponent({ name: 'TransferDialog' });
+    expect(dialog.props('transfer')).toMatchObject({ id: transferFixture.id });
+    expect(dialog.props('intent')).toBe('delete');
+
+    await openRowAction('transfer-row-edit');
+    await wrapper!.vm.$nextTick();
+    expect(wrapper!.findComponent({ name: 'TransferDialog' }).props('intent')).toBe('edit');
+
+    wrapper!.findComponent({ name: 'TransferRow' }).vm.$emit('select');
+    await wrapper!.vm.$nextTick();
+    expect(wrapper!.findComponent({ name: 'TransferDialog' }).props('intent')).toBe('view');
+  });
+
+  it('offers only restore for a deleted transfer', async () => {
+    v2.listJournal.mockResolvedValue({
+      items: [{ ...transferFixture, status: 'DELETED', deletedAt: '2026-10-20T12:00:00.000Z' }],
+      nextCursor: null,
+    });
+    mountPage();
+    await flushPromises();
+
+    await wrapper!.get('[data-testid="action-menu-trigger"]').trigger('click');
+    expect(wrapper!.find('[data-testid="transfer-row-edit"]').exists()).toBe(false);
+    expect(wrapper!.find('[data-testid="transfer-row-delete"]').exists()).toBe(false);
+    expect(wrapper!.find('[data-testid="transfer-row-restore"]').exists()).toBe(true);
+  });
+
+  it('passes the transfer type filter to the feed', async () => {
+    routeQuery.type = 'TRANSFER';
+    mountPage();
+    await flushPromises();
+
+    expect(v2.listJournal).toHaveBeenCalledWith(
+      'budget-id',
+      expect.objectContaining({ type: 'TRANSFER' }),
+    );
   });
 });

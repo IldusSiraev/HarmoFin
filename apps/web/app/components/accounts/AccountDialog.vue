@@ -6,6 +6,7 @@ import UiButton from '../ui/Button.vue';
 import UiModal from '../ui/Modal.vue';
 import UiStatus from '../ui/Status.vue';
 import type { AccountDto } from '../../composables/useBudgetReferenceData.js';
+import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 import { formatPlainDate } from '../obligations/format-plain-date.js';
 
 defineOptions({ name: 'AccountDialog' });
@@ -30,9 +31,13 @@ const operationsLink = computed(() =>
   props.account ? `/app/operations?accountId=${encodeURIComponent(props.account.id)}` : '',
 );
 
-const transferLink = computed(() =>
-  props.account ? `/app/transfers?sourceAccountId=${encodeURIComponent(props.account.id)}` : '',
-);
+const { openTransfer } = useOperationDialogs();
+
+function transferFromAccount(): void {
+  if (!props.account) return;
+  emit('close');
+  openTransfer(props.account.id);
+}
 </script>
 
 <template>
@@ -99,7 +104,7 @@ const transferLink = computed(() =>
         v-if="!account.archivedAt"
         variant="secondary"
         data-testid="account-dialog-transfer"
-        :to="transferLink"
+        @click="transferFromAccount"
       >
         Перевести со счёта
       </UiButton>

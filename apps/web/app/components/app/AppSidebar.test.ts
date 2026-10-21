@@ -42,7 +42,7 @@ describe('AppSidebar', () => {
     mockMatchMedia(false);
   });
 
-  it('links to every app section including Переводы', () => {
+  it('links to every app section', () => {
     const wrapper = mountSidebar();
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'));
 
@@ -50,7 +50,6 @@ describe('AppSidebar', () => {
       expect.arrayContaining([
         '/app',
         '/app/operations',
-        '/app/transfers',
         '/app/plans',
         '/app/accounts',
         '/app/envelopes',
@@ -60,6 +59,7 @@ describe('AppSidebar', () => {
         '/app/settings',
       ]),
     );
+    expect(hrefs).not.toContain('/app/transfers');
   });
 
   it('marks the active section for assistive technology, not only with colour', () => {

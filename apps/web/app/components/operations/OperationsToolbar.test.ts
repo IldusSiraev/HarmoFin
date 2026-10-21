@@ -82,6 +82,11 @@ describe('OperationsToolbar', () => {
     expect(wrapper.get('[data-testid="type-tab-all"]').attributes('aria-pressed')).toBe('false');
   });
 
+  it('offers a transfers tab', () => {
+    const wrapper = mountToolbar();
+    expect(wrapper.find('[data-testid="type-tab-TRANSFER"]').text()).toBe('Переводы');
+  });
+
   it('shows the chosen account inside its chip', () => {
     const wrapper = mountToolbar({ accountId: 'account-id' });
 

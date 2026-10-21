@@ -28,6 +28,57 @@ export type DirectTransferCreateParams = {
   requestId?: string | undefined;
 };
 
+export const transferRowSelect = {
+  id: true,
+  budgetId: true,
+  status: true,
+  totalMinor: true,
+  currency: true,
+  occurredOn: true,
+  comment: true,
+  sourceAccountId: true,
+  destinationAccountId: true,
+  createdAt: true,
+  deletedAt: true,
+} as const;
+
+export type TransferRow = Prisma.TransferGetPayload<{ select: typeof transferRowSelect }>;
+
+export type TransferChanges = {
+  sourceAccountId: string;
+  destinationAccountId: string;
+  totalMinor: bigint;
+  occurredOn: Date;
+  comment: string | null;
+};
+
+function transferAuditValues(row: TransferRow) {
+  return {
+    status: row.status,
+    sourceAccountId: row.sourceAccountId,
+    destinationAccountId: row.destinationAccountId,
+    totalMinor: row.totalMinor.toString(),
+    occurredOn: row.occurredOn.toISOString().slice(0, 10),
+    comment: row.comment,
+    deletedAt: row.deletedAt?.toISOString() ?? null,
+  };
+}
+
+function changedOnly(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+): { oldValues: Record<string, unknown>; newValues: Record<string, unknown> } {
+  const oldValues: Record<string, unknown> = {};
+  const newValues: Record<string, unknown> = {};
+  for (const key of Object.keys(after)) {
+    if (before[key] !== after[key]) {
+      oldValues[key] = before[key];
+      newValues[key] = after[key];
+    }
+  }
+  return { oldValues, newValues };
+}
+
 /**
  * Data access for direct (ACCOUNT_ONLY) transfers.
  *
@@ -136,5 +187,96 @@ export class DirectTransferRepository {
       },
     });
     return transfer;
+  }
+
+  /** Locks the transfer row of this budget; only ACCOUNT_ONLY transfers are mutable. */
+  async findForMutation(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    transferId: string,
+  ): Promise<TransferRow | null> {
+    await tx.$queryRaw`
+      SELECT "id" FROM "transfers"
+      WHERE "id" = ${transferId}::uuid AND "budget_id" = ${budgetId}::uuid
+      FOR UPDATE
+    `;
+    return tx.transfer.findFirst({
+      where: { id: transferId, budgetId, mode: 'ACCOUNT_ONLY' },
+      select: transferRowSelect,
+    });
+  }
+
+  async updateTransfer(
+    tx: Prisma.TransactionClient,
+    current: TransferRow,
+    changes: TransferChanges,
+    audit: { workspaceId: string; actorUserId: string; requestId?: string | undefined },
+  ): Promise<TransferRow> {
+    const updated = await tx.transfer.update({
+      where: { id_budgetId: { id: current.id, budgetId: current.budgetId } },
+      data: {
+        sourceAccountId: changes.sourceAccountId,
+        destinationAccountId: changes.destinationAccountId,
+        totalMinor: changes.totalMinor,
+        occurredOn: changes.occurredOn,
+        comment: changes.comment,
+        updatedByUserId: audit.actorUserId,
+      },
+      select: transferRowSelect,
+    });
+    const diff = changedOnly(transferAuditValues(current), transferAuditValues(updated));
+    await this.audit(tx, current, 'UPDATED', audit, diff.oldValues, diff.newValues);
+    return updated;
+  }
+
+  async setLifecycle(
+    tx: Prisma.TransactionClient,
+    current: TransferRow,
+    status: 'CONFIRMED' | 'DELETED',
+    audit: { workspaceId: string; actorUserId: string; requestId?: string | undefined },
+  ): Promise<TransferRow> {
+    const updated = await tx.transfer.update({
+      where: { id_budgetId: { id: current.id, budgetId: current.budgetId } },
+      data: {
+        status,
+        deletedAt: status === 'DELETED' ? new Date() : null,
+        updatedByUserId: audit.actorUserId,
+      },
+      select: transferRowSelect,
+    });
+    await this.audit(
+      tx,
+      current,
+      status === 'DELETED' ? 'DELETED' : 'RESTORED',
+      audit,
+      transferAuditValues(current),
+      transferAuditValues(updated),
+    );
+    return updated;
+  }
+
+  private async audit(
+    tx: Prisma.TransactionClient,
+    current: TransferRow,
+    action: 'UPDATED' | 'DELETED' | 'RESTORED',
+    audit: { workspaceId: string; actorUserId: string; requestId?: string | undefined },
+    oldValues: Record<string, unknown>,
+    newValues: Record<string, unknown>,
+  ): Promise<void> {
+    await tx.auditEvent.create({
+      data: {
+        id: createUuidV7(),
+        actorUserId: audit.actorUserId,
+        workspaceId: audit.workspaceId,
+        budgetId: current.budgetId,
+        entityType: 'transfer',
+        entityId: current.id,
+        action,
+        source: 'API',
+        requestId: audit.requestId ?? null,
+        oldValues: oldValues as Prisma.InputJsonValue,
+        newValues: newValues as Prisma.InputJsonValue,
+      },
+    });
   }
 }

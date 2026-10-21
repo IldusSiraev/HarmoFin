@@ -32,6 +32,7 @@ vi.mock('../../composables/useEnvelopePlanV2.js', () => ({ useEnvelopePlanV2: ()
 import AccountsPage from './accounts.vue';
 import { ApiRequestError } from '../../composables/useApiClient.js';
 import { useFundingEntry } from '../../composables/useFundingEntry.js';
+import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 import { useToast } from '../../composables/useToast.js';
 
 const account = {
@@ -302,9 +303,31 @@ describe('accounts page', () => {
 
     await flushPromises();
     await wrapper.get('[data-testid="account-card-select"]').trigger('click');
-    const link = body().get('[data-testid="account-dialog-transfer"]');
-    expect(link.text()).toContain('Перевести со счёта');
-    expect(link.attributes('to')).toContain('sourceAccountId=account-id');
+    const button = body().get('[data-testid="account-dialog-transfer"]');
+    expect(button.text()).toContain('Перевести со счёта');
+
+    const dialogs = useOperationDialogs();
+    await button.trigger('click');
+    expect(dialogs.entryType.value).toBe('TRANSFER');
+    expect(dialogs.transferSourceAccountId.value).toBe('account-id');
+    dialogs.close();
+  });
+
+  it('reloads accounts after the global operation dialog closes', async () => {
+    mocks.api.listAccounts.mockResolvedValue([account]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    const callsBefore = mocks.api.listAccounts.mock.calls.length;
+    const dialogs = useOperationDialogs();
+    dialogs.openTransfer('account-id');
+    await flushPromises();
+    expect(mocks.api.listAccounts.mock.calls.length).toBe(callsBefore);
+
+    dialogs.close();
+    await flushPromises();
+
+    expect(mocks.api.listAccounts.mock.calls.length).toBe(callsBefore + 1);
   });
 
   it('lists accounts as cards with the server total above them', async () => {

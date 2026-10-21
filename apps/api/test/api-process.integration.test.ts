@@ -62,6 +62,7 @@ describe('API process', () => {
       const paths = [
         'transactions',
         'transfers',
+        'journal',
         'obligations/plans',
         'obligations/occurrences',
         'income-plans',

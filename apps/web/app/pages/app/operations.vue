@@ -8,6 +8,10 @@ import OperationForm from '../../components/operations/OperationForm.vue';
 import OperationGroup from '../../components/operations/OperationGroup.vue';
 import OperationRow from '../../components/operations/OperationRow.vue';
 import OperationsToolbar from '../../components/operations/OperationsToolbar.vue';
+import TransferDialog, {
+  type TransferDialogIntent,
+} from '../../components/operations/TransferDialog.vue';
+import TransferRow from '../../components/operations/TransferRow.vue';
 import { groupByDay } from '../../components/operations/group-by-day.js';
 import UiActionMenu from '../../components/ui/ActionMenu.vue';
 import UiButton from '../../components/ui/Button.vue';
@@ -20,7 +24,9 @@ import { ApiRequestError } from '../../composables/useApiClient.js';
 import { useAuth } from '../../composables/useAuth.js';
 import {
   useEnvelopePlanV2,
+  type JournalItem,
   type TransactionJournalV2Item,
+  type TransferJournalItem,
   type UpdateTransactionV2Request,
 } from '../../composables/useEnvelopePlanV2.js';
 import {
@@ -52,7 +58,7 @@ const { filters, activeCount, toListInput, set, reset } = useOperationFilters();
 const mutations = useOperationMutations();
 const { openDialog: globalOperationDialog, openChoose } = useOperationDialogs();
 
-const transactions = ref<TransactionJournalV2Item[]>([]);
+const items = ref<JournalItem[]>([]);
 const nextCursor = ref<string | null>(null);
 const loading = ref(true);
 const hydrated = ref(false);
@@ -67,6 +73,8 @@ const formOpen = ref(false);
 const selectedTransaction = ref<TransactionJournalV2Item | null>(null);
 const preloadedOperationId = ref<string | null>(null);
 const detailed = ref<TransactionJournalV2Item | null>(null);
+const detailedTransfer = ref<TransferJournalItem | null>(null);
+const transferIntent = ref<TransferDialogIntent>('view');
 const mutationKeys = new Map<string, string>();
 const confirmation = ref<null | {
   action: ConfirmationAction;
@@ -98,7 +106,33 @@ const envelopeNameById = computed(
 const today = new Date().toISOString().slice(0, 10);
 
 // The server fixes the order (newest first), so day headings never lie about it.
-const sections = computed(() => groupByDay(transactions.value, today));
+const sections = computed(() => groupByDay(items.value, today));
+
+function isTransfer(item: JournalItem): item is TransferJournalItem {
+  return item.kind === 'TRANSFER';
+}
+
+function transferRoute(item: TransferJournalItem) {
+  return {
+    sourceName: accountNameById.value.get(item.sourceAccountId) ?? 'Счёт',
+    destinationName: accountNameById.value.get(item.destinationAccountId) ?? 'Счёт',
+  };
+}
+
+// A deleted transfer offers only restore, and only the owner sees deleted rows.
+function hasTransferActions(item: TransferJournalItem): boolean {
+  return item.status === 'CONFIRMED' || isOwner.value;
+}
+
+function openTransfer(item: TransferJournalItem, intent: TransferDialogIntent): void {
+  transferIntent.value = intent;
+  detailedTransfer.value = item;
+}
+
+function onTransferChanged(): void {
+  detailedTransfer.value = null;
+  void load();
+}
 
 const confirmationCopy = computed(() => {
   if (confirmation.value?.action === 'delete') {
@@ -147,14 +181,14 @@ async function load(append = false) {
   error.value = '';
   try {
     const [result] = await Promise.all([
-      planV2.listTransactions(budget.value.id, {
+      planV2.listJournal(budget.value.id, {
         ...toListInput(),
         ...(append && nextCursor.value ? { cursor: nextCursor.value } : {}),
       }),
       loadReferenceData(),
     ]);
     if (version !== requestVersion) return;
-    transactions.value = append ? [...transactions.value, ...result.items] : result.items;
+    items.value = append ? [...items.value, ...result.items] : result.items;
     nextCursor.value = result.nextCursor;
     await preloadDetailed();
   } catch (exception) {
@@ -402,63 +436,98 @@ async function downloadCsv() {
           {{ error }} <UiButton variant="tertiary" @click="load()">Повторить</UiButton>
         </p>
 
-        <div
-          v-if="loading && transactions.length === 0"
-          data-testid="operations-loading"
-          aria-busy="true"
-        >
+        <div v-if="loading && items.length === 0" data-testid="operations-loading" aria-busy="true">
           <UiSkeleton variant="row" :count="6" />
         </div>
 
         <UiEmptyState
-          v-else-if="transactions.length === 0 && activeCount === 0"
+          v-else-if="items.length === 0 && activeCount === 0"
           title="Операций пока нет"
-          description="Добавьте доход или расход, чтобы начать журнал."
+          description="Добавьте доход, расход или перевод, чтобы начать журнал."
         />
 
         <UiEmptyState
-          v-else-if="transactions.length === 0"
+          v-else-if="items.length === 0"
           title="Ничего не найдено"
           description="Под текущие фильтры не подошла ни одна операция."
         />
 
         <div v-else class="operations-page__sections">
           <OperationGroup v-for="section in sections" :key="section.date" :label="section.label">
-            <li v-for="transaction in section.items" :key="transaction.id">
-              <OperationRow
-                :transaction="transaction"
-                :category-name="categoryName(transaction)"
-                :category-icon="categoryIcon(transaction)"
-                :account-name="accountName(transaction)"
-                :envelope-name="envelopeName(transaction)"
-                @select="detailed = transaction"
+            <li v-for="item in section.items" :key="item.id">
+              <TransferRow
+                v-if="isTransfer(item)"
+                :transfer="item"
+                v-bind="transferRoute(item)"
+                @select="openTransfer(item, 'view')"
               >
-                <template v-if="hasRowActions(transaction)" #actions>
-                  <UiActionMenu label="Действия над операцией">
+                <template v-if="hasTransferActions(item)" #actions>
+                  <UiActionMenu label="Действия над переводом">
                     <button
-                      v-if="canEditTransaction(transaction)"
+                      v-if="item.status === 'CONFIRMED'"
                       type="button"
                       role="menuitem"
-                      data-testid="row-edit"
-                      @click="openEdit(transaction)"
+                      data-testid="transfer-row-edit"
+                      @click="openTransfer(item, 'edit')"
                     >
                       Изменить
                     </button>
                     <button
-                      v-if="availableActions(transaction).includes('delete')"
+                      v-if="item.status === 'CONFIRMED'"
                       type="button"
                       role="menuitem"
-                      data-testid="row-delete"
-                      @click="ask('delete', transaction)"
+                      data-testid="transfer-row-delete"
+                      @click="openTransfer(item, 'delete')"
                     >
                       Удалить
                     </button>
                     <button
-                      v-if="availableActions(transaction).includes('restore')"
+                      v-if="item.status === 'DELETED' && isOwner"
+                      type="button"
+                      role="menuitem"
+                      data-testid="transfer-row-restore"
+                      @click="openTransfer(item, 'restore')"
+                    >
+                      Восстановить
+                    </button>
+                  </UiActionMenu>
+                </template>
+              </TransferRow>
+              <OperationRow
+                v-else
+                :transaction="item"
+                :category-name="categoryName(item)"
+                :category-icon="categoryIcon(item)"
+                :account-name="accountName(item)"
+                :envelope-name="envelopeName(item)"
+                @select="detailed = item"
+              >
+                <template v-if="hasRowActions(item)" #actions>
+                  <UiActionMenu label="Действия над операцией">
+                    <button
+                      v-if="canEditTransaction(item)"
+                      type="button"
+                      role="menuitem"
+                      data-testid="row-edit"
+                      @click="openEdit(item)"
+                    >
+                      Изменить
+                    </button>
+                    <button
+                      v-if="availableActions(item).includes('delete')"
+                      type="button"
+                      role="menuitem"
+                      data-testid="row-delete"
+                      @click="ask('delete', item)"
+                    >
+                      Удалить
+                    </button>
+                    <button
+                      v-if="availableActions(item).includes('restore')"
                       type="button"
                       role="menuitem"
                       data-testid="row-restore"
-                      @click="ask('restore', transaction)"
+                      @click="ask('restore', item)"
                     >
                       Восстановить
                     </button>
@@ -487,6 +556,18 @@ async function downloadCsv() {
       @edit="openEdit"
       @request-delete="ask('delete', $event)"
       @request-restore="ask('restore', $event)"
+    />
+
+    <TransferDialog
+      v-if="budget"
+      :transfer="detailedTransfer"
+      :intent="transferIntent"
+      :budget-id="budget.id"
+      :accounts="accounts"
+      :account-names="accountNameById"
+      :can-restore="isOwner"
+      @close="detailedTransfer = null"
+      @changed="onTransferChanged"
     />
 
     <UiModal :open="formOpen" title="Изменить операцию" @close="closeForm">

@@ -1022,8 +1022,8 @@ function toLifecycleView(
   };
 }
 
-function toJournalItem(
-  row: TransactionRecord,
+export function toJournalItem(
+  row: Omit<TransactionRecord, 'accountCurrentBalanceMinor'>,
   planOccurrenceIds: string[],
 ): TransactionJournalV2Item {
   return {

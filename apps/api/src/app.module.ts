@@ -13,6 +13,7 @@ import { CycleModule } from './cycles/cycle.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { DashboardV2Module } from './v2-dashboard/dashboard-v2.module.js';
 import { DirectTransferModule } from './v2-transfers/direct-transfer.module.js';
+import { JournalModule } from './v2-journal/journal.module.js';
 import { TransactionV2Module } from './v2-transactions/transaction-v2.module.js';
 import { ObligationModule } from './obligations/obligation.module.js';
 import { FundingModule } from './funding/funding.module.js';
@@ -48,6 +49,7 @@ export class AppModule {
         CategoryModule.register(),
         EnvelopePlanModule.register(),
         DirectTransferModule.register(),
+        JournalModule.register(),
         DashboardV2Module.register(),
         TransactionV2Module.register(),
         ObligationModule.register(),

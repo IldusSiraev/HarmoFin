@@ -2677,6 +2677,37 @@
         "required": ["enabled", "sourceCategoryId", "targetEnvelopeId"],
         "type": "object"
       },
+      "JournalPageResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "TRANSACTION": "#/components/schemas/TransactionFeedItemResponse",
+                  "TRANSFER": "#/components/schemas/TransferJournalItemResponse"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/TransactionFeedItemResponse"
+                },
+                {
+                  "$ref": "#/components/schemas/TransferJournalItemResponse"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "example": null,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": ["items", "nextCursor"],
+        "type": "object"
+      },
       "LegalDocumentResponse": {
         "properties": {
           "document": {
@@ -5368,6 +5399,118 @@
         "required": ["kind", "role", "templateKey", "reason"],
         "type": "object"
       },
+      "TransactionFeedItemResponse": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "accountingModelVersion": {
+            "description": "Учётная модель факта: 1 — старая, 2 — v2.",
+            "enum": [1, 2],
+            "type": "number"
+          },
+          "amountMinor": {
+            "description": "Сумма в минорных единицах (строка).",
+            "example": "482000",
+            "type": "string"
+          },
+          "budgetId": {
+            "type": "string"
+          },
+          "cancelledAt": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "categoryId": {
+            "type": "string"
+          },
+          "comment": {
+            "nullable": true,
+            "type": "string"
+          },
+          "confirmedAt": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "example": "RUB",
+            "type": "string"
+          },
+          "deletedAt": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "envelopeId": {
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["TRANSACTION"],
+            "example": "TRANSACTION",
+            "type": "string"
+          },
+          "merchantName": {
+            "nullable": true,
+            "type": "string"
+          },
+          "occurredOn": {
+            "example": "2026-09-30",
+            "type": "string"
+          },
+          "planOccurrenceIds": {
+            "description": "Occurrence плана: оплаты PlanPayment (v2) и старая связь occurrence.transactionId.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sourceDescription": {
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": ["DRAFT", "CONFIRMED", "CANCELLED", "DELETED"],
+            "type": "string"
+          },
+          "transactionType": {
+            "enum": ["INCOME", "EXPENSE"],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "budgetId",
+          "accountingModelVersion",
+          "transactionType",
+          "status",
+          "amountMinor",
+          "currency",
+          "occurredOn",
+          "accountId",
+          "categoryId",
+          "envelopeId",
+          "sourceDescription",
+          "merchantName",
+          "comment",
+          "planOccurrenceIds",
+          "confirmedAt",
+          "cancelledAt",
+          "deletedAt",
+          "createdAt",
+          "kind"
+        ],
+        "type": "object"
+      },
       "TransactionJournalV2Item": {
         "properties": {
           "accountId": {
@@ -5684,6 +5827,75 @@
         "required": ["code", "detail"],
         "type": "object"
       },
+      "TransferJournalItemResponse": {
+        "properties": {
+          "amountMinor": {
+            "example": "150000",
+            "type": "string"
+          },
+          "budgetId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "comment": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "example": "RUB",
+            "type": "string"
+          },
+          "deletedAt": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "destinationAccountId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["TRANSFER"],
+            "example": "TRANSFER",
+            "type": "string"
+          },
+          "occurredOn": {
+            "example": "2026-10-20",
+            "type": "string"
+          },
+          "sourceAccountId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": ["CONFIRMED", "DELETED"],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "budgetId",
+          "status",
+          "amountMinor",
+          "currency",
+          "occurredOn",
+          "sourceAccountId",
+          "destinationAccountId",
+          "comment",
+          "createdAt",
+          "deletedAt"
+        ],
+        "type": "object"
+      },
       "UpdateAccountRequest": {
         "properties": {
           "accountType": {
@@ -5792,6 +6004,33 @@
           "parentId": {
             "format": "uuid",
             "nullable": true,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateDirectTransferInput": {
+        "properties": {
+          "amount": {
+            "example": "1500.00",
+            "type": "string"
+          },
+          "comment": {
+            "example": "Отпуск",
+            "maxLength": 500,
+            "nullable": true,
+            "type": "string"
+          },
+          "destinationAccountId": {
+            "example": "0195f3c3-aaaa-bbbb-cccc-000000000004",
+            "type": "string"
+          },
+          "occurredOn": {
+            "example": "2026-10-20",
+            "type": "string"
+          },
+          "sourceAccountId": {
+            "example": "0195f3c3-aaaa-bbbb-cccc-000000000003",
             "type": "string"
           }
         },
@@ -10754,6 +10993,80 @@
         "tags": ["income plans (v2)"]
       }
     },
+    "/api/v2/budgets/{budgetId}/journal": {
+      "get": {
+        "operationId": "JournalController_list_v2",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JournalPageResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["journal (v2)"]
+      }
+    },
     "/api/v2/budgets/{budgetId}/model": {
       "get": {
         "operationId": "V2BudgetModelController_getModel_v2",
@@ -13441,6 +13754,89 @@
       }
     },
     "/api/v2/budgets/{budgetId}/transfers/{transferId}": {
+      "delete": {
+        "operationId": "DirectTransferController_remove_v2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferJournalItemResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": "TRANSFER_ALREADY_DELETED, INSUFFICIENT_BALANCE или конфликт ключа идемпотентности."
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["direct transfers (v2)"]
+      },
       "get": {
         "operationId": "DirectTransferController_get_v2",
         "parameters": [],
@@ -13504,6 +13900,194 @@
               }
             },
             "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["direct transfers (v2)"]
+      },
+      "patch": {
+        "operationId": "DirectTransferController_update_v2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDirectTransferInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferJournalItemResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": "TRANSFER_NOT_EDITABLE, INSUFFICIENT_BALANCE или конфликт ключа идемпотентности."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["direct transfers (v2)"]
+      }
+    },
+    "/api/v2/budgets/{budgetId}/transfers/{transferId}/restore": {
+      "post": {
+        "operationId": "DirectTransferController_restore_v2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferJournalItemResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": "TRANSFER_NOT_DELETED, REFERENCE_INVALID, INSUFFICIENT_BALANCE или конфликт ключа идемпотентности."
           }
         },
         "security": [
