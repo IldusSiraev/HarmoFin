@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/IldusSiraev/HarmoFin/compare/v1.2.0...v1.2.1) (2026-10-21)
+
+
+### Исправления
+
+* **deps:** vite 8.3.4 вместо уязвимой 8.2.2 у vite-node ([e17d5af](https://github.com/IldusSiraev/HarmoFin/commit/e17d5afbfaaf730c14c63c55c1dd92027cc1ce07))
+* селектор e2e перевода и launch-editor 2.14.2 ([1fc50c9](https://github.com/IldusSiraev/HarmoFin/commit/1fc50c909de761d1c726333ca6a3d925236f4203))
+
 ## [1.2.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.1.0...v1.2.0) (2026-10-20)
 
 
