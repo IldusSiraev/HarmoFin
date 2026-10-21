@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
-import { AlertTriangle, Ban, Info } from '@lucide/vue';
+import { AlertTriangle, Ban, CalendarClock, Info } from '@lucide/vue';
 
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiActionMenu from '../ui/ActionMenu.vue';
@@ -304,10 +304,12 @@ defineExpose({ confirmMove, decideTarget });
     <div
       v-for="warning in leftovers"
       :key="rowKey(warning)"
-      class="period-decision__row"
+      class="period-decision__row period-decision__row--leftover"
       data-testid="leftover-row"
     >
-      <Info class="period-decision__icon" :size="20" aria-hidden="true" />
+      <span class="period-decision__plaque" aria-hidden="true">
+        <CalendarClock :size="20" />
+      </span>
       <p class="period-decision__text">
         Остаток прошлого периода, «{{ sourceName(warning) }}»
         <FinanceMoney
@@ -320,7 +322,11 @@ defineExpose({ confirmMove, decideTarget });
           Он не добавлен к текущему периоду автоматически: выберите, куда его направить.
         </span>
       </p>
-      <UiActionMenu label="Действия с остатком прошлого периода" tooltip="Что сделать с остатком">
+      <UiActionMenu
+        class="period-decision__menu"
+        label="Действия с остатком прошлого периода"
+        tooltip="Что сделать с остатком"
+      >
         <button
           type="button"
           role="menuitem"
@@ -372,14 +378,12 @@ defineExpose({ confirmMove, decideTarget });
     <div
       v-for="warning in deficits"
       :key="`deficit-${rowKey(warning)}`"
-      class="period-decision__row"
+      class="period-decision__row period-decision__row--deficit"
       data-testid="deficit-row"
     >
-      <AlertTriangle
-        class="period-decision__icon period-decision__icon--danger"
-        :size="20"
-        aria-hidden="true"
-      />
+      <span class="period-decision__plaque" aria-hidden="true">
+        <CalendarClock :size="20" />
+      </span>
       <p class="period-decision__text"><strong>Превышение:</strong> {{ warning.message }}</p>
       <NuxtLink :to="warning.actionPath" class="period-decision__link">Покрыть превышение</NuxtLink>
     </div>
@@ -531,8 +535,75 @@ defineExpose({ confirmMove, decideTarget });
   color: var(--hf-color-status-info);
 }
 
-.period-decision__icon--danger {
-  color: var(--hf-color-status-danger);
+/* Previous-period rows: a noticeable status (soft background, border, icon
+   plaque and action in the tone colour, plus text). Info for a leftover,
+   danger for an overspend. */
+.period-decision__row--leftover,
+.period-decision__row--deficit {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--hf-space-2) var(--hf-space-3);
+  align-items: center;
+  padding: var(--hf-space-3) var(--hf-space-4);
+  border: 1px solid var(--row-border);
+  border-radius: var(--hf-radius-md);
+  background: var(--row-soft);
+}
+
+.period-decision__row--leftover {
+  --row-tone: var(--hf-color-primary-strong);
+  --row-soft: var(--hf-color-primary-soft);
+  --row-border: color-mix(in srgb, var(--hf-color-primary-strong) 28%, transparent);
+}
+
+.period-decision__row--deficit {
+  --row-tone: var(--hf-color-text-danger);
+  --row-soft: var(--hf-color-danger-soft);
+  --row-border: color-mix(in srgb, var(--hf-color-text-danger) 28%, transparent);
+}
+
+.period-decision__plaque {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--hf-radius-md);
+  background: var(--hf-color-surface);
+  color: var(--row-tone);
+}
+
+/* Below 768px the action moves under the text. */
+.period-decision__row--leftover > .period-decision__menu,
+.period-decision__row--deficit > .period-decision__link {
+  grid-column: 2;
+  justify-self: start;
+}
+
+@media (width >= 768px) {
+  .period-decision__row--leftover,
+  .period-decision__row--deficit {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .period-decision__row--leftover > .period-decision__menu,
+  .period-decision__row--deficit > .period-decision__link {
+    grid-column: auto;
+    justify-self: end;
+  }
+}
+
+.period-decision__menu :deep(.ui-action-menu__trigger) {
+  color: var(--hf-color-primary-strong);
+}
+
+.period-decision__row--deficit > .period-decision__link {
+  color: var(--row-tone);
+}
+
+.period-decision__link:focus-visible {
+  outline: 2px solid var(--row-tone, var(--hf-color-action-primary));
+  outline-offset: 2px;
 }
 
 .period-decision__text {

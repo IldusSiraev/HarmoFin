@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
+import { Plus, Settings2 } from '@lucide/vue';
 
+import PeriodDecisionCard from '../dashboard/PeriodDecisionCard.vue';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import FinanceMoneyInput from '../finance/FinanceMoneyInput.vue';
 import ReferencePageLayout from '../ui/ReferencePageLayout.vue';
 import UiActionMenu from '../ui/ActionMenu.vue';
+import UiAttentionRow from '../ui/AttentionRow.vue';
 import UiButton from '../ui/Button.vue';
 import UiConfirmDialog from '../ui/ConfirmDialog.vue';
 import UiEmptyState from '../ui/EmptyState.vue';
@@ -15,11 +18,13 @@ import UiSkeleton from '../ui/Skeleton.vue';
 import UiStatus from '../ui/Status.vue';
 import {
   type CreateEnvelopePlanRequest,
+  type DashboardV2Response,
   type EnvelopePlanDto,
   type EnvelopePlanKind,
   type FundingRuleResponse,
   useEnvelopePlanV2,
 } from '../../composables/useEnvelopePlanV2.js';
+import { useFundingEntry } from '../../composables/useFundingEntry.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js';
 import { useToast } from '../../composables/useToast.js';
@@ -28,12 +33,14 @@ import { describeRule } from '../funding-rules/funding-rule-text.js';
 import EnvelopeMovePanel, { type MovePanelResult } from './EnvelopeMovePanel.vue';
 import EnvelopePlanDialog from './EnvelopePlanDialog.vue';
 import EnvelopePlanRow from './EnvelopePlanRow.vue';
+import EnvelopesSummary from './EnvelopesSummary.vue';
 import PeriodTargetDialog from './PeriodTargetDialog.vue';
 import {
   PLAN_GROUPS,
   PLAN_SCOPE_LABELS,
   balanceSign,
   formatMoneyText,
+  periodRangeText,
 } from './envelope-plan-kind.js';
 
 defineOptions({ name: 'EnvelopesPlanView' });
@@ -110,9 +117,54 @@ function isHighlighted(envelope: EnvelopePlanDto): boolean {
   return props.query.cover === 'mandatory' && envelope.envelopeType === 'MANDATORY_EXPENSES';
 }
 
+// Money summary from the server dashboard. It loads next to the list; a failed
+// read hides the summary only, the list keeps working.
+const funding = useFundingEntry();
+const dashboard = ref<DashboardV2Response | null>(null);
+const summaryError = ref(false);
+let dashboardSeq = 0;
+
+const kicker = computed(() =>
+  dashboard.value
+    ? `Конверты · ${periodRangeText(dashboard.value.period.start, dashboard.value.period.end)}`
+    : 'Справочники',
+);
+
+async function loadDashboard(): Promise<void> {
+  const seq = ++dashboardSeq;
+  try {
+    const response = await planV2.getDashboard(props.budgetId);
+    if (seq !== dashboardSeq) return;
+    dashboard.value = response;
+    summaryError.value = false;
+  } catch {
+    if (seq !== dashboardSeq) return;
+    dashboard.value = null;
+    summaryError.value = true;
+  }
+}
+
+function distributeFree(): void {
+  funding.offer({ sourceKind: 'FREE' });
+}
+
+// A confirmed assignment changes envelope balances and what is free.
+watch(
+  () => funding.confirmedCount.value,
+  () => void load(),
+);
+
+// After a period decision the card may be gone: keep focus on a stable element.
+async function onPeriodDecided(): Promise<void> {
+  await load();
+  await nextTick();
+  (document.getElementById('period-decision-title') ?? pageHeading.value)?.focus();
+}
+
 async function load(): Promise<void> {
   loading.value = true;
   loadError.value = '';
+  const summary = loadDashboard();
   try {
     // A reference record may have changed: drop the shared operation cache.
     useOperationReferenceData().invalidate();
@@ -129,6 +181,7 @@ async function load(): Promise<void> {
   } finally {
     loading.value = false;
   }
+  await summary;
 }
 
 // One Idempotency-Key per user attempt for form and archive actions.
@@ -410,21 +463,44 @@ onMounted(() => {
 
 <template>
   <ReferencePageLayout>
-    <template #kicker>Справочники</template>
+    <template #kicker>{{ kicker }}</template>
     <template #title>
       <span ref="pageHeading" tabindex="-1" class="plan-view__heading">Конверты</span>
     </template>
     <template #description>
-      Конверт показывает, для чего отложены деньги, а не где они физически лежат. Деньги на счетах
-      общие: конверты делят их по назначению.
+      Распределяйте деньги по целям, не перемещая их между счетами.
     </template>
     <template #actions>
       <UiButton variant="secondary" to="/app/envelopes/rules" data-action="envelope-rules">
+        <Settings2 :size="18" aria-hidden="true" />
         Задать правила
       </UiButton>
-      <UiButton data-action="create-envelope" @click="startCreate">Создать конверт</UiButton>
+      <UiButton data-action="create-envelope" @click="startCreate">
+        <Plus :size="18" aria-hidden="true" />
+        Создать конверт
+      </UiButton>
     </template>
     <template #content>
+      <EnvelopesSummary v-if="dashboard" :dashboard="dashboard" @distribute="distributeFree" />
+      <UiAttentionRow
+        v-else-if="summaryError"
+        data-testid="summary-retry"
+        tone="info"
+        title="Сводка недоступна"
+        action-label="Повторить"
+        @action="loadDashboard"
+      />
+      <PeriodDecisionCard
+        v-if="dashboard"
+        :budget-id="budgetId"
+        :warnings="dashboard.warnings"
+        :suggested-target="dashboard.suggestedTarget"
+        :hide-target="true"
+        :period-id="dashboard.period.periodId"
+        :protected-assignments="dashboard.protectedAssignments"
+        @changed="onPeriodDecided"
+        @focus-fallback="pageHeading?.focus()"
+      />
       <div role="status" aria-live="polite" data-testid="envelopes-status-region">
         <UiStatus v-if="statusMessage" :label="statusMessage" tone="info" />
       </div>

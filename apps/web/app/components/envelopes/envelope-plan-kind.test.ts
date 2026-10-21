@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { decimalToMinor, envelopeTone } from './envelope-plan-kind.js';
+import {
+  decimalToMinor,
+  envelopeTone,
+  formatDayMonth,
+  periodRangeText,
+} from './envelope-plan-kind.js';
 
 describe('decimalToMinor', () => {
   it.each([
@@ -29,5 +34,26 @@ describe('envelopeTone', () => {
     expect(envelopeTone('RESERVE')).toBe('reserve');
     expect(envelopeTone('CUSTOM')).toBe('custom');
     expect(envelopeTone('UNKNOWN')).toBe('custom');
+  });
+});
+
+describe('periodRangeText', () => {
+  it('в одном месяце пишет месяц один раз', () => {
+    expect(periodRangeText('2026-10-10', '2026-10-24')).toBe('10–24 октября');
+  });
+
+  it('в разных месяцах пишет оба месяца', () => {
+    expect(periodRangeText('2026-10-25', '2026-11-09')).toBe('25 октября – 9 ноября');
+  });
+});
+
+describe('formatDayMonth', () => {
+  it('пишет день и месяц без года', () => {
+    expect(formatDayMonth('2026-10-24')).toBe('24 октября');
+    expect(formatDayMonth('2026-01-01')).toBe('1 января');
+  });
+
+  it('возвращает исходную строку для неизвестного формата', () => {
+    expect(formatDayMonth('bad')).toBe('bad');
   });
 });

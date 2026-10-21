@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
     move: vi.fn(),
     assignFree: vi.fn(),
     listFundingRules: vi.fn().mockResolvedValue({ items: [] }),
+    getDashboard: vi.fn(),
   },
   route: { path: '/app/envelopes', query: {} as Record<string, string> },
   navigateTo: vi.fn(),
@@ -44,7 +45,25 @@ vi.mock('../../../composables/useEnvelopePlanV2.js', () => ({
 }));
 
 import { selectOption } from '../../../test/select-option.js';
+import { useFundingEntry } from '../../../composables/useFundingEntry.js';
 import EnvelopesPage from './index.vue';
+
+function dashboard(overrides: Record<string, unknown> = {}) {
+  return {
+    period: { start: '2026-10-10', end: '2026-10-24', periodId: 'p1' },
+    spendable: { state: 'READY', amountMinor: '3335000' },
+    suggestedTarget: null,
+    cashMinor: '30748531',
+    mandatoryBalanceMinor: '5163531',
+    otherProtectedMinor: '21050000',
+    freeToAssignMinor: '0',
+    mandatoryGapMinor: '0',
+    unbackedMinor: '0',
+    protectedAssignments: [],
+    warnings: [],
+    ...overrides,
+  };
+}
 
 function plan(overrides: Record<string, unknown>) {
   return {
@@ -146,6 +165,7 @@ describe('envelopes page, plan model v2', () => {
     mocks.v2.listEnvelopes.mockResolvedValue({ items: [repair, savings, food, mandatory] });
     mocks.v2.getEnvelopeHistory.mockResolvedValue({ items: [], nextCursor: null });
     mocks.v2.listFundingRules.mockResolvedValue({ items: [] });
+    mocks.v2.getDashboard.mockResolvedValue(dashboard());
     mocks.v2.move.mockResolvedValue({
       movementId: 'm1',
       amountMinor: '2800000',
@@ -173,6 +193,55 @@ describe('envelopes page, plan model v2', () => {
     expect(mocks.v1.getEnvelopesSummary).not.toHaveBeenCalled();
     expect(mocks.v1.getEnvelopeBalanceSummary).not.toHaveBeenCalled();
     expect(mocks.v1.getBudget).not.toHaveBeenCalled();
+  });
+
+  it('сводка: показывает «Можно потратить» и строку «Не распределено»', async () => {
+    mocks.v2.getDashboard.mockResolvedValue(dashboard({ freeToAssignMinor: '1200000' }));
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const text = normalize(wrapper.text());
+    expect(text).toContain('Можно потратить');
+    expect(text).toContain('33 350,00');
+    expect(text).toContain('Конверты · 10–24 октября');
+    expect(mocks.v2.getDashboard).toHaveBeenCalledWith('budget-id');
+    const free = wrapper.find('[data-testid="summary-free"]');
+    expect(free.exists()).toBe(true);
+
+    await free.find('button').trigger('click');
+    expect(useFundingEntry().request.value?.source).toEqual({ sourceKind: 'FREE' });
+    useFundingEntry().dismiss();
+  });
+
+  it('ошибка сводки не ломает список', async () => {
+    mocks.v2.getDashboard.mockRejectedValue(new Error('down'));
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="envelope-row-env-repair"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Сводка недоступна');
+    expect(wrapper.text()).toContain('Справочники');
+    expect(wrapper.find('[data-testid="summary-free"]').exists()).toBe(false);
+
+    mocks.v2.getDashboard.mockResolvedValue(dashboard({ freeToAssignMinor: '1200000' }));
+    await wrapper.get('[data-testid="summary-retry"] button').trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).not.toContain('Сводка недоступна');
+    expect(wrapper.find('[data-testid="summary-free"]').exists()).toBe(true);
+  });
+
+  it('перечитывает сводку и список после подтверждённого распределения', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+    const dashboardCalls = mocks.v2.getDashboard.mock.calls.length;
+    const listCalls = mocks.v2.listEnvelopes.mock.calls.length;
+
+    useFundingEntry().markConfirmed();
+    await flushPromises();
+
+    expect(mocks.v2.getDashboard.mock.calls.length).toBe(dashboardCalls + 1);
+    expect(mocks.v2.listEnvelopes.mock.calls.length).toBe(listCalls + 1);
+    wrapper.unmount();
   });
 
   it('keeps the savings balance as the server reports it and labels it as carried over', async () => {

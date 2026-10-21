@@ -90,3 +90,44 @@ export function decimalToMinor(decimal: string): string | null {
   const digits = `${match[1]}${(match[2] ?? '').padEnd(2, '0')}`.replace(/^0+(?=\d)/, '');
   return digits;
 }
+
+const MONTHS_GENITIVE = [
+  'января',
+  'февраля',
+  'марта',
+  'апреля',
+  'мая',
+  'июня',
+  'июля',
+  'августа',
+  'сентября',
+  'октября',
+  'ноября',
+  'декабря',
+] as const;
+
+function plainDateParts(value: string): { day: number; month: number } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return null;
+  return { day: Number(match[3]), month };
+}
+
+// "2026-10-24" -> "24 октября" (plain calendar date, no year, no timezone shift).
+export function formatDayMonth(value: string): string {
+  const parts = plainDateParts(value);
+  if (!parts) return value;
+  return `${parts.day} ${MONTHS_GENITIVE[parts.month - 1]}`;
+}
+
+// Period dates for a heading: "10–24 октября" or "25 октября – 9 ноября".
+export function periodRangeText(start: string, end: string): string {
+  const from = plainDateParts(start);
+  const to = plainDateParts(end);
+  if (!from || !to) return `${start} – ${end}`;
+  if (from.month === to.month) {
+    return `${from.day}–${to.day} ${MONTHS_GENITIVE[to.month - 1]}`;
+  }
+  return `${formatDayMonth(start)} – ${formatDayMonth(end)}`;
+}
