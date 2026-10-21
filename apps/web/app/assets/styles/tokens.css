@@ -151,6 +151,25 @@
 
   --hf-transition-fast: 150ms ease;
   --hf-transition-base: 250ms ease;
+
+  /* Envelope type hues: icon tile + progress fill only (Calm Fintech §«Цвет
+     типов»). Floor is 4.5:1 on both the type's own -soft background and on
+     --hf-color-surface (spec §1.1), not the 3:1 non-text minimum. Current
+     uses brand-active, not brand/brand-hover: brand (#1BA39C) only reaches
+     2.75:1 on brand-soft and brand-hover (#168F89) only 3.50:1; brand-active
+     (#127A75) reaches 4.58:1 on brand-soft and 5.16:1 on white. Savings uses
+     a darker literal (#7050B8) than the first draft (#7C5CC4), which only
+     reached 4.26:1 on its soft background; #7050B8 reaches 5.05:1/5.95:1. */
+  --hf-color-envelope-current: var(--hf-color-brand-active);
+  --hf-color-envelope-current-soft: var(--hf-color-brand-soft);
+  --hf-color-envelope-mandatory: var(--hf-color-primary-strong);
+  --hf-color-envelope-mandatory-soft: var(--hf-color-primary-soft);
+  --hf-color-envelope-savings: #7050b8;
+  --hf-color-envelope-savings-soft: #efeafa;
+  --hf-color-envelope-reserve: #4f5bd5;
+  --hf-color-envelope-reserve-soft: #eceefb;
+  --hf-color-envelope-custom: var(--hf-color-slate-500);
+  --hf-color-envelope-custom-soft: #eef1f4;
 }
 
 @media (min-width: 1024px) {
@@ -217,4 +236,13 @@
 
   --hf-tooltip-background: #eaf0f8;
   --hf-tooltip-color: #0d1b2a;
+
+  /* mandatory and custom follow the overridden primary-strong/slate-500
+     above; current-soft follows brand-soft. */
+  --hf-color-envelope-current: #4dc9c1;
+  --hf-color-envelope-savings: #b49cf0;
+  --hf-color-envelope-savings-soft: rgb(124 92 196 / 22%);
+  --hf-color-envelope-reserve: #98a1f2;
+  --hf-color-envelope-reserve-soft: rgb(79 91 213 / 22%);
+  --hf-color-envelope-custom-soft: rgb(255 255 255 / 8%);
 }

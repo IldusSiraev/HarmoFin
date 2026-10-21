@@ -31,4 +31,16 @@ describe('UiProgress', () => {
       mountProgress('100000', '0').get('[role="progressbar"]').attributes('aria-valuenow'),
     ).toBe('0');
   });
+
+  it('тон задаёт класс заполнения', () => {
+    const wrapper = mount(UiProgress, {
+      props: { value: '50', max: '100', label: 'Цель', tone: 'savings' },
+    });
+    expect(wrapper.find('.ui-progress__fill').classes()).toContain('ui-progress__fill--savings');
+  });
+
+  it('без тона — прежний вид', () => {
+    const wrapper = mount(UiProgress, { props: { value: '50', max: '100', label: 'Цель' } });
+    expect(wrapper.find('.ui-progress__fill').classes()).toEqual(['ui-progress__fill']);
+  });
 });

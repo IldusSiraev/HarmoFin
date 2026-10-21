@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { decimalToMinor } from './envelope-plan-kind.js';
+import { decimalToMinor, envelopeTone } from './envelope-plan-kind.js';
 
 describe('decimalToMinor', () => {
   it.each([
@@ -18,5 +18,16 @@ describe('decimalToMinor', () => {
 
   it.each(['', 'abc', '-1', '1.234', '1,5', ' 5'])('rejects %j', (input) => {
     expect(decimalToMinor(input)).toBeNull();
+  });
+});
+
+describe('envelopeTone', () => {
+  it('сопоставляет тип конверта с тоном', () => {
+    expect(envelopeTone('CURRENT_EXPENSES')).toBe('current');
+    expect(envelopeTone('MANDATORY_EXPENSES')).toBe('mandatory');
+    expect(envelopeTone('SAVINGS_GOAL')).toBe('savings');
+    expect(envelopeTone('RESERVE')).toBe('reserve');
+    expect(envelopeTone('CUSTOM')).toBe('custom');
+    expect(envelopeTone('UNKNOWN')).toBe('custom');
   });
 });

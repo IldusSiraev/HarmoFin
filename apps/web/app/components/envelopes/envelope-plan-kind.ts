@@ -33,6 +33,21 @@ export function planIcon(envelope: Pick<EnvelopePlanDto, 'envelopeType'>): typeo
   );
 }
 
+export type EnvelopeTone = 'current' | 'mandatory' | 'savings' | 'reserve' | 'custom';
+
+const TONES: Record<string, EnvelopeTone> = {
+  CURRENT_EXPENSES: 'current',
+  MANDATORY_EXPENSES: 'mandatory',
+  SAVINGS_GOAL: 'savings',
+  RESERVE: 'reserve',
+};
+
+// Tone drives only the type icon tile and progress fill (Calm Fintech §«Цвет
+// типов конвертов»); unknown types fall back to the neutral "custom" tone.
+export function envelopeTone(envelopeType: string): EnvelopeTone {
+  return TONES[envelopeType] ?? 'custom';
+}
+
 export function planScopeNote(envelopeType: string): string {
   if (envelopeType === 'SAVINGS_GOAL' || envelopeType === 'RESERVE') {
     return 'Остаток не сбрасывается при смене периода';
