@@ -372,6 +372,22 @@ describe('FundingReviewSheet', () => {
     expect(norm(wrapper.get('[data-testid="funding-gap"]').text())).toContain('4 000,00');
   });
 
+  it('announces the mandatory gap in the footer live region', () => {
+    const wrapper = mountSheet({ mandatoryGapMinor: '400000' });
+    const live = wrapper.get('[data-testid="funding-gap-live"]');
+
+    expect(live.element.closest('[aria-live="polite"]')).not.toBeNull();
+    expect(live.classes()).toContain('funding-sheet__sr');
+    expect(norm(live.text())).toContain('Не хватает на обязательные платежи: 4 000,00');
+    expect(wrapper.find('[data-testid="funding-gap"]').exists()).toBe(true);
+  });
+
+  it('has no gap echo when nothing is missing', () => {
+    const wrapper = mountSheet({ mandatoryGapMinor: '0' });
+
+    expect(wrapper.find('[data-testid="funding-gap-live"]').exists()).toBe(false);
+  });
+
   it('offers refresh on PREVIEW_STALE and never confirms the stale amount', async () => {
     const wrapper = mountSheet({
       error: { code: 'PREVIEW_STALE', detail: 'Данные изменились.' },

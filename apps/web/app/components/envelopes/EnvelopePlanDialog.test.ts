@@ -103,4 +103,26 @@ describe('EnvelopePlanDialog: статус и история', () => {
     expect(status?.textContent?.trim()).toBe('В архиве');
     expect(status?.className).toContain('--neutral');
   });
+
+  it('переключатель отменённых: подпись постоянна, состояние — через aria-checked', async () => {
+    await mountDialog({ envelope: envelope('env-a', 'Еда') });
+
+    const toggle = document.querySelector<HTMLButtonElement>(
+      '[data-testid="history-toggle-deleted"]',
+    );
+    expect(toggle?.getAttribute('role')).toBe('switch');
+    expect(toggle?.getAttribute('aria-checked')).toBe('false');
+    expect(toggle?.textContent?.trim()).toBe('Показать отменённые записи');
+
+    toggle?.click();
+    await flushPromises();
+
+    expect(toggle?.getAttribute('aria-checked')).toBe('true');
+    expect(toggle?.textContent?.trim()).toBe('Показать отменённые записи');
+    expect(mocks.v2.getEnvelopeHistory).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ status: 'DELETED' }),
+    );
+  });
 });

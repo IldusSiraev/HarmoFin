@@ -21,7 +21,8 @@ defineProps<{ rows: ReadonlyArray<{ label: string; beforeMinor: string; afterMin
         <span class="ui-before-after__before">
           <FinanceMoney :minor-units="row.beforeMinor" currency="RUB" :scale="2" />
         </span>
-        <ArrowRight :size="16" aria-label="станет" />
+        <ArrowRight :size="16" aria-hidden="true" />
+        <span class="ui-before-after__sr">станет</span>
         <strong><FinanceMoney :minor-units="row.afterMinor" currency="RUB" :scale="2" /></strong>
       </dd>
     </div>
@@ -49,6 +50,18 @@ defineProps<{ rows: ReadonlyArray<{ label: string; beforeMinor: string; afterMin
 
 .ui-before-after__row + .ui-before-after__row {
   border-top: 1px solid var(--hf-color-border);
+}
+
+.ui-before-after__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .ui-before-after__label {

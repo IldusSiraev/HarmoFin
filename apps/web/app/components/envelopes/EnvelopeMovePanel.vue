@@ -634,16 +634,21 @@ defineExpose({ confirm });
   outline-offset: 2px;
 }
 
+/* Full-size transparent overlay: the native radio itself receives pointer
+   input (E2E `.check()` works) and keyboard focus; the segment draws state. */
 .move-panel__radio {
   position: absolute;
-  width: 1px;
-  height: 1px;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   margin: 0;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
   border: 0;
   opacity: 0;
+  cursor: pointer;
+}
+
+.move-panel__radio:disabled {
+  cursor: not-allowed;
 }
 
 .move-panel__pills {

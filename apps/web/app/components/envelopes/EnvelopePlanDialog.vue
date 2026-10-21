@@ -156,12 +156,7 @@ const statusIcon = computed(() => {
 </script>
 
 <template>
-  <UiModal
-    :open="envelope !== null"
-    :title="envelope?.name ?? 'Конверт'"
-    size="sm"
-    @close="emit('close')"
-  >
+  <UiModal :open="envelope !== null" :title="envelope?.name ?? 'Конверт'" @close="emit('close')">
     <div v-if="envelope" class="plan-dialog">
       <p class="plan-dialog__subtitle">{{ subtitle }}</p>
 
@@ -272,7 +267,7 @@ const statusIcon = computed(() => {
               <span class="plan-dialog__switch-track" aria-hidden="true">
                 <span class="plan-dialog__switch-thumb" />
               </span>
-              {{ showDeleted ? 'Скрыть отменённые записи' : 'Показать отменённые записи' }}
+              Показать отменённые записи
             </button>
           </div>
         </section>
@@ -324,6 +319,7 @@ const statusIcon = computed(() => {
 
 <style scoped>
 .plan-dialog {
+  container-type: inline-size;
   display: grid;
   gap: var(--hf-space-4);
 }
@@ -528,7 +524,8 @@ const statusIcon = computed(() => {
   color: var(--hf-color-text-danger);
 }
 
-@media (min-width: 768px) {
+/* Two columns only when the dialog body itself is wide enough. */
+@container (min-width: 36rem) {
   .plan-dialog__columns {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }

@@ -1087,10 +1087,45 @@ describe('envelopes page, plan model v2', () => {
     );
   });
 
+  const foodPeriod = (current: boolean) => ({
+    periodId: 'p1',
+    startsOn: '2026-10-10',
+    endsOn: '2026-10-24',
+    fundedMinor: '1000000',
+    spentMinor: '300000',
+    balanceMinor: '700000',
+    current,
+  });
+
   it('группа на период: подпись половины и дат периода', async () => {
+    mocks.v2.listEnvelopes.mockResolvedValue({
+      items: [repair, savings, { ...food, periods: [foodPeriod(true)] }, mandatory],
+    });
     const wrapper = mountPage();
     await flushPromises();
 
     expect(normalize(wrapper.text())).toContain('Первая половина периода · 10–24 октября');
+  });
+
+  it('группа на период: текущая половина другая — только подпись половины', async () => {
+    mocks.v2.listEnvelopes.mockResolvedValue({
+      items: [repair, savings, { ...food, periods: [foodPeriod(false)] }, mandatory],
+    });
+    mocks.v2.getDashboard.mockResolvedValue(dashboard());
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const text = normalize(wrapper.text());
+    expect(text).toContain('Первая половина периода');
+    expect(text).not.toContain('Первая половина периода · 10–24 октября');
+  });
+
+  it('группа на период: текущая половина не определена — только подпись половины', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const text = normalize(wrapper.text());
+    expect(text).toContain('Первая половина периода');
+    expect(text).not.toContain('Первая половина периода · 10–24 октября');
   });
 });

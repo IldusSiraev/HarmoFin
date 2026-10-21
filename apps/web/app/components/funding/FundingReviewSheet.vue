@@ -194,6 +194,9 @@ function applyHint(line: FundingSheetLine, minor: string | undefined): void {
 const isStale = computed(() => props.error?.code === 'PREVIEW_STALE');
 const isExcess = computed(() => props.remainingMinor.startsWith('-'));
 const hasGap = computed(() => /^[1-9]/.test(props.mandatoryGapMinor));
+const gapTitle = computed(
+  () => `Не хватает на обязательные платежи: ${money(props.mandatoryGapMinor)}`,
+);
 const hasDueBreakdown = computed(
   () =>
     (props.mandatoryDueCurrentMinor !== undefined && props.mandatoryDueCurrentMinor !== '0') ||
@@ -270,7 +273,7 @@ function handleConfirm(): void {
         v-if="hasGap"
         tone="warning"
         data-testid="funding-gap"
-        :title="`Не хватает на обязательные платежи: ${money(mandatoryGapMinor)}`"
+        :title="gapTitle"
         description="Можно распределить доступную сумму сейчас и покрыть нехватку позже"
       />
 
@@ -382,6 +385,10 @@ function handleConfirm(): void {
       <div class="funding-sheet__footer">
         <div class="funding-sheet__total" aria-live="polite">
           <span class="funding-sheet__caption">Осталось распределить</span>
+          <!-- Screen-reader echo of the gap row above, so its changes are announced. -->
+          <span v-if="hasGap" class="funding-sheet__sr" data-testid="funding-gap-live">
+            {{ gapTitle }}
+          </span>
           <strong class="funding-sheet__total-amount" data-testid="funding-remaining">
             {{ isExcess ? money(remainingMinor.slice(1)) : money(remainingMinor) }}
           </strong>
@@ -658,6 +665,18 @@ function handleConfirm(): void {
   flex: 1 1 100%;
   gap: var(--hf-space-2);
   min-width: 0;
+}
+
+.funding-sheet__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .funding-sheet__total {

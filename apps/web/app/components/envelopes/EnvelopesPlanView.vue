@@ -129,16 +129,31 @@ const activeCountText = computed(() => {
 const searchStatus = computed(() => (searchQuery.value ? foundText(visibleCount.value) : ''));
 
 const SLOT_HALVES: Record<string, string> = { FIRST: 'Первая', SECOND: 'Вторая' };
+// The half the current period belongs to: the slot of the current-expense
+// envelope whose server-marked bucket is current. Null when undetermined.
+const currentHalfSlot = computed(() => {
+  const owner = envelopes.value.find(
+    (item) =>
+      item.envelopeType === 'CURRENT_EXPENSES' &&
+      item.periodSlot !== null &&
+      (item.periods ?? []).some((period) => period.current),
+  );
+  return owner?.periodSlot ?? null;
+});
 function groupNote(group: { items: EnvelopePlanDto[] }): string {
   const first = group.items[0];
   if (!first) return '';
-  if (first.envelopeType === 'CURRENT_EXPENSES' && dashboard.value) {
+  if (first.envelopeType === 'CURRENT_EXPENSES') {
     const slots = new Set(group.items.map((item) => item.periodSlot));
     const [slot] = [...slots];
     const half = slots.size === 1 && slot ? SLOT_HALVES[slot] : undefined;
     if (half) {
-      const range = periodRangeText(dashboard.value.period.start, dashboard.value.period.end);
-      return `${half} половина периода · ${range}`;
+      // Dashboard dates describe the current period; show them only for its half.
+      if (dashboard.value && slot === currentHalfSlot.value) {
+        const range = periodRangeText(dashboard.value.period.start, dashboard.value.period.end);
+        return `${half} половина периода · ${range}`;
+      }
+      return `${half} половина периода`;
     }
   }
   return planScopeNote(first.envelopeType);
