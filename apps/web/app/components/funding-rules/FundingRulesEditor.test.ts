@@ -213,6 +213,24 @@ describe('FundingRulesEditor', () => {
     expect(wrapper.find('[data-testid="rule-card-b"]').text()).toContain('Проверьте тип правила');
   });
 
+  it('статус нижней панели: сохранено / есть изменения', async () => {
+    const wrapper = await mountEditor();
+    expect(wrapper.find('[data-testid="rules-save-status"]').text()).toBe(
+      'Все изменения сохранены',
+    );
+    await wrapper.find('[data-testid="rule-down-a"]').trigger('click');
+    expect(wrapper.find('[data-testid="rules-save-status"]').text()).toBe(
+      'Есть несохранённые изменения',
+    );
+  });
+
+  it('карточка показывает иконку типа конверта', async () => {
+    const wrapper = await mountEditor();
+    expect(wrapper.find('[data-testid="rule-card-b"] .envelope-type-icon--savings').exists()).toBe(
+      true,
+    );
+  });
+
   it('ошибка загрузки и повтор', async () => {
     mocks.v2.listFundingRules.mockRejectedValueOnce(new Error('boom'));
     const wrapper = await mountEditor();

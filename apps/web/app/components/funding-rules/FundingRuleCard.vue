@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { ChevronDown, ChevronUp, GripVertical, Wallet } from '@lucide/vue';
 
 import FinanceMoneyInput from '../finance/FinanceMoneyInput.vue';
+import EnvelopeTypeIcon from '../envelopes/EnvelopeTypeIcon.vue';
 import UiButton from '../ui/Button.vue';
 import UiCard from '../ui/Card.vue';
 import UiInput from '../ui/Input.vue';
@@ -58,7 +59,7 @@ const fixedLabel = computed(() =>
   <UiCard
     as="article"
     class="rule-card"
-    :class="{ 'rule-card--dragging': dragging }"
+    :class="{ 'rule-card--dragging': dragging, 'rule-card--outside': position === null }"
     :data-testid="`rule-card-${id}`"
     :aria-label="position === null ? card.name : `${position}. ${card.name}`"
   >
@@ -74,31 +75,8 @@ const fixedLabel = computed(() =>
           <GripVertical :size="20" />
         </span>
         <span v-if="position !== null" class="rule-card__position">{{ position }}</span>
+        <EnvelopeTypeIcon :envelope-type="card.envelopeType" size="sm" />
         <h3 class="rule-card__name">{{ card.name }}</h3>
-        <div v-if="position !== null" class="rule-card__moves">
-          <UiButton
-            variant="tertiary"
-            size="sm"
-            :aria-label="`Переместить выше: ${card.name}`"
-            tooltip="Выше"
-            :disabled="disabled || !canMoveUp"
-            :data-testid="`rule-up-${id}`"
-            @click="emit('up')"
-          >
-            <ChevronUp :size="18" aria-hidden="true" />
-          </UiButton>
-          <UiButton
-            variant="tertiary"
-            size="sm"
-            :aria-label="`Переместить ниже: ${card.name}`"
-            tooltip="Ниже"
-            :disabled="disabled || !canMoveDown"
-            :data-testid="`rule-down-${id}`"
-            @click="emit('down')"
-          >
-            <ChevronDown :size="18" aria-hidden="true" />
-          </UiButton>
-        </div>
       </div>
 
       <div v-if="incomeLabel || card.type === ''" class="rule-card__meta">
@@ -151,6 +129,31 @@ const fixedLabel = computed(() =>
           @update:model-value="emit('percent', $event)"
         />
       </div>
+
+      <div v-if="position !== null" class="rule-card__moves">
+        <UiButton
+          variant="tertiary"
+          size="sm"
+          :aria-label="`Переместить выше: ${card.name}`"
+          tooltip="Выше"
+          :disabled="disabled || !canMoveUp"
+          :data-testid="`rule-up-${id}`"
+          @click="emit('up')"
+        >
+          <ChevronUp :size="18" aria-hidden="true" />
+        </UiButton>
+        <UiButton
+          variant="tertiary"
+          size="sm"
+          :aria-label="`Переместить ниже: ${card.name}`"
+          tooltip="Ниже"
+          :disabled="disabled || !canMoveDown"
+          :data-testid="`rule-down-${id}`"
+          @click="emit('down')"
+        >
+          <ChevronDown :size="18" aria-hidden="true" />
+        </UiButton>
+      </div>
     </div>
   </UiCard>
 </template>
@@ -167,10 +170,40 @@ const fixedLabel = computed(() =>
   outline-offset: 2px;
 }
 
+.rule-card--outside {
+  border-style: dashed;
+}
+
 .rule-card__body {
   display: grid;
   gap: var(--hf-space-3);
   min-width: 0;
+}
+
+/* Desktop queue row: handle, number, icon, name, select, amount, ↑/↓ on one line. */
+@media (min-width: 1024px) {
+  .rule-card:not(.rule-card--outside) .rule-card__body {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .rule-card:not(.rule-card--outside) .rule-card__head {
+    flex: 0 1 auto;
+    min-width: 10rem;
+  }
+
+  .rule-card:not(.rule-card--outside) .rule-card__meta {
+    flex: 0 0 auto;
+  }
+
+  .rule-card:not(.rule-card--outside) .rule-card__fields {
+    flex: 1 1 auto;
+  }
+
+  .rule-card:not(.rule-card--outside) .rule-card__moves {
+    flex: 0 0 auto;
+  }
 }
 
 .rule-card__head {
@@ -196,9 +229,18 @@ const fixedLabel = computed(() =>
 }
 
 .rule-card__position {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: var(--hf-color-slate-900);
+  color: var(--hf-color-slate-50);
+  font-size: var(--hf-font-size-small);
   font-variant-numeric: tabular-nums;
   font-weight: var(--hf-font-weight-semibold);
-  color: var(--hf-color-text-muted);
 }
 
 .rule-card__name {

@@ -28,6 +28,10 @@ export const OUTSIDE_HINT =
 export const SUGGESTION_HINT =
   'Когда приходит доход выбранной категории, приложение предложит целиком направить его в выбранный конверт. Деньги не переводятся сами: вы подтверждаете распределение.';
 
+export const QUEUE_SUBTITLE = 'Сначала заполняется правило №1, затем следующее.';
+export const OUTSIDE_SUBTITLE = 'Эти конверты не получают автоматического предложения.';
+export const SUGGESTION_SUBTITLE = 'Выберите, какой доход предлагать направить в конверт.';
+
 const ALL_TYPES: FundingRuleType[] = [
   'MANUAL',
   'SUM_OF_PLANS',
