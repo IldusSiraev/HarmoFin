@@ -3,14 +3,20 @@ import FinanceMoney from '../finance/FinanceMoney.vue';
 
 defineOptions({ name: 'UiAmountHero' });
 
-defineProps<{ label: string; amountMinor: string; note?: string | undefined }>();
+defineProps<{
+  label: string;
+  amountMinor: string;
+  note?: string | undefined;
+  /** Test id for the amount itself, so selectors read the sum without the label. */
+  amountTestId?: string | undefined;
+}>();
 </script>
 
 <template>
   <div class="ui-amount-hero">
     <div class="ui-amount-hero__main">
       <p class="ui-amount-hero__label">{{ label }}</p>
-      <p class="ui-amount-hero__amount">
+      <p class="ui-amount-hero__amount" :data-testid="amountTestId">
         <FinanceMoney :minor-units="amountMinor" currency="RUB" :scale="2" />
       </p>
       <p v-if="note" class="ui-amount-hero__note">{{ note }}</p>

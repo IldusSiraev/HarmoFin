@@ -81,7 +81,68 @@ describe('FundingReviewSheet', () => {
 
     expect((input.element as HTMLInputElement).value).toBe('10000.50');
     expect(input.attributes('inputmode')).toBe('decimal');
-    expect(input.attributes('aria-label')).toBe('Сумма для конверта Отпуск');
+    expect(wrapper.get(`label[for="${input.attributes('id')}"]`).text()).toBe('Сумма для Отпуск');
+  });
+
+  it('крупная сумма «Можно распределить» и пометка о счетах', () => {
+    const wrapper = mountSheet();
+    const text = norm(wrapper.text());
+
+    expect(text).toContain('Можно распределить');
+    expect(text).toContain('Деньги остаются на ваших счетах');
+    expect(norm(wrapper.get('[data-testid="funding-source"]').text())).toMatch(/^80 000,00/);
+  });
+
+  it('подзаголовок называет источник денег', () => {
+    expect(
+      mountSheet({ sourceKind: 'INCOME' }).get('[data-testid="funding-subtitle"]').text(),
+    ).toBe('Источник: доход');
+    expect(mountSheet().find('[data-testid="funding-subtitle"]').exists()).toBe(false);
+  });
+
+  it('строка очереди: номер, иконка типа, причина и поле суммы с доступной подписью', () => {
+    const wrapper = mountSheet({
+      previewLines: [
+        {
+          envelopeId: ENV_A,
+          periodId: null,
+          suggestedMinor: '4000000',
+          name: 'Обязательные платежи',
+          envelopeType: 'MANDATORY_EXPENSES',
+        },
+        { envelopeId: ENV_B, periodId: PERIOD, suggestedMinor: '1000050', name: 'Отпуск' },
+      ],
+    });
+    const text = norm(wrapper.text());
+    expect(text).toContain('Очередь');
+    expect(text).toContain('Предложенная сумма');
+
+    const [first, second] = wrapper.findAll('[data-testid="funding-line"]');
+    expect(first?.get('.funding-sheet__line-number').text()).toBe('1');
+    expect(first?.find('.envelope-type-icon--mandatory').exists()).toBe(true);
+    const input = wrapper.get(`[data-testid="funding-amount-${ENV_A}"]`);
+    expect(wrapper.get(`label[for="${input.attributes('id')}"]`).text()).toBe(
+      'Сумма для Обязательные платежи',
+    );
+    // No type on the line: neutral custom icon, never a guess.
+    expect(second?.find('.envelope-type-icon--custom').exists()).toBe(true);
+  });
+
+  it('пилюли подсказок видны под строкой, которая получила фокус', async () => {
+    const wrapper = mountSheet();
+    const actions = wrapper.get('[data-testid="funding-line"] .funding-sheet__line-actions');
+    expect((actions.element as HTMLElement).style.display).toBe('none');
+
+    await wrapper.get(`[data-testid="funding-amount-${ENV_A}"]`).trigger('focusin');
+    expect((actions.element as HTMLElement).style.display).toBe('');
+  });
+
+  it('нехватка на обязательные — warning-строка', () => {
+    const wrapper = mountSheet({ mandatoryGapMinor: '400000' });
+    const gap = wrapper.get('[data-testid="funding-gap"]');
+
+    expect(gap.classes()).toContain('ui-attention-row--warning');
+    expect(gap.text()).toContain('Можно распределить доступную сумму сейчас');
   });
 
   it('shows the period target selected by default and toggles it', async () => {
@@ -144,11 +205,11 @@ describe('FundingReviewSheet', () => {
 
     const inputA = wrapper.get(`[data-testid="funding-amount-${token(lineA)}"]`);
     const inputB = wrapper.get(`[data-testid="funding-amount-${token(lineB)}"]`);
-    expect(inputA.attributes('aria-label')).toBe(
-      'Сумма для конверта Обязательные — текущий период',
+    expect(wrapper.get(`label[for="${inputA.attributes('id')}"]`).text()).toBe(
+      'Сумма для Обязательные — текущий период',
     );
-    expect(inputB.attributes('aria-label')).toBe(
-      'Сумма для конверта Обязательные — следующий период',
+    expect(wrapper.get(`label[for="${inputB.attributes('id')}"]`).text()).toBe(
+      'Сумма для Обязательные — следующий период',
     );
 
     await inputA.setValue('5');
