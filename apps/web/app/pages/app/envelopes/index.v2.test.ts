@@ -340,11 +340,9 @@ describe('envelopes page, plan model v2', () => {
     await openRowAction(wrapper, 'env-repair', 'row-reassign');
     expect(normalize(document.body.textContent ?? '')).toContain('28 000');
 
-    const destination = document.querySelector(
-      '[data-testid="move-destination"]',
-    ) as HTMLSelectElement;
-    destination.value = 'env-save';
-    destination.dispatchEvent(new Event('change', { bubbles: true }));
+    (
+      document.querySelector('[data-testid="move-recipient-pill-env-save"]') as HTMLButtonElement
+    ).click();
     const amount = document.querySelector('[data-testid="move-amount"]') as HTMLInputElement;
     amount.value = '100,50';
     amount.dispatchEvent(new Event('input', { bubbles: true }));
@@ -524,6 +522,13 @@ describe('envelopes page, plan model v2', () => {
     await flushPromises();
   }
 
+  async function pickRecipient(id: string) {
+    (
+      document.querySelector(`[data-testid="move-recipient-pill-${id}"]`) as HTMLButtonElement
+    ).click();
+    await flushPromises();
+  }
+
   async function clickConfirm() {
     (document.querySelector('[data-testid="move-confirm"]') as HTMLButtonElement).click();
     await flushPromises();
@@ -531,7 +536,7 @@ describe('envelopes page, plan model v2', () => {
 
   async function openMove(wrapper: ReturnType<typeof mountPage>, id = 'env-repair') {
     await openRowAction(wrapper, id, 'row-reassign');
-    await setValue('[data-testid="move-destination"]', 'env-save', 'change');
+    await pickRecipient('env-save');
   }
 
   async function submitForm() {
@@ -731,7 +736,7 @@ describe('envelopes page, plan model v2', () => {
     it('sends the destination current period when moving into a period envelope', async () => {
       const wrapper = await mountWith([repair, periodFood([OLD, CURRENT])]);
       await openRowAction(wrapper, 'env-repair', 'row-reassign');
-      await setValue('[data-testid="move-destination"]', 'env-food', 'change');
+      await pickRecipient('env-food');
       await setValue('[data-testid="move-amount"]', '10');
       await clickConfirm();
 
@@ -744,19 +749,19 @@ describe('envelopes page, plan model v2', () => {
     });
 
     it('does not move into a period envelope that has no current period', async () => {
-      const wrapper = await mountWith([repair, periodFood([OLD])]);
+      const wrapper = await mountWith([repair, periodFood([OLD]), savings]);
       await openRowAction(wrapper, 'env-repair', 'row-reassign');
-      await setValue('[data-testid="move-destination"]', 'env-food', 'change');
+      await pickRecipient('env-food');
       await setValue('[data-testid="move-amount"]', '10');
       await clickConfirm();
 
       expect(mocks.v2.move).not.toHaveBeenCalled();
-      const error = document.querySelector('[data-testid="move-destination-error"]');
+      const error = document.querySelector('#move-destination-error');
       expect(error!.textContent).toContain('нет текущего периода');
 
       // Picking another envelope clears the stale error.
-      await setValue('[data-testid="move-destination"]', 'env-repair', 'change');
-      expect(document.querySelector('[data-testid="move-destination-error"]')).toBeNull();
+      await pickRecipient('env-save');
+      expect(document.querySelector('#move-destination-error')).toBeNull();
     });
 
     it('assigns free money to the current period of a period envelope', async () => {
