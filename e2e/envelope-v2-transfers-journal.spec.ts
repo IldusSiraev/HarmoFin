@@ -50,10 +50,8 @@ test('v2: перевод в журнале — создать, изменить,
   await page.getByTestId('account-dialog-transfer').click();
   const entry = page.getByRole('dialog');
   await entry.getByLabel('Сумма').fill('1 500,00');
-  await entry
-    .getByRole('radiogroup', { name: 'Куда' })
-    .getByRole('radio', { name: 'Вклад' })
-    .click();
+  // By test id: the accessible name «Куда» also matches «Откуда» as a substring.
+  await entry.getByTestId(`pill-transferDestination-${deposit.id}`).click();
   await page.getByTestId('entry-submit').click();
   await expect(entry).toBeHidden();
 
