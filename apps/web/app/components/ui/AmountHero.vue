@@ -1,0 +1,48 @@
+<script setup lang="ts">
+import FinanceMoney from '../finance/FinanceMoney.vue';
+
+defineOptions({ name: 'UiAmountHero' });
+
+defineProps<{ label: string; amountMinor: string; note?: string | undefined }>();
+</script>
+
+<template>
+  <div class="ui-amount-hero">
+    <div class="ui-amount-hero__main">
+      <p class="ui-amount-hero__label">{{ label }}</p>
+      <p class="ui-amount-hero__amount">
+        <FinanceMoney :minor-units="amountMinor" currency="RUB" :scale="2" />
+      </p>
+      <p v-if="note" class="ui-amount-hero__note">{{ note }}</p>
+    </div>
+    <div v-if="$slots.aside" class="ui-amount-hero__aside"><slot name="aside" /></div>
+  </div>
+</template>
+
+<style scoped>
+.ui-amount-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--hf-space-3);
+  padding: var(--hf-space-5);
+  border-radius: var(--hf-radius-md);
+  background: var(--hf-color-surface-subtle);
+}
+
+.ui-amount-hero__label,
+.ui-amount-hero__note {
+  margin: 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+}
+
+.ui-amount-hero__amount {
+  margin: var(--hf-space-1) 0;
+  font-size: var(--hf-font-size-h1);
+  font-weight: var(--hf-font-weight-semibold);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+</style>
