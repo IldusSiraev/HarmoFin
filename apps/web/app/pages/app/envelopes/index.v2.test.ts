@@ -183,7 +183,7 @@ describe('envelopes page, plan model v2', () => {
 
     const text = normalize(wrapper.text());
     expect(text).toContain('Отложено');
-    expect(text).toContain('Потрачено');
+    expect(text).toContain('потрачено 12 000');
     expect(text).toContain('Осталось');
     expect(text).toContain('28 000');
     expect(text).not.toContain('Начальный баланс конверта');
@@ -253,7 +253,7 @@ describe('envelopes page, plan model v2', () => {
     expect(row.text()).toContain('Остаток не сбрасывается при смене периода');
     expect(row.text()).toContain('не сбрасывается');
     expect(wrapper.get('[data-testid="envelope-row-env-mand"]').text()).toContain(
-      'Обязательные платежи',
+      'Аренда, кредиты, коммунальные и другие регулярные платежи',
     );
   });
 
@@ -1022,5 +1022,70 @@ describe('envelopes page, plan model v2', () => {
     await flushPromises();
     expect(normalize(wrapper.get('[data-testid="modal"]').text())).toContain('5 000,00');
     expect(wrapper.get('[data-testid="modal"]').text()).not.toContain('50,00');
+  });
+  it('поиск: фильтрует конверты по названию без учёта регистра и объявляет результат', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(normalize(wrapper.text())).toContain('Все конверты');
+    expect(normalize(wrapper.text())).toContain('4 активных');
+    expect(normalize(wrapper.text())).not.toContain('4 активный');
+
+    await wrapper.get('[name="envelope-search"]').setValue('ОТП');
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="envelope-row-env-save"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="envelope-row-env-repair"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="envelope-row-env-food"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="envelope-row-env-mand"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="envelope-search-status"]').text()).toBe('Найден 1 конверт');
+
+    await wrapper.get('[name="envelope-search"]').setValue('нет такого');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Ничего не найдено');
+
+    await wrapper.get('[name="envelope-search"]').setValue('  ');
+    await flushPromises();
+    for (const id of ['env-save', 'env-repair', 'env-food', 'env-mand']) {
+      expect(wrapper.find(`[data-testid="envelope-row-${id}"]`).exists()).toBe(true);
+    }
+    expect(wrapper.get('[data-testid="envelope-search-status"]').text()).toBe('');
+  });
+
+  it('карточки: прогресс и метки по серверной сводке', async () => {
+    mocks.v2.listEnvelopes.mockResolvedValue({
+      items: [{ ...savings, targetAmountMinor: '100000' }, mandatory, overspent],
+    });
+    mocks.v2.getDashboard.mockResolvedValue(
+      dashboard({
+        mandatoryBalanceMinor: '0',
+        mandatoryDueMinor: '1036469',
+        mandatoryGapMinor: '1036469',
+      }),
+    );
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const save = wrapper.get('[data-testid="envelope-row-env-save"]');
+    expect(save.get('[role="progressbar"]').attributes('aria-valuenow')).toBe('50');
+    expect(save.find('[data-testid="plan-row-badge"]').exists()).toBe(false);
+
+    const mand = wrapper.get('[data-testid="envelope-row-env-mand"]');
+    expect(mand.text()).toContain('Покрыто ближайших платежей');
+    expect(normalize(mand.get('[data-testid="plan-row-badge"]').text())).toContain(
+      'Нужно пополнить на 10 364,69',
+    );
+
+    const over = wrapper.get('[data-testid="envelope-row-env-over"]');
+    expect(normalize(over.get('[data-testid="plan-row-badge"]').text())).toContain(
+      'Перерасход 1 000,00',
+    );
+  });
+
+  it('группа на период: подпись половины и дат периода', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(normalize(wrapper.text())).toContain('Первая половина периода · 10–24 октября');
   });
 });

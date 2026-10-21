@@ -5,7 +5,11 @@ import {
   envelopeTone,
   formatDayMonth,
   periodRangeText,
+  planBadge,
+  pluralRu,
+  planProgress,
 } from './envelope-plan-kind.js';
+import type { EnvelopePlanDto } from '../../composables/useEnvelopePlanV2.js';
 
 describe('decimalToMinor', () => {
   it.each([
@@ -55,5 +59,140 @@ describe('formatDayMonth', () => {
 
   it('возвращает исходную строку для неизвестного формата', () => {
     expect(formatDayMonth('bad')).toBe('bad');
+  });
+});
+
+describe('planProgress', () => {
+  const base = {
+    id: 'e',
+    name: 'X',
+    periodSlot: null,
+    targetAmountMinor: null,
+    comment: null,
+    fundedMinor: '0',
+    spentMinor: '0',
+    balanceMinor: '0',
+    archivedAt: null,
+  };
+
+  it('текущие траты: потрачено из отложенного текущего периода', () => {
+    const env = {
+      ...base,
+      envelopeType: 'CURRENT_EXPENSES',
+      periods: [
+        {
+          periodId: 'old',
+          startsOn: '2026-09-25',
+          endsOn: '2026-10-09',
+          fundedMinor: '1',
+          spentMinor: '1',
+          balanceMinor: '0',
+          current: false,
+        },
+        {
+          periodId: 'p',
+          startsOn: '2026-10-10',
+          endsOn: '2026-10-24',
+          fundedMinor: '6500000',
+          spentMinor: '3165000',
+          balanceMinor: '3335000',
+          current: true,
+        },
+      ],
+    } as EnvelopePlanDto;
+    expect(planProgress(env, null)).toEqual({
+      value: '3165000',
+      max: '6500000',
+      label: 'Потрачено из отложенного',
+      tone: 'current',
+    });
+  });
+
+  it('обязательные: остаток к ближайшим платежам', () => {
+    const env = {
+      ...base,
+      envelopeType: 'MANDATORY_EXPENSES',
+      balanceMinor: '5163531',
+    } as EnvelopePlanDto;
+    expect(planProgress(env, { balanceMinor: '5163531', dueMinor: '6200000' })).toEqual({
+      value: '5163531',
+      max: '6200000',
+      label: 'Покрыто ближайших платежей',
+      tone: 'mandatory',
+    });
+    expect(planProgress(env, { balanceMinor: '1', dueMinor: '0' })).toBeNull();
+  });
+
+  it('цель: остаток к цели (цель в рублях)', () => {
+    const env = {
+      ...base,
+      envelopeType: 'SAVINGS_GOAL',
+      balanceMinor: '14850000',
+      targetAmountMinor: '280000',
+    } as EnvelopePlanDto;
+    expect(planProgress(env, null)).toEqual({
+      value: '14850000',
+      max: '28000000',
+      label: 'Цель',
+      tone: 'savings',
+    });
+  });
+
+  it('без цели — нет полосы', () => {
+    expect(planProgress({ ...base, envelopeType: 'RESERVE' } as EnvelopePlanDto, null)).toBeNull();
+  });
+});
+
+describe('planBadge', () => {
+  const base = {
+    id: 'e',
+    name: 'X',
+    periodSlot: null,
+    targetAmountMinor: null,
+    comment: null,
+    fundedMinor: '0',
+    spentMinor: '0',
+    archivedAt: null,
+  };
+
+  it('перерасход — danger', () => {
+    expect(
+      planBadge(
+        { ...base, envelopeType: 'CUSTOM', balanceMinor: '-320000' } as EnvelopePlanDto,
+        null,
+      ),
+    ).toEqual({ tone: 'danger', text: expect.stringMatching(/^Перерасход 3\s200,00/) });
+  });
+
+  it('обязательные с нехваткой — warning', () => {
+    expect(
+      planBadge(
+        { ...base, envelopeType: 'MANDATORY_EXPENSES', balanceMinor: '100' } as EnvelopePlanDto,
+        '1036469',
+      ),
+    ).toEqual({ tone: 'warning', text: expect.stringMatching(/^Нужно пополнить на 10\s364,69/) });
+  });
+
+  it('иначе нет метки', () => {
+    expect(
+      planBadge(
+        { ...base, envelopeType: 'MANDATORY_EXPENSES', balanceMinor: '100' } as EnvelopePlanDto,
+        '0',
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('pluralRu', () => {
+  it.each([
+    [1, 'конверт'],
+    [2, 'конверта'],
+    [5, 'конвертов'],
+    [11, 'конвертов'],
+    [21, 'конверт'],
+    [22, 'конверта'],
+    [25, 'конвертов'],
+  ])('%i — %s', (n, word) => {
+    expect(pluralRu(n, 'конверт', 'конверта', 'конвертов')).toBe(word);
   });
 });

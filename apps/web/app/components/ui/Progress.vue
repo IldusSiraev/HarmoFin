@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 
 import type { EnvelopeTone } from '../envelopes/envelope-plan-kind.js';
+import { progressPercent } from './progress-percent.js';
 
 defineOptions({ name: 'UiProgress' });
 
@@ -14,19 +15,7 @@ const props = defineProps<{
 
 // A share of two server-computed sums, not a money value of its own: the
 // component never shows a derived amount.
-const percent = computed(() => {
-  let value = 0n;
-  let max = 0n;
-  try {
-    value = BigInt(props.value);
-    max = BigInt(props.max);
-  } catch {
-    return 0;
-  }
-  if (max <= 0n || value <= 0n) return 0;
-  if (value >= max) return 100;
-  return Number((value * 100n) / max);
-});
+const percent = computed(() => progressPercent(props.value, props.max));
 </script>
 
 <template>

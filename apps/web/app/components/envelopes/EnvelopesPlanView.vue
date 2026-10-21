@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
-import { Plus, Settings2 } from '@lucide/vue';
+import { Plus, Search, Settings2 } from '@lucide/vue';
 
 import PeriodDecisionCard from '../dashboard/PeriodDecisionCard.vue';
 import FinanceMoney from '../finance/FinanceMoney.vue';
@@ -41,6 +41,10 @@ import {
   balanceSign,
   formatMoneyText,
   periodRangeText,
+  planBadge,
+  planProgress,
+  planScopeNote,
+  pluralRu,
 } from './envelope-plan-kind.js';
 
 defineOptions({ name: 'EnvelopesPlanView' });
@@ -97,6 +101,59 @@ const groups = computed(() =>
 );
 
 const activeEnvelopes = computed(() => envelopes.value.filter((item) => item.archivedAt === null));
+
+// Name search is a client-side view filter only; amounts are untouched.
+const search = ref('');
+const searchQuery = computed(() => search.value.trim().toLocaleLowerCase('ru'));
+const visibleGroups = computed(() => {
+  const query = searchQuery.value;
+  if (!query) return groups.value;
+  return groups.value
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => item.name.toLocaleLowerCase('ru').includes(query)),
+    }))
+    .filter((group) => group.items.length > 0);
+});
+const visibleCount = computed(() =>
+  visibleGroups.value.reduce((count, group) => count + group.items.length, 0),
+);
+function foundText(n: number): string {
+  const verb = pluralRu(n, 'Найден', 'Найдено', 'Найдено');
+  return `${verb} ${n} ${pluralRu(n, 'конверт', 'конверта', 'конвертов')}`;
+}
+const activeCountText = computed(() => {
+  const n = activeEnvelopes.value.length;
+  return `${n} ${pluralRu(n, 'активный', 'активных', 'активных')}`;
+});
+const searchStatus = computed(() => (searchQuery.value ? foundText(visibleCount.value) : ''));
+
+const SLOT_HALVES: Record<string, string> = { FIRST: 'Первая', SECOND: 'Вторая' };
+function groupNote(group: { items: EnvelopePlanDto[] }): string {
+  const first = group.items[0];
+  if (!first) return '';
+  if (first.envelopeType === 'CURRENT_EXPENSES' && dashboard.value) {
+    const slots = new Set(group.items.map((item) => item.periodSlot));
+    const [slot] = [...slots];
+    const half = slots.size === 1 && slot ? SLOT_HALVES[slot] : undefined;
+    if (half) {
+      const range = periodRangeText(dashboard.value.period.start, dashboard.value.period.end);
+      return `${half} половина периода · ${range}`;
+    }
+  }
+  return planScopeNote(first.envelopeType);
+}
+
+// Inputs for the card progress and badge, straight from the server dashboard.
+const mandatoryProgress = computed(() =>
+  dashboard.value
+    ? {
+        balanceMinor: dashboard.value.mandatoryBalanceMinor,
+        dueMinor: dashboard.value.mandatoryDueMinor,
+      }
+    : null,
+);
+const mandatoryGap = computed(() => dashboard.value?.mandatoryGapMinor ?? null);
 
 // actionPath hints from the dashboard. They only explain or highlight; nothing
 // is moved without an explicit action, and unknown parameters are ignored.
@@ -549,13 +606,45 @@ onMounted(() => {
           <template #action><UiButton @click="startCreate">Создать конверт</UiButton></template>
         </UiEmptyState>
 
-        <div v-if="groups.length > 0" class="plan-view__panel">
-          <section v-for="group in groups" :key="group.title" class="plan-view__group">
-            <h2 class="plan-view__group-label">{{ group.title }}</h2>
+        <section
+          v-if="groups.length > 0"
+          class="plan-view__list-section"
+          aria-labelledby="envelopes-all-title"
+        >
+          <div class="plan-view__list-head">
+            <div class="plan-view__list-title">
+              <h2 id="envelopes-all-title" class="plan-view__title">Все конверты</h2>
+              <span class="plan-view__count">{{ activeCountText }}</span>
+            </div>
+            <UiInput
+              v-model="search"
+              class="plan-view__search"
+              name="envelope-search"
+              label="Найти конверт"
+              hide-label
+            >
+              <template #icon><Search :size="18" /></template>
+            </UiInput>
+          </div>
+          <div class="plan-view__sr-only" aria-live="polite" data-testid="envelope-search-status">
+            {{ searchStatus }}
+          </div>
+          <UiEmptyState
+            v-if="visibleGroups.length === 0"
+            title="Ничего не найдено"
+            description="Проверьте название конверта."
+          />
+          <section v-for="group in visibleGroups" :key="group.title" class="plan-view__group">
+            <div class="plan-view__group-head">
+              <h3 class="plan-view__group-label">{{ group.title }}</h3>
+              <p class="plan-view__group-note">{{ groupNote(group) }}</p>
+            </div>
             <ul class="plan-view__list" :aria-label="`Конверты: ${group.title}`">
               <li v-for="envelope in group.items" :key="envelope.id" class="plan-view__item">
                 <EnvelopePlanRow
                   :envelope="envelope"
+                  :progress="planProgress(envelope, mandatoryProgress)"
+                  :badge="planBadge(envelope, mandatoryGap)"
                   :data-testid="`envelope-row-${envelope.id}`"
                   :data-highlighted="isHighlighted(envelope) ? 'true' : undefined"
                   :highlight="isHighlighted(envelope) ? highlightLabel : undefined"
@@ -613,7 +702,7 @@ onMounted(() => {
               </li>
             </ul>
           </section>
-        </div>
+        </section>
       </template>
     </template>
   </ReferencePageLayout>
@@ -766,34 +855,84 @@ form[data-envelope-form] {
   margin: 0;
 }
 
-.plan-view__panel {
-  padding: var(--hf-space-2) var(--hf-card-padding);
-  border-radius: var(--hf-card-radius);
-  background: var(--hf-color-surface);
-  box-shadow: var(--hf-shadow-card);
+.plan-view__list-section {
+  display: grid;
+  gap: var(--hf-space-4);
+  min-width: 0;
+}
+
+.plan-view__list-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hf-space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.plan-view__list-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hf-space-2);
+  align-items: baseline;
+}
+
+.plan-view__title {
+  margin: 0;
+  color: var(--hf-color-text);
+  font-size: var(--hf-font-size-h3);
+  font-weight: var(--hf-font-weight-semibold);
+}
+
+.plan-view__count {
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+}
+
+.plan-view__search {
+  flex: 0 1 20rem;
+  min-width: min(100%, 14rem);
+}
+
+.plan-view__sr-only {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .plan-view__group {
   display: grid;
   gap: var(--hf-space-3);
-  padding-top: var(--hf-space-6);
+  min-width: 0;
 }
 
-.plan-view__group:first-of-type {
-  padding-top: var(--hf-space-4);
+.plan-view__group-head {
+  display: grid;
+  gap: 0.125rem;
 }
 
 .plan-view__group-label {
   margin: 0;
-  padding-bottom: var(--hf-space-2);
-  border-bottom: 1px solid var(--hf-color-border);
   color: var(--hf-color-text);
   font-size: var(--hf-font-size-small);
   font-weight: var(--hf-font-weight-semibold);
 }
 
+.plan-view__group-note {
+  margin: 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-caption);
+  line-height: var(--hf-line-height-caption);
+}
+
 .plan-view__list {
   display: grid;
+  gap: var(--hf-space-3);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -803,13 +942,8 @@ form[data-envelope-form] {
   min-width: 0;
 }
 
-.plan-view__item + .plan-view__item {
-  border-top: 1px solid var(--hf-color-border);
-}
-
 .plan-view__row--highlight {
   border-left: 4px solid var(--hf-color-status-info);
-  background: var(--hf-color-status-info-background);
 }
 
 .plan-form__field {

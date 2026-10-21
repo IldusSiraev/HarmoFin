@@ -131,3 +131,81 @@ export function periodRangeText(start: string, end: string): string {
   }
   return `${formatDayMonth(start)} – ${formatDayMonth(end)}`;
 }
+
+export interface PlanProgress {
+  value: string;
+  max: string;
+  label: string;
+  tone: EnvelopeTone;
+}
+
+export interface PlanBadge {
+  tone: 'warning' | 'danger';
+  text: string;
+}
+
+const hasPositive = (minor: string): boolean => /[1-9]/.test(minor) && !minor.startsWith('-');
+
+// Progress bar input for an envelope card (spec §2.5). Both ends are server
+// strings; the share itself is computed by progressPercent for display only.
+export function planProgress(
+  envelope: EnvelopePlanDto,
+  mandatory: { balanceMinor: string; dueMinor: string } | null,
+): PlanProgress | null {
+  const tone = envelopeTone(envelope.envelopeType);
+  if (envelope.envelopeType === 'CURRENT_EXPENSES') {
+    const current = envelope.periods?.find((period) => period.current);
+    if (!current || !hasPositive(current.fundedMinor)) return null;
+    return {
+      value: current.spentMinor,
+      max: current.fundedMinor,
+      label: 'Потрачено из отложенного',
+      tone,
+    };
+  }
+  if (envelope.envelopeType === 'MANDATORY_EXPENSES') {
+    if (!mandatory || !hasPositive(mandatory.dueMinor)) return null;
+    return {
+      value: mandatory.balanceMinor,
+      max: mandatory.dueMinor,
+      label: 'Покрыто ближайших платежей',
+      tone,
+    };
+  }
+  const target =
+    envelope.targetAmountMinor === null ? null : decimalToMinor(envelope.targetAmountMinor);
+  if (target === null || !hasPositive(target)) return null;
+  return { value: envelope.balanceMinor, max: target, label: 'Цель', tone };
+}
+
+// Status badge for an envelope card: text plus tone, never colour alone.
+export function planBadge(
+  envelope: EnvelopePlanDto,
+  mandatoryGapMinor: string | null,
+): PlanBadge | null {
+  if (balanceSign(envelope.balanceMinor) === 'negative') {
+    // slice(1) drops the minus sign of the string: formatting, not arithmetic.
+    return {
+      tone: 'danger',
+      text: `Перерасход ${formatMoneyText(envelope.balanceMinor.slice(1))}`,
+    };
+  }
+  if (
+    envelope.envelopeType === 'MANDATORY_EXPENSES' &&
+    mandatoryGapMinor &&
+    hasPositive(mandatoryGapMinor)
+  ) {
+    return { tone: 'warning', text: `Нужно пополнить на ${formatMoneyText(mandatoryGapMinor)}` };
+  }
+  return null;
+}
+
+const RU_PLURAL = new Intl.PluralRules('ru');
+
+// Russian noun/adjective form for a count: 1 конверт, 2 конверта, 5 конвертов.
+export function pluralRu(n: number, one: string, few: string, many: string): string {
+  const rule = RU_PLURAL.select(n);
+  if (rule === 'one') return one;
+  if (rule === 'few') return few;
+  return many;
+}
