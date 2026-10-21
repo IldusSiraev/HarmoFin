@@ -43,7 +43,11 @@ const accountNames = new Map([
 ]);
 
 function mountDialog(
-  overrides: Partial<{ transfer: TransferJournalItem; canRestore: boolean }> = {},
+  overrides: Partial<{
+    transfer: TransferJournalItem;
+    canRestore: boolean;
+    intent: 'view' | 'edit' | 'delete' | 'restore';
+  }> = {},
 ) {
   return mount(TransferDialog, {
     attachTo: document.body,
@@ -54,6 +58,7 @@ function mountDialog(
       accounts,
       accountNames,
       canRestore: overrides.canRestore ?? false,
+      ...(overrides.intent ? { intent: overrides.intent } : {}),
     },
   });
 }
@@ -149,5 +154,49 @@ describe('TransferDialog', () => {
         .find('[data-testid="transfer-dialog-edit"]')
         .exists(),
     ).toBe(false);
+  });
+
+  describe('opened from the row menu', () => {
+    it('edit intent opens the edit form without the detail card', () => {
+      const wrapper = mountDialog({ intent: 'edit' });
+      expect(wrapper.find('[data-testid="direct-transfer-form"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="transfer-dialog-edit"]').exists()).toBe(false);
+    });
+
+    it('delete intent asks for confirmation and removes on confirm', async () => {
+      mutations.remove.mockResolvedValueOnce({ ...transfer, status: 'DELETED' });
+      const wrapper = mountDialog({ intent: 'delete' });
+      expect(wrapper.text()).toContain('Удалить перевод?');
+      expect(wrapper.find('[data-testid="transfer-dialog-delete"]').exists()).toBe(false);
+      await wrapper.find('dialog[open] button[data-confirm]').trigger('click');
+      await flushPromises();
+      expect(mutations.remove).toHaveBeenCalledWith('b1', transfer);
+      expect(wrapper.emitted('changed')).toHaveLength(1);
+    });
+
+    it('cancelling the confirmation closes the whole dialog', async () => {
+      const wrapper = mountDialog({ intent: 'delete' });
+      await wrapper.find('dialog[open] .ui-confirm-dialog__button--secondary').trigger('click');
+      expect(wrapper.emitted('close')).toHaveLength(1);
+    });
+
+    it('restore intent asks to restore', () => {
+      const wrapper = mountDialog({
+        transfer: { ...transfer, status: 'DELETED' },
+        canRestore: true,
+        intent: 'restore',
+      });
+      expect(wrapper.text()).toContain('Восстановить перевод?');
+    });
+
+    it('restore intent without the right to restore only shows the card', () => {
+      const wrapper = mountDialog({
+        transfer: { ...transfer, status: 'DELETED' },
+        canRestore: false,
+        intent: 'restore',
+      });
+      expect(wrapper.find('dialog[open] button[data-confirm]').exists()).toBe(false);
+      expect(wrapper.text()).toContain('Удалён');
+    });
   });
 });

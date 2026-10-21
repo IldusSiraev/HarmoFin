@@ -33,7 +33,6 @@ const rowLabel = computed(
     <template #leading><ArrowLeftRight :size="20" aria-hidden="true" /></template>
 
     <span class="transfer-row__title">Перевод</span>
-    <span class="transfer-row__subtitle">{{ route }}</span>
     <span v-if="transfer.comment" class="transfer-row__subtitle">{{ transfer.comment }}</span>
     <span v-if="transfer.status === 'DELETED'" class="transfer-row__meta">
       <UiStatus data-testid="transfer-row-status" label="Удалён" tone="danger" />
@@ -47,6 +46,7 @@ const rowLabel = computed(
         :currency="transfer.currency"
         :scale="SCALE"
       />
+      <span class="transfer-row__subtitle transfer-row__placement">{{ route }}</span>
     </template>
 
     <template v-if="$slots.actions" #actions><slot name="actions" /></template>

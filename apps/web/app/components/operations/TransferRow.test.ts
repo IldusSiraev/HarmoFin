@@ -37,6 +37,20 @@ describe('TransferRow', () => {
     expect(wrapper.text()).toContain('Отпуск');
   });
 
+  it('places the route under the amount, like the account of an operation', () => {
+    const trailing = mountRow().find('.transfer-row__placement');
+    expect(trailing.text()).toBe('Карта → Вклад');
+    expect(trailing.element.previousElementSibling?.classList).toContain('transfer-row__amount');
+  });
+
+  it('renders the actions slot', () => {
+    const wrapper = mount(TransferRow, {
+      props: { transfer, sourceName: 'Карта', destinationName: 'Вклад' },
+      slots: { actions: '<button data-testid="row-menu">…</button>' },
+    });
+    expect(wrapper.find('[data-testid="row-menu"]').exists()).toBe(true);
+  });
+
   it('shows the amount without a sign', () => {
     const text = mountRow().find('.transfer-row__amount').text();
     expect(text).not.toMatch(/^[-−+]/);

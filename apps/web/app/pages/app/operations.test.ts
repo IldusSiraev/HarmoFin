@@ -518,6 +518,43 @@ describe('operations page (v2 journal)', () => {
     expect(wrapper!.findComponent({ name: 'TransferDialog' }).props('transfer')).toBeNull();
   });
 
+  it('offers edit and delete in the transfer row menu and opens the dialog on that action', async () => {
+    v2.listJournal.mockResolvedValue({ items: [{ ...transferFixture }], nextCursor: null });
+    mountPage();
+    await flushPromises();
+
+    await wrapper!.get('[data-testid="action-menu-trigger"]').trigger('click');
+    expect(wrapper!.find('[data-testid="transfer-row-restore"]').exists()).toBe(false);
+    await wrapper!.get('[data-testid="transfer-row-delete"]').trigger('click');
+    await wrapper!.vm.$nextTick();
+
+    const dialog = wrapper!.findComponent({ name: 'TransferDialog' });
+    expect(dialog.props('transfer')).toMatchObject({ id: transferFixture.id });
+    expect(dialog.props('intent')).toBe('delete');
+
+    await openRowAction('transfer-row-edit');
+    await wrapper!.vm.$nextTick();
+    expect(wrapper!.findComponent({ name: 'TransferDialog' }).props('intent')).toBe('edit');
+
+    wrapper!.findComponent({ name: 'TransferRow' }).vm.$emit('select');
+    await wrapper!.vm.$nextTick();
+    expect(wrapper!.findComponent({ name: 'TransferDialog' }).props('intent')).toBe('view');
+  });
+
+  it('offers only restore for a deleted transfer', async () => {
+    v2.listJournal.mockResolvedValue({
+      items: [{ ...transferFixture, status: 'DELETED', deletedAt: '2026-10-20T12:00:00.000Z' }],
+      nextCursor: null,
+    });
+    mountPage();
+    await flushPromises();
+
+    await wrapper!.get('[data-testid="action-menu-trigger"]').trigger('click');
+    expect(wrapper!.find('[data-testid="transfer-row-edit"]').exists()).toBe(false);
+    expect(wrapper!.find('[data-testid="transfer-row-delete"]').exists()).toBe(false);
+    expect(wrapper!.find('[data-testid="transfer-row-restore"]').exists()).toBe(true);
+  });
+
   it('passes the transfer type filter to the feed', async () => {
     routeQuery.type = 'TRANSFER';
     mountPage();

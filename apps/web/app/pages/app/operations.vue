@@ -8,7 +8,9 @@ import OperationForm from '../../components/operations/OperationForm.vue';
 import OperationGroup from '../../components/operations/OperationGroup.vue';
 import OperationRow from '../../components/operations/OperationRow.vue';
 import OperationsToolbar from '../../components/operations/OperationsToolbar.vue';
-import TransferDialog from '../../components/operations/TransferDialog.vue';
+import TransferDialog, {
+  type TransferDialogIntent,
+} from '../../components/operations/TransferDialog.vue';
 import TransferRow from '../../components/operations/TransferRow.vue';
 import { groupByDay } from '../../components/operations/group-by-day.js';
 import UiActionMenu from '../../components/ui/ActionMenu.vue';
@@ -72,6 +74,7 @@ const selectedTransaction = ref<TransactionJournalV2Item | null>(null);
 const preloadedOperationId = ref<string | null>(null);
 const detailed = ref<TransactionJournalV2Item | null>(null);
 const detailedTransfer = ref<TransferJournalItem | null>(null);
+const transferIntent = ref<TransferDialogIntent>('view');
 const mutationKeys = new Map<string, string>();
 const confirmation = ref<null | {
   action: ConfirmationAction;
@@ -114,6 +117,16 @@ function transferRoute(item: TransferJournalItem) {
     sourceName: accountNameById.value.get(item.sourceAccountId) ?? 'Счёт',
     destinationName: accountNameById.value.get(item.destinationAccountId) ?? 'Счёт',
   };
+}
+
+// A deleted transfer offers only restore, and only the owner sees deleted rows.
+function hasTransferActions(item: TransferJournalItem): boolean {
+  return item.status === 'CONFIRMED' || isOwner.value;
+}
+
+function openTransfer(item: TransferJournalItem, intent: TransferDialogIntent): void {
+  transferIntent.value = intent;
+  detailedTransfer.value = item;
 }
 
 function onTransferChanged(): void {
@@ -446,8 +459,40 @@ async function downloadCsv() {
                 v-if="isTransfer(item)"
                 :transfer="item"
                 v-bind="transferRoute(item)"
-                @select="detailedTransfer = item"
-              />
+                @select="openTransfer(item, 'view')"
+              >
+                <template v-if="hasTransferActions(item)" #actions>
+                  <UiActionMenu label="Действия над переводом">
+                    <button
+                      v-if="item.status === 'CONFIRMED'"
+                      type="button"
+                      role="menuitem"
+                      data-testid="transfer-row-edit"
+                      @click="openTransfer(item, 'edit')"
+                    >
+                      Изменить
+                    </button>
+                    <button
+                      v-if="item.status === 'CONFIRMED'"
+                      type="button"
+                      role="menuitem"
+                      data-testid="transfer-row-delete"
+                      @click="openTransfer(item, 'delete')"
+                    >
+                      Удалить
+                    </button>
+                    <button
+                      v-if="item.status === 'DELETED' && isOwner"
+                      type="button"
+                      role="menuitem"
+                      data-testid="transfer-row-restore"
+                      @click="openTransfer(item, 'restore')"
+                    >
+                      Восстановить
+                    </button>
+                  </UiActionMenu>
+                </template>
+              </TransferRow>
               <OperationRow
                 v-else
                 :transaction="item"
@@ -516,6 +561,7 @@ async function downloadCsv() {
     <TransferDialog
       v-if="budget"
       :transfer="detailedTransfer"
+      :intent="transferIntent"
       :budget-id="budget.id"
       :accounts="accounts"
       :account-names="accountNameById"

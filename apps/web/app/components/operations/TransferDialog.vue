@@ -23,13 +23,21 @@ import { formatPlainDate } from '../obligations/format-plain-date.js';
 
 defineOptions({ name: 'TransferDialog' });
 
-const props = defineProps<{
-  transfer: TransferJournalItem | null;
-  budgetId: string;
-  accounts: ReadonlyArray<{ value: string; label: string }>;
-  accountNames: ReadonlyMap<string, string>;
-  canRestore: boolean;
-}>();
+// The row menu opens the dialog straight on its action: the edit form or the
+// confirmation, without the detail card in between.
+export type TransferDialogIntent = 'view' | 'edit' | 'delete' | 'restore';
+
+const props = withDefaults(
+  defineProps<{
+    transfer: TransferJournalItem | null;
+    budgetId: string;
+    accounts: ReadonlyArray<{ value: string; label: string }>;
+    accountNames: ReadonlyMap<string, string>;
+    canRestore: boolean;
+    intent?: TransferDialogIntent;
+  }>(),
+  { intent: 'view' },
+);
 
 const emit = defineEmits<{ close: []; changed: [] }>();
 
@@ -40,14 +48,34 @@ const form = ref<TransferFormModel | null>(null);
 const formErrors = ref<Partial<Record<string, string>>>({});
 const formError = ref('');
 const confirming = ref<null | 'delete' | 'restore'>(null);
+// True when the row menu skipped the detail card: leaving the form or the
+// confirmation then closes everything instead of revealing the card.
+const direct = ref(false);
 
 watch(
-  () => props.transfer?.id,
+  () => [props.transfer?.id, props.intent] as const,
   () => {
     editing.value = false;
     confirming.value = null;
+    // Restore stays owner-only here too, whatever the caller asked for.
+    const intent = props.intent === 'restore' && !props.canRestore ? 'view' : props.intent;
+    direct.value = props.transfer !== null && intent !== 'view';
+    if (!props.transfer) return;
+    if (intent === 'edit') startEdit();
+    else if (intent === 'delete' || intent === 'restore') confirming.value = intent;
   },
+  { immediate: true },
 );
+
+function closeEdit(): void {
+  editing.value = false;
+  if (direct.value) emit('close');
+}
+
+function cancelConfirm(): void {
+  confirming.value = null;
+  if (direct.value) emit('close');
+}
 
 const deleted = computed(() => props.transfer?.status === 'DELETED');
 
@@ -86,7 +114,7 @@ async function save(input: CreateDirectTransferRequest): Promise<void> {
     comment: input.comment ?? '',
   });
   if (Object.keys(patch).length === 0) {
-    editing.value = false;
+    closeEdit();
     return;
   }
   try {
@@ -118,11 +146,18 @@ async function confirm(): Promise<void> {
       ? await mutations.remove(props.budgetId, current)
       : await mutations.restore(props.budgetId, current);
   if (result) emit('changed');
+  // A failure is already explained by a toast; from the menu there is no card to return to.
+  else if (direct.value) emit('close');
 }
 </script>
 
 <template>
-  <UiModal :open="transfer !== null && !editing" title="Перевод" size="sm" @close="emit('close')">
+  <UiModal
+    :open="transfer !== null && !editing && !direct"
+    title="Перевод"
+    size="sm"
+    @close="emit('close')"
+  >
     <div v-if="transfer" class="transfer-dialog">
       <p class="transfer-dialog__amount">
         <FinanceMoney
@@ -183,7 +218,7 @@ async function confirm(): Promise<void> {
     </template>
   </UiModal>
 
-  <UiModal :open="editing" title="Изменить перевод" @close="editing = false">
+  <UiModal :open="editing" title="Изменить перевод" @close="closeEdit">
     <p v-if="formError" class="transfer-dialog__error" role="alert">{{ formError }}</p>
     <DirectTransferForm
       v-if="form"
@@ -205,7 +240,7 @@ async function confirm(): Promise<void> {
     :variant="confirming === 'delete' ? 'danger' : 'primary'"
     :loading="mutations.pending.value"
     @confirm="confirm"
-    @cancel="confirming = null"
+    @cancel="cancelConfirm"
   />
 </template>
 
