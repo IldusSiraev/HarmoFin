@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
-import { Plus, Search, Settings2 } from '@lucide/vue';
+import { Archive, ArrowLeftRight, List, Pencil, Plus, Search, Settings2 } from '@lucide/vue';
 
 import PeriodDecisionCard from '../dashboard/PeriodDecisionCard.vue';
 import FinanceMoney from '../finance/FinanceMoney.vue';
@@ -43,7 +43,6 @@ import {
   periodRangeText,
   planBadge,
   planProgress,
-  planScopeNote,
   pluralRu,
 } from './envelope-plan-kind.js';
 
@@ -129,6 +128,13 @@ const activeCountText = computed(() => {
 const searchStatus = computed(() => (searchQuery.value ? foundText(visibleCount.value) : ''));
 
 const SLOT_HALVES: Record<string, string> = { FIRST: 'Первая', SECOND: 'Вторая' };
+const GROUP_NOTES: Record<string, string> = {
+  CURRENT_EXPENSES: 'Лимит на каждую половину периода',
+  MANDATORY_EXPENSES: 'Сумма считается по ближайшим плановым платежам',
+  SAVINGS_GOAL: 'Деньги на цели и на непредвиденные расходы',
+  RESERVE: 'Деньги на цели и на непредвиденные расходы',
+  CUSTOM: 'Конверты для своих целей',
+};
 // The half the current period belongs to: the slot of the current-expense
 // envelope whose server-marked bucket is current. Null when undetermined.
 const currentHalfSlot = computed(() => {
@@ -156,7 +162,8 @@ function groupNote(group: { items: EnvelopePlanDto[] }): string {
       return `${half} половина периода`;
     }
   }
-  return planScopeNote(first.envelopeType);
+  // Group notes describe the group, not repeat each card's own caption.
+  return GROUP_NOTES[first.envelopeType] ?? '';
 }
 
 // Inputs for the card progress and badge, straight from the server dashboard.
@@ -637,6 +644,7 @@ onMounted(() => {
               name="envelope-search"
               label="Найти конверт"
               hide-label
+              placeholder="Найти конверт"
             >
               <template #icon><Search :size="18" /></template>
             </UiInput>
@@ -682,6 +690,7 @@ onMounted(() => {
                         data-action="reassign-envelope"
                         @click="startReassign(envelope)"
                       >
+                        <ArrowLeftRight :size="18" aria-hidden="true" />
                         Переложить
                       </button>
                       <button
@@ -692,6 +701,7 @@ onMounted(() => {
                         data-action="edit-envelope"
                         @click="startEdit(envelope)"
                       >
+                        <Pencil :size="18" aria-hidden="true" />
                         Изменить
                       </button>
                       <NuxtLink
@@ -699,6 +709,7 @@ onMounted(() => {
                         data-testid="row-operations"
                         :to="`/app/operations?envelopeId=${encodeURIComponent(envelope.id)}`"
                       >
+                        <List :size="18" aria-hidden="true" />
                         Операции конверта
                       </NuxtLink>
                       <button
@@ -709,6 +720,7 @@ onMounted(() => {
                         data-action="archive-envelope"
                         @click="requestArchive(envelope)"
                       >
+                        <Archive :size="18" aria-hidden="true" />
                         Переместить в архив
                       </button>
                     </UiActionMenu>
@@ -928,8 +940,10 @@ form[data-envelope-form] {
 }
 
 .plan-view__group-head {
-  display: grid;
-  gap: 0.125rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.125rem var(--hf-space-2);
+  align-items: baseline;
 }
 
 .plan-view__group-label {

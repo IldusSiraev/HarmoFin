@@ -29,7 +29,7 @@ defineProps<{
 .ui-amount-hero {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--hf-space-3);
   padding: var(--hf-space-5);
@@ -46,7 +46,7 @@ defineProps<{
 
 .ui-amount-hero__amount {
   margin: var(--hf-space-1) 0;
-  font-size: var(--hf-font-size-h1);
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
   font-weight: var(--hf-font-weight-semibold);
   line-height: 1.15;
   font-variant-numeric: tabular-nums;

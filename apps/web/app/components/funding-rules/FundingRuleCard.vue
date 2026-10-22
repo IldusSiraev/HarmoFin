@@ -51,7 +51,7 @@ const showsFixed = computed(
   () => props.card.type === 'FIXED_PER_PERIOD' || props.card.type === 'SUGGESTED_FIXED',
 );
 const fixedLabel = computed(() =>
-  props.card.type === 'SUGGESTED_FIXED' ? 'Предлагаемая сумма, ₽' : 'Сумма на период, ₽',
+  props.card.type === 'SUGGESTED_FIXED' ? 'Предложить, ₽' : 'Сумма, ₽',
 );
 </script>
 
@@ -76,15 +76,14 @@ const fixedLabel = computed(() =>
         </span>
         <span v-if="position !== null" class="rule-card__position">{{ position }}</span>
         <EnvelopeTypeIcon :envelope-type="card.envelopeType" size="sm" />
-        <h3 class="rule-card__name">{{ card.name }}</h3>
-      </div>
-
-      <div v-if="incomeLabel || card.type === ''" class="rule-card__meta">
-        <p v-if="incomeLabel" class="rule-card__badge" :data-testid="`rule-income-${id}`">
-          <Wallet :size="14" aria-hidden="true" />
-          {{ incomeLabel }}
-        </p>
-        <p v-if="card.type === ''" class="rule-card__muted">Правило не задано</p>
+        <div class="rule-card__identity">
+          <h3 class="rule-card__name">{{ card.name }}</h3>
+          <p v-if="incomeLabel" class="rule-card__badge" :data-testid="`rule-income-${id}`">
+            <Wallet :size="14" aria-hidden="true" />
+            {{ incomeLabel }}
+          </p>
+          <p v-if="card.type === ''" class="rule-card__muted">Правило не задано</p>
+        </div>
       </div>
 
       <div class="rule-card__fields">
@@ -108,7 +107,7 @@ const fixedLabel = computed(() =>
           :name="`rule-fixed-${id}`"
           :data-testid="`rule-fixed-${id}`"
           :label="fixedLabel"
-          hint="Больше нуля, до двух знаков после запятой."
+          tooltip="Больше нуля, до двух знаков после запятой."
           :model-value="card.fixed"
           :error="errors.fixedAmount"
           :disabled="disabled"
@@ -120,9 +119,9 @@ const fixedLabel = computed(() =>
           :id="`rule-percent-${id}`"
           :name="`rule-percent-${id}`"
           :data-testid="`rule-percent-${id}`"
-          label="Процент от дохода, %"
+          label="Процент, %"
           inputmode="decimal"
-          hint="От 0 до 100, до двух знаков после запятой."
+          tooltip="От 0 до 100, до двух знаков после запятой."
           :model-value="card.percent"
           :error="errors.percentBasisPoints"
           :disabled="disabled"
@@ -172,6 +171,7 @@ const fixedLabel = computed(() =>
 
 .rule-card--outside {
   border-style: dashed;
+  box-shadow: none;
 }
 
 .rule-card__body {
@@ -180,29 +180,36 @@ const fixedLabel = computed(() =>
   min-width: 0;
 }
 
-/* Desktop queue row: handle, number, icon, name, select, amount, ↑/↓ on one line. */
+/* Desktop queue row: every card uses the same columns, so the type select and
+   the amount line up from card to card. */
 @media (min-width: 1024px) {
   .rule-card:not(.rule-card--outside) .rule-card__body {
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: center;
+    grid-template-columns: minmax(0, 1fr) 19rem 10rem auto;
+    gap: var(--hf-space-4);
+    align-items: start;
   }
 
   .rule-card:not(.rule-card--outside) .rule-card__head {
-    flex: 0 1 auto;
-    min-width: 10rem;
-  }
-
-  .rule-card:not(.rule-card--outside) .rule-card__meta {
-    flex: 0 0 auto;
+    align-self: center;
   }
 
   .rule-card:not(.rule-card--outside) .rule-card__fields {
-    flex: 1 1 auto;
+    display: contents;
+  }
+
+  .rule-card:not(.rule-card--outside) .rule-card__fields > :first-child {
+    grid-column: 2;
+  }
+
+  .rule-card:not(.rule-card--outside) .rule-card__fields > :nth-child(2) {
+    grid-column: 3;
   }
 
   .rule-card:not(.rule-card--outside) .rule-card__moves {
-    flex: 0 0 auto;
+    grid-column: 4;
+    align-self: end;
+    min-height: var(--hf-control-height-md);
+    align-items: center;
   }
 }
 
@@ -215,10 +222,12 @@ const fixedLabel = computed(() =>
 
 .rule-card__handle {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  min-width: 44px;
+  min-width: 2rem;
   min-height: 44px;
+  margin-left: calc(var(--hf-space-2) * -1);
   color: var(--hf-color-text-subtle);
   cursor: grab;
   touch-action: none;
@@ -233,22 +242,29 @@ const fixedLabel = computed(() =>
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  min-width: 1.5rem;
+  width: 1.5rem;
   height: 1.5rem;
   border-radius: 999px;
   background: var(--hf-color-slate-900);
   color: var(--hf-color-slate-50);
-  font-size: var(--hf-font-size-small);
+  font-size: var(--hf-font-size-caption);
   font-variant-numeric: tabular-nums;
   font-weight: var(--hf-font-weight-semibold);
 }
 
-.rule-card__name {
-  flex: 1 1 auto;
+.rule-card__identity {
+  display: grid;
+  gap: var(--hf-space-1);
+  justify-items: start;
   min-width: 0;
+}
+
+.rule-card__name {
   margin: 0;
-  font-size: var(--hf-font-size-h3);
-  line-height: var(--hf-line-height-h3);
+  color: var(--hf-color-text);
+  font-size: var(--hf-font-size-body);
+  font-weight: var(--hf-font-weight-semibold);
+  line-height: 1.3;
   overflow-wrap: anywhere;
 }
 
@@ -257,29 +273,35 @@ const fixedLabel = computed(() =>
   gap: var(--hf-space-1);
 }
 
-.rule-card__meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--hf-space-2);
+.rule-card__moves :deep(.ui-button) {
+  color: var(--hf-color-text-muted);
+}
+
+.rule-card__moves :deep(.ui-button:disabled) {
+  opacity: 0.35;
 }
 
 .rule-card__badge {
   display: inline-flex;
   align-items: center;
   gap: var(--hf-space-1);
-  width: fit-content;
   margin: 0;
-  padding: var(--hf-space-1) var(--hf-space-2);
-  border: 1px solid var(--hf-color-border);
+  padding: 0.125rem var(--hf-space-2);
   border-radius: var(--hf-radius-sm);
-  background: var(--hf-color-surface-subtle);
-  font-size: var(--hf-font-size-small);
+  background: var(--hf-color-primary-soft);
+  color: var(--hf-color-primary-strong);
+  font-size: var(--hf-font-size-caption);
+  font-weight: var(--hf-font-weight-medium);
+}
+
+.rule-card__fields > * {
+  width: 100%;
+  min-width: 0;
 }
 
 .rule-card__fields {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   gap: var(--hf-space-3);
   align-items: start;
 }
@@ -287,6 +309,6 @@ const fixedLabel = computed(() =>
 .rule-card__muted {
   margin: 0;
   color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-small);
+  font-size: var(--hf-font-size-caption);
 }
 </style>

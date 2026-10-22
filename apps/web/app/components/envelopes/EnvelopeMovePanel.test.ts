@@ -87,7 +87,9 @@ describe('EnvelopeMovePanel', () => {
   it('shows the source subtitle and its current balance as the amount hero', async () => {
     await mountPanel();
     const panel = normalize(q('[data-testid="move-panel"]')?.textContent);
-    expect(panel).toContain('Источник: Ремонт');
+    expect(normalize(q('[data-testid="modal"] .modal__subtitle')?.textContent)).toContain(
+      'Источник: Ремонт',
+    );
     expect(panel).toContain('Сейчас в конверте');
     expect(panel).toContain('148 500,00');
     expect(panel).toContain('Можно переложить до 148 500,00');
@@ -101,6 +103,31 @@ describe('EnvelopeMovePanel', () => {
     expect(q('[data-testid="move-recipient-pill-env-a"]')).toBeNull();
     expect(q('[data-testid="move-recipient-pill-env-b"]')).not.toBeNull();
     expect(q('[data-testid="move-recipient-pill-env-c"]')).not.toBeNull();
+  });
+
+  it('при перерасходе позволяет только «Из свободных сюда»', async () => {
+    const overspent = envelope({ balanceMinor: '-165000', spentMinor: '15015000' });
+    const wrapper = mount(EnvelopeMovePanel, {
+      props: {
+        budgetId: 'budget-id',
+        source: overspent,
+        envelopes: [overspent, envB, envC],
+        mode: 'reassign',
+      },
+      attachTo: document.body,
+    });
+    wrappers.push(wrapper);
+    await flushPromises();
+
+    const radio = (item: string) => q<HTMLInputElement>(`[data-testid="move-direction-${item}"]`)!;
+    expect(radio('envelope-envelope').disabled).toBe(true);
+    expect(radio('envelope-free').disabled).toBe(true);
+    expect(radio('free-envelope').disabled).toBe(false);
+    expect(radio('free-envelope').checked).toBe(true);
+    expect(normalize(q('[data-testid="move-overspent-note"]')?.textContent)).toContain(
+      'Нечего перекладывать: в конверте перерасход',
+    );
+    expect(q('[data-testid="move-amount-hint"]')).toBeNull();
   });
 
   it('marks the chosen pill as pressed and sends it as the destination', async () => {
@@ -126,22 +153,22 @@ describe('EnvelopeMovePanel', () => {
     );
   });
 
-  it('offers every recipient except the source in the searchable select', async () => {
+  it('offers every recipient except the source as a pill, without a separate select', async () => {
     await mountPanel();
-    const input = q<HTMLInputElement>('#move-destination')!;
-    input.dispatchEvent(new Event('focus'));
-    await flushPromises();
-    const options = [...document.querySelectorAll('[role="option"]')].map((item) =>
+    const pills = [...document.querySelectorAll('.move-panel__pill-name')].map((item) =>
       normalize(item.textContent).trim(),
     );
-    expect(options).toEqual(['Отпуск', 'Резерв']);
-    document
-      .querySelectorAll('[role="option"]')[1]!
-      .dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-    await flushPromises();
-    expect(q('[data-testid="move-recipient-pill-env-c"]')!.getAttribute('aria-pressed')).toBe(
-      'true',
-    );
+    expect(pills).toEqual(['Отпуск', 'Резерв']);
+    expect(q('#move-destination')).toBeNull();
+  });
+
+  it('asks to choose a recipient and focuses the first pill', async () => {
+    await mountPanel();
+    await typeAmount('100');
+    await click('[data-testid="move-confirm"]');
+    expect(normalize(q('#move-destination-error')?.textContent)).toContain('Выберите конверт');
+    expect(document.activeElement).toBe(q('[data-testid="move-recipient-pill-env-b"]'));
+    expect(mocks.v2.move).not.toHaveBeenCalled();
   });
 
   it('предпросмотр «было → стало» для источника и получателя', async () => {

@@ -61,10 +61,9 @@ const hasAttention = computed(
       </div>
 
       <div class="envelopes-summary__zone envelopes-summary__protected">
-        <p class="envelopes-summary__label">Отложено на обязательные и накопления</p>
         <dl class="envelopes-summary__list">
-          <div class="envelopes-summary__line">
-            <dt>Обязательные платежи</dt>
+          <div class="envelopes-summary__pair">
+            <dt>Отложено на обязательные</dt>
             <dd>
               <FinanceMoney
                 :minor-units="dashboard.mandatoryBalanceMinor"
@@ -73,8 +72,8 @@ const hasAttention = computed(
               />
             </dd>
           </div>
-          <div class="envelopes-summary__line">
-            <dt>Накопления и другие</dt>
+          <div class="envelopes-summary__pair">
+            <dt>Отложено на накопления</dt>
             <dd>
               <FinanceMoney
                 :minor-units="dashboard.otherProtectedMinor"
@@ -83,7 +82,7 @@ const hasAttention = computed(
               />
             </dd>
           </div>
-          <div class="envelopes-summary__line envelopes-summary__line--cash">
+          <div class="envelopes-summary__pair">
             <dt>На счетах</dt>
             <dd>
               <FinanceMoney :minor-units="dashboard.cashMinor" currency="RUB" :scale="2" />
@@ -92,9 +91,10 @@ const hasAttention = computed(
         </dl>
       </div>
 
-      <div class="envelopes-summary__zone envelopes-summary__attention">
+      <div class="envelopes-summary__attention">
         <UiAttentionRow
           v-if="showsFree"
+          plain
           data-testid="summary-free"
           tone="info"
           :title="`Не распределено · ${formatMoneyText(dashboard.freeToAssignMinor)}`"
@@ -104,19 +104,23 @@ const hasAttention = computed(
         />
         <UiAttentionRow
           v-if="gap"
+          plain
           data-testid="summary-gap"
           :tone="gap.level === 'ALERT' ? 'warning' : 'info'"
           :title="`Не хватает на обязательные · ${formatMoneyText(gap.amountMinor)}`"
-          :description="gap.message"
+          :description="
+            gap.level === 'ALERT' ? gap.message : 'На следующий период — можно отложить заранее'
+          "
           action-label="Покрыть"
           :action-to="gap.actionPath"
         />
         <UiAttentionRow
           v-if="shortfall"
+          plain
           data-testid="summary-shortfall"
           tone="danger"
           :title="`Не хватает денег на счетах · ${formatMoneyText(shortfall.amountMinor)}`"
-          :description="shortfall.message"
+          description="Отложено больше, чем есть на счетах"
           action-label="Разобраться"
           :action-to="shortfall.actionPath"
         />
@@ -130,47 +134,67 @@ const hasAttention = computed(
 </template>
 
 <style scoped>
-.envelopes-summary__grid {
-  display: grid;
-  gap: var(--hf-space-6);
+.envelopes-summary :deep(.ui-card__content) {
+  padding: 0;
 }
 
-@media (width >= 1024px) {
-  .envelopes-summary__grid {
-    grid-template-columns: 1.1fr 1fr 1.4fr;
-    align-items: start;
-  }
+.envelopes-summary__grid {
+  display: grid;
 }
 
 .envelopes-summary__zone {
   display: grid;
+  container-type: inline-size;
   gap: var(--hf-space-2);
-  min-width: 0;
   align-content: start;
+  min-width: 0;
+  padding: var(--hf-space-6);
+}
+
+.envelopes-summary__zone + .envelopes-summary__zone,
+.envelopes-summary__attention {
+  border-top: 1px solid var(--hf-color-border);
+}
+
+@media (width >= 1024px) {
+  .envelopes-summary__grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.75fr) minmax(0, 1.65fr);
+  }
+
+  .envelopes-summary__zone + .envelopes-summary__zone,
+  .envelopes-summary__attention {
+    border-top: 0;
+    border-left: 1px solid var(--hf-color-border);
+  }
+
+  .envelopes-summary__spend {
+    align-content: center;
+  }
 }
 
 .envelopes-summary__label {
   margin: 0;
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-small);
-  font-weight: var(--hf-font-weight-medium);
 }
 
 .envelopes-summary__hero {
   color: var(--hf-color-text);
-  font-size: var(--hf-font-size-h1);
+  /* Follows the zone width, so the amount never runs into the next zone. */
+  font-size: clamp(1.75rem, 13cqi, 3rem);
   font-weight: var(--hf-font-weight-semibold);
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 .envelopes-summary__note,
 .envelopes-summary__setup-text {
   margin: 0;
   color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-small);
+  font-size: var(--hf-font-size-caption);
+  line-height: var(--hf-line-height-caption);
 }
 
 .envelopes-summary__setup-text {
@@ -184,7 +208,7 @@ const hasAttention = computed(
   align-items: center;
   justify-self: start;
   min-height: 2.75rem;
-  color: var(--hf-color-action-primary);
+  color: var(--hf-color-action-primary-text);
   font-weight: var(--hf-font-weight-medium);
 }
 
@@ -195,40 +219,40 @@ const hasAttention = computed(
 
 .envelopes-summary__list {
   display: grid;
-  gap: var(--hf-space-2);
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: var(--hf-space-4);
   margin: 0;
 }
 
-.envelopes-summary__line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--hf-space-2);
-  align-items: baseline;
-  justify-content: space-between;
+.envelopes-summary__pair {
+  display: grid;
+  gap: 0.125rem;
 }
 
-.envelopes-summary__line dt {
-  color: var(--hf-color-text);
+.envelopes-summary__pair dt {
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-caption);
+  line-height: var(--hf-line-height-caption);
 }
 
-.envelopes-summary__line dd {
+.envelopes-summary__pair dd {
   margin: 0;
   color: var(--hf-color-text);
+  font-size: 1.125rem;
   font-weight: var(--hf-font-weight-semibold);
   font-variant-numeric: tabular-nums;
-}
-
-.envelopes-summary__line--cash {
-  padding-top: var(--hf-space-2);
-  border-top: 1px solid var(--hf-color-border);
-}
-
-.envelopes-summary__line--cash dt {
-  color: var(--hf-color-text-muted);
+  white-space: nowrap;
 }
 
 .envelopes-summary__attention {
-  gap: var(--hf-space-3);
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  padding: 0 var(--hf-space-6);
+}
+
+.envelopes-summary__attention > * + * {
+  border-top: 1px solid var(--hf-color-border);
 }
 
 .envelopes-summary__calm {
@@ -236,6 +260,7 @@ const hasAttention = computed(
   gap: var(--hf-space-2);
   align-items: center;
   margin: 0;
+  padding: var(--hf-space-6) 0;
   color: var(--hf-color-text-muted);
 }
 

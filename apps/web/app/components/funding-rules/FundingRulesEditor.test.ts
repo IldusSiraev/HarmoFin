@@ -128,7 +128,7 @@ describe('FundingRulesEditor', () => {
     expect(body).toEqual({
       queue: [
         { envelopeId: 'b', type: 'PERCENT_OF_INCOME', percentBasisPoints: 1000 },
-        { envelopeId: 'a', type: 'FIXED_PER_PERIOD', fixedAmount: '15000.00' },
+        { envelopeId: 'a', type: 'FIXED_PER_PERIOD', fixedAmount: '15000' },
       ],
       outside: [],
       incomeSuggestion: { enabled: true, sourceCategoryId: 'cat', targetEnvelopeId: 'b' },

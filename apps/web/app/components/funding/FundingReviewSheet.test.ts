@@ -79,7 +79,7 @@ describe('FundingReviewSheet', () => {
     const wrapper = mountSheet();
     const input = wrapper.get(`[data-testid="funding-amount-${ENV_B}"]`);
 
-    expect((input.element as HTMLInputElement).value).toBe('10000.50');
+    expect((input.element as HTMLInputElement).value).toBe('10 000,50');
     expect(input.attributes('inputmode')).toBe('decimal');
     expect(wrapper.get(`label[for="${input.attributes('id')}"]`).text()).toBe('Сумма для Отпуск');
   });

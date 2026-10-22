@@ -8,7 +8,6 @@ import UiAmountHero from '../ui/AmountHero.vue';
 import UiBeforeAfter from '../ui/BeforeAfter.vue';
 import UiButton from '../ui/Button.vue';
 import UiModal from '../ui/Modal.vue';
-import UiSelect from '../ui/Select.vue';
 import {
   type AssignFreeResponse,
   type EnvelopePeriodDto,
@@ -112,13 +111,8 @@ const selectable = computed(() =>
     : candidates.value,
 );
 const needsDestination = computed(() => direction.value !== 'envelope-free');
-// Quick picks: the first envelopes in list order (never the source when moving
-// envelope to envelope); the searchable select offers all of them.
-const QUICK_PICKS = 5;
-const recipientPills = computed(() => selectable.value.slice(0, QUICK_PICKS));
-const recipientOptions = computed(() =>
-  selectable.value.map((item) => ({ value: item.id, label: item.name })),
-);
+// Every possible recipient in list order (never the source when moving envelope to envelope).
+const recipientPills = selectable;
 const destination = computed(
   () => props.envelopes.find((item) => item.id === destinationId.value) ?? null,
 );
@@ -151,6 +145,13 @@ function receivingBalanceMinor(envelope: EnvelopePlanDto): string | null {
 // The money the source can give now (the chosen period bucket for a period
 // envelope). Server value; the server still checks the limit on save.
 const sourceAvailableMinor = computed(() => sourceBalanceMinor.value);
+// Overspent source: nothing to give away, only «Из свободных сюда» stays open.
+const sourceOverspent = computed(
+  () => props.mode !== 'archive' && sourceAvailableMinor.value.startsWith('-'),
+);
+function directionDisabled(item: Direction): boolean {
+  return sourceOverspent.value && item !== 'free-envelope';
+}
 
 // Hero: the bucket that gives the money, or, for «Из свободных сюда», the one
 // that receives it.
@@ -239,7 +240,12 @@ watch(
   () => props.source?.id,
   (id) => {
     if (!id || !props.source) return;
-    direction.value = props.mode === 'archive' ? 'envelope-free' : 'envelope-envelope';
+    direction.value =
+      props.mode === 'archive'
+        ? 'envelope-free'
+        : sourceOverspent.value
+          ? 'free-envelope'
+          : 'envelope-envelope';
     destinationId.value = '';
     amount.value =
       props.mode === 'archive'
@@ -277,6 +283,15 @@ function focusById(id: string): void {
   void nextTick(() => document.getElementById(id)?.focus());
 }
 
+// Focus the chosen recipient, or the first one when none is chosen yet.
+function focusRecipient(): void {
+  void nextTick(() => {
+    const pills = document.querySelectorAll<HTMLElement>('.move-panel__pill');
+    const chosen = [...pills].find((item) => item.getAttribute('aria-pressed') === 'true');
+    (chosen ?? pills[0])?.focus();
+  });
+}
+
 function close(): void {
   if (pending.value) return;
   emit('close');
@@ -284,7 +299,7 @@ function close(): void {
 
 async function confirm(): Promise<void> {
   const source = props.source;
-  if (!source || pending.value) return;
+  if (!source || pending.value || directionDisabled(direction.value)) return;
   // Nothing to move at all: say it before asking for an amount.
   if (direction.value !== 'free-envelope' && sourceUsesPeriods.value && !sourcePeriod.value) {
     submitError.value = 'В этом конверте нет денег, которые можно перенести.';
@@ -306,7 +321,7 @@ async function confirm(): Promise<void> {
   amountError.value = '';
   if (needsDestination.value && destinationId.value === '') {
     destinationError.value = 'Выберите конверт';
-    focusById('move-destination');
+    focusRecipient();
     return;
   }
   destinationError.value = '';
@@ -318,7 +333,7 @@ async function confirm(): Promise<void> {
     destinationPeriodId = periodsOf(destination.value).find((item) => item.current)?.periodId;
     if (destinationPeriodId === undefined) {
       destinationError.value = `У конверта «${destination.value?.name ?? ''}» нет текущего периода. Сначала распределите в него деньги кнопкой «Распределить» на главной.`;
-      focusById('move-destination');
+      focusRecipient();
       return;
     }
   }
@@ -369,10 +384,13 @@ defineExpose({ confirm });
 </script>
 
 <template>
-  <UiModal :open="source !== null" :title="title" @close="close">
+  <UiModal
+    :open="source !== null"
+    :title="title"
+    :subtitle="source ? `Источник: ${source.name}` : undefined"
+    @close="close"
+  >
     <div v-if="source" class="move-panel" data-testid="move-panel">
-      <p class="move-panel__subtitle" data-testid="move-source-name">Источник: {{ source.name }}</p>
-
       <p v-if="mode === 'archive'" class="move-panel__muted" data-testid="move-archive-note">
         В конверте «{{ source.name }}» остались деньги. Выберите, куда их направить: после переноса
         конверт будет архивирован.
@@ -385,7 +403,12 @@ defineExpose({ confirm });
       <fieldset class="move-panel__field">
         <legend class="move-panel__label">Что сделать</legend>
         <div class="move-panel__segments">
-          <label v-for="item in directions" :key="item" class="move-panel__segment">
+          <label
+            v-for="item in directions"
+            :key="item"
+            class="move-panel__segment"
+            :class="{ 'move-panel__segment--disabled': directionDisabled(item) }"
+          >
             <input
               v-model="direction"
               type="radio"
@@ -393,11 +416,14 @@ defineExpose({ confirm });
               class="move-panel__radio"
               :value="item"
               :data-testid="`move-direction-${item}`"
-              :disabled="pending"
+              :disabled="pending || directionDisabled(item)"
             />
             <span>{{ DIRECTION_LABELS[item] }}</span>
           </label>
         </div>
+        <p v-if="sourceOverspent" class="move-panel__muted" data-testid="move-overspent-note">
+          Нечего перекладывать: в конверте перерасход
+        </p>
       </fieldset>
 
       <div v-if="showSourcePeriods && sourceMoneyPeriods.length > 1" class="move-panel__field">
@@ -424,7 +450,11 @@ defineExpose({ confirm });
 
       <fieldset v-if="needsDestination" class="move-panel__field">
         <legend class="move-panel__label">Конверт-получатель</legend>
-        <div v-if="recipientPills.length > 0" class="move-panel__pills">
+        <div
+          v-if="recipientPills.length > 0"
+          class="move-panel__pills"
+          :aria-describedby="destinationError ? 'move-destination-error' : undefined"
+        >
           <button
             v-for="item in recipientPills"
             :key="item.id"
@@ -440,18 +470,16 @@ defineExpose({ confirm });
             <span class="move-panel__pill-name">{{ item.name }}</span>
           </button>
         </div>
-        <UiSelect
-          id="move-destination"
-          v-model="destinationId"
-          name="move-destination"
-          label="Все конверты"
-          placeholder="Найдите конверт"
-          searchable
-          data-testid="move-destination"
-          :options="recipientOptions"
-          :error="destinationError || undefined"
-          :disabled="pending"
-        />
+        <p
+          v-if="destinationError"
+          id="move-destination-error"
+          class="move-panel__error"
+          role="alert"
+          data-testid="move-destination-error"
+        >
+          <AlertTriangle :size="14" aria-hidden="true" />
+          {{ destinationError }}
+        </p>
         <p v-if="selectable.length === 0" class="move-panel__muted">
           Другого активного конверта нет. Создайте его или выберите «В свободные».
         </p>
@@ -544,7 +572,7 @@ defineExpose({ confirm });
 <style scoped>
 .move-panel {
   display: grid;
-  gap: var(--hf-space-4);
+  gap: var(--hf-space-5);
   min-width: 0;
 }
 
@@ -554,15 +582,9 @@ defineExpose({ confirm });
   font-size: var(--hf-font-size-small);
 }
 
-.move-panel__subtitle {
-  margin: 0;
-  color: var(--hf-color-text-muted);
-  overflow-wrap: anywhere;
-}
-
 .move-panel__field {
   display: grid;
-  gap: var(--hf-space-2);
+  gap: var(--hf-space-3);
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -572,6 +594,12 @@ defineExpose({ confirm });
 .move-panel__label {
   margin: 0;
   font-weight: var(--hf-font-weight-medium);
+}
+
+/* A legend sits outside its fieldset grid, so the grid gap does not reach it. */
+legend.move-panel__label {
+  margin-bottom: var(--hf-space-3);
+  padding: 0;
 }
 
 .move-panel__input {
@@ -645,6 +673,11 @@ defineExpose({ confirm });
   border: 0;
   opacity: 0;
   cursor: pointer;
+}
+
+.move-panel__segment--disabled {
+  color: var(--hf-color-text-subtle);
+  cursor: not-allowed;
 }
 
 .move-panel__radio:disabled {

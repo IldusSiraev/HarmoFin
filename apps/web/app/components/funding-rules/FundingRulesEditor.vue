@@ -281,12 +281,13 @@ async function save(): Promise<void> {
               <input
                 type="checkbox"
                 role="switch"
+                class="rules-editor__switch-input"
                 data-testid="suggestion-enabled"
                 :disabled="saving"
                 :checked="state.suggestion.enabled"
                 @change="setSuggestion({ enabled: ($event.target as HTMLInputElement).checked })"
               />
-              Предлагать направить доход в конверт
+              Предлагать
             </label>
           </div>
         </template>
@@ -502,6 +503,50 @@ async function save(): Promise<void> {
   align-items: center;
   gap: var(--hf-space-2);
   min-height: 44px;
+}
+
+.rules-editor__switch-input {
+  position: relative;
+  flex: 0 0 auto;
+  width: 2.5rem;
+  height: 1.5rem;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--hf-color-border-strong);
+  cursor: pointer;
+  appearance: none;
+  transition: background-color 150ms ease;
+}
+
+.rules-editor__switch-input::before {
+  position: absolute;
+  top: 0.1875rem;
+  left: 0.1875rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 50%;
+  background: var(--hf-color-white, #fff);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+  content: '';
+  transition: transform 150ms ease;
+}
+
+.rules-editor__switch-input:checked {
+  background: var(--hf-color-brand);
+}
+
+.rules-editor__switch-input:checked::before {
+  transform: translateX(1rem);
+}
+
+.rules-editor__switch-input:focus-visible {
+  outline: 2px solid var(--hf-color-focus-ring);
+  outline-offset: 2px;
+}
+
+.rules-editor__switch-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .rules-editor__suggestion {

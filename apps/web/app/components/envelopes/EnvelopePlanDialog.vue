@@ -156,10 +156,14 @@ const statusIcon = computed(() => {
 </script>
 
 <template>
-  <UiModal :open="envelope !== null" :title="envelope?.name ?? 'Конверт'" @close="emit('close')">
+  <UiModal
+    :open="envelope !== null"
+    :title="envelope?.name ?? 'Конверт'"
+    :subtitle="envelope ? subtitle : undefined"
+    size="lg"
+    @close="emit('close')"
+  >
     <div v-if="envelope" class="plan-dialog">
-      <p class="plan-dialog__subtitle">{{ subtitle }}</p>
-
       <UiAmountHero label="Осталось" :amount-minor="envelope.balanceMinor">
         <template #aside>
           <span
@@ -213,8 +217,11 @@ const statusIcon = computed(() => {
           aria-labelledby="plan-history-title"
         >
           <h3 id="plan-history-title" class="plan-dialog__section-title">
-            {{ showDeleted ? 'Отменённые записи' : 'Распределения, переносы и расходы' }}
+            {{ showDeleted ? 'Отменённые записи' : 'История' }}
           </h3>
+          <p v-if="!showDeleted" class="plan-dialog__section-sub">
+            Распределения, переносы и расходы
+          </p>
           <p v-if="showDeleted" class="plan-dialog__note">
             Только для чтения: эти записи отменены и не влияют на остаток.
           </p>
@@ -307,6 +314,7 @@ const statusIcon = computed(() => {
       <UiButton
         v-if="!envelope.archivedAt"
         variant="tertiary"
+        class="plan-dialog__archive"
         data-testid="plan-dialog-archive"
         @click="emit('archive', envelope)"
       >
@@ -322,13 +330,6 @@ const statusIcon = computed(() => {
   container-type: inline-size;
   display: grid;
   gap: var(--hf-space-4);
-}
-
-.plan-dialog__subtitle {
-  margin: 0;
-  color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-caption);
-  line-height: var(--hf-line-height-caption);
 }
 
 .plan-dialog__status {
@@ -368,30 +369,49 @@ const statusIcon = computed(() => {
 
 .plan-dialog__rows {
   display: grid;
-  gap: var(--hf-space-2);
+  align-content: start;
   margin: 0;
 }
 
 .plan-dialog__rows div {
-  display: flex;
-  gap: var(--hf-space-3);
-  justify-content: space-between;
+  display: grid;
+  gap: 0.125rem;
+  padding: var(--hf-space-3) 0;
+  border-bottom: 1px solid var(--hf-color-border);
+}
+
+.plan-dialog__rows div:first-child {
+  padding-top: 0;
 }
 
 .plan-dialog__rows dt {
   color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-caption);
+  line-height: var(--hf-line-height-caption);
 }
 
 .plan-dialog__rows dd {
   margin: 0;
-  text-align: right;
+  color: var(--hf-color-text);
+  font-variant-numeric: tabular-nums;
 }
 
 .plan-dialog__section-title {
-  margin: 0 0 var(--hf-space-2);
-  color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-small);
+  margin: 0;
+  color: var(--hf-color-text);
+  font-size: var(--hf-font-size-body);
   font-weight: var(--hf-font-weight-semibold);
+}
+
+.plan-dialog__archive {
+  margin-left: auto;
+}
+
+.plan-dialog__section-sub {
+  margin: 0.125rem 0 var(--hf-space-3);
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-caption);
+  line-height: var(--hf-line-height-caption);
 }
 
 .plan-dialog__note {
@@ -527,7 +547,8 @@ const statusIcon = computed(() => {
 /* Two columns only when the dialog body itself is wide enough. */
 @container (min-width: 36rem) {
   .plan-dialog__columns {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    column-gap: var(--hf-space-8);
   }
 }
 </style>

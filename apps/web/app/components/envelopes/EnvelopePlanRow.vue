@@ -157,7 +157,7 @@ const rowLabel = computed(() => {
 
 <style scoped>
 .plan-row {
-  padding: var(--hf-space-1);
+  padding: var(--hf-space-3) var(--hf-space-2);
   border: 1px solid var(--hf-color-border);
   border-radius: var(--hf-card-radius);
   background: var(--hf-color-surface);
@@ -166,8 +166,11 @@ const rowLabel = computed(() => {
 
 /* The type tile carries its own tone background. */
 .plan-row :deep(.ui-list-row__leading) {
-  align-self: start;
   background: transparent;
+}
+
+.plan-row__title {
+  font-size: var(--hf-font-size-body);
 }
 
 /* The card is reused in narrow frames (landing, demo), so its columns follow
@@ -264,13 +267,16 @@ const rowLabel = computed(() => {
 
 @container (min-width: 26rem) {
   .plan-row__grid {
-    grid-template-columns: minmax(14rem, 1.4fr) minmax(10rem, 1fr);
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
   }
 }
 
-@container (min-width: 40rem) {
-  .plan-row__grid--side {
-    grid-template-columns: minmax(14rem, 1.4fr) minmax(10rem, 1fr) minmax(12rem, 1.2fr);
+/* Wide cards share one column grid whether or not they have a progress block,
+   so «Осталось» starts at the same x in every card of the list. */
+@container (min-width: 44rem) {
+  .plan-row__grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1fr);
+    column-gap: var(--hf-space-6);
   }
 
   .plan-row__progress {

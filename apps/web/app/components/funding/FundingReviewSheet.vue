@@ -98,6 +98,15 @@ function toDecimalText(minor: string): string {
   return props.scale === 0 ? whole : `${whole}.${padded.slice(cut)}`;
 }
 
+// Minor units -> text shown in an amount field: "2000000" -> "20 000", "1000050" -> "10 000,50".
+// Spaces only group digits; commitDraft strips them again. String-only, no arithmetic.
+function toFieldText(minor: string): string {
+  const [whole = '', fraction = ''] = toDecimalText(minor).split('.');
+  if (whole === '') return '';
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return fraction === '' || /^0+$/.test(fraction) ? grouped : `${grouped},${fraction}`;
+}
+
 function lineIdOf(line: FundingSheetLine): string | null {
   return line.lineId == null ? null : line.lineId;
 }
@@ -135,7 +144,7 @@ watch(
   () => props.previewLines,
   (lines) => {
     for (const line of lines) {
-      drafts[lineKey(line)] = toDecimalText(line.suggestedMinor);
+      drafts[lineKey(line)] = toFieldText(line.suggestedMinor);
       delete localErrors[lineKey(line)];
     }
   },
@@ -171,7 +180,7 @@ function commitDraft(line: FundingSheetLine, event?: Event): void {
   // The field value in the DOM wins: a commit without a preceding 'input'
   // event (Enter, programmatic write) must not resend the stale draft.
   const field = (event?.target ?? null) as HTMLInputElement | null;
-  const text = (field?.value ?? drafts[key] ?? '').trim();
+  const text = (field?.value ?? drafts[key] ?? '').replace(/\s/g, '');
   if (!AMOUNT_PATTERN.test(text)) {
     localErrors[key] =
       text === '' ? 'Введите сумму' : 'Введите сумму числом, не более двух знаков после запятой';
@@ -186,7 +195,7 @@ function applyHint(line: FundingSheetLine, minor: string | undefined): void {
   if (minor === undefined) return;
   const text = toDecimalText(minor);
   if (text === '') return;
-  drafts[lineKey(line)] = text;
+  drafts[lineKey(line)] = toFieldText(minor);
   delete localErrors[lineKey(line)];
   emitLine(line, text);
 }
@@ -661,10 +670,18 @@ function handleConfirm(): void {
 }
 
 .funding-sheet__footer {
-  display: grid;
+  display: flex;
   flex: 1 1 100%;
-  gap: var(--hf-space-2);
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hf-space-2) var(--hf-space-4);
   min-width: 0;
+}
+
+.funding-sheet__footer > .funding-sheet__muted {
+  flex-basis: 100%;
+  order: 3;
 }
 
 .funding-sheet__sr {

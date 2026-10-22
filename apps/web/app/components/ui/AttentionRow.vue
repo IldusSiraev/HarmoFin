@@ -10,6 +10,8 @@ const props = defineProps<{
   description?: string | undefined;
   actionLabel?: string | undefined;
   actionTo?: string | undefined;
+  /** Row inside a card: no own background or border, tinted icon tile only. */
+  plain?: boolean;
 }>();
 const emit = defineEmits<{ action: [] }>();
 
@@ -19,7 +21,10 @@ const icon = computed(
 </script>
 
 <template>
-  <div class="ui-attention-row" :class="`ui-attention-row--${tone}`">
+  <div
+    class="ui-attention-row"
+    :class="[`ui-attention-row--${tone}`, { 'ui-attention-row--plain': plain }]"
+  >
     <span class="ui-attention-row__icon" aria-hidden="true">
       <component :is="icon" :size="18" />
     </span>
@@ -43,6 +48,7 @@ const icon = computed(
 <style scoped>
 .ui-attention-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--hf-space-3);
   padding: var(--hf-space-3) var(--hf-space-4);
@@ -82,7 +88,7 @@ const icon = computed(
 }
 
 .ui-attention-row__text {
-  flex: 1 1 auto;
+  flex: 1 1 12rem;
   min-width: 0;
 }
 
@@ -118,5 +124,33 @@ const icon = computed(
   outline: 2px solid var(--hf-color-focus-ring);
   outline-offset: 2px;
   border-radius: var(--hf-radius-sm);
+}
+
+.ui-attention-row--plain {
+  padding: var(--hf-space-4) 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.ui-attention-row--plain .ui-attention-row__icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  background: var(--tone-soft);
+}
+
+.ui-attention-row--plain .ui-attention-row__title {
+  overflow-wrap: normal;
+}
+
+.ui-attention-row--plain .ui-attention-row__description {
+  margin-top: 0.125rem;
+  font-size: var(--hf-font-size-caption);
+  line-height: var(--hf-line-height-caption);
+}
+
+.ui-attention-row--plain .ui-attention-row__action {
+  color: var(--hf-color-action-primary-text);
+  font-size: var(--hf-font-size-small);
 }
 </style>

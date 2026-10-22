@@ -21,10 +21,10 @@ export const PLAN_SLOT_LABELS: Record<string, string> = {
 };
 
 export const PLAN_GROUPS: ReadonlyArray<{ title: string; types: ReadonlyArray<string> }> = [
-  { title: 'На период', types: ['CURRENT_EXPENSES'] },
-  { title: 'Обязательные', types: ['MANDATORY_EXPENSES'] },
-  { title: 'Накопления', types: ['SAVINGS_GOAL', 'RESERVE'] },
-  { title: 'Другое', types: ['CUSTOM'] },
+  { title: 'На текущие траты', types: ['CURRENT_EXPENSES'] },
+  { title: 'Обязательные платежи', types: ['MANDATORY_EXPENSES'] },
+  { title: 'Накопления и резерв', types: ['SAVINGS_GOAL', 'RESERVE'] },
+  { title: 'Свои конверты', types: ['CUSTOM'] },
 ];
 
 export function planIcon(envelope: Pick<EnvelopePlanDto, 'envelopeType'>): typeof Sparkles {

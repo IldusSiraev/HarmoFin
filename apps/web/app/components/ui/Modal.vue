@@ -15,9 +15,11 @@ const props = withDefaults(
     title: string;
     // `sm` suits compact detail dialogs (operation, account, envelope);
     // `md` suits forms.
-    size?: 'sm' | 'md';
+    size?: 'sm' | 'md' | 'lg';
+    /** Short line under the title, inside the header. */
+    subtitle?: string | undefined;
   }>(),
-  { size: 'md' },
+  { size: 'md', subtitle: undefined },
 );
 
 const emit = defineEmits<{
@@ -119,7 +121,7 @@ onBeforeUnmount(release);
         <div
           ref="dialog"
           class="modal"
-          :class="{ 'modal--sm': size === 'sm' }"
+          :class="{ 'modal--sm': size === 'sm', 'modal--lg': size === 'lg' }"
           data-testid="modal"
           role="dialog"
           :aria-label="title"
@@ -128,7 +130,10 @@ onBeforeUnmount(release);
         >
           <div class="modal__header">
             <slot name="header">
-              <h2 class="modal__title">{{ title }}</h2>
+              <div class="modal__heading">
+                <h2 class="modal__title">{{ title }}</h2>
+                <p v-if="subtitle" class="modal__subtitle">{{ subtitle }}</p>
+              </div>
               <button
                 type="button"
                 class="modal__close"
@@ -188,6 +193,14 @@ onBeforeUnmount(release);
   max-width: 30rem;
 }
 
+.modal--lg {
+  max-width: 52rem;
+}
+
+.modal--lg .modal__footer {
+  justify-content: flex-start;
+}
+
 /* Detail dialogs list several peer actions, primary first; keep them in
    reading order instead of pushing a wrapped row to the right. */
 .modal--sm .modal__footer {
@@ -196,7 +209,8 @@ onBeforeUnmount(release);
 
 @media (max-width: 767px) {
   .modal,
-  .modal--sm {
+  .modal--sm,
+  .modal--lg {
     max-width: none;
     height: 100vh;
     height: 100dvh;
@@ -228,11 +242,23 @@ onBeforeUnmount(release);
   border-bottom: 1px solid var(--hf-color-border);
 }
 
+.modal__heading {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
 .modal__title {
   margin: 0;
   color: var(--hf-color-text);
   font-size: 1.25rem;
   font-weight: 600;
+}
+
+.modal__subtitle {
+  margin: 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
 }
 
 .modal__close {
