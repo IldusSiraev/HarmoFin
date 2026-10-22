@@ -1,7 +1,21 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+
 defineOptions({ name: 'UiListRow' });
 
-defineProps<{ label: string }>();
+const props = withDefaults(
+  defineProps<{
+    label: string;
+    /** Hue of the leading tile; neutral when not set. */
+    leadingTone?: 'income' | 'expense' | 'transfer' | undefined;
+  }>(),
+  { leadingTone: undefined },
+);
+
+const leadingClass = computed(() => [
+  'ui-list-row__leading',
+  props.leadingTone && `ui-list-row__leading--${props.leadingTone}`,
+]);
 defineEmits<{ select: [] }>();
 </script>
 
@@ -14,7 +28,7 @@ defineEmits<{ select: [] }>();
       :aria-label="label"
       @click="$emit('select')"
     >
-      <span v-if="$slots.leading" class="ui-list-row__leading"><slot name="leading" /></span>
+      <span v-if="$slots.leading" :class="leadingClass"><slot name="leading" /></span>
       <span class="ui-list-row__body"><slot /></span>
       <span v-if="$slots.trailing" class="ui-list-row__trailing"><slot name="trailing" /></span>
     </button>
@@ -69,6 +83,21 @@ defineEmits<{ select: [] }>();
   border-radius: var(--hf-radius-md);
   background: var(--hf-color-surface-subtle);
   color: var(--hf-color-text-muted);
+}
+
+.ui-list-row__leading--income {
+  background: var(--hf-color-operation-income-soft);
+  color: var(--hf-color-operation-income);
+}
+
+.ui-list-row__leading--expense {
+  background: var(--hf-color-operation-expense-soft);
+  color: var(--hf-color-operation-expense);
+}
+
+.ui-list-row__leading--transfer {
+  background: var(--hf-color-operation-transfer-soft);
+  color: var(--hf-color-operation-transfer);
 }
 
 .ui-list-row__body {

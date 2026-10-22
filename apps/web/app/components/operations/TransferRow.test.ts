@@ -30,6 +30,10 @@ function mountRow(overrides: Partial<TransferJournalItem> = {}) {
 }
 
 describe('TransferRow', () => {
+  it('плашка перевода окрашена в тон перевода', () => {
+    expect(mountRow().find('.ui-list-row__leading--transfer').exists()).toBe(true);
+  });
+
   it('shows the route between accounts and the note', () => {
     const wrapper = mountRow();
     expect(wrapper.text()).toContain('Перевод');

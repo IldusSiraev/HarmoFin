@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 
 import { navigateTo, useRoute } from '#imports';
 
-import { ACCOUNT_TYPE_ICONS } from '../accounts/account-type.js';
+import { ACCOUNT_TYPE_ICONS, accountToneColor } from '../accounts/account-type.js';
 import AppOperationEntryDialog from './AppOperationEntryDialog.vue';
 import AppOperationTypeDialog from './AppOperationTypeDialog.vue';
 import type { CreateTransactionInput } from '../../composables/useBudgetReferenceData.js';
@@ -54,6 +54,7 @@ const accountOptions = computed(() =>
     value: account.id,
     label: account.name,
     icon: ACCOUNT_TYPE_ICONS[account.accountType],
+    iconColor: accountToneColor(account.accountType),
   })),
 );
 

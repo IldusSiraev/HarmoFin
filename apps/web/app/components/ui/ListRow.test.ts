@@ -15,6 +15,19 @@ const mountRow = () =>
   });
 
 describe('UiListRow', () => {
+  it('окрашивает плашку слева только когда задан тон', () => {
+    const neutral = mountRow();
+    expect(neutral.get('.ui-list-row__leading').classes()).toEqual(['ui-list-row__leading']);
+
+    const tinted = mount(UiListRow, {
+      props: { label: 'Перевод', leadingTone: 'transfer' },
+      slots: { leading: '<span>•</span>' },
+    });
+    expect(tinted.get('.ui-list-row__leading').classes()).toContain(
+      'ui-list-row__leading--transfer',
+    );
+  });
+
   it('exposes the row as one labelled button', () => {
     const wrapper = mountRow();
     const button = wrapper.get('[data-testid="list-row-select"]');
