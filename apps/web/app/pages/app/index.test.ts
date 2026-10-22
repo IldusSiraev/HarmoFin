@@ -87,6 +87,7 @@ describe('dashboard page', () => {
     currentBalanceMinor: '6500000',
     mandatoryBalanceMinor: '0',
     mandatoryDueMinor: '1000000',
+    protectedMinor: '0',
     otherProtectedMinor: '0',
     freeToAssignMinor: '0',
     unbackedMinor: '0',
@@ -97,7 +98,14 @@ describe('dashboard page', () => {
     mandatoryGapNextMinor: '200000',
     dueMayBeIncomplete: false,
     nearestObligations: [
-      { occurrenceId: 'occ-1', name: 'Ипотека', scheduledOn: '2026-10-26', unpaidMinor: '3597300' },
+      {
+        occurrenceId: 'occ-1',
+        name: 'Ипотека',
+        scheduledOn: '2026-10-26',
+        unpaidMinor: '3597300',
+        coverage: 'UNCOVERED',
+        shortfallMinor: '3597300',
+      },
     ],
     periodStats: {
       spentMinor: '348297',
@@ -112,6 +120,7 @@ describe('dashboard page', () => {
         envelopeType: 'CURRENT_EXPENSES',
         periodSlot: 'SECOND',
         balanceMinor: '4358377',
+        progress: null,
       },
       {
         id: 'env-2',
@@ -119,6 +128,7 @@ describe('dashboard page', () => {
         envelopeType: 'RESERVE',
         periodSlot: null,
         balanceMinor: '48941866',
+        progress: null,
       },
     ],
     envelopesTotalMinor: '53300243',
@@ -178,9 +188,10 @@ describe('dashboard page', () => {
     const text = normalize(wrapper.text());
     expect(text).toContain('Можно потратить');
     expect(text).toContain('55 000,00 ₽');
-    expect(text).toContain('В конверте периода 65 000,00 ₽');
+    await wrapper.get('[data-action="toggle-breakdown"]').trigger('click');
+    expect(normalize(wrapper.text())).toContain('Остаток текущего периода65 000,00 ₽');
     expect(text).toContain('Не хватает на обязательные');
-    expect(text).toContain('Покрыть обязательные');
+    expect(text).toContain('Покрыть');
     expect(wrapper.get('a[href="/app/envelopes?cover=mandatory"]')).toBeTruthy();
     expect(wrapper.get('a[href="/app/plans"]')).toBeTruthy();
     expect(v2Api.getDashboard).toHaveBeenCalledWith('budget-id');
@@ -191,9 +202,17 @@ describe('dashboard page', () => {
     const wrapper = mount(DashboardPage, { global: { stubs } });
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Ваш финансовый месяц');
+    expect(
+      wrapper
+        .get('[data-testid="dashboard-hero"]')
+        .findComponent({ name: 'FinancialMonthTimeline' })
+        .exists(),
+    ).toBe(true);
     expect(wrapper.get('.fm-timeline [role="img"]').attributes('aria-label')).toBe(
       'Финансовый месяц: с 10 сентября по 9 октября. Сегодня — день 25 из 30. Смена периода: 25 сент.',
+    );
+    expect(normalize(wrapper.get('[data-testid="dashboard-period-line"]').text())).toBe(
+      '25 сентября – 9 октября · вторая половина периода · осталось 6 дней',
     );
   });
 
@@ -204,24 +223,23 @@ describe('dashboard page', () => {
 
     const text = normalize(wrapper.text());
     expect(text).toContain('Ипотека');
-    expect(text).toContain('26 октября');
-    expect(wrapper.get('a[href="/app/plans?occurrence=occ-1"]')).toBeTruthy();
+    expect(wrapper.get('a[href="/app/plans?occurrence=occ-1"]').attributes('aria-label')).toContain(
+      '26 октября',
+    );
     expect(text).toContain('В среднем в день');
     expect(text).toContain('Конверты');
     expect(text).toContain('Второй период');
     expect(text).toContain('Текущие расходы · Вторая половина');
     expect(text).toContain('Ремонт');
     expect(text).toContain('533 002,43 ₽');
-    expect(normalize(wrapper.get('[data-testid="envelopes-unassigned"]').text())).toContain(
-      'Не распределено 52 155,31 ₽',
-    );
+    expect(wrapper.get('[data-code="FREE_MONEY"]')).toBeTruthy();
   });
 
   it('hides the unassigned row when no money is free', async () => {
     const wrapper = mount(DashboardPage, { global: { stubs } });
     await flushPromises();
 
-    expect(wrapper.find('[data-testid="envelopes-unassigned"]').exists()).toBe(false);
+    expect(wrapper.find('[data-code="FREE_MONEY"]').exists()).toBe(false);
   });
 
   it('reads the latest operations from the journal', async () => {
@@ -256,7 +274,7 @@ describe('dashboard page', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('Настройте лимит на период');
-    expect(normalize(wrapper.text())).not.toMatch(/(^|[^\d,])0,00 ₽/);
+    expect(normalize(wrapper.get('.available-budget').text())).not.toMatch(/(^|[^\d,])0,00 ₽/);
   });
 
   const leftoverWarning = {
@@ -377,7 +395,7 @@ describe('dashboard page', () => {
     const wrapper = mount(DashboardPage, { global: { stubs } });
     await flushPromises();
 
-    await wrapper.get('[data-action="assign-free-money"]').trigger('click');
+    await wrapper.get('[data-code="FREE_MONEY"] button').trigger('click');
     expect(useFundingEntry().request.value?.source).toEqual({ sourceKind: 'FREE' });
 
     const reads = v2Api.getDashboard.mock.calls.length;

@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { definePageMeta } from '#imports';
-import { RefreshCw } from '@lucide/vue';
+import { Calendar, RefreshCw } from '@lucide/vue';
 
 import AppAddMenu from '../../components/app/AppAddMenu.vue';
 import AccountTypeIcon from '../../components/accounts/AccountTypeIcon.vue';
 import { accountSubtitle } from '../../components/accounts/account-type.js';
 import AvailableBudgetCard from '../../components/dashboard/AvailableBudgetCard.vue';
-import FinancialMonthTimeline from '../../components/dashboard/FinancialMonthTimeline.vue';
+import DashboardOverviewPanel from '../../components/dashboard/DashboardOverviewPanel.vue';
 import BalanceList from '../../components/dashboard/BalanceList.vue';
 import UpcomingObligations from '../../components/dashboard/UpcomingObligations.vue';
 import DashboardWarnings from '../../components/dashboard/DashboardWarnings.vue';
@@ -15,6 +15,7 @@ import OnboardingChecklist from '../../components/dashboard/OnboardingChecklist.
 import PeriodDecisionCard from '../../components/dashboard/PeriodDecisionCard.vue';
 import RecentOperations from '../../components/dashboard/RecentOperations.vue';
 import DashboardEnvelopeRow from '../../components/dashboard/DashboardEnvelopeRow.vue';
+import { periodRangeText } from '../../components/envelopes/envelope-plan-kind.js';
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
@@ -59,12 +60,34 @@ function accountSubtitleFor(id: string): string {
   return account ? accountSubtitle(account) : '';
 }
 
-type EnvelopeRow = DashboardV2Response['envelopes'][number];
+type DashboardEnvelope = DashboardV2Response['envelopes'][number];
 
 // The list slot hands over the generic balance item; the full server row is looked up by id.
-function envelopeRow(id: string): EnvelopeRow {
+function envelopeById(id: string): DashboardEnvelope {
   return dashboardV2.value!.envelopes.find((row) => row.id === id)!;
 }
+
+// Counts come from the server; this only picks the Russian word form.
+function daysLeftLabel(days: number): string {
+  const tail = days % 10;
+  const teen = days % 100;
+  if (tail === 1 && teen !== 11) return `осталось ${days} день`;
+  if (tail >= 2 && tail <= 4 && (teen < 12 || teen > 14)) return `осталось ${days} дня`;
+  return `осталось ${days} дней`;
+}
+
+const periodLine = computed(() => {
+  const dashboard = dashboardV2.value;
+  if (!dashboard) return '';
+  const parts = [
+    periodRangeText(dashboard.period.start, dashboard.period.end),
+    dashboard.period.start === dashboard.cycle.start
+      ? 'первая половина периода'
+      : 'вторая половина периода',
+  ];
+  if (dashboard.periodStats) parts.push(daysLeftLabel(dashboard.periodStats.daysLeft));
+  return parts.join(' · ');
+});
 
 const activeBudget = computed(() => currentData.value?.workspaces[0]?.budgets[0] ?? null);
 const planV2 = useEnvelopePlanV2();
@@ -170,6 +193,10 @@ async function loadDashboard() {
         <div>
           <p class="dashboard-kicker">{{ workspaceName() }}</p>
           <h1 ref="pageTitle" class="dashboard-title" tabindex="-1">{{ activeBudget.name }}</h1>
+          <p class="dashboard-period-line" data-testid="dashboard-period-line">
+            <Calendar :size="16" aria-hidden="true" />
+            {{ periodLine }}
+          </p>
         </div>
         <div class="dashboard-header__actions">
           <span class="dashboard-header__add">
@@ -187,13 +214,6 @@ async function loadDashboard() {
           </UiButton>
         </div>
       </div>
-
-      <FinancialMonthTimeline
-        class="dashboard-timeline"
-        :cycle="dashboardV2.cycle"
-        :period="dashboardV2.period"
-        :as-of="dashboardV2.asOf"
-      />
 
       <div class="dashboard-sections">
         <OnboardingChecklist
@@ -214,19 +234,18 @@ async function loadDashboard() {
           @focus-fallback="focusFallback()"
         />
 
+        <section class="dashboard-hero" data-testid="dashboard-hero" aria-label="Сводка периода">
+          <AvailableBudgetCard :dashboard="dashboardV2" />
+          <DashboardOverviewPanel :dashboard="dashboardV2" />
+        </section>
+
         <DashboardWarnings
           :v2-warnings="coverageWarnings"
           :free-to-assign-minor="dashboardV2.freeToAssignMinor"
           @assign="funding.offer({ sourceKind: 'FREE' })"
         />
 
-        <div class="dashboard-hero-row">
-          <AvailableBudgetCard class="dashboard-hero-row__spend" :dashboard="dashboardV2" />
-          <UpcomingObligations
-            class="dashboard-hero-row__obligations"
-            :items="dashboardV2.nearestObligations"
-          />
-        </div>
+        <UpcomingObligations :items="dashboardV2.nearestObligations" />
 
         <div class="dashboard-lists-row">
           <BalanceList
@@ -261,7 +280,7 @@ async function loadDashboard() {
             more-link="/app/envelopes"
           >
             <template #row="{ item }">
-              <DashboardEnvelopeRow :envelope="envelopeRow(item.id)" />
+              <DashboardEnvelopeRow :envelope="envelopeById(item.id)" />
             </template>
           </BalanceList>
         </div>
@@ -344,11 +363,41 @@ async function loadDashboard() {
   line-height: 1.1;
 }
 
-.dashboard-timeline {
-  margin-bottom: var(--hf-space-6);
+.dashboard-period-line {
+  display: flex;
+  gap: var(--hf-space-2);
+  align-items: center;
+  margin: var(--hf-space-2) 0 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
 }
 
-.dashboard-hero-row,
+.dashboard-hero {
+  display: grid;
+  grid-template-columns: 1fr;
+  overflow: hidden;
+  border: 1px solid var(--hf-color-border);
+  border-radius: var(--hf-radius-lg);
+  background: var(--hf-color-surface);
+  box-shadow: var(--hf-shadow-sm);
+}
+
+@media (min-width: 1024px) {
+  .dashboard-hero {
+    grid-template-columns: 2fr 1fr;
+  }
+
+  .dashboard-hero > :last-child {
+    border-left: 1px solid var(--hf-color-border);
+  }
+}
+
+@media (max-width: 1023px) {
+  .dashboard-hero > :last-child {
+    border-top: 1px solid var(--hf-color-border);
+  }
+}
+
 .dashboard-lists-row {
   display: grid;
   grid-template-columns: 1fr;
@@ -356,11 +405,6 @@ async function loadDashboard() {
 }
 
 @media (min-width: 1024px) {
-  .dashboard-hero-row {
-    grid-template-columns: 2fr 1fr;
-    align-items: stretch;
-  }
-
   .dashboard-lists-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
