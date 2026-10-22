@@ -59,7 +59,11 @@ const rowLabel = computed(
 </script>
 
 <template>
-  <UiListRow :label="rowLabel" @select="$emit('select')">
+  <UiListRow
+    :label="rowLabel"
+    :leading-tone="transaction.transactionType === 'INCOME' ? 'income' : 'expense'"
+    @select="$emit('select')"
+  >
     <template #leading><component :is="icon" :size="20" aria-hidden="true" /></template>
 
     <span class="operation-row__title">{{ categoryName }}</span>

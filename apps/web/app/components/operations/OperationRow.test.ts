@@ -40,6 +40,15 @@ const mountRow = (overrides: Partial<TransactionJournalV2Item> = {}) =>
 const normalize = (value: string): string => value.replace(/[\u00a0\u202f]/g, ' ');
 
 describe('OperationRow', () => {
+  it('тон плашки зависит от вида операции', () => {
+    expect(
+      mountRow({ transactionType: 'INCOME' }).find('.ui-list-row__leading--income').exists(),
+    ).toBe(true);
+    expect(
+      mountRow({ transactionType: 'EXPENSE' }).find('.ui-list-row__leading--expense').exists(),
+    ).toBe(true);
+  });
+
   it('leads with the category and the counterparty', () => {
     const text = normalize(mountRow().text());
 

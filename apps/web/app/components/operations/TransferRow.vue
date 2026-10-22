@@ -29,7 +29,7 @@ const rowLabel = computed(
 </script>
 
 <template>
-  <UiListRow :label="rowLabel" @select="$emit('select')">
+  <UiListRow :label="rowLabel" leading-tone="transfer" @select="$emit('select')">
     <template #leading><ArrowLeftRight :size="20" aria-hidden="true" /></template>
 
     <span class="transfer-row__title">Перевод</span>

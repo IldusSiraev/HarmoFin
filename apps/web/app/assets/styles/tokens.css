@@ -170,6 +170,25 @@
   --hf-color-envelope-reserve-soft: #eceefb;
   --hf-color-envelope-custom: var(--hf-color-slate-500);
   --hf-color-envelope-custom-soft: #eef1f4;
+
+  /* Account type hues: icon tile only, same rule and the same 4.5:1 floor as
+     the envelope hues above (>= 4.63:1 on own -soft, >= 5.32:1 on surface). */
+  --hf-color-account-bank: #1d68a7;
+  --hf-color-account-bank-soft: #e5f0fa;
+  --hf-color-account-card: #3d4fc4;
+  --hf-color-account-card-soft: #e8eafa;
+  --hf-color-account-cash: #1a7a52;
+  --hf-color-account-cash-soft: #e3f3ea;
+
+  /* Operation kind hues: icon tile of a journal row only. Income is green,
+     expense stays a calm neutral (spending is not an alarm), transfer is the
+     info blue. Amounts and names are never coloured by kind. */
+  --hf-color-operation-income: var(--hf-color-account-cash);
+  --hf-color-operation-income-soft: var(--hf-color-account-cash-soft);
+  --hf-color-operation-expense: #44566b;
+  --hf-color-operation-expense-soft: #eef1f4;
+  --hf-color-operation-transfer: var(--hf-color-primary-strong);
+  --hf-color-operation-transfer-soft: var(--hf-color-primary-soft);
 }
 
 @media (min-width: 1024px) {
@@ -245,4 +264,15 @@
   --hf-color-envelope-reserve: #98a1f2;
   --hf-color-envelope-reserve-soft: rgb(79 91 213 / 22%);
   --hf-color-envelope-custom-soft: rgb(255 255 255 / 8%);
+
+  /* Account hues, brightened for the dark surface (>= 5.78:1 on own -soft).
+     Operation hues follow them; expense and transfer are set explicitly. */
+  --hf-color-account-bank: #6fb8ef;
+  --hf-color-account-bank-soft: rgb(47 127 196 / 20%);
+  --hf-color-account-card: #9ba6f5;
+  --hf-color-account-card-soft: rgb(79 91 213 / 22%);
+  --hf-color-account-cash: #5fd09b;
+  --hf-color-account-cash-soft: rgb(34 160 107 / 18%);
+  --hf-color-operation-expense: #a9b6c8;
+  --hf-color-operation-expense-soft: rgb(255 255 255 / 8%);
 }

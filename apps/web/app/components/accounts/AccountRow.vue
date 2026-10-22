@@ -6,7 +6,8 @@ import FinanceMoney from '../finance/FinanceMoney.vue';
 import { formatMinorUnits } from '../finance/money-format.js';
 import UiStatus from '../ui/Status.vue';
 import type { AccountDto } from '../../composables/useBudgetReferenceData.js';
-import { ACCOUNT_TYPE_ICONS, accountSubtitle } from './account-type.js';
+import AccountTypeIcon from './AccountTypeIcon.vue';
+import { accountSubtitle } from './account-type.js';
 
 defineOptions({ name: 'AccountRow' });
 
@@ -14,7 +15,6 @@ const props = defineProps<{ account: AccountDto }>();
 
 defineEmits<{ select: [] }>();
 
-const icon = computed(() => ACCOUNT_TYPE_ICONS[props.account.accountType]);
 const subtitle = computed(() => accountSubtitle(props.account));
 
 // The sign comes from the server value; the client never computes the balance.
@@ -44,7 +44,7 @@ const cardLabel = computed(() => {
     @click="$emit('select')"
   >
     <span class="account-card__top">
-      <span class="account-card__icon"><component :is="icon" :size="20" aria-hidden="true" /></span>
+      <AccountTypeIcon :account-type="account.accountType" />
       <span class="account-card__identity">
         <span class="account-card__name">{{ account.name }}</span>
         <span class="account-card__subtitle">{{ subtitle }}</span>
@@ -111,18 +111,6 @@ const cardLabel = computed(() => {
   display: flex;
   gap: var(--hf-space-3);
   align-items: flex-start;
-}
-
-.account-card__icon {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: var(--hf-radius-md);
-  background: var(--hf-color-surface-subtle);
-  color: var(--hf-color-text-muted);
 }
 
 .account-card__identity {

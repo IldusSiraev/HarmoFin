@@ -6,6 +6,8 @@ export interface PillOption {
   label: string;
   /** Decorative icon before the label. */
   icon?: Component | undefined;
+  /** CSS colour of the icon while the option is not selected, e.g. a type hue. */
+  iconColor?: string | undefined;
   /** Short note shown as a dot and read by screen readers, e.g. "текущий период". */
   marker?: string | undefined;
 }
@@ -55,6 +57,11 @@ const accentVar: Record<'danger' | 'success' | 'info', string> = {
           :is="option.icon"
           v-if="option.icon"
           class="pill-select__icon"
+          :style="
+            option.iconColor && modelValue !== option.value
+              ? { color: option.iconColor }
+              : undefined
+          "
           :size="16"
           aria-hidden="true"
         />

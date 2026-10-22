@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { definePageMeta } from '#imports';
-import { RefreshCw, Wallet } from '@lucide/vue';
+import { RefreshCw } from '@lucide/vue';
 
 import AppAddMenu from '../../components/app/AppAddMenu.vue';
-import { accountSubtitle, ACCOUNT_TYPE_ICONS } from '../../components/accounts/account-type.js';
+import AccountTypeIcon from '../../components/accounts/AccountTypeIcon.vue';
+import { accountSubtitle } from '../../components/accounts/account-type.js';
 import AvailableBudgetCard from '../../components/dashboard/AvailableBudgetCard.vue';
 import FinancialMonthTimeline from '../../components/dashboard/FinancialMonthTimeline.vue';
 import BalanceList from '../../components/dashboard/BalanceList.vue';
@@ -13,7 +14,8 @@ import DashboardWarnings from '../../components/dashboard/DashboardWarnings.vue'
 import OnboardingChecklist from '../../components/dashboard/OnboardingChecklist.vue';
 import PeriodDecisionCard from '../../components/dashboard/PeriodDecisionCard.vue';
 import RecentOperations from '../../components/dashboard/RecentOperations.vue';
-import { ENVELOPE_TYPE_ICONS, envelopeSubtitle } from '../../components/envelopes/envelope-type.js';
+import EnvelopeTypeIcon from '../../components/envelopes/EnvelopeTypeIcon.vue';
+import { envelopeSubtitle } from '../../components/envelopes/envelope-type.js';
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
@@ -49,9 +51,8 @@ const accountById = computed(
   () => new Map(accountDetails.value.map((account) => [account.id, account])),
 );
 
-function accountIcon(id: string) {
-  const account = accountById.value.get(id);
-  return account ? ACCOUNT_TYPE_ICONS[account.accountType] : null;
+function accountTypeOf(id: string) {
+  return accountById.value.get(id)?.accountType ?? 'BANK_ACCOUNT';
 }
 
 function accountSubtitleFor(id: string): string {
@@ -64,10 +65,6 @@ type EnvelopeRow = DashboardV2Response['envelopes'][number];
 // The list slot hands over the generic balance item; the full server row is looked up by id.
 function envelopeRow(id: string): EnvelopeRow {
   return dashboardV2.value!.envelopes.find((row) => row.id === id)!;
-}
-
-function envelopeIcon(row: EnvelopeRow) {
-  return ENVELOPE_TYPE_ICONS[row.envelopeType] ?? Wallet;
 }
 
 function envelopeSubtitleFor(row: EnvelopeRow): string {
@@ -252,9 +249,7 @@ async function loadDashboard() {
             more-link="/app/accounts"
           >
             <template #row="{ item }">
-              <span class="dashboard-balance-icon">
-                <component :is="accountIcon(item.id) ?? Wallet" :size="16" aria-hidden="true" />
-              </span>
+              <AccountTypeIcon :account-type="accountTypeOf(item.id)" size="sm" />
               <span class="dashboard-balance-body">
                 <span class="dashboard-balance-name">{{ item.name }}</span>
                 <span class="dashboard-balance-subtitle">{{ accountSubtitleFor(item.id) }}</span>
@@ -277,9 +272,7 @@ async function loadDashboard() {
             more-link="/app/envelopes"
           >
             <template #row="{ item }">
-              <span class="dashboard-balance-icon">
-                <component :is="envelopeIcon(envelopeRow(item.id))" :size="16" aria-hidden="true" />
-              </span>
+              <EnvelopeTypeIcon :envelope-type="envelopeRow(item.id).envelopeType" size="sm" />
               <span class="dashboard-balance-body">
                 <span class="dashboard-balance-name">{{ item.name }}</span>
                 <span class="dashboard-balance-subtitle">{{
@@ -419,18 +412,6 @@ async function loadDashboard() {
 .dashboard-sections {
   display: grid;
   gap: var(--hf-space-5);
-}
-
-.dashboard-balance-icon {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: var(--hf-radius-md);
-  background: var(--hf-color-surface-subtle);
-  color: var(--hf-color-text-muted);
 }
 
 .dashboard-balance-body {
