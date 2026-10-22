@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1](https://github.com/IldusSiraev/HarmoFin/compare/v1.3.0...v1.3.1) (2026-10-22)
+
+
+### Исправления
+
+* **infra:** удаление старых образов после деплоя и ротация логов ([5deb902](https://github.com/IldusSiraev/HarmoFin/commit/5deb9022212f4d26e76d8fcb4d1f694fec9968da))
+* **infra:** удаление старых образов после деплоя и ротация логов ([f7bc050](https://github.com/IldusSiraev/HarmoFin/commit/f7bc0501c98ea32d4b0822a72eaa1268f4f725be))
+
 ## [1.3.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.2.1...v1.3.0) (2026-10-22)
 
 
