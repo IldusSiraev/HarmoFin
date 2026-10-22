@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.3.1...v1.4.0) (2026-10-22)
+
+
+### Новое
+
+* **web:** цвета типов для счетов, конвертов на главной и операций ([ccb2ddc](https://github.com/IldusSiraev/HarmoFin/commit/ccb2ddc8dd1e491d0c601b2f16a1c5e119d7d4d8))
+
 ## [1.3.1](https://github.com/IldusSiraev/HarmoFin/compare/v1.3.0...v1.3.1) (2026-10-22)
 
 
