@@ -106,4 +106,20 @@ describe('FinancialMonthTimeline', () => {
       'Финансовый месяц: с 10 сентября по 9 октября. Сегодня — день 8 из 30. Смена периода: 25 сент.',
     );
   });
+
+  it('drops its own card surface when embedded, keeping the same summary', () => {
+    const props = {
+      cycle: { start: '2026-10-10', end: '2026-11-09' },
+      period: { start: '2026-10-10', end: '2026-10-24' },
+      asOf: '2026-10-22',
+    };
+    const standalone = mount(FinancialMonthTimeline, { props });
+    const embedded = mount(FinancialMonthTimeline, { props: { ...props, embedded: true } });
+    expect(embedded.classes()).toContain('fm-timeline--embedded');
+    expect(standalone.classes()).not.toContain('fm-timeline--embedded');
+    expect(embedded.get('[role="img"]').attributes('aria-label')).toBe(
+      standalone.get('[role="img"]').attributes('aria-label'),
+    );
+    expect(embedded.text()).not.toContain('%');
+  });
 });

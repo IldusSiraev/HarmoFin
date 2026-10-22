@@ -1,46 +1,71 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Info, TriangleAlert } from '@lucide/vue';
 
+import UiAttentionRow from '../ui/AttentionRow.vue';
+import { formatMoneyText } from '../envelopes/envelope-plan-kind.js';
 import type { DashboardV2Response } from '../../composables/useEnvelopePlanV2.js';
 
 defineOptions({ name: 'DashboardWarnings' });
 
-type WarningRow = {
+type V2Warning = DashboardV2Response['warnings'][number];
+type Row = {
   key: string;
-  kind: 'balance' | 'income';
-  /** MANDATORY_GAP only: ALERT needs money now, INFO only for the next period; absent otherwise. */
-  level: 'ALERT' | 'INFO' | null;
-  text: string;
-  href: string;
+  code: V2Warning['code'] | 'FREE_MONEY';
+  tone: 'info' | 'warning' | 'danger';
+  title: string;
+  description: string;
   actionLabel: string;
+  actionTo?: string;
 };
 
-type V2Warning = DashboardV2Response['warnings'][number];
-
-// Server text + actionPath for each warning.
+// Server texts and paths; the page decides what "assign" opens.
 const props = defineProps<{
   v2Warnings: ReadonlyArray<V2Warning>;
+  freeToAssignMinor: string;
 }>();
+const emit = defineEmits<{ assign: [] }>();
 
-const V2_ACTION_LABELS: Record<V2Warning['code'], string> = {
-  MANDATORY_GAP: 'Покрыть обязательные',
-  CASH_SHORTFALL: 'Проверить счета',
-  PERIOD_DEFICIT: 'Покрыть превышение',
-  PERIOD_LEFTOVER: 'Решить, куда направить',
-};
-
-const rows = computed<WarningRow[]>(() =>
-  props.v2Warnings.map((warning, index) => ({
-    key: `${warning.code}-${warning.periodId ?? warning.envelopeId ?? index}`,
-    kind: warning.code === 'PERIOD_LEFTOVER' ? 'income' : 'balance',
-    // A missing level means the current period is affected: render it as ALERT.
-    level: warning.code === 'MANDATORY_GAP' ? (warning.level ?? 'ALERT') : null,
-    text: warning.message,
-    href: warning.actionPath,
-    actionLabel: V2_ACTION_LABELS[warning.code],
-  })),
-);
+const rows = computed<Row[]>(() => {
+  const list: Row[] = [];
+  props.v2Warnings.forEach((warning, index) => {
+    const key = `${warning.code}-${warning.periodId ?? warning.envelopeId ?? index}`;
+    if (warning.code === 'MANDATORY_GAP') {
+      // A missing level means the current period is affected: treat it as ALERT.
+      const info = warning.level === 'INFO';
+      list.push({
+        key,
+        code: warning.code,
+        tone: info ? 'info' : 'warning',
+        title: info ? 'Заложите на следующий период' : 'Не хватает на обязательные платежи',
+        description: warning.message,
+        actionLabel: 'Покрыть',
+        actionTo: warning.actionPath,
+      });
+    } else if (warning.code === 'CASH_SHORTFALL') {
+      list.push({
+        key,
+        code: warning.code,
+        tone: 'danger',
+        title: 'Не хватает денег на счетах',
+        description: warning.message,
+        actionLabel: 'Проверить счета',
+        actionTo: warning.actionPath,
+      });
+    }
+  });
+  const free = props.freeToAssignMinor;
+  if (free !== '0' && !free.startsWith('-')) {
+    list.push({
+      key: 'FREE_MONEY',
+      code: 'FREE_MONEY',
+      tone: 'info',
+      title: 'Есть нераспределённый доход',
+      description: `${formatMoneyText(free)} можно направить в конверты`,
+      actionLabel: 'Распределить',
+    });
+  }
+  return list;
+});
 </script>
 
 <template>
@@ -51,25 +76,23 @@ const rows = computed<WarningRow[]>(() =>
     aria-labelledby="dashboard-warnings-title"
   >
     <h2 id="dashboard-warnings-title" class="dashboard-warnings__title">Требует внимания</h2>
-
     <ul class="dashboard-warnings__list">
-      <li v-for="row in rows" :key="row.key" class="dashboard-warnings__row">
-        <TriangleAlert
-          v-if="row.kind === 'balance' && row.level !== 'INFO'"
-          class="dashboard-warnings__icon dashboard-warnings__icon--danger"
-          :size="20"
-          aria-hidden="true"
+      <li
+        v-for="row in rows"
+        :key="row.key"
+        class="dashboard-warnings__item"
+        data-testid="attention-row"
+        :data-code="row.code"
+      >
+        <UiAttentionRow
+          plain
+          :tone="row.tone"
+          :title="row.title"
+          :description="row.description"
+          :action-label="row.actionLabel"
+          :action-to="row.actionTo"
+          @action="emit('assign')"
         />
-        <Info
-          v-else
-          class="dashboard-warnings__icon"
-          :class="{ 'dashboard-warnings__icon--info': row.level === 'INFO' }"
-          :size="20"
-          aria-hidden="true"
-        />
-
-        <span class="dashboard-warnings__text">{{ row.text }}</span>
-        <NuxtLink :to="row.href" class="dashboard-warnings__link">{{ row.actionLabel }}</NuxtLink>
       </li>
     </ul>
   </section>
@@ -77,62 +100,57 @@ const rows = computed<WarningRow[]>(() =>
 
 <style scoped>
 .dashboard-warnings {
-  display: grid;
-  gap: var(--hf-space-3);
-  padding: var(--hf-card-padding);
+  padding: 0 var(--hf-card-padding);
   border: 1px solid var(--hf-color-border);
   border-radius: var(--hf-radius-lg);
   background: var(--hf-color-surface);
   box-shadow: var(--hf-shadow-sm);
 }
 
+/* Visually hidden, still announced: the rows carry their own titles. */
 .dashboard-warnings__title {
-  margin: 0;
-  font-size: var(--hf-font-size-h3);
-  line-height: var(--hf-line-height-h3);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .dashboard-warnings__list {
   display: grid;
-  gap: var(--hf-space-2);
+  grid-template-columns: 1fr;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.dashboard-warnings__row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--hf-space-2);
-  align-items: center;
-  min-height: 2.75rem;
+.dashboard-warnings__item + .dashboard-warnings__item {
+  border-top: 1px solid var(--hf-color-border);
 }
 
-.dashboard-warnings__icon {
-  flex-shrink: 0;
-  color: var(--hf-color-status-info);
-}
+@media (min-width: 1024px) {
+  .dashboard-warnings__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--hf-space-5);
+  }
 
-.dashboard-warnings__icon--danger {
-  color: var(--hf-color-status-danger);
-}
+  .dashboard-warnings__item + .dashboard-warnings__item {
+    border-top: 0;
+  }
 
-/* Not color-only: INFO also swaps the alert triangle for the info icon. */
-.dashboard-warnings__icon--info {
-  color: var(--hf-color-status-info);
-}
+  .dashboard-warnings__item:nth-child(even) {
+    padding-left: var(--hf-space-5);
+    border-left: 1px solid var(--hf-color-border);
+  }
 
-.dashboard-warnings__text {
-  flex: 1 1 12rem;
-  min-width: 0;
-}
+  .dashboard-warnings__item:nth-child(n + 3) {
+    border-top: 1px solid var(--hf-color-border);
+  }
 
-.dashboard-warnings__link {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.75rem;
-  /* Text-grade teal: brand action-primary falls short of 4.5:1 as a 16px link. */
-  color: var(--hf-color-action-primary-text);
-  font-weight: var(--hf-font-weight-medium);
+  /* A row without a pair (the only one or the last of an odd count) takes the full width. */
+  .dashboard-warnings__item:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
 }
 </style>

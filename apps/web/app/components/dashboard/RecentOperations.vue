@@ -2,8 +2,10 @@
 import { computed } from 'vue';
 import { navigateTo } from '#imports';
 
+import OperationGroup from '../operations/OperationGroup.vue';
 import OperationRow from '../operations/OperationRow.vue';
 import UiMoreLink from '../ui/MoreLink.vue';
+import { formatDayMonth } from '../envelopes/envelope-plan-kind.js';
 import type { CategoryDto } from '../../composables/useBudgetReferenceData.js';
 import type { TransactionJournalV2Item } from '../../composables/useEnvelopePlanV2.js';
 
@@ -16,7 +18,32 @@ const props = defineProps<{
   categories: ReadonlyArray<CategoryDto>;
   accounts: ReadonlyArray<Option>;
   envelopes: ReadonlyArray<Option>;
+  asOf: string;
 }>();
+
+// Journal order is newest first: consecutive items of one day form one group.
+function previousDay(iso: string): string {
+  const date = new Date(`${iso}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
+
+const groups = computed(() => {
+  const yesterday = previousDay(props.asOf);
+  const list: Array<{ key: string; label: string; items: TransactionJournalV2Item[] }> = [];
+  for (const transaction of props.transactions) {
+    const key = transaction.occurredOn;
+    const last = list[list.length - 1];
+    if (last && last.key === key) {
+      last.items.push(transaction);
+      continue;
+    }
+    const label =
+      key === props.asOf ? 'Сегодня' : key === yesterday ? 'Вчера' : formatDayMonth(key);
+    list.push({ key, label, items: [transaction] });
+  }
+  return list;
+});
 
 const categoryById = computed(
   () => new Map(props.categories.map((category) => [category.id, category])),
@@ -58,24 +85,33 @@ function openOperation(transactionId: string): void {
 <template>
   <section class="recent-operations" aria-label="Последние операции">
     <header class="recent-operations__header">
-      <h2>Последние операции</h2>
+      <div>
+        <h2>Последние операции</h2>
+        <p class="recent-operations__subtitle">Последние изменения семейного бюджета</p>
+      </div>
       <UiMoreLink to="/app/operations">Все операции</UiMoreLink>
     </header>
 
     <p v-if="transactions.length === 0" class="recent-operations__empty">Операций пока нет.</p>
 
-    <ul v-else class="recent-operations__list">
-      <li v-for="transaction in transactions" :key="transaction.id">
-        <OperationRow
-          :transaction="transaction"
-          :category-name="categoryName(transaction)"
-          :category-icon="categoryIcon(transaction)"
-          :account-name="accountName(transaction)"
-          :envelope-name="envelopeName(transaction)"
-          @select="openOperation(transaction.id)"
-        />
-      </li>
-    </ul>
+    <div v-else class="recent-operations__groups">
+      <OperationGroup v-for="group in groups" :key="group.key" :label="group.label" flat>
+        <li
+          v-for="transaction in group.items"
+          :key="transaction.id"
+          class="recent-operations__item"
+        >
+          <OperationRow
+            :transaction="transaction"
+            :category-name="categoryName(transaction)"
+            :category-icon="categoryIcon(transaction)"
+            :account-name="accountName(transaction)"
+            :envelope-name="envelopeName(transaction)"
+            @select="openOperation(transaction.id)"
+          />
+        </li>
+      </OperationGroup>
+    </div>
   </section>
 </template>
 
@@ -84,6 +120,7 @@ function openOperation(transactionId: string): void {
   display: grid;
   gap: var(--hf-space-3);
   padding: var(--hf-card-padding);
+  border: 1px solid var(--hf-color-border);
   border-radius: var(--hf-card-radius);
   background: var(--hf-color-surface);
   box-shadow: var(--hf-shadow-card);
@@ -102,21 +139,24 @@ function openOperation(transactionId: string): void {
   line-height: var(--hf-line-height-h3);
 }
 
+.recent-operations__subtitle {
+  margin: var(--hf-space-1) 0 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-caption);
+  line-height: var(--hf-line-height-caption);
+}
+
 .recent-operations__empty {
   margin: 0;
   color: var(--hf-color-text-muted);
 }
 
-.recent-operations__list {
+.recent-operations__groups {
   display: grid;
-  gap: var(--hf-space-1);
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  gap: var(--hf-space-4);
 }
 
-.recent-operations__list > li {
+.recent-operations__item {
   min-width: 0;
 }
 </style>

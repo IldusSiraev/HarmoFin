@@ -1,7 +1,7 @@
 <script setup lang="ts">
 defineOptions({ name: 'OperationGroup' });
 
-defineProps<{ label: string }>();
+withDefaults(defineProps<{ label: string; flat?: boolean }>(), { flat: false });
 </script>
 
 <template>
@@ -11,6 +11,7 @@ defineProps<{ label: string }>();
     </h3>
     <ul
       class="operation-group__list"
+      :class="{ 'operation-group__list--flat': flat }"
       :aria-label="label ? `Операции за ${label}` : 'Список операций'"
     >
       <slot />
@@ -57,5 +58,13 @@ defineProps<{ label: string }>();
 
 .operation-group__list > ::v-slotted(li + li) {
   border-top: 1px solid var(--hf-color-border);
+}
+
+/* Nested inside another card (e.g. the dashboard's RecentOperations), the list
+   does not need its own border/surface/shadow: the row dividers stay. */
+.operation-group__list--flat {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 </style>

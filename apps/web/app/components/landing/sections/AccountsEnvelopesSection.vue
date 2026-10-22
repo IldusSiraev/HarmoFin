@@ -38,6 +38,9 @@ const icons = [Landmark, Mail, Inbox];
         <LandingShowcase caption="Счета: на карте, накопительном счёте и наличными 232 300 ₽.">
           <BalanceList
             title="Счета"
+            subtitle="Где находятся деньги"
+            more-label="Все счета"
+            heading-level="h3"
             :items="demoDashboard.accounts"
             :total-minor="demoDashboard.cashMinor"
             more-link="/app/accounts"

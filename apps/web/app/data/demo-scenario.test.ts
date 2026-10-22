@@ -98,6 +98,14 @@ describe('demo scenario snapshots', () => {
     });
   });
 
+  it('reports no progress for the period envelope while it has no funding, like the server null', () => {
+    const dates = demoPeriodDates(10, 15);
+    const s = demoSnapshot(1, { split: null, leftover: null })!;
+    const dashboard = toDashboard(s, dates, dates.shoppingTo);
+    const current = dashboard.envelopes.find((envelope) => envelope.id === 'demo-env-current');
+    expect(current?.progress).toBeNull();
+  });
+
   it('keeps the step 2 caption neutral until a split is chosen', () => {
     const dates = demoPeriodDates(10, 15);
     const before = demoStepText(2, { split: null, leftover: null }, dates);

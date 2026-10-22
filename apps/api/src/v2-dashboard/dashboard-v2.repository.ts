@@ -23,6 +23,7 @@ export type DashboardEnvelope = {
   envelopeType: EnvelopeType;
   periodSlot: 'FIRST' | 'SECOND' | null;
   archivedAt: Date | null;
+  targetAmountMinor: bigint | null;
 };
 
 export type DashboardAccount = { id: string; name: string; balanceMinor: bigint };
@@ -34,12 +35,14 @@ export type NearestObligation = {
   name: string;
   scheduledOn: string;
   unpaidMinor: bigint;
+  envelopeId: string;
 };
 
 export type UpcomingOccurrence = {
   occurrenceId: string;
   scheduledOn: string;
   unpaidMinor: bigint;
+  envelopeId: string;
 };
 
 /**
@@ -99,7 +102,14 @@ export class DashboardV2Repository {
   ): Promise<DashboardEnvelope[]> {
     return tx.envelope.findMany({
       where: { budgetId },
-      select: { id: true, name: true, envelopeType: true, periodSlot: true, archivedAt: true },
+      select: {
+        id: true,
+        name: true,
+        envelopeType: true,
+        periodSlot: true,
+        archivedAt: true,
+        targetAmountMinor: true,
+      },
       orderBy: [{ displayOrder: 'asc' }, { id: 'asc' }],
     });
   }
@@ -164,10 +174,13 @@ export class DashboardV2Repository {
     budgetId: string,
     horizonEnd: string,
   ): Promise<UpcomingOccurrence[]> {
-    const rows = await tx.$queryRaw<Array<{ id: string; scheduledOn: string; unpaid: bigint }>>`
+    const rows = await tx.$queryRaw<
+      Array<{ id: string; scheduledOn: string; unpaid: bigint; envelopeId: string }>
+    >`
       SELECT o."id" AS "id",
              to_char(o."scheduled_on", 'YYYY-MM-DD') AS "scheduledOn",
-             GREATEST(0, o."amount_minor" - COALESCE(paid."paid_minor", 0))::bigint AS "unpaid"
+             GREATEST(0, o."amount_minor" - COALESCE(paid."paid_minor", 0))::bigint AS "unpaid",
+             o."envelope_id" AS "envelopeId"
       FROM "plan_occurrences" o
       JOIN "envelopes" e
         ON e."id" = o."envelope_id" AND e."budget_id" = o."budget_id"
@@ -194,6 +207,7 @@ export class DashboardV2Repository {
       occurrenceId: row.id,
       scheduledOn: row.scheduledOn,
       unpaidMinor: BigInt(row.unpaid),
+      envelopeId: row.envelopeId,
     }));
   }
 
@@ -209,12 +223,13 @@ export class DashboardV2Repository {
     limit: number,
   ): Promise<NearestObligation[]> {
     const rows = await tx.$queryRaw<
-      Array<{ id: string; name: string; scheduledOn: string; unpaid: bigint }>
+      Array<{ id: string; name: string; scheduledOn: string; unpaid: bigint; envelopeId: string }>
     >`
       SELECT o."id" AS "id",
              o."plan_name" AS "name",
              to_char(o."scheduled_on", 'YYYY-MM-DD') AS "scheduledOn",
-             GREATEST(0, o."amount_minor" - COALESCE(paid."paid_minor", 0))::bigint AS "unpaid"
+             GREATEST(0, o."amount_minor" - COALESCE(paid."paid_minor", 0))::bigint AS "unpaid",
+             o."envelope_id" AS "envelopeId"
       FROM "plan_occurrences" o
       JOIN "envelopes" e
         ON e."id" = o."envelope_id" AND e."budget_id" = o."budget_id"
@@ -243,6 +258,7 @@ export class DashboardV2Repository {
       name: row.name,
       scheduledOn: row.scheduledOn,
       unpaidMinor: BigInt(row.unpaid),
+      envelopeId: row.envelopeId,
     }));
   }
 

@@ -38,7 +38,7 @@ defineOptions({ name: 'HeroSection' });
         <LandingShowcase
           caption="Главная HarmoFin: можно потратить 31 500 ₽ до 9 октября, ещё 17 500 ₽ не распределено по конвертам."
         >
-          <AvailableBudgetCard :dashboard="demoDashboard" />
+          <AvailableBudgetCard :dashboard="demoDashboard" show-free-money />
         </LandingShowcase>
       </div>
     </div>

@@ -961,6 +961,33 @@
         "required": ["start", "end"],
         "type": "object"
       },
+      "DashboardV2EnvelopeProgressResponse": {
+        "properties": {
+          "kind": {
+            "description": "SPENT — потрачено из было доступно в текущем периоде; COVERED — отложено из к оплате до конца горизонта; GOAL — накоплено из цели.",
+            "enum": ["SPENT", "COVERED", "GOAL"],
+            "type": "string"
+          },
+          "maxMinor": {
+            "description": "Полное значение шкалы в minor units (> 0).",
+            "pattern": "^\\d+$",
+            "type": "string"
+          },
+          "shortfallMinor": {
+            "description": "Только для COVERED: сколько не хватает до суммы к оплате; иначе null.",
+            "nullable": true,
+            "pattern": "^\\d+$",
+            "type": "string"
+          },
+          "valueMinor": {
+            "description": "Текущее значение в minor units.",
+            "pattern": "^\\d+$",
+            "type": "string"
+          }
+        },
+        "required": ["kind", "valueMinor", "maxMinor", "shortfallMinor"],
+        "type": "object"
+      },
       "DashboardV2EnvelopeResponse": {
         "properties": {
           "balanceMinor": {
@@ -990,13 +1017,28 @@
             "enum": ["FIRST", "SECOND"],
             "nullable": true,
             "type": "string"
+          },
+          "progress": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DashboardV2EnvelopeProgressResponse"
+              }
+            ],
+            "description": "Шкала конверта для дашборда; null, если шкалы нет (нет цели, платежей или периода).",
+            "nullable": true,
+            "type": "object"
           }
         },
-        "required": ["id", "name", "envelopeType", "periodSlot", "balanceMinor"],
+        "required": ["id", "name", "envelopeType", "periodSlot", "balanceMinor", "progress"],
         "type": "object"
       },
       "DashboardV2NearestObligationResponse": {
         "properties": {
+          "coverage": {
+            "description": "Покрытие платежа остатком его обязательного конверта: платежи распределяются по сроку, просроченные первыми.",
+            "enum": ["COVERED", "PARTIAL", "UNCOVERED"],
+            "type": "string"
+          },
           "name": {
             "description": "Название обязательного платежа.",
             "type": "string"
@@ -1009,12 +1051,24 @@
             "format": "date",
             "type": "string"
           },
+          "shortfallMinor": {
+            "description": "Непокрытая часть платежа в minor units.",
+            "pattern": "^\\d+$",
+            "type": "string"
+          },
           "unpaidMinor": {
             "pattern": "^-?\\d+$",
             "type": "string"
           }
         },
-        "required": ["occurrenceId", "name", "scheduledOn", "unpaidMinor"],
+        "required": [
+          "occurrenceId",
+          "name",
+          "scheduledOn",
+          "unpaidMinor",
+          "coverage",
+          "shortfallMinor"
+        ],
         "type": "object"
       },
       "DashboardV2OnboardingResponse": {
@@ -1254,6 +1308,11 @@
             },
             "type": "array"
           },
+          "protectedMinor": {
+            "description": "Отложено на обязательные платежи (не меньше нуля) и накопления/прочие конверты вне текущего периода.",
+            "pattern": "^-?\\d+$",
+            "type": "string"
+          },
           "spendable": {
             "$ref": "#/components/schemas/DashboardV2SpendableResponse"
           },
@@ -1295,6 +1354,7 @@
           "mandatoryDueCurrentMinor",
           "mandatoryDueNextMinor",
           "otherProtectedMinor",
+          "protectedMinor",
           "freeToAssignMinor",
           "unbackedMinor",
           "mandatoryGapMinor",

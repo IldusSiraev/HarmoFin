@@ -174,6 +174,21 @@ export class DashboardV2NearestObligationResponse {
 
   @ApiProperty({ type: String, pattern: MONEY })
   unpaidMinor!: string;
+
+  @ApiProperty({
+    type: String,
+    enum: ['COVERED', 'PARTIAL', 'UNCOVERED'],
+    description:
+      'Покрытие платежа остатком его обязательного конверта: платежи распределяются по сроку, просроченные первыми.',
+  })
+  coverage!: 'COVERED' | 'PARTIAL' | 'UNCOVERED';
+
+  @ApiProperty({
+    type: String,
+    pattern: '^\\d+$',
+    description: 'Непокрытая часть платежа в minor units.',
+  })
+  shortfallMinor!: string;
 }
 
 export class DashboardV2PeriodStatsResponse {
@@ -201,6 +216,34 @@ export class DashboardV2PeriodStatsResponse {
       '«Можно потратить» на оставшиеся дни, округление вниз до копейки; 0, если тратить нечего.',
   })
   averagePerDayMinor!: string;
+}
+
+export class DashboardV2EnvelopeProgressResponse {
+  @ApiProperty({
+    type: String,
+    enum: ['SPENT', 'COVERED', 'GOAL'],
+    description:
+      'SPENT — потрачено из было доступно в текущем периоде; COVERED — отложено из к оплате до конца горизонта; GOAL — накоплено из цели.',
+  })
+  kind!: 'SPENT' | 'COVERED' | 'GOAL';
+
+  @ApiProperty({ type: String, pattern: '^\\d+$', description: 'Текущее значение в minor units.' })
+  valueMinor!: string;
+
+  @ApiProperty({
+    type: String,
+    pattern: '^\\d+$',
+    description: 'Полное значение шкалы в minor units (> 0).',
+  })
+  maxMinor!: string;
+
+  @ApiProperty({
+    type: String,
+    pattern: '^\\d+$',
+    nullable: true,
+    description: 'Только для COVERED: сколько не хватает до суммы к оплате; иначе null.',
+  })
+  shortfallMinor!: string | null;
 }
 
 export class DashboardV2EnvelopeResponse {
@@ -232,6 +275,14 @@ export class DashboardV2EnvelopeResponse {
     description: 'Остаток конверта по всем периодам.',
   })
   balanceMinor!: string;
+
+  @ApiProperty({
+    type: DashboardV2EnvelopeProgressResponse,
+    nullable: true,
+    description:
+      'Шкала конверта для дашборда; null, если шкалы нет (нет цели, платежей или периода).',
+  })
+  progress!: DashboardV2EnvelopeProgressResponse | null;
 }
 
 export class DashboardV2Response {
@@ -303,6 +354,14 @@ export class DashboardV2Response {
 
   @ApiProperty({ type: String, pattern: MONEY })
   otherProtectedMinor!: string;
+
+  @ApiProperty({
+    type: String,
+    pattern: MONEY,
+    description:
+      'Отложено на обязательные платежи (не меньше нуля) и накопления/прочие конверты вне текущего периода.',
+  })
+  protectedMinor!: string;
 
   @ApiProperty({ type: String, pattern: MONEY })
   freeToAssignMinor!: string;

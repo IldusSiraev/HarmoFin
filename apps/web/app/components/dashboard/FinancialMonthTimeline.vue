@@ -4,11 +4,15 @@ import { computed } from 'vue';
 defineOptions({ name: 'FinancialMonthTimeline' });
 
 // Dates only: the server decides the cycle, the current period and "today" (asOf).
-const props = defineProps<{
-  cycle: { start: string; end: string };
-  period: { start: string; end: string };
-  asOf: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    cycle: { start: string; end: string };
+    period: { start: string; end: string };
+    asOf: string;
+    embedded?: boolean;
+  }>(),
+  { embedded: false },
+);
 
 const dayFormatter = new Intl.DateTimeFormat('ru-RU', {
   day: 'numeric',
@@ -82,8 +86,8 @@ const summaryLabel = computed(() => {
 </script>
 
 <template>
-  <div class="fm-timeline">
-    <p class="fm-timeline__title">Ваш финансовый месяц</p>
+  <div class="fm-timeline" :class="{ 'fm-timeline--embedded': embedded }">
+    <p v-if="!embedded" class="fm-timeline__title">Ваш финансовый месяц</p>
     <div class="fm-timeline__marks" aria-hidden="true">
       <span
         v-if="asOfInCycle"
@@ -125,6 +129,13 @@ const summaryLabel = computed(() => {
   border-radius: var(--hf-radius-lg);
   background: var(--hf-color-surface);
   box-shadow: var(--hf-shadow-sm);
+}
+
+.fm-timeline--embedded {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
 }
 
 .fm-timeline__title {

@@ -16,4 +16,14 @@ describe('OperationGroup', () => {
     expect(wrapper.get('ul').attributes('aria-label')).toBe('Операции за Сегодня, 14 сентября');
     expect(wrapper.findAll('[data-testid="row"]')).toHaveLength(1);
   });
+
+  it('keeps its own card surface by default', () => {
+    const wrapper = mount(OperationGroup, { props: { label: 'Сегодня' } });
+    expect(wrapper.get('ul').classes()).not.toContain('operation-group__list--flat');
+  });
+
+  it('drops its own border/surface/shadow when flat, for nesting inside another card', () => {
+    const wrapper = mount(OperationGroup, { props: { label: 'Сегодня', flat: true } });
+    expect(wrapper.get('ul').classes()).toContain('operation-group__list--flat');
+  });
 });

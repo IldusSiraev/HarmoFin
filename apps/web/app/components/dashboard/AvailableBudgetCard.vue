@@ -1,20 +1,23 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { ChevronDown, ChevronUp, CircleAlert, TriangleAlert } from '@lucide/vue';
+import { computed } from 'vue';
+import { TriangleAlert } from '@lucide/vue';
 
 import FinanceMoney from '../finance/FinanceMoney.vue';
-import UiButton from '../ui/Button.vue';
+import FinancialMonthTimeline from './FinancialMonthTimeline.vue';
 import type { DashboardV2Response } from '../../composables/useEnvelopePlanV2.js';
 
 defineOptions({ name: 'AvailableBudgetCard' });
 
 // Every amount is shown as the server sent it.
-const props = defineProps<{
-  dashboard: DashboardV2Response;
-}>();
-
-// `assign`: the user wants to assign the free money; the page opens the panel.
-const emit = defineEmits<{ assign: [] }>();
+const props = withDefaults(
+  defineProps<{
+    dashboard: DashboardV2Response;
+    // Demo/landing narration still describes unassigned money; the dashboard page covers it in
+    // DashboardWarnings, so this read-only line stays off by default there.
+    showFreeMoney?: boolean;
+  }>(),
+  { showFreeMoney: false },
+);
 
 const monthFormatter = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
 
@@ -32,31 +35,11 @@ const overrunMinor = computed(() => props.dashboard.currentBalanceMinor.replace(
 const emptyPeriod = computed(
   () => !needsSetup.value && props.dashboard.currentBalanceMinor === '0',
 );
-const hasFreeMoney = computed(() => {
-  const free = props.dashboard.freeToAssignMinor;
-  return free !== '0' && !free.startsWith('-');
-});
-const hasGap = computed(() => {
-  const gap = props.dashboard.mandatoryGapMinor;
-  return gap !== '0' && !gap.startsWith('-');
-});
-const horizonLabel = computed(() => formatUntil(props.dashboard.horizonEnd));
 const stats = computed(() => props.dashboard.periodStats);
-
-// Counts come from the server; this only picks the Russian word form.
-function daysLeftLabel(days: number): string {
-  const tail = days % 10;
-  const teen = days % 100;
-  if (tail === 1 && teen !== 11) return `осталось ${days} день`;
-  if (tail >= 2 && tail <= 4 && (teen < 12 || teen > 14)) return `осталось ${days} дня`;
-  return `осталось ${days} дней`;
-}
-const periodCaption = computed(() =>
-  stats.value
-    ? `${formatUntil(props.dashboard.period.end)} · ${daysLeftLabel(stats.value.daysLeft)}`
-    : '',
-);
-const breakdownOpen = ref(false);
+// Same string check as DashboardWarnings: not '0' and not negative.
+const freeMinor = computed(() => props.dashboard.freeToAssignMinor);
+const hasFreeMoney = computed(() => freeMinor.value !== '0' && !freeMinor.value.startsWith('-'));
+const deadlineLabel = computed(() => formatUntil(props.dashboard.period.end).replace(/^до/, 'До'));
 </script>
 
 <template>
@@ -79,13 +62,14 @@ const breakdownOpen = ref(false);
           :scale="2"
         />
       </p>
-      <p class="available-budget__caption">
-        В конверте периода
-        <FinanceMoney :minor-units="dashboard.currentBalanceMinor" currency="RUB" :scale="2" />
-      </p>
-      <p v-if="stats" class="available-budget__caption" data-testid="available-budget-period">
-        {{ periodCaption }}
-      </p>
+      <p class="available-budget__caption">{{ deadlineLabel }} · доступно в текущем конверте</p>
+      <FinancialMonthTimeline
+        class="available-budget__timeline"
+        embedded
+        :cycle="dashboard.cycle"
+        :period="dashboard.period"
+        :as-of="dashboard.asOf"
+      />
       <dl v-if="stats" class="available-budget__stats" data-testid="available-budget-stats">
         <div>
           <dt>Потрачено</dt>
@@ -119,21 +103,6 @@ const breakdownOpen = ref(false);
       <NuxtLink to="/app/accounts" class="available-budget__link">Перейти к счетам</NuxtLink>
     </p>
 
-    <p v-if="hasFreeMoney" class="available-budget__free" data-testid="available-budget-free-row">
-      <span>
-        Не распределено
-        <FinanceMoney :minor-units="dashboard.freeToAssignMinor" currency="RUB" :scale="2" />
-      </span>
-      <UiButton
-        variant="tertiary"
-        size="sm"
-        data-action="assign-free-money"
-        @click="emit('assign')"
-      >
-        Распределить
-      </UiButton>
-    </p>
-
     <p v-if="overrun" class="available-budget__flag available-budget__flag--danger">
       <TriangleAlert :size="16" aria-hidden="true" />
       <span>
@@ -141,74 +110,18 @@ const breakdownOpen = ref(false);
         <FinanceMoney :minor-units="overrunMinor" currency="RUB" :scale="2" />
       </span>
     </p>
-    <p v-if="hasGap" class="available-budget__flag available-budget__flag--warning">
-      <CircleAlert :size="16" aria-hidden="true" />
-      <span>
-        Не хватает на обязательные
-        <FinanceMoney :minor-units="dashboard.mandatoryGapMinor" currency="RUB" :scale="2" />
-      </span>
-    </p>
 
     <p v-if="dashboard.dueMayBeIncomplete" class="available-budget__caption">
       Сумма может быть неполной: более поздние платежи пока не учтены.
     </p>
 
-    <button
-      type="button"
-      class="available-budget__toggle"
-      data-action="toggle-breakdown"
-      :aria-expanded="breakdownOpen"
-      :aria-controls="breakdownOpen ? 'available-budget-breakdown' : undefined"
-      @click="breakdownOpen = !breakdownOpen"
+    <p
+      v-if="showFreeMoney && hasFreeMoney"
+      class="available-budget__free"
+      data-testid="available-budget-free-row"
     >
-      <component :is="breakdownOpen ? ChevronUp : ChevronDown" :size="16" aria-hidden="true" />
-      Как посчитано
-    </button>
-    <div v-if="breakdownOpen" id="available-budget-breakdown" class="available-budget__breakdown">
-      <dl class="available-budget__list">
-        <div>
-          <dt>На счетах</dt>
-          <dd><FinanceMoney :minor-units="dashboard.cashMinor" currency="RUB" :scale="2" /></dd>
-        </div>
-        <div>
-          <dt>Остаток текущего периода</dt>
-          <dd>
-            <FinanceMoney :minor-units="dashboard.currentBalanceMinor" currency="RUB" :scale="2" />
-          </dd>
-        </div>
-        <div>
-          <dt>К оплате {{ horizonLabel }}</dt>
-          <dd>
-            <FinanceMoney :minor-units="dashboard.mandatoryDueMinor" currency="RUB" :scale="2" />
-          </dd>
-        </div>
-      </dl>
-      <h3 class="available-budget__group">Уже отложено на платежи и накопления</h3>
-      <dl class="available-budget__list">
-        <div>
-          <dt>Отложено на обязательные платежи</dt>
-          <dd>
-            <FinanceMoney
-              :minor-units="dashboard.mandatoryBalanceMinor"
-              currency="RUB"
-              :scale="2"
-            />
-          </dd>
-        </div>
-        <div>
-          <dt>Накопления и прочее</dt>
-          <dd>
-            <FinanceMoney :minor-units="dashboard.otherProtectedMinor" currency="RUB" :scale="2" />
-          </dd>
-        </div>
-        <div>
-          <dt>Не распределено</dt>
-          <dd>
-            <FinanceMoney :minor-units="dashboard.freeToAssignMinor" currency="RUB" :scale="2" />
-          </dd>
-        </div>
-      </dl>
-    </div>
+      Не распределено <FinanceMoney :minor-units="freeMinor" currency="RUB" :scale="2" />
+    </p>
   </section>
 </template>
 
@@ -217,20 +130,10 @@ const breakdownOpen = ref(false);
   display: grid;
   gap: var(--hf-space-3);
   padding: var(--hf-card-padding);
-  border: 1px solid var(--hf-color-border);
-  border-radius: var(--hf-radius-lg);
-  background: var(--hf-color-surface);
-  box-shadow: var(--hf-shadow-sm);
 }
 
-.available-budget__free {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--hf-space-2);
-  align-items: center;
-  justify-content: space-between;
-  margin: 0;
-  font-variant-numeric: tabular-nums;
+.available-budget__timeline {
+  margin-block: var(--hf-space-2);
 }
 
 .available-budget__label {
@@ -306,58 +209,11 @@ const breakdownOpen = ref(false);
   color: var(--hf-color-status-danger);
 }
 
-.available-budget__flag--warning {
-  color: var(--hf-color-status-warning);
-}
-
-.available-budget__toggle {
-  display: inline-flex;
-  gap: var(--hf-space-1);
-  align-items: center;
-  justify-self: start;
-  min-height: 2.75rem;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--hf-color-action-primary);
-  font: inherit;
-  font-weight: var(--hf-font-weight-medium);
-  cursor: pointer;
-}
-
-.available-budget__breakdown {
-  display: grid;
-  gap: var(--hf-space-2);
-  margin: 0;
-  padding-top: var(--hf-space-3);
-  border-top: 1px solid var(--hf-color-border);
-}
-
-.available-budget__list {
-  display: grid;
-  gap: var(--hf-space-2);
-  margin: 0;
-}
-
-.available-budget__list > div {
-  display: flex;
-  gap: var(--hf-space-3);
-  justify-content: space-between;
-}
-
-.available-budget__breakdown dt {
-  color: var(--hf-color-text-muted);
-}
-
-.available-budget__breakdown dd {
-  margin: 0;
-  font-weight: var(--hf-font-weight-medium);
-}
-
-.available-budget__group {
+.available-budget__free {
   margin: 0;
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-small);
-  font-weight: var(--hf-font-weight-semibold);
+  line-height: var(--hf-line-height-small);
+  font-variant-numeric: tabular-nums;
 }
 </style>
