@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.4.0...v1.5.0) (2026-10-22)
+
+
+### Новое
+
+* новая раскладка дашборда по прототипу и поля покрытия в API ([3aee35f](https://github.com/IldusSiraev/HarmoFin/commit/3aee35f46df7e64fce33d07189ef0b4c0005c519))
+
 ## [1.4.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.3.1...v1.4.0) (2026-10-22)
 
 
