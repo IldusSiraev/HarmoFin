@@ -19,7 +19,11 @@ export type DemoObligationCoverage = {
   coverage: DashboardObligationCoverage;
   shortfallMinor: string;
 };
-export type DemoMandatoryProgress = { valueMinor: string; maxMinor: string; shortfallMinor: string };
+export type DemoMandatoryProgress = {
+  valueMinor: string;
+  maxMinor: string;
+  shortfallMinor: string;
+};
 export type DemoSnapshot = {
   key: string;
   cashMinor: string;

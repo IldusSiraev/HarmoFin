@@ -74,7 +74,12 @@ describe('envelopeProgress', () => {
         isMainPeriodEnvelope: true,
         mainPeriod: { spent: 5_317_483n, available: 6_101_249n },
       }),
-    ).toEqual({ kind: 'SPENT', valueMinor: 5_317_483n, maxMinor: 6_101_249n, shortfallMinor: null });
+    ).toEqual({
+      kind: 'SPENT',
+      valueMinor: 5_317_483n,
+      maxMinor: 6_101_249n,
+      shortfallMinor: null,
+    });
   });
 
   it('SPENT нет без настроенного периода, при нулевом доступном и у второй половины', () => {
@@ -136,13 +141,20 @@ describe('envelopeProgress', () => {
         mandatoryDue: 1_000n,
       }),
     ).toEqual({ kind: 'COVERED', valueMinor: 0n, maxMinor: 1_000n, shortfallMinor: 1_000n });
-    expect(envelopeProgress({ ...base, envelopeType: 'MANDATORY_EXPENSES', balance: 5n })).toBeNull();
+    expect(
+      envelopeProgress({ ...base, envelopeType: 'MANDATORY_EXPENSES', balance: 5n }),
+    ).toBeNull();
   });
 
   it('GOAL: накопления, резерв и свой конверт с целью', () => {
     for (const envelopeType of ['SAVINGS_GOAL', 'RESERVE', 'CUSTOM'] as const) {
       expect(
-        envelopeProgress({ ...base, envelopeType, balance: 300_000n, targetAmountMinor: 2_000_000n }),
+        envelopeProgress({
+          ...base,
+          envelopeType,
+          balance: 300_000n,
+          targetAmountMinor: 2_000_000n,
+        }),
       ).toEqual({ kind: 'GOAL', valueMinor: 300_000n, maxMinor: 2_000_000n, shortfallMinor: null });
     }
   });
