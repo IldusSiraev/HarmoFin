@@ -10,10 +10,13 @@ type DashboardBalance = { id: string; name: string; balanceMinor: string };
 
 const props = defineProps<{
   title: string;
+  subtitle: string;
+  moreLabel: string;
   items: ReadonlyArray<DashboardBalance>;
   totalMinor: string | null;
   moreLink: string;
   limit?: number;
+  headingLevel?: 'h2' | 'h3';
 }>();
 
 defineSlots<{
@@ -27,8 +30,11 @@ const visible = computed(() => props.items.slice(0, props.limit ?? LIMIT));
 <template>
   <section class="balance-list" :aria-label="title">
     <header class="balance-list__header">
-      <h2 class="balance-list__title">{{ title }}</h2>
-      <UiMoreLink :to="moreLink" :aria-label="`Все: ${title}`">Все</UiMoreLink>
+      <div>
+        <component :is="headingLevel ?? 'h2'" class="balance-list__title">{{ title }}</component>
+        <p class="balance-list__subtitle">{{ subtitle }}</p>
+      </div>
+      <UiMoreLink :to="moreLink">{{ moreLabel }}</UiMoreLink>
     </header>
 
     <p v-if="totalMinor !== null" class="balance-list__total" data-testid="balance-list-total">
@@ -81,11 +87,14 @@ const visible = computed(() => props.items.slice(0, props.limit ?? LIMIT));
 
 .balance-list__title {
   margin: 0;
+  font-size: var(--hf-font-size-h3);
+  line-height: var(--hf-line-height-h3);
+}
+
+.balance-list__subtitle {
+  margin: 0;
   color: var(--hf-color-text-muted);
-  font-size: 0.75rem;
-  font-weight: var(--hf-font-weight-semibold);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-size: var(--hf-font-size-caption);
 }
 
 .balance-list__total {
@@ -103,10 +112,12 @@ const visible = computed(() => props.items.slice(0, props.limit ?? LIMIT));
 
 .balance-list__list {
   display: grid;
-  gap: var(--hf-space-1);
+  gap: 0;
   min-width: 0;
   margin: 0;
   padding: 0;
+  border-top: 1px solid var(--hf-color-border);
+  padding-top: var(--hf-space-1);
   list-style: none;
 }
 
@@ -119,7 +130,11 @@ const visible = computed(() => props.items.slice(0, props.limit ?? LIMIT));
   gap: var(--hf-space-3);
   align-items: center;
   min-height: 2.75rem;
-  padding: var(--hf-space-2) var(--hf-space-3);
+  padding: var(--hf-space-3) 0;
+}
+
+.balance-list__row + .balance-list__row {
+  border-top: 1px solid var(--hf-color-border);
 }
 
 .balance-list__body {

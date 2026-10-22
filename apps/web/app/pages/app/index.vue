@@ -14,8 +14,7 @@ import DashboardWarnings from '../../components/dashboard/DashboardWarnings.vue'
 import OnboardingChecklist from '../../components/dashboard/OnboardingChecklist.vue';
 import PeriodDecisionCard from '../../components/dashboard/PeriodDecisionCard.vue';
 import RecentOperations from '../../components/dashboard/RecentOperations.vue';
-import EnvelopeTypeIcon from '../../components/envelopes/EnvelopeTypeIcon.vue';
-import { envelopeSubtitle } from '../../components/envelopes/envelope-type.js';
+import DashboardEnvelopeRow from '../../components/dashboard/DashboardEnvelopeRow.vue';
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
@@ -66,16 +65,6 @@ type EnvelopeRow = DashboardV2Response['envelopes'][number];
 function envelopeRow(id: string): EnvelopeRow {
   return dashboardV2.value!.envelopes.find((row) => row.id === id)!;
 }
-
-function envelopeSubtitleFor(row: EnvelopeRow): string {
-  return envelopeSubtitle(row);
-}
-
-// Free money is shown as the server sent it; only a string check decides if the row appears.
-const hasFreeMoney = computed(() => {
-  const free = dashboardV2.value?.freeToAssignMinor ?? '0';
-  return free !== '0' && !free.startsWith('-');
-});
 
 const activeBudget = computed(() => currentData.value?.workspaces[0]?.budgets[0] ?? null);
 const planV2 = useEnvelopePlanV2();
@@ -242,9 +231,9 @@ async function loadDashboard() {
         <div class="dashboard-lists-row">
           <BalanceList
             title="Счета"
+            subtitle="Где находятся деньги"
+            more-label="Все счета"
             :items="dashboardV2.accounts"
-            :warnings="[]"
-            subject="ACCOUNT"
             :total-minor="dashboardV2.cashMinor"
             more-link="/app/accounts"
           >
@@ -265,40 +254,14 @@ async function loadDashboard() {
 
           <BalanceList
             title="Конверты"
+            subtitle="Для чего назначены деньги"
+            more-label="Все конверты"
             :items="dashboardV2.envelopes"
-            :warnings="[]"
-            subject="ENVELOPE"
             :total-minor="dashboardV2.envelopesTotalMinor"
             more-link="/app/envelopes"
           >
             <template #row="{ item }">
-              <EnvelopeTypeIcon :envelope-type="envelopeRow(item.id).envelopeType" size="sm" />
-              <span class="dashboard-balance-body">
-                <span class="dashboard-balance-name">{{ item.name }}</span>
-                <span class="dashboard-balance-subtitle">{{
-                  envelopeSubtitleFor(envelopeRow(item.id))
-                }}</span>
-              </span>
-              <FinanceMoney
-                class="dashboard-balance-trailing"
-                :minor-units="item.balanceMinor"
-                currency="RUB"
-                :scale="2"
-              />
-            </template>
-            <template #footer>
-              <p
-                v-if="hasFreeMoney"
-                class="dashboard-unassigned"
-                data-testid="envelopes-unassigned"
-              >
-                Не распределено
-                <FinanceMoney
-                  :minor-units="dashboardV2.freeToAssignMinor"
-                  currency="RUB"
-                  :scale="2"
-                />
-              </p>
+              <DashboardEnvelopeRow :envelope="envelopeRow(item.id)" />
             </template>
           </BalanceList>
         </div>
@@ -400,13 +363,6 @@ async function loadDashboard() {
   .dashboard-lists-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-}
-
-.dashboard-unassigned {
-  margin: 0;
-  color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-small);
-  font-variant-numeric: tabular-nums;
 }
 
 .dashboard-sections {
