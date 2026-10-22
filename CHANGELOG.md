@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.3.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.2.1...v1.3.0) (2026-10-22)
+
+
+### Новое
+
+* **web:** «Переложить» с предпросмотром и быстрым выбором получателя ([9d354bc](https://github.com/IldusSiraev/HarmoFin/commit/9d354bc2ea93f901c4ba141beef440ec29dd560c))
+* **web:** «Правила пополнения» в новом оформлении ([3f51ef6](https://github.com/IldusSiraev/HarmoFin/commit/3f51ef6e773c1ef1067a1e7d3787a1a508014288))
+* **web:** «Распределить деньги» в новом оформлении ([5e6deef](https://github.com/IldusSiraev/HarmoFin/commit/5e6deef928d3e8a190dc8b47fc876f9cd96ddf10))
+* **web:** детали конверта в новом оформлении ([8a59f2b](https://github.com/IldusSiraev/HarmoFin/commit/8a59f2b57f3f0e37087b766bc6b261e9e0d2820b))
+* **web:** карточки конвертов с цветом типа, прогрессом и поиском ([715c363](https://github.com/IldusSiraev/HarmoFin/commit/715c363643973f9d37b5360c56d2343b52ee8c6d))
+* **web:** редизайн раздела «Конверты» ([fefe6d1](https://github.com/IldusSiraev/HarmoFin/commit/fefe6d1a2c0aedafbc5a3dc57c76cdcc9725ced6))
+* **web:** сводка и действия на странице конвертов ([b5a5875](https://github.com/IldusSiraev/HarmoFin/commit/b5a58750c07ec9f13cc052b0aeed8a8741c3ebba))
+* **web:** строки внимания, крупная сумма и предпросмотр «было → стало» ([e772e2f](https://github.com/IldusSiraev/HarmoFin/commit/e772e2fe69f5c4647b9d926c42b13f803ac71198))
+* **web:** цвета типов конвертов и иконка типа ([37089de](https://github.com/IldusSiraev/HarmoFin/commit/37089de943d35d5767142aa8e13e9bd6e81f56f9))
+
+
+### Исправления
+
+* **web:** конверты — выравнивание вёрстки по макету ([3887931](https://github.com/IldusSiraev/HarmoFin/commit/38879314bf8426a74db711d27367617b885311e8))
+* **web:** конверты — замечания финального ревью ([780d548](https://github.com/IldusSiraev/HarmoFin/commit/780d54875cb40fade4be5cde89ce09a6883d1652))
+
 ## [1.2.1](https://github.com/IldusSiraev/HarmoFin/compare/v1.2.0...v1.2.1) (2026-10-21)
 
 
