@@ -2,7 +2,11 @@
 // Model v2.2, §8: the landing never computes money). The mappers below only copy literals into
 // the DTOs the real app components read; demo-scenario.test.ts checks the arithmetic.
 import type { GoalProgressRowDto } from '../composables/useBudgetReferenceData.js';
-import type { DashboardV2Response, EnvelopePlanDto } from '../composables/useEnvelopePlanV2.js';
+import type {
+  DashboardObligationCoverage,
+  DashboardV2Response,
+  EnvelopePlanDto,
+} from '../composables/useEnvelopePlanV2.js';
 import { formatDemoDate, type DemoPeriodDates } from './demo-period-dates.js';
 
 export type DemoSplit = 'suggested' | 'vacation';
@@ -10,6 +14,12 @@ export type DemoLeftover = 'carry' | 'save';
 export type DemoChoices = { split: DemoSplit | null; leftover: DemoLeftover | null };
 export type DemoEnvelopeKey = 'mandatory' | 'current' | 'vacation' | 'reserve';
 export type DemoEnvelopeAmounts = { fundedMinor: string; spentMinor: string; balanceMinor: string };
+export type DemoObligationKey = 'mortgage' | 'kindergarten' | 'utilities' | 'internet';
+export type DemoObligationCoverage = {
+  coverage: DashboardObligationCoverage;
+  shortfallMinor: string;
+};
+export type DemoMandatoryProgress = { valueMinor: string; maxMinor: string; shortfallMinor: string };
 export type DemoSnapshot = {
   key: string;
   cashMinor: string;
@@ -19,6 +29,10 @@ export type DemoSnapshot = {
   mortgagePaid: boolean;
   vacationProgressPermille: number;
   vacationRemainingMinor: string;
+  /** Literal coverage per obligation (date order), precomputed for this snapshot's mandatory balance. */
+  obligationCoverage: Record<DemoObligationKey, DemoObligationCoverage>;
+  /** Literal mandatory-envelope progress bar: held balance vs. due through the horizon. */
+  mandatoryProgress: DemoMandatoryProgress;
 };
 export type DemoStepText = { title: string; body: string; caption: string };
 
@@ -30,6 +44,36 @@ const e = (fundedMinor: string, spentMinor: string, balanceMinor: string): DemoE
   balanceMinor,
 });
 const EMPTY = e('0', '0', '0');
+
+// Mandatory envelope is empty: nothing covers the mortgage or the later obligations yet.
+const OBLIGATIONS_UNFUNDED: Record<DemoObligationKey, DemoObligationCoverage> = {
+  mortgage: { coverage: 'UNCOVERED', shortfallMinor: '3600000' },
+  kindergarten: { coverage: 'UNCOVERED', shortfallMinor: '1110000' },
+  utilities: { coverage: 'UNCOVERED', shortfallMinor: '400000' },
+  internet: { coverage: 'UNCOVERED', shortfallMinor: '90000' },
+};
+// Mandatory envelope holds at least the due amount for every obligation still open this step.
+const OBLIGATIONS_FUNDED: Record<DemoObligationKey, DemoObligationCoverage> = {
+  mortgage: { coverage: 'COVERED', shortfallMinor: '0' },
+  kindergarten: { coverage: 'COVERED', shortfallMinor: '0' },
+  utilities: { coverage: 'COVERED', shortfallMinor: '0' },
+  internet: { coverage: 'COVERED', shortfallMinor: '0' },
+};
+const MANDATORY_PROGRESS_EMPTY: DemoMandatoryProgress = {
+  valueMinor: '0',
+  maxMinor: '5200000',
+  shortfallMinor: '5200000',
+};
+const MANDATORY_PROGRESS_BEFORE_MORTGAGE: DemoMandatoryProgress = {
+  valueMinor: '5200000',
+  maxMinor: '5200000',
+  shortfallMinor: '0',
+};
+const MANDATORY_PROGRESS_AFTER_MORTGAGE: DemoMandatoryProgress = {
+  valueMinor: '1600000',
+  maxMinor: '1600000',
+  shortfallMinor: '0',
+};
 
 function snapshot(key: string, values: Omit<DemoSnapshot, 'key'>): [string, DemoSnapshot] {
   return [key, { key, ...values }];
@@ -44,6 +88,8 @@ export const DEMO_SNAPSHOTS: Record<string, DemoSnapshot> = Object.fromEntries([
     mortgagePaid: false,
     vacationProgressPermille: 0,
     vacationRemainingMinor: '15000000',
+    obligationCoverage: OBLIGATIONS_UNFUNDED,
+    mandatoryProgress: MANDATORY_PROGRESS_EMPTY,
   }),
   snapshot('step1', {
     cashMinor: '12000000',
@@ -53,6 +99,8 @@ export const DEMO_SNAPSHOTS: Record<string, DemoSnapshot> = Object.fromEntries([
     mortgagePaid: false,
     vacationProgressPermille: 0,
     vacationRemainingMinor: '15000000',
+    obligationCoverage: OBLIGATIONS_UNFUNDED,
+    mandatoryProgress: MANDATORY_PROGRESS_EMPTY,
   }),
   snapshot('step2:suggested', {
     cashMinor: '12000000',
@@ -67,6 +115,8 @@ export const DEMO_SNAPSHOTS: Record<string, DemoSnapshot> = Object.fromEntries([
     mortgagePaid: false,
     vacationProgressPermille: 100,
     vacationRemainingMinor: '13500000',
+    obligationCoverage: OBLIGATIONS_FUNDED,
+    mandatoryProgress: MANDATORY_PROGRESS_BEFORE_MORTGAGE,
   }),
   snapshot('step2:vacation', {
     cashMinor: '12000000',
@@ -81,6 +131,8 @@ export const DEMO_SNAPSHOTS: Record<string, DemoSnapshot> = Object.fromEntries([
     mortgagePaid: false,
     vacationProgressPermille: 166,
     vacationRemainingMinor: '12500000',
+    obligationCoverage: OBLIGATIONS_FUNDED,
+    mandatoryProgress: MANDATORY_PROGRESS_BEFORE_MORTGAGE,
   }),
   snapshot('step3:suggested', {
     cashMinor: '8400000',
@@ -95,6 +147,8 @@ export const DEMO_SNAPSHOTS: Record<string, DemoSnapshot> = Object.fromEntries([
     mortgagePaid: true,
     vacationProgressPermille: 100,
     vacationRemainingMinor: '13500000',
+    obligationCoverage: OBLIGATIONS_FUNDED,
+    mandatoryProgress: MANDATORY_PROGRESS_AFTER_MORTGAGE,
   }),
   snapshot('step3:vacation', {
     cashMinor: '8400000',
@@ -109,6 +163,8 @@ export const DEMO_SNAPSHOTS: Record<string, DemoSnapshot> = Object.fromEntries([
     mortgagePaid: true,
     vacationProgressPermille: 166,
     vacationRemainingMinor: '12500000',
+    obligationCoverage: OBLIGATIONS_FUNDED,
+    mandatoryProgress: MANDATORY_PROGRESS_AFTER_MORTGAGE,
   }),
   snapshot('step4:suggested', {
     cashMinor: '7160000',
@@ -123,6 +179,8 @@ export const DEMO_SNAPSHOTS: Record<string, DemoSnapshot> = Object.fromEntries([
     mortgagePaid: true,
     vacationProgressPermille: 100,
     vacationRemainingMinor: '13500000',
+    obligationCoverage: OBLIGATIONS_FUNDED,
+    mandatoryProgress: MANDATORY_PROGRESS_AFTER_MORTGAGE,
   }),
   snapshot('step4:vacation', {
     cashMinor: '7160000',
@@ -137,6 +195,8 @@ export const DEMO_SNAPSHOTS: Record<string, DemoSnapshot> = Object.fromEntries([
     mortgagePaid: true,
     vacationProgressPermille: 166,
     vacationRemainingMinor: '12500000',
+    obligationCoverage: OBLIGATIONS_FUNDED,
+    mandatoryProgress: MANDATORY_PROGRESS_AFTER_MORTGAGE,
   }),
   snapshot('step6:suggested+carry', {
     cashMinor: '7160000',
@@ -151,6 +211,8 @@ export const DEMO_SNAPSHOTS: Record<string, DemoSnapshot> = Object.fromEntries([
     mortgagePaid: true,
     vacationProgressPermille: 100,
     vacationRemainingMinor: '13500000',
+    obligationCoverage: OBLIGATIONS_FUNDED,
+    mandatoryProgress: MANDATORY_PROGRESS_AFTER_MORTGAGE,
   }),
   snapshot('step6:suggested+save', {
     cashMinor: '7160000',
@@ -165,6 +227,8 @@ export const DEMO_SNAPSHOTS: Record<string, DemoSnapshot> = Object.fromEntries([
     mortgagePaid: true,
     vacationProgressPermille: 317,
     vacationRemainingMinor: '10240000',
+    obligationCoverage: OBLIGATIONS_FUNDED,
+    mandatoryProgress: MANDATORY_PROGRESS_AFTER_MORTGAGE,
   }),
   snapshot('step6:vacation+carry', {
     cashMinor: '7160000',
@@ -179,6 +243,8 @@ export const DEMO_SNAPSHOTS: Record<string, DemoSnapshot> = Object.fromEntries([
     mortgagePaid: true,
     vacationProgressPermille: 166,
     vacationRemainingMinor: '12500000',
+    obligationCoverage: OBLIGATIONS_FUNDED,
+    mandatoryProgress: MANDATORY_PROGRESS_AFTER_MORTGAGE,
   }),
   snapshot('step6:vacation+save', {
     cashMinor: '7160000',
@@ -193,6 +259,8 @@ export const DEMO_SNAPSHOTS: Record<string, DemoSnapshot> = Object.fromEntries([
     mortgagePaid: true,
     vacationProgressPermille: 317,
     vacationRemainingMinor: '10240000',
+    obligationCoverage: OBLIGATIONS_FUNDED,
+    mandatoryProgress: MANDATORY_PROGRESS_AFTER_MORTGAGE,
   }),
 ]);
 
@@ -237,6 +305,12 @@ const ENVELOPES: Record<
 };
 const ENVELOPE_ORDER: DemoEnvelopeKey[] = ['mandatory', 'current', 'vacation', 'reserve'];
 const PERIOD_ID = 'demo-period-salary';
+const OBLIGATION_KEYS: Record<string, DemoObligationKey> = {
+  'demo-occ-mortgage': 'mortgage',
+  'demo-occ-kindergarten': 'kindergarten',
+  'demo-occ-utilities': 'utilities',
+  'demo-occ-internet': 'internet',
+};
 
 export function toDashboard(
   s: DemoSnapshot,
@@ -274,19 +348,35 @@ export function toDashboard(
         },
         ...later,
       ];
+  // Coverage per obligation is a precomputed literal on the snapshot (date order).
+  const nearestObligations = obligations.map((obligation) => ({
+    ...obligation,
+    ...s.obligationCoverage[OBLIGATION_KEYS[obligation.occurrenceId]!],
+  }));
   return {
     planModelVersion: 2,
     period: { start: dates.periodStart, end: dates.periodEnd, periodId: PERIOD_ID },
     cycle: { start: dates.periodStart, end: dates.periodEnd },
     asOf,
     horizonEnd: dates.periodEnd,
-    nearestObligations: obligations,
+    nearestObligations,
     // AvailableBudgetCard renders a per-day spending figure whenever periodStats is set; the
     // landing never shows that aggregate, so days-left information is text-only (demoStepText).
     periodStats: null,
     envelopes: ENVELOPE_ORDER.map((key) => ({
       ...ENVELOPES[key],
       balanceMinor: s.envelopes[key].balanceMinor,
+      progress:
+        key === 'mandatory'
+          ? { kind: 'COVERED' as const, ...s.mandatoryProgress }
+          : key === 'current'
+            ? {
+                kind: 'SPENT' as const,
+                valueMinor: s.envelopes.current.spentMinor,
+                maxMinor: s.envelopes.current.fundedMinor,
+                shortfallMinor: null,
+              }
+            : null,
     })),
     envelopesTotalMinor: s.envelopesTotalMinor,
     spendable: { state: 'READY', amountMinor: s.envelopes.current.balanceMinor },
@@ -297,6 +387,7 @@ export function toDashboard(
     mandatoryDueMinor: s.envelopes.mandatory.balanceMinor,
     mandatoryDueCurrentMinor: '0',
     mandatoryDueNextMinor: s.envelopes.mandatory.balanceMinor,
+    protectedMinor: s.envelopes.mandatory.balanceMinor,
     otherProtectedMinor: '0',
     freeToAssignMinor: s.freeToAssignMinor,
     unbackedMinor: '0',

@@ -17,6 +17,7 @@ const v2Base = {
   currentBalanceMinor: '6500000',
   mandatoryBalanceMinor: '0',
   mandatoryDueMinor: '1000000',
+  protectedMinor: '0',
   otherProtectedMinor: '0',
   freeToAssignMinor: '0',
   unbackedMinor: '0',

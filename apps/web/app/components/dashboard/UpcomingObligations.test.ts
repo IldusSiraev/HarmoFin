@@ -8,6 +8,8 @@ const item = {
   name: 'Ипотека',
   scheduledOn: '2026-10-26',
   unpaidMinor: '3597300',
+  coverage: 'COVERED' as const,
+  shortfallMinor: '0',
 };
 
 const stubs = { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } };

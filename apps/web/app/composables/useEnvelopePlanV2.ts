@@ -186,6 +186,15 @@ export interface PeriodTargetResponse {
 
 // Dashboard
 
+export type DashboardObligationCoverage = 'COVERED' | 'PARTIAL' | 'UNCOVERED';
+
+export interface DashboardEnvelopeProgress {
+  kind: 'SPENT' | 'COVERED' | 'GOAL';
+  valueMinor: string;
+  maxMinor: string;
+  shortfallMinor: string | null;
+}
+
 export interface DashboardV2Response {
   planModelVersion: 2;
   period: { start: string; end: string; periodId: string | null };
@@ -197,6 +206,8 @@ export interface DashboardV2Response {
     name: string;
     scheduledOn: string;
     unpaidMinor: string;
+    coverage: DashboardObligationCoverage;
+    shortfallMinor: string;
   }>;
   periodStats: {
     spentMinor: string;
@@ -210,6 +221,7 @@ export interface DashboardV2Response {
     envelopeType: string;
     periodSlot: 'FIRST' | 'SECOND' | null;
     balanceMinor: string;
+    progress: DashboardEnvelopeProgress | null;
   }>;
   envelopesTotalMinor: string;
   spendable: { state: 'READY' | 'NEEDS_PERIOD_SETUP'; amountMinor: string | null };
@@ -220,6 +232,7 @@ export interface DashboardV2Response {
   mandatoryDueMinor: string;
   mandatoryDueCurrentMinor: string;
   mandatoryDueNextMinor: string;
+  protectedMinor: string;
   otherProtectedMinor: string;
   freeToAssignMinor: string;
   unbackedMinor: string;

@@ -26,18 +26,24 @@ export const demoDashboard: DashboardV2Response = {
       name: 'Ипотека',
       scheduledOn: '2026-10-05',
       unpaidMinor: '3600000',
+      coverage: 'COVERED',
+      shortfallMinor: '0',
     },
     {
       occurrenceId: 'demo-occ-internet',
       name: 'Интернет',
       scheduledOn: '2026-10-07',
       unpaidMinor: '90000',
+      coverage: 'COVERED',
+      shortfallMinor: '0',
     },
     {
       occurrenceId: 'demo-occ-kindergarten',
       name: 'Детский сад',
       scheduledOn: '2026-10-08',
       unpaidMinor: '1110000',
+      coverage: 'COVERED',
+      shortfallMinor: '0',
     },
   ],
   periodStats: {
@@ -53,6 +59,12 @@ export const demoDashboard: DashboardV2Response = {
       envelopeType: 'CURRENT_EXPENSES',
       periodSlot: 'SECOND',
       balanceMinor: '3150000',
+      progress: {
+        kind: 'SPENT',
+        valueMinor: '3350000',
+        maxMinor: '6500000',
+        shortfallMinor: null,
+      },
     },
     {
       id: 'demo-env-mandatory',
@@ -60,6 +72,12 @@ export const demoDashboard: DashboardV2Response = {
       envelopeType: 'MANDATORY_EXPENSES',
       periodSlot: null,
       balanceMinor: '5200000',
+      progress: {
+        kind: 'COVERED',
+        valueMinor: '5200000',
+        maxMinor: '4800000',
+        shortfallMinor: '0',
+      },
     },
     {
       id: 'demo-env-repair',
@@ -67,6 +85,12 @@ export const demoDashboard: DashboardV2Response = {
       envelopeType: 'SAVINGS_GOAL',
       periodSlot: null,
       balanceMinor: '7000000',
+      progress: {
+        kind: 'GOAL',
+        valueMinor: '7000000',
+        maxMinor: '12000000',
+        shortfallMinor: null,
+      },
     },
     {
       id: 'demo-env-vacation',
@@ -74,6 +98,12 @@ export const demoDashboard: DashboardV2Response = {
       envelopeType: 'SAVINGS_GOAL',
       periodSlot: null,
       balanceMinor: '4200000',
+      progress: {
+        kind: 'GOAL',
+        valueMinor: '4200000',
+        maxMinor: '10000000',
+        shortfallMinor: null,
+      },
     },
     {
       id: 'demo-env-reserve',
@@ -81,6 +111,7 @@ export const demoDashboard: DashboardV2Response = {
       envelopeType: 'RESERVE',
       periodSlot: null,
       balanceMinor: '1500000',
+      progress: null,
     },
   ],
   envelopesTotalMinor: '21050000',
@@ -92,6 +123,7 @@ export const demoDashboard: DashboardV2Response = {
   mandatoryDueMinor: '4800000',
   mandatoryDueCurrentMinor: '4800000',
   mandatoryDueNextMinor: '0',
+  protectedMinor: '18330000',
   otherProtectedMinor: '13130000',
   freeToAssignMinor: '1750000',
   unbackedMinor: '0',
