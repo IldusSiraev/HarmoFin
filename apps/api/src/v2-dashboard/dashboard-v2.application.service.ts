@@ -8,6 +8,7 @@ import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { addIsoDays, todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { cycleAndPeriodAt, nextPeriodEndAt } from '../cycles/cycle-settings-at.js';
 import { PrismaService } from '../database/prisma.service.js';
+import { envelopeProgress, obligationCoverage } from './dashboard-v2-progress.domain.js';
 import { DashboardV2Repository } from './dashboard-v2.repository.js';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -30,6 +31,8 @@ export type DashboardV2Summary = {
   /** Unpaid mandatory slice of the next period. */
   mandatoryDueNextMinor: string;
   otherProtectedMinor: string;
+  /** Отложено на обязательные платежи (не меньше нуля) и накопления/прочие конверты вне текущего периода. */
+  protectedMinor: string;
   spendable: { state: 'READY' | 'NEEDS_PERIOD_SETUP'; amountMinor: string | null };
   /** Minor-unit string of the DRAFT target of the current main period, else null. */
   suggestedTarget: string | null;
@@ -55,6 +58,8 @@ export type DashboardV2Summary = {
     name: string;
     scheduledOn: string;
     unpaidMinor: string;
+    coverage: 'COVERED' | 'PARTIAL' | 'UNCOVERED';
+    shortfallMinor: string;
   }>;
   /** Current main period figures; null while the period limit is not set up. */
   periodStats: {
@@ -73,6 +78,12 @@ export type DashboardV2Summary = {
     envelopeType: EnvelopeType;
     periodSlot: 'FIRST' | 'SECOND' | null;
     balanceMinor: string;
+    progress: {
+      kind: 'SPENT' | 'COVERED' | 'GOAL';
+      valueMinor: string;
+      maxMinor: string;
+      shortfallMinor: string | null;
+    } | null;
   }>;
   envelopesTotalMinor: string;
   /**
@@ -448,6 +459,15 @@ export class DashboardV2ApplicationService {
         (balanceByEnvelope.get(row.envelopeId) ?? 0n) + row.balance,
       );
     }
+    const dueByEnvelope = new Map<string, bigint>();
+    for (const item of upcoming) {
+      dueByEnvelope.set(
+        item.envelopeId,
+        (dueByEnvelope.get(item.envelopeId) ?? 0n) + item.unpaidMinor,
+      );
+    }
+    const coverage = obligationCoverage(nearest, balanceByEnvelope);
+    const mainPeriod = needsSetup ? null : { spent: mainSpent, available: mainBalance + mainSpent };
     const envelopeList = envelopes
       .map((envelope) => ({ envelope, balance: balanceByEnvelope.get(envelope.id) ?? 0n }))
       .filter(({ envelope, balance }) => envelope.archivedAt === null || balance !== 0n);
@@ -464,6 +484,7 @@ export class DashboardV2ApplicationService {
       mandatoryDueCurrentMinor: formatMinorUnits(dueCurrent),
       mandatoryDueNextMinor: formatMinorUnits(due - dueCurrent),
       otherProtectedMinor: formatMinorUnits(otherProtected),
+      protectedMinor: formatMinorUnits(positive(mandatoryBalance) + otherProtected),
       spendable: needsSetup
         ? { state: 'NEEDS_PERIOD_SETUP', amountMinor: null }
         : { state: 'READY', amountMinor: formatMinorUnits(result.spendableNow) },
@@ -482,20 +503,39 @@ export class DashboardV2ApplicationService {
         scheduledOn: item.scheduledOn,
         unpaidMinor: formatMinorUnits(item.unpaidMinor),
       })),
-      nearestObligations: nearest.map((item) => ({
+      nearestObligations: nearest.map((item, index) => ({
         occurrenceId: item.occurrenceId,
         name: item.name,
         scheduledOn: item.scheduledOn,
         unpaidMinor: formatMinorUnits(item.unpaidMinor),
+        coverage: coverage[index]!.coverage,
+        shortfallMinor: formatMinorUnits(coverage[index]!.shortfallMinor),
       })),
       periodStats,
-      envelopes: envelopeList.map(({ envelope, balance }) => ({
-        id: envelope.id,
-        name: envelope.name,
-        envelopeType: envelope.envelopeType,
-        periodSlot: envelope.periodSlot,
-        balanceMinor: formatMinorUnits(balance),
-      })),
+      envelopes: envelopeList.map(({ envelope, balance }) => {
+        const progress = envelopeProgress({
+          envelopeType: envelope.envelopeType,
+          balance,
+          targetAmountMinor: envelope.targetAmountMinor,
+          isMainPeriodEnvelope: periodRow !== null && envelope.id === periodRow.envelopeId,
+          mainPeriod,
+          mandatoryDue: dueByEnvelope.get(envelope.id) ?? 0n,
+        });
+        return {
+          id: envelope.id,
+          name: envelope.name,
+          envelopeType: envelope.envelopeType,
+          periodSlot: envelope.periodSlot,
+          balanceMinor: formatMinorUnits(balance),
+          progress: progress && {
+            kind: progress.kind,
+            valueMinor: formatMinorUnits(progress.valueMinor),
+            maxMinor: formatMinorUnits(progress.maxMinor),
+            shortfallMinor:
+              progress.shortfallMinor === null ? null : formatMinorUnits(progress.shortfallMinor),
+          },
+        };
+      }),
       envelopesTotalMinor: formatMinorUnits(
         envelopeList.reduce((sum, { balance }) => sum + balance, 0n),
       ),

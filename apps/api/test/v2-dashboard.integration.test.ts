@@ -105,6 +105,53 @@ describe('v2 dashboard summary (P01)', () => {
     ]);
   });
 
+  it('protectedMinor, прогресс цели накоплений и конверт без цели', async () => {
+    const w = await world(10_000_000n);
+    const period = await addPeriod(
+      w,
+      w.mainEnvelopeId,
+      PERIOD.start,
+      PERIOD.end,
+      'CONFIRMED',
+      1_000_000n,
+    );
+    await assign(w, w.mainEnvelopeId, period, 1_000_000n);
+    await assign(w, w.mandatoryEnvelopeId, null, 3_500_000n);
+    const goal = await envelope(w, 'SAVINGS_GOAL', 'Автомобиль', undefined, 2_000_000n);
+    const plain = await envelope(w, 'SAVINGS_GOAL', 'Подушка');
+    await assign(w, goal, null, 300_000n);
+    await assign(w, plain, null, 200_000n);
+
+    const summary = await service.summary(w.userId, w.budgetId, ASOF);
+    expect(summary.protectedMinor).toBe('4000000');
+    const byId = new Map(summary.envelopes.map((row) => [row.id, row]));
+    expect(byId.get(goal)?.progress).toEqual({
+      kind: 'GOAL',
+      valueMinor: '300000',
+      maxMinor: '2000000',
+      shortfallMinor: null,
+    });
+    expect(byId.get(plain)?.progress).toBeNull();
+    // No mandatory payments in the horizon: no coverage bar.
+    expect(byId.get(w.mandatoryEnvelopeId)?.progress).toBeNull();
+  });
+
+  it('покрытие платежа считается из остатка его конверта, чужой бюджет не влияет', async () => {
+    const w = await world(10_000_000n);
+    const second = await envelope(w, 'MANDATORY_EXPENSES', 'Ипотека');
+    await assign(w, w.mandatoryEnvelopeId, null, 600_000n);
+    await occurrence(w, 300_000n, '2026-03-11', { envelopeId: second });
+    await occurrence(w, 300_000n, '2026-03-12');
+    const other = await world(10_000_000n);
+    await occurrence(other, 900_000n, '2026-03-11');
+
+    const summary = await service.summary(w.userId, w.budgetId, ASOF);
+    expect(summary.nearestObligations.map((item) => [item.coverage, item.shortfallMinor])).toEqual([
+      ['UNCOVERED', '300000'],
+      ['COVERED', '0'],
+    ]);
+  });
+
   it('UX-22: статистика периода, ближайшие обязательства и конверты считает сервер', async () => {
     const w = await world(10_000_000n);
     const period = await addPeriod(
@@ -138,19 +185,45 @@ describe('v2 dashboard summary (P01)', () => {
         name: 'План',
         scheduledOn: '2026-03-11',
         unpaidMinor: '100000',
+        coverage: 'COVERED',
+        shortfallMinor: '0',
       },
       {
         occurrenceId: expect.any(String),
         name: 'План',
         scheduledOn: '2026-03-12',
         unpaidMinor: '4500000',
+        coverage: 'PARTIAL',
+        shortfallMinor: '1100000',
       },
       {
         occurrenceId: expect.any(String),
         name: 'План',
         scheduledOn: '2026-03-13',
         unpaidMinor: '200000',
+        coverage: 'UNCOVERED',
+        shortfallMinor: '200000',
       },
+    ]);
+    const byId = new Map(summary.envelopes.map((row) => [row.id, row]));
+    expect(byId.get(w.mainEnvelopeId)?.progress).toEqual({
+      kind: 'SPENT',
+      valueMinor: '0',
+      maxMinor: '6500000',
+      shortfallMinor: null,
+    });
+    // Horizon ends 2026-03-31: 100k + 4.5M + 200k + 300k + 1M = 6.1M due, 3.5M held.
+    expect(byId.get(w.mandatoryEnvelopeId)?.progress).toEqual({
+      kind: 'COVERED',
+      valueMinor: '3500000',
+      maxMinor: '6100000',
+      shortfallMinor: '2600000',
+    });
+    // The internal envelope column of upcoming rows never leaks into the response.
+    expect(Object.keys(summary.upcoming[0]!).sort()).toEqual([
+      'occurrenceId',
+      'scheduledOn',
+      'unpaidMinor',
     ]);
     expect(summary.envelopes).toEqual(
       expect.arrayContaining([
@@ -1001,8 +1074,18 @@ describe('v2 dashboard HTTP contract (P02)', () => {
         'warnings',
         'onboarding',
         'dueMayBeIncomplete',
+        'protectedMinor',
       ]),
     );
+    expect(
+      Object.keys(
+        document.components.schemas.DashboardV2NearestObligationResponse!.properties ?? {},
+      ),
+    ).toEqual(expect.arrayContaining(['coverage', 'shortfallMinor']));
+    expect(
+      Object.keys(document.components.schemas.DashboardV2EnvelopeResponse!.properties ?? {}),
+    ).toContain('progress');
+    expect(document.components.schemas.DashboardV2EnvelopeProgressResponse).toBeDefined();
     const names = Object.keys(document.components.schemas).filter((name) =>
       name.startsWith('DashboardV2'),
     );
@@ -1088,6 +1171,7 @@ async function envelope(
   envelopeType: 'CURRENT_EXPENSES' | 'MANDATORY_EXPENSES' | 'SAVINGS_GOAL',
   name: string,
   periodSlot?: 'FIRST' | 'SECOND',
+  targetAmountMinor?: bigint,
 ): Promise<string> {
   const created = await prisma.envelope.create({
     data: {
@@ -1098,6 +1182,7 @@ async function envelope(
       startingBalanceMinor: 0n,
       displayOrder: 950,
       ...(periodSlot ? { periodSlot } : {}),
+      ...(targetAmountMinor !== undefined ? { targetAmountMinor } : {}),
     },
   });
   return created.id;
@@ -1182,10 +1267,10 @@ async function occurrence(
   w: World,
   amountMinor: bigint,
   scheduledOn: string,
-  options: { planType?: 'EXPENSE' | 'INCOME' } = {},
+  options: { planType?: 'EXPENSE' | 'INCOME'; envelopeId?: string } = {},
 ): Promise<string> {
   const planType = options.planType ?? 'EXPENSE';
-  const envelopeId = planType === 'EXPENSE' ? w.mandatoryEnvelopeId : null;
+  const envelopeId = planType === 'EXPENSE' ? (options.envelopeId ?? w.mandatoryEnvelopeId) : null;
   const planId = randomUUID();
   await prisma.regularPlan.create({
     data: {
