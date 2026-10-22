@@ -141,7 +141,6 @@ function openSelect() {
   const selectedIndex = props.options.findIndex(
     (option, index) => option.value === props.modelValue && isEnabled(index),
   );
-  openUpward.value = shouldOpenUpward();
   open.value = true;
   addOutsideListener();
   const initial = selectedIndex >= 0 ? selectedIndex : firstEnabled(0, 1);
@@ -153,17 +152,6 @@ function openSelect() {
 // The popup's max-height is 16rem. Measured only when opening (a client-side
 // event handler), so it never touches `window` during SSR.
 const POPUP_MAX_HEIGHT_REM = 16;
-
-function shouldOpenUpward(): boolean {
-  const element = trigger.value;
-  if (!element || typeof window === 'undefined') return false;
-  const rect = element.getBoundingClientRect();
-  const rootFontSize = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
-  const popupHeight = POPUP_MAX_HEIGHT_REM * (Number.isFinite(rootFontSize) ? rootFontSize : 16);
-  const spaceBelow = window.innerHeight - rect.bottom;
-  const spaceAbove = rect.top;
-  return spaceBelow < popupHeight && spaceAbove > spaceBelow;
-}
 
 function closeSelect() {
   if (!open.value) return;
@@ -264,8 +252,87 @@ function handleLabelClick() {
   if (!props.searchable && !props.disabled) trigger.value?.focus();
 }
 
+// The popup is position: fixed next to the field. Absolute positioning inside a
+// scrolling container (a modal body) grew that container's scroll area and
+// pushed the modal footer away; fixed keeps the popup out of the layout.
+const popupStyle = ref<Record<string, string>>({});
+const POPUP_GAP_PX = 4;
+const VIEWPORT_MARGIN_PX = 8;
+
+// A transformed ancestor (a modal during its open animation) becomes the
+// containing block of a fixed element; offsets are measured from it then.
+function fixedContainingBlock(element: HTMLElement): DOMRect | null {
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    const style = getComputedStyle(node);
+    if (
+      style.transform !== 'none' ||
+      style.filter !== 'none' ||
+      style.perspective !== 'none' ||
+      /transform|filter|perspective/.test(style.willChange)
+    ) {
+      return node.getBoundingClientRect();
+    }
+  }
+  return null;
+}
+
+function placePopup() {
+  const field = trigger.value ?? root.value?.querySelector<HTMLElement>('.ui-select__combobox');
+  if (!field || typeof window === 'undefined') return;
+  const rect = field.getBoundingClientRect();
+  const rootFontSize = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const rem = Number.isFinite(rootFontSize) ? rootFontSize : 16;
+  const spaceBelow = window.innerHeight - rect.bottom - POPUP_GAP_PX - VIEWPORT_MARGIN_PX;
+  const spaceAbove = rect.top - POPUP_GAP_PX - VIEWPORT_MARGIN_PX;
+  openUpward.value = spaceBelow < POPUP_MAX_HEIGHT_REM * rem && spaceAbove > spaceBelow;
+  const maxHeight = Math.min(
+    POPUP_MAX_HEIGHT_REM * rem,
+    openUpward.value ? spaceAbove : spaceBelow,
+  );
+  const block = fixedContainingBlock(field);
+  const offsetLeft = block?.left ?? 0;
+  const offsetTop = block?.top ?? 0;
+  const blockBottom = block?.bottom ?? window.innerHeight;
+  popupStyle.value = {
+    left: `${rect.left - offsetLeft}px`,
+    minWidth: `${rect.width}px`,
+    maxWidth: `${Math.max(rect.width, Math.min(24 * rem, window.innerWidth - rect.left - VIEWPORT_MARGIN_PX))}px`,
+    maxHeight: `${Math.max(maxHeight, 3 * rem)}px`,
+    ...(openUpward.value
+      ? { bottom: `${blockBottom - rect.top + POPUP_GAP_PX}px` }
+      : { top: `${rect.bottom - offsetTop + POPUP_GAP_PX}px` }),
+  };
+}
+
+function handleViewportChange(event: Event) {
+  // Scrolling the list itself does not move the field.
+  if (event.type === 'scroll' && listbox.value && event.target === listbox.value) return;
+  placePopup();
+}
+
+function removeViewportListeners() {
+  if (typeof window === 'undefined') return;
+  window.removeEventListener('scroll', handleViewportChange, true);
+  window.removeEventListener('resize', handleViewportChange);
+  document.removeEventListener('transitionend', handleViewportChange, true);
+}
+
+watch(open, (isOpen) => {
+  if (typeof window === 'undefined') return;
+  if (isOpen) {
+    placePopup();
+    window.addEventListener('scroll', handleViewportChange, true);
+    window.addEventListener('resize', handleViewportChange);
+    // An ancestor finishing its animation moves the field and the containing block.
+    document.addEventListener('transitionend', handleViewportChange, true);
+  } else {
+    removeViewportListeners();
+  }
+});
+
 onBeforeUnmount(() => {
   removeOutsideListener();
+  removeViewportListeners();
   resetTypeahead();
 });
 
@@ -391,7 +458,13 @@ function handleComboBlur(event: FocusEvent) {
         @keydown="handleComboKeydown"
         @blur="handleComboBlur"
       />
-      <ul v-if="open" :id="getListboxId()" class="ui-select__listbox" role="listbox">
+      <ul
+        v-if="open"
+        :id="getListboxId()"
+        class="ui-select__listbox"
+        :style="popupStyle"
+        role="listbox"
+      >
         <li
           v-for="(option, index) in filteredOptions"
           :id="getOptionId(index)"
@@ -460,6 +533,7 @@ function handleComboBlur(event: FocusEvent) {
         ref="listbox"
         class="ui-select__listbox"
         :class="{ 'ui-select__listbox--up': openUpward }"
+        :style="popupStyle"
         role="listbox"
         :aria-labelledby="getLabelId()"
         @mousedown.prevent
@@ -613,17 +687,14 @@ function handleComboBlur(event: FocusEvent) {
   position: relative;
 }
 
+/* Placement (top/bottom, left, widths, max-height) comes from placePopup(). */
 .ui-select__listbox {
-  position: absolute;
-  top: 100%;
-  left: 0;
+  position: fixed;
   z-index: var(--hf-z-index-tooltip);
   box-sizing: border-box;
-  min-width: 100%;
   width: max-content;
-  max-width: min(24rem, calc(100vw - 2rem));
   max-height: 16rem;
-  margin: var(--hf-space-1) 0 0;
+  margin: 0;
   padding: var(--hf-space-1);
   overflow-y: auto;
   list-style: none;
@@ -631,13 +702,6 @@ function handleComboBlur(event: FocusEvent) {
   border-radius: var(--hf-radius-md);
   background: var(--hf-color-surface);
   box-shadow: var(--hf-shadow-md);
-}
-
-/* Not enough room below the field and more above it: open upward. */
-.ui-select__listbox--up {
-  top: auto;
-  bottom: 100%;
-  margin: 0 0 var(--hf-space-1);
 }
 
 .ui-select__option {

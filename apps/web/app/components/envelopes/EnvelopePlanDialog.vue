@@ -1,11 +1,22 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import {
+  AlertOctagon,
+  AlertTriangle,
+  Archive,
+  ArrowDownToLine,
+  ArrowLeftRight,
+  Calendar,
+  Check,
+  Pencil,
+  ShoppingCart,
+} from '@lucide/vue';
 
 import FinanceMoney from '../finance/FinanceMoney.vue';
+import UiAmountHero from '../ui/AmountHero.vue';
 import UiButton from '../ui/Button.vue';
 import UiModal from '../ui/Modal.vue';
 import UiSkeleton from '../ui/Skeleton.vue';
-import UiStatus from '../ui/Status.vue';
 import {
   type EnvelopeHistoryItem,
   type EnvelopePlanDto,
@@ -13,10 +24,13 @@ import {
 } from '../../composables/useEnvelopePlanV2.js';
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
 import {
+  type PlanBadge,
   PLAN_SCOPE_LABELS,
   PLAN_SLOT_LABELS,
   decimalToMinor,
-  planScopeNote,
+  envelopeCaption,
+  historyAmountText,
+  historySign,
 } from './envelope-plan-kind.js';
 import { formatPlainDate } from '../obligations/format-plain-date.js';
 
@@ -30,6 +44,8 @@ const props = defineProps<{
   envelope: EnvelopePlanDto | null;
   // Read-only funding rule summary; null or absent hides the line.
   ruleSummary?: string | null;
+  // Same badge the card row shows, or null when the envelope is fine.
+  badge?: PlanBadge | null;
 }>();
 
 const emit = defineEmits<{
@@ -46,6 +62,12 @@ const KIND_LABELS: Record<EnvelopeHistoryItem['kind'], string> = {
   ASSIGNMENT: 'Распределение',
   MOVEMENT: 'Перенос',
   SPENDING: 'Расход',
+};
+
+const KIND_ICONS: Record<EnvelopeHistoryItem['kind'], typeof ArrowDownToLine> = {
+  ASSIGNMENT: ArrowDownToLine,
+  MOVEMENT: ArrowLeftRight,
+  SPENDING: ShoppingCart,
 };
 
 const items = ref<EnvelopeHistoryItem[]>([]);
@@ -104,6 +126,8 @@ const scopeLabel = computed(() =>
 const slotLabel = computed(() =>
   props.envelope?.periodSlot ? PLAN_SLOT_LABELS[props.envelope.periodSlot] : null,
 );
+// The subtitle under the title repeats the card caption word for word.
+const subtitle = computed(() => (props.envelope ? envelopeCaption(props.envelope).text : ''));
 // The goal arrives as decimal rubles; convert to minor text for display.
 const targetMinor = computed(() =>
   props.envelope?.targetAmountMinor == null
@@ -113,111 +137,148 @@ const targetMinor = computed(() =>
 const operationsLink = computed(() =>
   props.envelope ? `/app/operations?envelopeId=${encodeURIComponent(props.envelope.id)}` : '',
 );
+
+// Status badge next to the "Осталось" amount: an archived envelope always
+// reads "В архиве" first; otherwise the same badge the card row shows, or
+// "в порядке" when the server reports nothing to flag.
+const statusTone = computed<'neutral' | 'success' | 'warning' | 'danger'>(() =>
+  props.envelope?.archivedAt ? 'neutral' : (props.badge?.tone ?? 'success'),
+);
+const statusText = computed(() =>
+  props.envelope?.archivedAt ? 'В архиве' : (props.badge?.text ?? 'Конверт в порядке'),
+);
+const statusIcon = computed(() => {
+  if (props.envelope?.archivedAt) return Archive;
+  if (statusTone.value === 'danger') return AlertOctagon;
+  if (statusTone.value === 'warning') return AlertTriangle;
+  return Check;
+});
 </script>
 
 <template>
-  <UiModal :open="envelope !== null" title="Конверт" size="sm" @close="emit('close')">
+  <UiModal
+    :open="envelope !== null"
+    :title="envelope?.name ?? 'Конверт'"
+    :subtitle="envelope ? subtitle : undefined"
+    size="lg"
+    @close="emit('close')"
+  >
     <div v-if="envelope" class="plan-dialog">
-      <div>
-        <p class="plan-dialog__caption">Осталось</p>
-        <p class="plan-dialog__amount">
-          <FinanceMoney :minor-units="envelope.balanceMinor" currency="RUB" :scale="2" />
-        </p>
+      <UiAmountHero label="Осталось" :amount-minor="envelope.balanceMinor">
+        <template #aside>
+          <span
+            class="plan-dialog__status"
+            :class="`plan-dialog__status--${statusTone}`"
+            data-testid="plan-dialog-status"
+          >
+            <component :is="statusIcon" :size="16" aria-hidden="true" />
+            {{ statusText }}
+          </span>
+        </template>
+      </UiAmountHero>
+
+      <div class="plan-dialog__columns">
+        <dl class="plan-dialog__rows">
+          <div>
+            <dt>Область действия</dt>
+            <dd>{{ scopeLabel }}</dd>
+          </div>
+          <div v-if="slotLabel">
+            <dt>Половина периода</dt>
+            <dd>{{ slotLabel }}</dd>
+          </div>
+          <div>
+            <dt>Отложено</dt>
+            <dd><FinanceMoney :minor-units="envelope.fundedMinor" currency="RUB" :scale="2" /></dd>
+          </div>
+          <div>
+            <dt>Потрачено</dt>
+            <dd><FinanceMoney :minor-units="envelope.spentMinor" currency="RUB" :scale="2" /></dd>
+          </div>
+          <div v-if="targetMinor !== null">
+            <dt>Цель</dt>
+            <dd>
+              <FinanceMoney :minor-units="targetMinor" currency="RUB" :scale="2" />
+            </dd>
+          </div>
+          <div v-if="ruleSummary" data-testid="plan-dialog-rule">
+            <dt>Правило пополнения</dt>
+            <dd>{{ ruleSummary }}</dd>
+          </div>
+          <div v-if="envelope.comment">
+            <dt>Комментарий</dt>
+            <dd>{{ envelope.comment }}</dd>
+          </div>
+        </dl>
+
+        <section
+          class="plan-dialog__history"
+          data-testid="plan-history"
+          aria-labelledby="plan-history-title"
+        >
+          <h3 id="plan-history-title" class="plan-dialog__section-title">
+            {{ showDeleted ? 'Отменённые записи' : 'История' }}
+          </h3>
+          <p v-if="!showDeleted" class="plan-dialog__section-sub">
+            Распределения, переносы и расходы
+          </p>
+          <p v-if="showDeleted" class="plan-dialog__note">
+            Только для чтения: эти записи отменены и не влияют на остаток.
+          </p>
+          <ul v-if="items.length > 0" class="plan-dialog__list">
+            <li v-for="(item, index) in items" :key="`${item.effectiveOn}-${index}`">
+              <span class="plan-dialog__kind-icon" aria-hidden="true">
+                <component :is="KIND_ICONS[item.kind]" :size="16" />
+              </span>
+              <span class="plan-dialog__kind-body">
+                <span class="plan-dialog__kind-title">{{ KIND_LABELS[item.kind] }}</span>
+                <time :datetime="item.effectiveOn">{{ formatPlainDate(item.effectiveOn) }}</time>
+              </span>
+              <span
+                class="plan-dialog__kind-amount"
+                :class="{ 'plan-dialog__kind-amount--in': historySign(item.kind) === '+' }"
+              >
+                {{ historyAmountText(item.kind, item.amountMinor) }}
+              </span>
+            </li>
+          </ul>
+          <UiSkeleton v-else-if="loading" :count="3" />
+          <p v-else-if="error" class="plan-dialog__error" role="alert" data-testid="history-error">
+            {{ error }}
+          </p>
+          <p v-else class="plan-dialog__note" data-testid="history-empty">Записей пока нет.</p>
+          <p v-if="error && items.length > 0" class="plan-dialog__error" role="alert">
+            {{ error }}
+          </p>
+
+          <div class="plan-dialog__more">
+            <UiButton
+              v-if="nextCursor !== null"
+              variant="secondary"
+              size="sm"
+              :loading="loading"
+              data-testid="history-more"
+              @click="load(nextCursor)"
+            >
+              Ещё
+            </UiButton>
+            <button
+              type="button"
+              class="plan-dialog__switch"
+              role="switch"
+              :aria-checked="showDeleted"
+              :disabled="loading"
+              data-testid="history-toggle-deleted"
+              @click="toggleDeleted"
+            >
+              <span class="plan-dialog__switch-track" aria-hidden="true">
+                <span class="plan-dialog__switch-thumb" />
+              </span>
+              Показать отменённые записи
+            </button>
+          </div>
+        </section>
       </div>
-      <UiStatus
-        :label="envelope.archivedAt ? 'В архиве' : 'Активен'"
-        :tone="envelope.archivedAt ? 'neutral' : 'success'"
-      />
-      <p class="plan-dialog__caption">{{ planScopeNote(envelope.envelopeType) }}</p>
-
-      <dl class="plan-dialog__rows">
-        <div>
-          <dt>Название</dt>
-          <dd>{{ envelope.name }}</dd>
-        </div>
-        <div>
-          <dt>Область действия</dt>
-          <dd>{{ scopeLabel }}</dd>
-        </div>
-        <div v-if="slotLabel">
-          <dt>Половина периода</dt>
-          <dd>{{ slotLabel }}</dd>
-        </div>
-        <div v-if="ruleSummary" data-testid="plan-dialog-rule">
-          <dt>Правило пополнения</dt>
-          <dd>{{ ruleSummary }}</dd>
-        </div>
-        <div>
-          <dt>Отложено</dt>
-          <dd><FinanceMoney :minor-units="envelope.fundedMinor" currency="RUB" :scale="2" /></dd>
-        </div>
-        <div>
-          <dt>Потрачено</dt>
-          <dd><FinanceMoney :minor-units="envelope.spentMinor" currency="RUB" :scale="2" /></dd>
-        </div>
-        <div>
-          <dt>Осталось</dt>
-          <dd><FinanceMoney :minor-units="envelope.balanceMinor" currency="RUB" :scale="2" /></dd>
-        </div>
-        <div v-if="targetMinor !== null">
-          <dt>Цель</dt>
-          <dd>
-            <FinanceMoney :minor-units="targetMinor" currency="RUB" :scale="2" />
-          </dd>
-        </div>
-        <div v-if="envelope.comment">
-          <dt>Комментарий</dt>
-          <dd>{{ envelope.comment }}</dd>
-        </div>
-      </dl>
-
-      <section
-        class="plan-dialog__history"
-        data-testid="plan-history"
-        aria-labelledby="plan-history-title"
-      >
-        <h3 id="plan-history-title" class="plan-dialog__section-title">
-          {{ showDeleted ? 'Отменённые записи' : 'Распределения, переносы и расходы' }}
-        </h3>
-        <p v-if="showDeleted" class="plan-dialog__caption">
-          Только для чтения: эти записи отменены и не влияют на остаток.
-        </p>
-        <ul v-if="items.length > 0" class="plan-dialog__list">
-          <li v-for="(item, index) in items" :key="`${item.effectiveOn}-${index}`">
-            <span class="plan-dialog__kind">{{ KIND_LABELS[item.kind] }}</span>
-            <FinanceMoney :minor-units="item.amountMinor" currency="RUB" :scale="2" />
-            <time :datetime="item.effectiveOn">{{ formatPlainDate(item.effectiveOn) }}</time>
-          </li>
-        </ul>
-        <UiSkeleton v-else-if="loading" :count="3" />
-        <p v-else-if="error" class="plan-dialog__error" role="alert" data-testid="history-error">
-          {{ error }}
-        </p>
-        <p v-else class="plan-dialog__caption" data-testid="history-empty">Записей пока нет.</p>
-        <p v-if="error && items.length > 0" class="plan-dialog__error" role="alert">{{ error }}</p>
-
-        <div class="plan-dialog__more">
-          <UiButton
-            v-if="nextCursor !== null"
-            variant="secondary"
-            size="sm"
-            :loading="loading"
-            data-testid="history-more"
-            @click="load(nextCursor)"
-          >
-            Ещё
-          </UiButton>
-          <UiButton
-            variant="tertiary"
-            size="sm"
-            :disabled="loading"
-            data-testid="history-toggle-deleted"
-            @click="toggleDeleted"
-          >
-            {{ showDeleted ? 'Скрыть отменённые записи' : 'Показать отменённые записи' }}
-          </UiButton>
-        </div>
-      </section>
     </div>
 
     <template v-if="envelope" #footer>
@@ -226,6 +287,7 @@ const operationsLink = computed(() =>
         data-testid="plan-dialog-reassign"
         @click="emit('reassign', envelope)"
       >
+        <ArrowLeftRight :size="18" aria-hidden="true" />
         Переложить
       </UiButton>
       <UiButton
@@ -242,17 +304,21 @@ const operationsLink = computed(() =>
         data-testid="plan-dialog-edit"
         @click="emit('edit', envelope)"
       >
+        <Pencil :size="18" aria-hidden="true" />
         Изменить
       </UiButton>
       <UiButton variant="secondary" data-testid="plan-dialog-operations" :to="operationsLink">
+        <Calendar :size="18" aria-hidden="true" />
         Операции конверта
       </UiButton>
       <UiButton
         v-if="!envelope.archivedAt"
         variant="tertiary"
+        class="plan-dialog__archive"
         data-testid="plan-dialog-archive"
         @click="emit('archive', envelope)"
       >
+        <Archive :size="18" aria-hidden="true" />
         Архивировать
       </UiButton>
     </template>
@@ -261,50 +327,98 @@ const operationsLink = computed(() =>
 
 <style scoped>
 .plan-dialog {
+  container-type: inline-size;
   display: grid;
   gap: var(--hf-space-4);
 }
 
-.plan-dialog__amount {
-  margin: 0;
-  font-size: var(--hf-font-size-h2);
-  font-weight: var(--hf-font-weight-bold);
-  line-height: var(--hf-line-height-h2);
+.plan-dialog__status {
+  display: inline-flex;
+  gap: var(--hf-space-1);
+  align-items: center;
+  padding: var(--hf-space-1) var(--hf-space-2);
+  border-radius: var(--hf-radius-sm);
+  font-size: var(--hf-font-size-small);
+  font-weight: var(--hf-font-weight-medium);
 }
 
-.plan-dialog__caption {
+.plan-dialog__status--neutral {
+  color: var(--hf-color-status-neutral);
+  background: var(--hf-color-status-neutral-background);
+}
+
+.plan-dialog__status--success {
+  color: var(--hf-color-status-success);
+  background: var(--hf-color-status-success-background);
+}
+
+.plan-dialog__status--warning {
+  background: var(--hf-color-warning-soft);
+  color: var(--hf-color-status-warning);
+}
+
+.plan-dialog__status--danger {
+  background: var(--hf-color-danger-soft);
+  color: var(--hf-color-text-danger);
+}
+
+.plan-dialog__columns {
+  display: grid;
+  gap: var(--hf-space-5);
+}
+
+.plan-dialog__rows {
+  display: grid;
+  align-content: start;
   margin: 0;
+}
+
+.plan-dialog__rows div {
+  display: grid;
+  gap: 0.125rem;
+  padding: var(--hf-space-3) 0;
+  border-bottom: 1px solid var(--hf-color-border);
+}
+
+.plan-dialog__rows div:first-child {
+  padding-top: 0;
+}
+
+.plan-dialog__rows dt {
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-caption);
   line-height: var(--hf-line-height-caption);
 }
 
-.plan-dialog__rows {
-  display: grid;
-  gap: var(--hf-space-2);
-  margin: 0;
-}
-
-.plan-dialog__rows div {
-  display: flex;
-  gap: var(--hf-space-3);
-  justify-content: space-between;
-}
-
-.plan-dialog__rows dt {
-  color: var(--hf-color-text-muted);
-}
-
 .plan-dialog__rows dd {
   margin: 0;
-  text-align: right;
+  color: var(--hf-color-text);
+  font-variant-numeric: tabular-nums;
 }
 
 .plan-dialog__section-title {
-  margin: 0 0 var(--hf-space-2);
-  color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-small);
+  margin: 0;
+  color: var(--hf-color-text);
+  font-size: var(--hf-font-size-body);
   font-weight: var(--hf-font-weight-semibold);
+}
+
+.plan-dialog__archive {
+  margin-left: auto;
+}
+
+.plan-dialog__section-sub {
+  margin: 0.125rem 0 var(--hf-space-3);
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-caption);
+  line-height: var(--hf-line-height-caption);
+}
+
+.plan-dialog__note {
+  margin: 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-caption);
+  line-height: var(--hf-line-height-caption);
 }
 
 .plan-dialog__history {
@@ -324,27 +438,117 @@ const operationsLink = computed(() =>
   display: flex;
   flex-wrap: wrap;
   gap: var(--hf-space-2);
-  align-items: baseline;
+  align-items: center;
 }
 
-.plan-dialog__kind {
+.plan-dialog__kind-icon {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--hf-radius-sm);
+  background: var(--hf-color-surface-subtle);
+  color: var(--hf-color-text-muted);
+}
+
+.plan-dialog__kind-body {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.plan-dialog__kind-title {
   font-weight: var(--hf-font-weight-medium);
 }
 
-.plan-dialog__list time {
-  margin-left: auto;
+.plan-dialog__kind-body time {
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-caption);
+}
+
+.plan-dialog__kind-amount {
+  margin-left: auto;
+  font-weight: var(--hf-font-weight-medium);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.plan-dialog__kind-amount--in {
+  color: var(--hf-color-status-success);
 }
 
 .plan-dialog__more {
   display: flex;
   flex-wrap: wrap;
+  gap: var(--hf-space-3);
+  align-items: center;
+}
+
+.plan-dialog__switch {
+  display: inline-flex;
   gap: var(--hf-space-2);
+  align-items: center;
+  min-height: 44px;
+  padding: var(--hf-space-1) var(--hf-space-2);
+  color: var(--hf-color-text);
+  border: none;
+  border-radius: var(--hf-radius-sm);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.plan-dialog__switch:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.plan-dialog__switch:focus-visible {
+  outline: 2px solid var(--hf-color-action-primary);
+  outline-offset: 2px;
+}
+
+.plan-dialog__switch-track {
+  position: relative;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 1.125rem;
+  border-radius: var(--hf-radius-pill, 999px);
+  background: var(--hf-color-border-strong);
+  transition: background var(--hf-transition-fast);
+}
+
+.plan-dialog__switch[aria-checked='true'] .plan-dialog__switch-track {
+  background: var(--hf-color-action-primary);
+}
+
+.plan-dialog__switch-thumb {
+  position: absolute;
+  top: 0.125rem;
+  left: 0.125rem;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 50%;
+  background: var(--hf-color-surface);
+  transition: transform var(--hf-transition-fast);
+}
+
+.plan-dialog__switch[aria-checked='true'] .plan-dialog__switch-thumb {
+  transform: translateX(0.875rem);
 }
 
 .plan-dialog__error {
   margin: 0;
   color: var(--hf-color-text-danger);
+}
+
+/* Two columns only when the dialog body itself is wide enough. */
+@container (min-width: 36rem) {
+  .plan-dialog__columns {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    column-gap: var(--hf-space-8);
+  }
 }
 </style>

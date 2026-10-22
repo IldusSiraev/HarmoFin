@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   FIELD_TEXT,
+  amountInputText,
   buildRequest,
   buildState,
   mapServerErrors,
@@ -62,7 +63,7 @@ describe('rules-editor-state', () => {
     const state = initial();
     expect(ids(state.queue)).toEqual(['m', 'a']);
     expect(ids(state.outside)).toEqual(['c', 'b']);
-    expect(state.queue[1]).toMatchObject({ type: 'FIXED_PER_PERIOD', fixed: '15000.00' });
+    expect(state.queue[1]).toMatchObject({ type: 'FIXED_PER_PERIOD', fixed: '15 000' });
     expect(state.outside.find((card) => card.envelopeId === 'b')?.type).toBe('');
     expect(state.suggestion).toEqual({
       enabled: true,
@@ -152,5 +153,17 @@ describe('rules-editor-state', () => {
     });
     expect(mapped.suggestionErrors.targetEnvelopeId).toBeDefined();
     expect(mapServerErrors(body, [{ field: 'something' }]).matched).toBe(false);
+  });
+
+  it('сумма в поле — с разрядами, в запрос уходит без пробелов', () => {
+    expect(amountInputText('6500000')).toBe('65 000');
+    expect(amountInputText('6500050')).toBe('65 000,50');
+    expect(amountInputText('900')).toBe('9');
+    const state = updateCard(initial(), 'a', { fixed: '12 345,6' });
+    expect(buildRequest(state).body?.queue[1]).toEqual({
+      envelopeId: 'a',
+      type: 'FIXED_PER_PERIOD',
+      fixedAmount: '12345.6',
+    });
   });
 });

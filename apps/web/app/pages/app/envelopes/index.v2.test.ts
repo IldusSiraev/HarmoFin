@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
     move: vi.fn(),
     assignFree: vi.fn(),
     listFundingRules: vi.fn().mockResolvedValue({ items: [] }),
+    getDashboard: vi.fn(),
   },
   route: { path: '/app/envelopes', query: {} as Record<string, string> },
   navigateTo: vi.fn(),
@@ -44,7 +45,25 @@ vi.mock('../../../composables/useEnvelopePlanV2.js', () => ({
 }));
 
 import { selectOption } from '../../../test/select-option.js';
+import { useFundingEntry } from '../../../composables/useFundingEntry.js';
 import EnvelopesPage from './index.vue';
+
+function dashboard(overrides: Record<string, unknown> = {}) {
+  return {
+    period: { start: '2026-10-10', end: '2026-10-24', periodId: 'p1' },
+    spendable: { state: 'READY', amountMinor: '3335000' },
+    suggestedTarget: null,
+    cashMinor: '30748531',
+    mandatoryBalanceMinor: '5163531',
+    otherProtectedMinor: '21050000',
+    freeToAssignMinor: '0',
+    mandatoryGapMinor: '0',
+    unbackedMinor: '0',
+    protectedAssignments: [],
+    warnings: [],
+    ...overrides,
+  };
+}
 
 function plan(overrides: Record<string, unknown>) {
   return {
@@ -146,6 +165,7 @@ describe('envelopes page, plan model v2', () => {
     mocks.v2.listEnvelopes.mockResolvedValue({ items: [repair, savings, food, mandatory] });
     mocks.v2.getEnvelopeHistory.mockResolvedValue({ items: [], nextCursor: null });
     mocks.v2.listFundingRules.mockResolvedValue({ items: [] });
+    mocks.v2.getDashboard.mockResolvedValue(dashboard());
     mocks.v2.move.mockResolvedValue({
       movementId: 'm1',
       amountMinor: '2800000',
@@ -163,7 +183,7 @@ describe('envelopes page, plan model v2', () => {
 
     const text = normalize(wrapper.text());
     expect(text).toContain('Отложено');
-    expect(text).toContain('Потрачено');
+    expect(text).toContain('потрачено 12 000');
     expect(text).toContain('Осталось');
     expect(text).toContain('28 000');
     expect(text).not.toContain('Начальный баланс конверта');
@@ -175,6 +195,55 @@ describe('envelopes page, plan model v2', () => {
     expect(mocks.v1.getBudget).not.toHaveBeenCalled();
   });
 
+  it('сводка: показывает «Можно потратить» и строку «Не распределено»', async () => {
+    mocks.v2.getDashboard.mockResolvedValue(dashboard({ freeToAssignMinor: '1200000' }));
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const text = normalize(wrapper.text());
+    expect(text).toContain('Можно потратить');
+    expect(text).toContain('33 350,00');
+    expect(text).toContain('Конверты · 10–24 октября');
+    expect(mocks.v2.getDashboard).toHaveBeenCalledWith('budget-id');
+    const free = wrapper.find('[data-testid="summary-free"]');
+    expect(free.exists()).toBe(true);
+
+    await free.find('button').trigger('click');
+    expect(useFundingEntry().request.value?.source).toEqual({ sourceKind: 'FREE' });
+    useFundingEntry().dismiss();
+  });
+
+  it('ошибка сводки не ломает список', async () => {
+    mocks.v2.getDashboard.mockRejectedValue(new Error('down'));
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="envelope-row-env-repair"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Сводка недоступна');
+    expect(wrapper.text()).toContain('Справочники');
+    expect(wrapper.find('[data-testid="summary-free"]').exists()).toBe(false);
+
+    mocks.v2.getDashboard.mockResolvedValue(dashboard({ freeToAssignMinor: '1200000' }));
+    await wrapper.get('[data-testid="summary-retry"] button').trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).not.toContain('Сводка недоступна');
+    expect(wrapper.find('[data-testid="summary-free"]').exists()).toBe(true);
+  });
+
+  it('перечитывает сводку и список после подтверждённого распределения', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+    const dashboardCalls = mocks.v2.getDashboard.mock.calls.length;
+    const listCalls = mocks.v2.listEnvelopes.mock.calls.length;
+
+    useFundingEntry().markConfirmed();
+    await flushPromises();
+
+    expect(mocks.v2.getDashboard.mock.calls.length).toBe(dashboardCalls + 1);
+    expect(mocks.v2.listEnvelopes.mock.calls.length).toBe(listCalls + 1);
+    wrapper.unmount();
+  });
+
   it('keeps the savings balance as the server reports it and labels it as carried over', async () => {
     const wrapper = mountPage();
     await flushPromises();
@@ -184,7 +253,7 @@ describe('envelopes page, plan model v2', () => {
     expect(row.text()).toContain('Остаток не сбрасывается при смене периода');
     expect(row.text()).toContain('не сбрасывается');
     expect(wrapper.get('[data-testid="envelope-row-env-mand"]').text()).toContain(
-      'Обязательные платежи',
+      'Аренда, кредиты, коммунальные и другие регулярные платежи',
     );
   });
 
@@ -271,11 +340,9 @@ describe('envelopes page, plan model v2', () => {
     await openRowAction(wrapper, 'env-repair', 'row-reassign');
     expect(normalize(document.body.textContent ?? '')).toContain('28 000');
 
-    const destination = document.querySelector(
-      '[data-testid="move-destination"]',
-    ) as HTMLSelectElement;
-    destination.value = 'env-save';
-    destination.dispatchEvent(new Event('change', { bubbles: true }));
+    (
+      document.querySelector('[data-testid="move-recipient-pill-env-save"]') as HTMLButtonElement
+    ).click();
     const amount = document.querySelector('[data-testid="move-amount"]') as HTMLInputElement;
     amount.value = '100,50';
     amount.dispatchEvent(new Event('input', { bubbles: true }));
@@ -455,6 +522,13 @@ describe('envelopes page, plan model v2', () => {
     await flushPromises();
   }
 
+  async function pickRecipient(id: string) {
+    (
+      document.querySelector(`[data-testid="move-recipient-pill-${id}"]`) as HTMLButtonElement
+    ).click();
+    await flushPromises();
+  }
+
   async function clickConfirm() {
     (document.querySelector('[data-testid="move-confirm"]') as HTMLButtonElement).click();
     await flushPromises();
@@ -462,7 +536,7 @@ describe('envelopes page, plan model v2', () => {
 
   async function openMove(wrapper: ReturnType<typeof mountPage>, id = 'env-repair') {
     await openRowAction(wrapper, id, 'row-reassign');
-    await setValue('[data-testid="move-destination"]', 'env-save', 'change');
+    await pickRecipient('env-save');
   }
 
   async function submitForm() {
@@ -662,7 +736,7 @@ describe('envelopes page, plan model v2', () => {
     it('sends the destination current period when moving into a period envelope', async () => {
       const wrapper = await mountWith([repair, periodFood([OLD, CURRENT])]);
       await openRowAction(wrapper, 'env-repair', 'row-reassign');
-      await setValue('[data-testid="move-destination"]', 'env-food', 'change');
+      await pickRecipient('env-food');
       await setValue('[data-testid="move-amount"]', '10');
       await clickConfirm();
 
@@ -675,19 +749,19 @@ describe('envelopes page, plan model v2', () => {
     });
 
     it('does not move into a period envelope that has no current period', async () => {
-      const wrapper = await mountWith([repair, periodFood([OLD])]);
+      const wrapper = await mountWith([repair, periodFood([OLD]), savings]);
       await openRowAction(wrapper, 'env-repair', 'row-reassign');
-      await setValue('[data-testid="move-destination"]', 'env-food', 'change');
+      await pickRecipient('env-food');
       await setValue('[data-testid="move-amount"]', '10');
       await clickConfirm();
 
       expect(mocks.v2.move).not.toHaveBeenCalled();
-      const error = document.querySelector('[data-testid="move-destination-error"]');
+      const error = document.querySelector('#move-destination-error');
       expect(error!.textContent).toContain('нет текущего периода');
 
       // Picking another envelope clears the stale error.
-      await setValue('[data-testid="move-destination"]', 'env-repair', 'change');
-      expect(document.querySelector('[data-testid="move-destination-error"]')).toBeNull();
+      await pickRecipient('env-save');
+      expect(document.querySelector('#move-destination-error')).toBeNull();
     });
 
     it('assigns free money to the current period of a period envelope', async () => {
@@ -953,5 +1027,105 @@ describe('envelopes page, plan model v2', () => {
     await flushPromises();
     expect(normalize(wrapper.get('[data-testid="modal"]').text())).toContain('5 000,00');
     expect(wrapper.get('[data-testid="modal"]').text()).not.toContain('50,00');
+  });
+  it('поиск: фильтрует конверты по названию без учёта регистра и объявляет результат', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(normalize(wrapper.text())).toContain('Все конверты');
+    expect(normalize(wrapper.text())).toContain('4 активных');
+    expect(normalize(wrapper.text())).not.toContain('4 активный');
+
+    await wrapper.get('[name="envelope-search"]').setValue('ОТП');
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="envelope-row-env-save"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="envelope-row-env-repair"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="envelope-row-env-food"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="envelope-row-env-mand"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="envelope-search-status"]').text()).toBe('Найден 1 конверт');
+
+    await wrapper.get('[name="envelope-search"]').setValue('нет такого');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Ничего не найдено');
+
+    await wrapper.get('[name="envelope-search"]').setValue('  ');
+    await flushPromises();
+    for (const id of ['env-save', 'env-repair', 'env-food', 'env-mand']) {
+      expect(wrapper.find(`[data-testid="envelope-row-${id}"]`).exists()).toBe(true);
+    }
+    expect(wrapper.get('[data-testid="envelope-search-status"]').text()).toBe('');
+  });
+
+  it('карточки: прогресс и метки по серверной сводке', async () => {
+    mocks.v2.listEnvelopes.mockResolvedValue({
+      items: [{ ...savings, targetAmountMinor: '100000' }, mandatory, overspent],
+    });
+    mocks.v2.getDashboard.mockResolvedValue(
+      dashboard({
+        mandatoryBalanceMinor: '0',
+        mandatoryDueMinor: '1036469',
+        mandatoryGapMinor: '1036469',
+      }),
+    );
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const save = wrapper.get('[data-testid="envelope-row-env-save"]');
+    expect(save.get('[role="progressbar"]').attributes('aria-valuenow')).toBe('50');
+    expect(save.find('[data-testid="plan-row-badge"]').exists()).toBe(false);
+
+    const mand = wrapper.get('[data-testid="envelope-row-env-mand"]');
+    expect(mand.text()).toContain('Покрыто ближайших платежей');
+    expect(normalize(mand.get('[data-testid="plan-row-badge"]').text())).toContain(
+      'Нужно пополнить на 10 364,69',
+    );
+
+    const over = wrapper.get('[data-testid="envelope-row-env-over"]');
+    expect(normalize(over.get('[data-testid="plan-row-badge"]').text())).toContain(
+      'Перерасход 1 000,00',
+    );
+  });
+
+  const foodPeriod = (current: boolean) => ({
+    periodId: 'p1',
+    startsOn: '2026-10-10',
+    endsOn: '2026-10-24',
+    fundedMinor: '1000000',
+    spentMinor: '300000',
+    balanceMinor: '700000',
+    current,
+  });
+
+  it('группа на период: подпись половины и дат периода', async () => {
+    mocks.v2.listEnvelopes.mockResolvedValue({
+      items: [repair, savings, { ...food, periods: [foodPeriod(true)] }, mandatory],
+    });
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(normalize(wrapper.text())).toContain('Первая половина периода · 10–24 октября');
+  });
+
+  it('группа на период: текущая половина другая — только подпись половины', async () => {
+    mocks.v2.listEnvelopes.mockResolvedValue({
+      items: [repair, savings, { ...food, periods: [foodPeriod(false)] }, mandatory],
+    });
+    mocks.v2.getDashboard.mockResolvedValue(dashboard());
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const text = normalize(wrapper.text());
+    expect(text).toContain('Первая половина периода');
+    expect(text).not.toContain('Первая половина периода · 10–24 октября');
+  });
+
+  it('группа на период: текущая половина не определена — только подпись половины', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const text = normalize(wrapper.text());
+    expect(text).toContain('Первая половина периода');
+    expect(text).not.toContain('Первая половина периода · 10–24 октября');
   });
 });

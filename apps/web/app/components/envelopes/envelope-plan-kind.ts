@@ -21,16 +21,36 @@ export const PLAN_SLOT_LABELS: Record<string, string> = {
 };
 
 export const PLAN_GROUPS: ReadonlyArray<{ title: string; types: ReadonlyArray<string> }> = [
-  { title: 'На период', types: ['CURRENT_EXPENSES'] },
-  { title: 'Обязательные', types: ['MANDATORY_EXPENSES'] },
-  { title: 'Накопления', types: ['SAVINGS_GOAL', 'RESERVE'] },
-  { title: 'Другое', types: ['CUSTOM'] },
+  { title: 'На текущие траты', types: ['CURRENT_EXPENSES'] },
+  { title: 'Обязательные платежи', types: ['MANDATORY_EXPENSES'] },
+  { title: 'Накопления и резерв', types: ['SAVINGS_GOAL', 'RESERVE'] },
+  { title: 'Свои конверты', types: ['CUSTOM'] },
 ];
 
 export function planIcon(envelope: Pick<EnvelopePlanDto, 'envelopeType'>): typeof Sparkles {
   return (
     (ENVELOPE_TYPE_ICONS as Record<string, typeof Sparkles>)[envelope.envelopeType] ?? Sparkles
   );
+}
+
+export const SLOT_CAPTIONS: Record<string, string> = {
+  FIRST: 'Лимит на первую половину периода',
+  SECOND: 'Лимит на вторую половину периода',
+};
+
+export type EnvelopeTone = 'current' | 'mandatory' | 'savings' | 'reserve' | 'custom';
+
+const TONES: Record<string, EnvelopeTone> = {
+  CURRENT_EXPENSES: 'current',
+  MANDATORY_EXPENSES: 'mandatory',
+  SAVINGS_GOAL: 'savings',
+  RESERVE: 'reserve',
+};
+
+// Tone drives only the type icon tile and progress fill (Calm Fintech §«Цвет
+// типов конвертов»); unknown types fall back to the neutral "custom" tone.
+export function envelopeTone(envelopeType: string): EnvelopeTone {
+  return TONES[envelopeType] ?? 'custom';
 }
 
 export function planScopeNote(envelopeType: string): string {
@@ -44,6 +64,22 @@ export function planScopeNote(envelopeType: string): string {
     return 'Остаток прошлого периода переносится только по вашему решению';
   }
   return 'Деньги на любую цель без привязки к периоду';
+}
+
+// Card and dialog subtitle: half of period for a period envelope, the goal
+// amount for an envelope with one, otherwise the scope note. Shared so the
+// card row and the details dialog never drift apart in wording.
+export function envelopeCaption(
+  envelope: Pick<EnvelopePlanDto, 'periodSlot' | 'targetAmountMinor' | 'envelopeType'>,
+): { text: string; targetMinor: string | null } {
+  const slot = envelope.periodSlot ? (SLOT_CAPTIONS[envelope.periodSlot] ?? null) : null;
+  if (slot) return { text: slot, targetMinor: null };
+  const targetMinor =
+    envelope.targetAmountMinor === null ? null : decimalToMinor(envelope.targetAmountMinor);
+  if (targetMinor !== null) {
+    return { text: `Цель ${formatMinorUnits(targetMinor, 'RUB', 2)}`, targetMinor };
+  }
+  return { text: planScopeNote(envelope.envelopeType), targetMinor: null };
 }
 
 export type BalanceSign = 'negative' | 'zero' | 'positive';
@@ -74,4 +110,143 @@ export function decimalToMinor(decimal: string): string | null {
   if (!match) return null;
   const digits = `${match[1]}${(match[2] ?? '').padEnd(2, '0')}`.replace(/^0+(?=\d)/, '');
   return digits;
+}
+
+const MONTHS_GENITIVE = [
+  'января',
+  'февраля',
+  'марта',
+  'апреля',
+  'мая',
+  'июня',
+  'июля',
+  'августа',
+  'сентября',
+  'октября',
+  'ноября',
+  'декабря',
+] as const;
+
+function plainDateParts(value: string): { day: number; month: number } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return null;
+  return { day: Number(match[3]), month };
+}
+
+// "2026-10-24" -> "24 октября" (plain calendar date, no year, no timezone shift).
+export function formatDayMonth(value: string): string {
+  const parts = plainDateParts(value);
+  if (!parts) return value;
+  return `${parts.day} ${MONTHS_GENITIVE[parts.month - 1]}`;
+}
+
+// Period dates for a heading: "10–24 октября" or "25 октября – 9 ноября".
+export function periodRangeText(start: string, end: string): string {
+  const from = plainDateParts(start);
+  const to = plainDateParts(end);
+  if (!from || !to) return `${start} – ${end}`;
+  if (from.month === to.month) {
+    return `${from.day}–${to.day} ${MONTHS_GENITIVE[to.month - 1]}`;
+  }
+  return `${formatDayMonth(start)} – ${formatDayMonth(end)}`;
+}
+
+export interface PlanProgress {
+  value: string;
+  max: string;
+  label: string;
+  tone: EnvelopeTone;
+}
+
+export interface PlanBadge {
+  tone: 'warning' | 'danger';
+  text: string;
+}
+
+const hasPositive = (minor: string): boolean => /[1-9]/.test(minor) && !minor.startsWith('-');
+
+// Progress bar input for an envelope card (spec §2.5). Both ends are server
+// strings; the share itself is computed by progressPercent for display only.
+export function planProgress(
+  envelope: EnvelopePlanDto,
+  mandatory: { balanceMinor: string; dueMinor: string } | null,
+): PlanProgress | null {
+  const tone = envelopeTone(envelope.envelopeType);
+  if (envelope.envelopeType === 'CURRENT_EXPENSES') {
+    const current = envelope.periods?.find((period) => period.current);
+    if (!current || !hasPositive(current.fundedMinor)) return null;
+    return {
+      value: current.spentMinor,
+      max: current.fundedMinor,
+      label: 'Потрачено из отложенного',
+      tone,
+    };
+  }
+  if (envelope.envelopeType === 'MANDATORY_EXPENSES') {
+    if (!mandatory || !hasPositive(mandatory.dueMinor)) return null;
+    return {
+      value: mandatory.balanceMinor,
+      max: mandatory.dueMinor,
+      label: 'Покрыто ближайших платежей',
+      tone,
+    };
+  }
+  const target =
+    envelope.targetAmountMinor === null ? null : decimalToMinor(envelope.targetAmountMinor);
+  if (target === null || !hasPositive(target)) return null;
+  return { value: envelope.balanceMinor, max: target, label: 'Цель', tone };
+}
+
+// Status badge for an envelope card: text plus tone, never colour alone.
+export function planBadge(
+  envelope: EnvelopePlanDto,
+  mandatoryGapMinor: string | null,
+): PlanBadge | null {
+  if (balanceSign(envelope.balanceMinor) === 'negative') {
+    // slice(1) drops the minus sign of the string: formatting, not arithmetic.
+    return {
+      tone: 'danger',
+      text: `Перерасход ${formatMoneyText(envelope.balanceMinor.slice(1))}`,
+    };
+  }
+  if (
+    envelope.envelopeType === 'MANDATORY_EXPENSES' &&
+    mandatoryGapMinor &&
+    hasPositive(mandatoryGapMinor)
+  ) {
+    return { tone: 'warning', text: `Нужно пополнить на ${formatMoneyText(mandatoryGapMinor)}` };
+  }
+  return null;
+}
+
+export type EnvelopeHistoryKind = 'ASSIGNMENT' | 'MOVEMENT' | 'SPENDING';
+
+// The server returns amountMinor as an unsigned magnitude for every history
+// kind; the sign shown to the user comes from the kind, not from arithmetic.
+// Assignment adds money to the envelope ("+"); spending leaves it ("−"). A
+// movement's direction relative to this envelope (source or destination) is
+// not in the record, so it stays unsigned and neutral in colour.
+export function historySign(kind: EnvelopeHistoryKind): '+' | '−' | null {
+  if (kind === 'ASSIGNMENT') return '+';
+  if (kind === 'SPENDING') return '−';
+  return null;
+}
+
+// Display text for a history row amount: a sign character prefixed to the
+// server's own formatted text, or no sign for a movement. No arithmetic.
+export function historyAmountText(kind: EnvelopeHistoryKind, amountMinor: string): string {
+  const sign = historySign(kind);
+  return `${sign ?? ''}${formatMoneyText(amountMinor)}`;
+}
+
+const RU_PLURAL = new Intl.PluralRules('ru');
+
+// Russian noun/adjective form for a count: 1 конверт, 2 конверта, 5 конвертов.
+export function pluralRu(n: number, one: string, few: string, many: string): string {
+  const rule = RU_PLURAL.select(n);
+  if (rule === 'one') return one;
+  if (rule === 'few') return few;
+  return many;
 }

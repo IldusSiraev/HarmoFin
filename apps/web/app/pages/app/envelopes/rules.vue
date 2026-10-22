@@ -67,17 +67,16 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload)
 <template>
   <div v-if="hydrated" class="reference-page" data-hydrated="true">
     <ReferencePageLayout>
-      <template #kicker>Конверты</template>
+      <template #kicker>
+        <NuxtLink to="/app/envelopes" class="rules-page__back" data-testid="rules-back">
+          <ArrowLeft :size="16" aria-hidden="true" />
+          Конверты
+        </NuxtLink>
+      </template>
       <template #title>Правила пополнения</template>
       <template #description>
         Правила подсказывают, сколько предложить в конверт при распределении дохода. Они ничего не
         распределяют сами и не меняют остатки.
-      </template>
-      <template #actions>
-        <UiButton variant="secondary" to="/app/envelopes" data-testid="rules-back">
-          <ArrowLeft :size="16" aria-hidden="true" />
-          Назад к конвертам
-        </UiButton>
       </template>
       <template #content>
         <FundingRulesEditor v-if="budgetId" :budget-id="budgetId" @dirty="dirty = $event" />
@@ -104,3 +103,23 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload)
     />
   </div>
 </template>
+
+<style scoped>
+.rules-page__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hf-space-1);
+  min-height: 44px;
+  color: var(--hf-color-action-primary-text);
+  font-size: var(--hf-font-size-small);
+  font-weight: var(--hf-font-weight-semibold);
+  text-decoration: none;
+  text-transform: none;
+}
+
+.rules-page__back:focus-visible {
+  outline: 2px solid var(--hf-color-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--hf-radius-sm);
+}
+</style>

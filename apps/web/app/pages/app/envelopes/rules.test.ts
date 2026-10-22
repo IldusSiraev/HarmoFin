@@ -57,7 +57,7 @@ describe('rules page', () => {
     const wrapper = await mountPage();
     expect(wrapper.find('[data-testid="editor-stub"]').attributes('data-budget')).toBe('budget-1');
     expect(wrapper.text()).toContain('Правила пополнения');
-    expect(wrapper.text()).toContain('Назад к конвертам');
+    expect(wrapper.find('[data-testid="rules-back"]').text()).toContain('Конверты');
   });
 
   it('без изменений уход разрешён', async () => {

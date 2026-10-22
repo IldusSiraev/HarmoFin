@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue';
-import { AlertTriangle, RefreshCw } from '@lucide/vue';
+import { computed, reactive, ref, watch } from 'vue';
+import { AlertTriangle, Info, RefreshCw } from '@lucide/vue';
 
 import type { FundingPreviewResponse } from '../../composables/useEnvelopePlanV2.js';
 import { formatMinorUnits } from '../finance/money-format.js';
+import EnvelopeTypeIcon from '../envelopes/EnvelopeTypeIcon.vue';
+import UiAmountHero from '../ui/AmountHero.vue';
+import UiAttentionRow from '../ui/AttentionRow.vue';
 import UiButton from '../ui/Button.vue';
 import UiModal from '../ui/Modal.vue';
 
@@ -16,6 +19,8 @@ defineOptions({ name: 'FundingReviewSheet' });
 
 export type FundingSheetLine = FundingPreviewResponse['lines'][number] & {
   name?: string;
+  /** Envelope type from the budget's envelope list; drives the row icon only. */
+  envelopeType?: string | undefined;
   /** Server-provided amount that tops the envelope up to its target (minor). */
   toTargetMinor?: string | undefined;
   /** Server-provided amount equal to the whole remainder (minor). */
@@ -44,6 +49,7 @@ export interface FundingChangeLinePayload {
 const props = withDefaults(
   defineProps<{
     open: boolean;
+    sourceKind?: FundingPreviewResponse['sourceKind'] | undefined;
     sourceMinor: string;
     periodTargetDrafts: FundingSheetPeriodDraft[];
     previewLines: FundingSheetLine[];
@@ -59,6 +65,7 @@ const props = withDefaults(
   {
     currency: 'RUB',
     scale: 2,
+    sourceKind: undefined,
     mandatoryDueCurrentMinor: undefined,
     mandatoryDueNextMinor: undefined,
   },
@@ -91,6 +98,15 @@ function toDecimalText(minor: string): string {
   return props.scale === 0 ? whole : `${whole}.${padded.slice(cut)}`;
 }
 
+// Minor units -> text shown in an amount field: "2000000" -> "20 000", "1000050" -> "10 000,50".
+// Spaces only group digits; commitDraft strips them again. String-only, no arithmetic.
+function toFieldText(minor: string): string {
+  const [whole = '', fraction = ''] = toDecimalText(minor).split('.');
+  if (whole === '') return '';
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return fraction === '' || /^0+$/.test(fraction) ? grouped : `${grouped},${fraction}`;
+}
+
 function lineIdOf(line: FundingSheetLine): string | null {
   return line.lineId == null ? null : line.lineId;
 }
@@ -105,6 +121,22 @@ function lineToken(line: FundingSheetLine): string {
   return id == null ? line.envelopeId : id.replace(/[^A-Za-z0-9-]+/g, '-');
 }
 
+const SOURCE_LABELS: Record<string, string> = {
+  INCOME: 'доход',
+  OPENING: 'начальный остаток на счетах',
+  FREE: 'нераспределённые деньги',
+};
+
+const subtitle = computed(() => {
+  const label = props.sourceKind === undefined ? undefined : SOURCE_LABELS[props.sourceKind];
+  return label === undefined ? null : `Источник: ${label}`;
+});
+
+// The row whose field or pill last held focus shows its shortcut pills. It is
+// not cleared on blur, so a pill that does not take focus on click (Safari)
+// is still there when the click lands.
+const activeLineKey = ref<string | null>(null);
+
 const drafts = reactive<Record<string, string>>({});
 const localErrors = reactive<Record<string, string>>({});
 
@@ -112,7 +144,7 @@ watch(
   () => props.previewLines,
   (lines) => {
     for (const line of lines) {
-      drafts[lineKey(line)] = toDecimalText(line.suggestedMinor);
+      drafts[lineKey(line)] = toFieldText(line.suggestedMinor);
       delete localErrors[lineKey(line)];
     }
   },
@@ -125,6 +157,14 @@ function lineError(line: FundingSheetLine): string | undefined {
 
 function lineName(line: FundingSheetLine): string {
   return line.name ?? 'Конверт';
+}
+
+function lineType(line: FundingSheetLine): string {
+  return line.envelopeType ?? 'CUSTOM';
+}
+
+function lineInputId(line: FundingSheetLine): string {
+  return `funding-input-${lineToken(line)}`;
 }
 
 function emitLine(line: FundingSheetLine, amount: string): void {
@@ -140,7 +180,7 @@ function commitDraft(line: FundingSheetLine, event?: Event): void {
   // The field value in the DOM wins: a commit without a preceding 'input'
   // event (Enter, programmatic write) must not resend the stale draft.
   const field = (event?.target ?? null) as HTMLInputElement | null;
-  const text = (field?.value ?? drafts[key] ?? '').trim();
+  const text = (field?.value ?? drafts[key] ?? '').replace(/\s/g, '');
   if (!AMOUNT_PATTERN.test(text)) {
     localErrors[key] =
       text === '' ? 'Введите сумму' : 'Введите сумму числом, не более двух знаков после запятой';
@@ -155,7 +195,7 @@ function applyHint(line: FundingSheetLine, minor: string | undefined): void {
   if (minor === undefined) return;
   const text = toDecimalText(minor);
   if (text === '') return;
-  drafts[lineKey(line)] = text;
+  drafts[lineKey(line)] = toFieldText(minor);
   delete localErrors[lineKey(line)];
   emitLine(line, text);
 }
@@ -163,6 +203,9 @@ function applyHint(line: FundingSheetLine, minor: string | undefined): void {
 const isStale = computed(() => props.error?.code === 'PREVIEW_STALE');
 const isExcess = computed(() => props.remainingMinor.startsWith('-'));
 const hasGap = computed(() => /^[1-9]/.test(props.mandatoryGapMinor));
+const gapTitle = computed(
+  () => `Не хватает на обязательные платежи: ${money(props.mandatoryGapMinor)}`,
+);
 const hasDueBreakdown = computed(
   () =>
     (props.mandatoryDueCurrentMinor !== undefined && props.mandatoryDueCurrentMinor !== '0') ||
@@ -184,9 +227,23 @@ function handleConfirm(): void {
 <template>
   <UiModal :open="open" title="Распределить деньги" @close="emit('later')">
     <div class="funding-sheet">
+      <p v-if="subtitle" class="funding-sheet__subtitle" data-testid="funding-subtitle">
+        {{ subtitle }}
+      </p>
+
       <section class="funding-sheet__source" aria-label="Сумма источника">
-        <p class="funding-sheet__caption">Можно распределить</p>
-        <p class="funding-sheet__amount" data-testid="funding-source">{{ money(sourceMinor) }}</p>
+        <UiAmountHero
+          label="Можно распределить"
+          :amount-minor="sourceMinor"
+          amount-test-id="funding-source"
+        >
+          <template #aside>
+            <span class="funding-sheet__badge">
+              <Info :size="16" aria-hidden="true" />
+              Деньги остаются на ваших счетах
+            </span>
+          </template>
+        </UiAmountHero>
         <p class="funding-sheet__muted" data-testid="funding-intro">
           Эти деньги лежат на ваших счетах и пока свободны. Мы заранее предложили, для каких
           конвертов их отметить. Деньги со счетов никуда не переводятся. Проверьте суммы и нажмите
@@ -221,6 +278,14 @@ function handleConfirm(): void {
         </UiButton>
       </div>
 
+      <UiAttentionRow
+        v-if="hasGap"
+        tone="warning"
+        data-testid="funding-gap"
+        :title="gapTitle"
+        description="Можно распределить доступную сумму сейчас и покрыть нехватку позже"
+      />
+
       <label
         v-for="draft in periodTargetDrafts"
         :key="draft.periodId"
@@ -247,75 +312,92 @@ function handleConfirm(): void {
         </span>
       </label>
 
-      <ul class="funding-sheet__lines" aria-label="Предложенные распределения">
-        <li
-          v-for="line in previewLines"
-          :key="lineKey(line)"
-          class="funding-sheet__line"
-          data-testid="funding-line"
-          :data-envelope-id="line.envelopeId"
-        >
-          <div class="funding-sheet__line-head">
-            <span class="funding-sheet__line-name">{{ lineName(line) }}</span>
-            <input
-              v-model="drafts[lineKey(line)]"
-              class="funding-sheet__input"
-              type="text"
-              inputmode="decimal"
-              autocomplete="off"
-              :data-testid="`funding-amount-${lineToken(line)}`"
-              :aria-label="`Сумма для конверта ${lineName(line)}`"
-              :aria-invalid="lineError(line) !== undefined ? 'true' : undefined"
-              :aria-describedby="
-                lineError(line) !== undefined ? `funding-err-${lineKey(line)}` : undefined
-              "
-              :disabled="pending"
-              @change="commitDraft(line, $event)"
-              @keydown.enter.prevent="commitDraft(line, $event)"
-            />
-          </div>
-          <p
-            v-if="lineError(line) !== undefined"
-            :id="`funding-err-${lineKey(line)}`"
-            class="funding-sheet__field-error"
-            :data-testid="`funding-line-error-${lineToken(line)}`"
+      <div v-if="previewLines.length > 0" class="funding-sheet__queue">
+        <div class="funding-sheet__queue-head" aria-hidden="true">
+          <span>Очередь</span>
+          <span>Предложенная сумма</span>
+        </div>
+        <ol class="funding-sheet__lines" aria-label="Предложенные распределения">
+          <li
+            v-for="(line, index) in previewLines"
+            :key="lineKey(line)"
+            class="funding-sheet__line"
+            data-testid="funding-line"
+            :data-envelope-id="line.envelopeId"
+            @focusin="activeLineKey = lineKey(line)"
           >
-            <AlertTriangle :size="14" aria-hidden="true" />
-            {{ lineError(line) }}
-          </p>
-          <div
-            v-if="line.toTargetMinor !== undefined || line.allRemainingMinor !== undefined"
-            class="funding-sheet__line-actions"
-          >
-            <UiButton
-              v-if="line.toTargetMinor !== undefined"
-              variant="tertiary"
-              size="sm"
-              :disabled="pending"
-              :data-testid="`funding-to-target-${lineToken(line)}`"
-              @click="applyHint(line, line.toTargetMinor)"
+            <div class="funding-sheet__line-head">
+              <span class="funding-sheet__line-number" aria-hidden="true">{{ index + 1 }}</span>
+              <EnvelopeTypeIcon :envelope-type="lineType(line)" size="sm" />
+              <span class="funding-sheet__line-name">{{ lineName(line) }}</span>
+              <label class="funding-sheet__visually-hidden" :for="lineInputId(line)">
+                Сумма для {{ lineName(line) }}
+              </label>
+              <input
+                :id="lineInputId(line)"
+                v-model="drafts[lineKey(line)]"
+                class="funding-sheet__input"
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                :data-testid="`funding-amount-${lineToken(line)}`"
+                :aria-invalid="lineError(line) !== undefined ? 'true' : undefined"
+                :aria-describedby="
+                  lineError(line) !== undefined ? `funding-err-${lineKey(line)}` : undefined
+                "
+                :disabled="pending"
+                @change="commitDraft(line, $event)"
+                @keydown.enter.prevent="commitDraft(line, $event)"
+              />
+            </div>
+            <p
+              v-if="lineError(line) !== undefined"
+              :id="`funding-err-${lineKey(line)}`"
+              class="funding-sheet__field-error"
+              :data-testid="`funding-line-error-${lineToken(line)}`"
             >
-              До нужной суммы
-            </UiButton>
-            <UiButton
-              v-if="line.allRemainingMinor !== undefined"
-              variant="tertiary"
-              size="sm"
-              :disabled="pending"
-              :data-testid="`funding-all-remaining-${lineToken(line)}`"
-              @click="applyHint(line, line.allRemainingMinor)"
+              <AlertTriangle :size="14" aria-hidden="true" />
+              {{ lineError(line) }}
+            </p>
+            <div
+              v-if="line.toTargetMinor !== undefined || line.allRemainingMinor !== undefined"
+              v-show="activeLineKey === lineKey(line)"
+              class="funding-sheet__line-actions"
             >
-              Весь остаток
-            </UiButton>
-          </div>
-        </li>
-      </ul>
+              <button
+                v-if="line.toTargetMinor !== undefined"
+                type="button"
+                class="funding-sheet__pill"
+                :disabled="pending"
+                :data-testid="`funding-to-target-${lineToken(line)}`"
+                @click="applyHint(line, line.toTargetMinor)"
+              >
+                До нужной суммы
+              </button>
+              <button
+                v-if="line.allRemainingMinor !== undefined"
+                type="button"
+                class="funding-sheet__pill"
+                :disabled="pending"
+                :data-testid="`funding-all-remaining-${lineToken(line)}`"
+                @click="applyHint(line, line.allRemainingMinor)"
+              >
+                Весь остаток
+              </button>
+            </div>
+          </li>
+        </ol>
+      </div>
     </div>
 
     <template #footer>
       <div class="funding-sheet__footer">
         <div class="funding-sheet__total" aria-live="polite">
           <span class="funding-sheet__caption">Осталось распределить</span>
+          <!-- Screen-reader echo of the gap row above, so its changes are announced. -->
+          <span v-if="hasGap" class="funding-sheet__sr" data-testid="funding-gap-live">
+            {{ gapTitle }}
+          </span>
           <strong class="funding-sheet__total-amount" data-testid="funding-remaining">
             {{ isExcess ? money(remainingMinor.slice(1)) : money(remainingMinor) }}
           </strong>
@@ -327,10 +409,8 @@ function handleConfirm(): void {
             Всё предложено: ничего не остаётся.
           </span>
           <span v-if="isExcess" class="funding-sheet__status" data-testid="funding-excess">
+            <AlertTriangle :size="14" aria-hidden="true" />
             Превышение: распределено больше, чем доступно
-          </span>
-          <span v-if="hasGap" class="funding-sheet__status" data-testid="funding-gap">
-            Не хватает на обязательные платежи: {{ money(mandatoryGapMinor) }}
           </span>
           <span
             v-if="hasDueBreakdown"
@@ -393,13 +473,81 @@ function handleConfirm(): void {
   color: var(--hf-color-text-secondary);
 }
 
-.funding-sheet__amount {
+.funding-sheet__subtitle {
   margin: 0;
-  color: var(--hf-color-text);
-  font-size: 1.875rem;
-  font-weight: 700;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+}
+
+.funding-sheet__source {
+  gap: var(--hf-space-3);
+}
+
+.funding-sheet__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hf-space-1);
+  padding: var(--hf-space-1) var(--hf-space-2);
+  border-radius: var(--hf-radius-sm);
+  background: var(--hf-color-status-info-background);
+  color: var(--hf-color-status-info);
+  font-size: var(--hf-font-size-small);
+  font-weight: var(--hf-font-weight-medium);
+}
+
+.funding-sheet__queue {
+  display: grid;
+  min-width: 0;
+}
+
+.funding-sheet__queue-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--hf-space-3);
+  padding-bottom: var(--hf-space-2);
+  border-bottom: 1px solid var(--hf-color-border);
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+  font-weight: var(--hf-font-weight-medium);
+}
+
+.funding-sheet__line-number {
+  flex: none;
+  min-width: 1.25rem;
+  color: var(--hf-color-text-muted);
   font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.funding-sheet__visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.funding-sheet__pill {
+  min-height: 44px;
+  padding: 0 var(--hf-space-4);
+  border: 1px solid var(--hf-color-border);
+  border-radius: 999px;
+  background: var(--hf-color-surface);
+  color: var(--hf-color-text);
+  font: inherit;
+  font-size: var(--hf-font-size-small);
+  font-weight: var(--hf-font-weight-medium);
+}
+
+.funding-sheet__pill:hover:not(:disabled) {
+  background: var(--hf-color-surface-subtle);
+}
+
+.funding-sheet__pill:disabled {
+  opacity: 0.6;
 }
 
 .funding-sheet__notice {
@@ -479,11 +627,11 @@ function handleConfirm(): void {
 .funding-sheet__line-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--hf-space-3);
 }
 
 .funding-sheet__line-name {
+  flex: 1 1 auto;
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -522,10 +670,30 @@ function handleConfirm(): void {
 }
 
 .funding-sheet__footer {
-  display: grid;
+  display: flex;
   flex: 1 1 100%;
-  gap: var(--hf-space-2);
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hf-space-2) var(--hf-space-4);
   min-width: 0;
+}
+
+.funding-sheet__footer > .funding-sheet__muted {
+  flex-basis: 100%;
+  order: 3;
+}
+
+.funding-sheet__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .funding-sheet__total {
@@ -540,6 +708,9 @@ function handleConfirm(): void {
 }
 
 .funding-sheet__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hf-space-1);
   color: var(--hf-color-text);
   font-size: var(--hf-font-size-small);
   font-weight: 600;

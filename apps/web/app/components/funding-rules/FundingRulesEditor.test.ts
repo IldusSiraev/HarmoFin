@@ -128,7 +128,7 @@ describe('FundingRulesEditor', () => {
     expect(body).toEqual({
       queue: [
         { envelopeId: 'b', type: 'PERCENT_OF_INCOME', percentBasisPoints: 1000 },
-        { envelopeId: 'a', type: 'FIXED_PER_PERIOD', fixedAmount: '15000.00' },
+        { envelopeId: 'a', type: 'FIXED_PER_PERIOD', fixedAmount: '15000' },
       ],
       outside: [],
       incomeSuggestion: { enabled: true, sourceCategoryId: 'cat', targetEnvelopeId: 'b' },
@@ -211,6 +211,24 @@ describe('FundingRulesEditor', () => {
     await wrapper.find('[data-testid="rules-save"]').trigger('click');
     await flushPromises();
     expect(wrapper.find('[data-testid="rule-card-b"]').text()).toContain('Проверьте тип правила');
+  });
+
+  it('статус нижней панели: сохранено / есть изменения', async () => {
+    const wrapper = await mountEditor();
+    expect(wrapper.find('[data-testid="rules-save-status"]').text()).toBe(
+      'Все изменения сохранены',
+    );
+    await wrapper.find('[data-testid="rule-down-a"]').trigger('click');
+    expect(wrapper.find('[data-testid="rules-save-status"]').text()).toBe(
+      'Есть несохранённые изменения',
+    );
+  });
+
+  it('карточка показывает иконку типа конверта', async () => {
+    const wrapper = await mountEditor();
+    expect(wrapper.find('[data-testid="rule-card-b"] .envelope-type-icon--savings').exists()).toBe(
+      true,
+    );
   });
 
   it('ошибка загрузки и повтор', async () => {

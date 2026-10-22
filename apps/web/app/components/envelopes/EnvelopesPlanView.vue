@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
+import { Archive, ArrowLeftRight, List, Pencil, Plus, Search, Settings2 } from '@lucide/vue';
 
+import PeriodDecisionCard from '../dashboard/PeriodDecisionCard.vue';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import FinanceMoneyInput from '../finance/FinanceMoneyInput.vue';
 import ReferencePageLayout from '../ui/ReferencePageLayout.vue';
 import UiActionMenu from '../ui/ActionMenu.vue';
+import UiAttentionRow from '../ui/AttentionRow.vue';
 import UiButton from '../ui/Button.vue';
 import UiConfirmDialog from '../ui/ConfirmDialog.vue';
 import UiEmptyState from '../ui/EmptyState.vue';
@@ -15,11 +18,13 @@ import UiSkeleton from '../ui/Skeleton.vue';
 import UiStatus from '../ui/Status.vue';
 import {
   type CreateEnvelopePlanRequest,
+  type DashboardV2Response,
   type EnvelopePlanDto,
   type EnvelopePlanKind,
   type FundingRuleResponse,
   useEnvelopePlanV2,
 } from '../../composables/useEnvelopePlanV2.js';
+import { useFundingEntry } from '../../composables/useFundingEntry.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js';
 import { useToast } from '../../composables/useToast.js';
@@ -28,12 +33,17 @@ import { describeRule } from '../funding-rules/funding-rule-text.js';
 import EnvelopeMovePanel, { type MovePanelResult } from './EnvelopeMovePanel.vue';
 import EnvelopePlanDialog from './EnvelopePlanDialog.vue';
 import EnvelopePlanRow from './EnvelopePlanRow.vue';
+import EnvelopesSummary from './EnvelopesSummary.vue';
 import PeriodTargetDialog from './PeriodTargetDialog.vue';
 import {
   PLAN_GROUPS,
   PLAN_SCOPE_LABELS,
   balanceSign,
   formatMoneyText,
+  periodRangeText,
+  planBadge,
+  planProgress,
+  pluralRu,
 } from './envelope-plan-kind.js';
 
 defineOptions({ name: 'EnvelopesPlanView' });
@@ -91,6 +101,82 @@ const groups = computed(() =>
 
 const activeEnvelopes = computed(() => envelopes.value.filter((item) => item.archivedAt === null));
 
+// Name search is a client-side view filter only; amounts are untouched.
+const search = ref('');
+const searchQuery = computed(() => search.value.trim().toLocaleLowerCase('ru'));
+const visibleGroups = computed(() => {
+  const query = searchQuery.value;
+  if (!query) return groups.value;
+  return groups.value
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => item.name.toLocaleLowerCase('ru').includes(query)),
+    }))
+    .filter((group) => group.items.length > 0);
+});
+const visibleCount = computed(() =>
+  visibleGroups.value.reduce((count, group) => count + group.items.length, 0),
+);
+function foundText(n: number): string {
+  const verb = pluralRu(n, 'Найден', 'Найдено', 'Найдено');
+  return `${verb} ${n} ${pluralRu(n, 'конверт', 'конверта', 'конвертов')}`;
+}
+const activeCountText = computed(() => {
+  const n = activeEnvelopes.value.length;
+  return `${n} ${pluralRu(n, 'активный', 'активных', 'активных')}`;
+});
+const searchStatus = computed(() => (searchQuery.value ? foundText(visibleCount.value) : ''));
+
+const SLOT_HALVES: Record<string, string> = { FIRST: 'Первая', SECOND: 'Вторая' };
+const GROUP_NOTES: Record<string, string> = {
+  CURRENT_EXPENSES: 'Лимит на каждую половину периода',
+  MANDATORY_EXPENSES: 'Сумма считается по ближайшим плановым платежам',
+  SAVINGS_GOAL: 'Деньги на цели и на непредвиденные расходы',
+  RESERVE: 'Деньги на цели и на непредвиденные расходы',
+  CUSTOM: 'Конверты для своих целей',
+};
+// The half the current period belongs to: the slot of the current-expense
+// envelope whose server-marked bucket is current. Null when undetermined.
+const currentHalfSlot = computed(() => {
+  const owner = envelopes.value.find(
+    (item) =>
+      item.envelopeType === 'CURRENT_EXPENSES' &&
+      item.periodSlot !== null &&
+      (item.periods ?? []).some((period) => period.current),
+  );
+  return owner?.periodSlot ?? null;
+});
+function groupNote(group: { items: EnvelopePlanDto[] }): string {
+  const first = group.items[0];
+  if (!first) return '';
+  if (first.envelopeType === 'CURRENT_EXPENSES') {
+    const slots = new Set(group.items.map((item) => item.periodSlot));
+    const [slot] = [...slots];
+    const half = slots.size === 1 && slot ? SLOT_HALVES[slot] : undefined;
+    if (half) {
+      // Dashboard dates describe the current period; show them only for its half.
+      if (dashboard.value && slot === currentHalfSlot.value) {
+        const range = periodRangeText(dashboard.value.period.start, dashboard.value.period.end);
+        return `${half} половина периода · ${range}`;
+      }
+      return `${half} половина периода`;
+    }
+  }
+  // Group notes describe the group, not repeat each card's own caption.
+  return GROUP_NOTES[first.envelopeType] ?? '';
+}
+
+// Inputs for the card progress and badge, straight from the server dashboard.
+const mandatoryProgress = computed(() =>
+  dashboard.value
+    ? {
+        balanceMinor: dashboard.value.mandatoryBalanceMinor,
+        dueMinor: dashboard.value.mandatoryDueMinor,
+      }
+    : null,
+);
+const mandatoryGap = computed(() => dashboard.value?.mandatoryGapMinor ?? null);
+
 // actionPath hints from the dashboard. They only explain or highlight; nothing
 // is moved without an explicit action, and unknown parameters are ignored.
 const actionNote = computed(() => {
@@ -110,9 +196,54 @@ function isHighlighted(envelope: EnvelopePlanDto): boolean {
   return props.query.cover === 'mandatory' && envelope.envelopeType === 'MANDATORY_EXPENSES';
 }
 
+// Money summary from the server dashboard. It loads next to the list; a failed
+// read hides the summary only, the list keeps working.
+const funding = useFundingEntry();
+const dashboard = ref<DashboardV2Response | null>(null);
+const summaryError = ref(false);
+let dashboardSeq = 0;
+
+const kicker = computed(() =>
+  dashboard.value
+    ? `Конверты · ${periodRangeText(dashboard.value.period.start, dashboard.value.period.end)}`
+    : 'Справочники',
+);
+
+async function loadDashboard(): Promise<void> {
+  const seq = ++dashboardSeq;
+  try {
+    const response = await planV2.getDashboard(props.budgetId);
+    if (seq !== dashboardSeq) return;
+    dashboard.value = response;
+    summaryError.value = false;
+  } catch {
+    if (seq !== dashboardSeq) return;
+    dashboard.value = null;
+    summaryError.value = true;
+  }
+}
+
+function distributeFree(): void {
+  funding.offer({ sourceKind: 'FREE' });
+}
+
+// A confirmed assignment changes envelope balances and what is free.
+watch(
+  () => funding.confirmedCount.value,
+  () => void load(),
+);
+
+// After a period decision the card may be gone: keep focus on a stable element.
+async function onPeriodDecided(): Promise<void> {
+  await load();
+  await nextTick();
+  (document.getElementById('period-decision-title') ?? pageHeading.value)?.focus();
+}
+
 async function load(): Promise<void> {
   loading.value = true;
   loadError.value = '';
+  const summary = loadDashboard();
   try {
     // A reference record may have changed: drop the shared operation cache.
     useOperationReferenceData().invalidate();
@@ -129,6 +260,7 @@ async function load(): Promise<void> {
   } finally {
     loading.value = false;
   }
+  await summary;
 }
 
 // One Idempotency-Key per user attempt for form and archive actions.
@@ -410,21 +542,44 @@ onMounted(() => {
 
 <template>
   <ReferencePageLayout>
-    <template #kicker>Справочники</template>
+    <template #kicker>{{ kicker }}</template>
     <template #title>
       <span ref="pageHeading" tabindex="-1" class="plan-view__heading">Конверты</span>
     </template>
     <template #description>
-      Конверт показывает, для чего отложены деньги, а не где они физически лежат. Деньги на счетах
-      общие: конверты делят их по назначению.
+      Распределяйте деньги по целям, не перемещая их между счетами.
     </template>
     <template #actions>
       <UiButton variant="secondary" to="/app/envelopes/rules" data-action="envelope-rules">
+        <Settings2 :size="18" aria-hidden="true" />
         Задать правила
       </UiButton>
-      <UiButton data-action="create-envelope" @click="startCreate">Создать конверт</UiButton>
+      <UiButton data-action="create-envelope" @click="startCreate">
+        <Plus :size="18" aria-hidden="true" />
+        Создать конверт
+      </UiButton>
     </template>
     <template #content>
+      <EnvelopesSummary v-if="dashboard" :dashboard="dashboard" @distribute="distributeFree" />
+      <UiAttentionRow
+        v-else-if="summaryError"
+        data-testid="summary-retry"
+        tone="info"
+        title="Сводка недоступна"
+        action-label="Повторить"
+        @action="loadDashboard"
+      />
+      <PeriodDecisionCard
+        v-if="dashboard"
+        :budget-id="budgetId"
+        :warnings="dashboard.warnings"
+        :suggested-target="dashboard.suggestedTarget"
+        :hide-target="true"
+        :period-id="dashboard.period.periodId"
+        :protected-assignments="dashboard.protectedAssignments"
+        @changed="onPeriodDecided"
+        @focus-fallback="pageHeading?.focus()"
+      />
       <div role="status" aria-live="polite" data-testid="envelopes-status-region">
         <UiStatus v-if="statusMessage" :label="statusMessage" tone="info" />
       </div>
@@ -473,13 +628,46 @@ onMounted(() => {
           <template #action><UiButton @click="startCreate">Создать конверт</UiButton></template>
         </UiEmptyState>
 
-        <div v-if="groups.length > 0" class="plan-view__panel">
-          <section v-for="group in groups" :key="group.title" class="plan-view__group">
-            <h2 class="plan-view__group-label">{{ group.title }}</h2>
+        <section
+          v-if="groups.length > 0"
+          class="plan-view__list-section"
+          aria-labelledby="envelopes-all-title"
+        >
+          <div class="plan-view__list-head">
+            <div class="plan-view__list-title">
+              <h2 id="envelopes-all-title" class="plan-view__title">Все конверты</h2>
+              <span class="plan-view__count">{{ activeCountText }}</span>
+            </div>
+            <UiInput
+              v-model="search"
+              class="plan-view__search"
+              name="envelope-search"
+              label="Найти конверт"
+              hide-label
+              placeholder="Найти конверт"
+            >
+              <template #icon><Search :size="18" /></template>
+            </UiInput>
+          </div>
+          <div class="plan-view__sr-only" aria-live="polite" data-testid="envelope-search-status">
+            {{ searchStatus }}
+          </div>
+          <UiEmptyState
+            v-if="visibleGroups.length === 0"
+            title="Ничего не найдено"
+            description="Проверьте название конверта."
+          />
+          <section v-for="group in visibleGroups" :key="group.title" class="plan-view__group">
+            <div class="plan-view__group-head">
+              <h3 class="plan-view__group-label">{{ group.title }}</h3>
+              <p class="plan-view__group-note">{{ groupNote(group) }}</p>
+            </div>
             <ul class="plan-view__list" :aria-label="`Конверты: ${group.title}`">
               <li v-for="envelope in group.items" :key="envelope.id" class="plan-view__item">
                 <EnvelopePlanRow
                   :envelope="envelope"
+                  :progress="planProgress(envelope, mandatoryProgress)"
+                  :badge="planBadge(envelope, mandatoryGap)"
                   :data-testid="`envelope-row-${envelope.id}`"
                   :data-highlighted="isHighlighted(envelope) ? 'true' : undefined"
                   :highlight="isHighlighted(envelope) ? highlightLabel : undefined"
@@ -502,6 +690,7 @@ onMounted(() => {
                         data-action="reassign-envelope"
                         @click="startReassign(envelope)"
                       >
+                        <ArrowLeftRight :size="18" aria-hidden="true" />
                         Переложить
                       </button>
                       <button
@@ -512,6 +701,7 @@ onMounted(() => {
                         data-action="edit-envelope"
                         @click="startEdit(envelope)"
                       >
+                        <Pencil :size="18" aria-hidden="true" />
                         Изменить
                       </button>
                       <NuxtLink
@@ -519,6 +709,7 @@ onMounted(() => {
                         data-testid="row-operations"
                         :to="`/app/operations?envelopeId=${encodeURIComponent(envelope.id)}`"
                       >
+                        <List :size="18" aria-hidden="true" />
                         Операции конверта
                       </NuxtLink>
                       <button
@@ -529,6 +720,7 @@ onMounted(() => {
                         data-action="archive-envelope"
                         @click="requestArchive(envelope)"
                       >
+                        <Archive :size="18" aria-hidden="true" />
                         Переместить в архив
                       </button>
                     </UiActionMenu>
@@ -537,7 +729,7 @@ onMounted(() => {
               </li>
             </ul>
           </section>
-        </div>
+        </section>
       </template>
     </template>
   </ReferencePageLayout>
@@ -546,6 +738,7 @@ onMounted(() => {
     :budget-id="budgetId"
     :envelope="detailed"
     :rule-summary="detailedRule"
+    :badge="detailed ? planBadge(detailed, dashboard?.mandatoryGapMinor ?? null) : null"
     @close="
       detailed = null;
       restoreFocus();
@@ -690,34 +883,86 @@ form[data-envelope-form] {
   margin: 0;
 }
 
-.plan-view__panel {
-  padding: var(--hf-space-2) var(--hf-card-padding);
-  border-radius: var(--hf-card-radius);
-  background: var(--hf-color-surface);
-  box-shadow: var(--hf-shadow-card);
+.plan-view__list-section {
+  display: grid;
+  gap: var(--hf-space-4);
+  min-width: 0;
+}
+
+.plan-view__list-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hf-space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.plan-view__list-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hf-space-2);
+  align-items: baseline;
+}
+
+.plan-view__title {
+  margin: 0;
+  color: var(--hf-color-text);
+  font-size: var(--hf-font-size-h3);
+  font-weight: var(--hf-font-weight-semibold);
+}
+
+.plan-view__count {
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+}
+
+.plan-view__search {
+  flex: 0 1 20rem;
+  min-width: min(100%, 14rem);
+}
+
+.plan-view__sr-only {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .plan-view__group {
   display: grid;
   gap: var(--hf-space-3);
-  padding-top: var(--hf-space-6);
+  min-width: 0;
 }
 
-.plan-view__group:first-of-type {
-  padding-top: var(--hf-space-4);
+.plan-view__group-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.125rem var(--hf-space-2);
+  align-items: baseline;
 }
 
 .plan-view__group-label {
   margin: 0;
-  padding-bottom: var(--hf-space-2);
-  border-bottom: 1px solid var(--hf-color-border);
   color: var(--hf-color-text);
   font-size: var(--hf-font-size-small);
   font-weight: var(--hf-font-weight-semibold);
 }
 
+.plan-view__group-note {
+  margin: 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-caption);
+  line-height: var(--hf-line-height-caption);
+}
+
 .plan-view__list {
   display: grid;
+  gap: var(--hf-space-3);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -727,13 +972,8 @@ form[data-envelope-form] {
   min-width: 0;
 }
 
-.plan-view__item + .plan-view__item {
-  border-top: 1px solid var(--hf-color-border);
-}
-
 .plan-view__row--highlight {
   border-left: 4px solid var(--hf-color-status-info);
-  background: var(--hf-color-status-info-background);
 }
 
 .plan-form__field {

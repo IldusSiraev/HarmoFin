@@ -59,6 +59,14 @@ const AMOUNT_PATTERN = /^\d+(?:[.,]\d{1,2})?$/;
 const ZERO_AMOUNT = /^0+(?:[.,]0+)?$/;
 
 const byName = (left: RuleCard, right: RuleCard) => left.name.localeCompare(right.name, 'ru');
+// Minor units -> text for the amount field: "6500000" -> "65 000", "6500050" -> "65 000,50".
+// Spaces group thousands; buildRequest strips them again. String-only, no arithmetic.
+export function amountInputText(minor: string): string {
+  const [whole = '0', fraction = '00'] = toDecimalText(minor).split('.');
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return fraction === '00' ? grouped : `${grouped},${fraction}`;
+}
+
 const isQueued = (type: FundingRuleType | '') => type !== '' && type !== 'MANUAL';
 const hasFixed = (type: FundingRuleType | '') =>
   type === 'FIXED_PER_PERIOD' || type === 'SUGGESTED_FIXED';
@@ -77,7 +85,7 @@ export function buildState(
       name: envelope.name,
       envelopeType: envelope.envelopeType,
       type: rule?.type ?? '',
-      fixed: rule?.fixedAmountMinor ? toDecimalText(rule.fixedAmountMinor) : '',
+      fixed: rule?.fixedAmountMinor ? amountInputText(rule.fixedAmountMinor) : '',
       percent:
         rule?.percentBasisPoints == null ? '' : basisPointsToPercent(rule.percentBasisPoints),
     };
@@ -166,7 +174,8 @@ export function buildRequest(state: EditorState): {
   for (const card of state.queue) {
     const item = { envelopeId: card.envelopeId, type: card.type } as FundingRulesBatchQueueItem;
     if (hasFixed(card.type)) {
-      const text = card.fixed.trim();
+      // Thousands separators typed or shown in the field are not part of the amount.
+      const text = card.fixed.replace(/\s/g, '');
       if (AMOUNT_PATTERN.test(text) && !ZERO_AMOUNT.test(text)) {
         item.fixedAmount = text.replace(',', '.');
       } else {

@@ -18,6 +18,9 @@ vi.mock('../../composables/useOperationReferenceData.js', () => ({
   useOperationReferenceData: () => ({ invalidate: vi.fn() }),
 }));
 vi.mock('../../composables/useToast.js', () => ({ useToast: () => ({ push: vi.fn() }) }));
+vi.mock('../../composables/useFundingEntry.js', () => ({
+  useFundingEntry: () => ({ confirmedCount: { value: 0 }, offer: vi.fn() }),
+}));
 
 import { NuxtLink } from '../../test/nuxt-components.js';
 import EnvelopesPlanView from './EnvelopesPlanView.vue';
@@ -40,6 +43,15 @@ function envelope(id: string, name: string) {
 function dashboard(start: string, periodId: string | null, assigned: Array<[string, string]>) {
   return {
     period: { start, end: '2026-10-14', periodId },
+    spendable: { state: 'READY', amountMinor: '100' },
+    suggestedTarget: null,
+    cashMinor: '200',
+    mandatoryBalanceMinor: '0',
+    otherProtectedMinor: '0',
+    freeToAssignMinor: '0',
+    mandatoryGapMinor: '0',
+    unbackedMinor: '0',
+    warnings: [],
     protectedAssignments: assigned.map(([envelopeId, assignmentPeriodId]) => ({
       envelopeId,
       envelopeName: 'x',
@@ -231,7 +243,9 @@ describe('EnvelopesPlanView: правила и цель периода', () => {
   it('диалог цели открывается только после ответа дашборда, устаревший ответ игнорируется', async () => {
     let releaseA: (value: unknown) => void = () => undefined;
     let releaseB: (value: unknown) => void = () => undefined;
+    // The first read is the page summary loaded together with the list.
     mocks.v2.getDashboard
+      .mockResolvedValueOnce(dashboard('2026-10-01', null, []))
       .mockImplementationOnce(() => new Promise((resolve) => (releaseA = resolve)))
       .mockImplementationOnce(() => new Promise((resolve) => (releaseB = resolve)));
     const wrapper = await mountView();
@@ -262,12 +276,14 @@ describe('EnvelopesPlanView: правила и цель периода', () => {
     (document.querySelector('[data-testid="plan-dialog-target"]') as HTMLButtonElement).click();
     await flushPromises();
     const before = mocks.v2.listEnvelopes.mock.calls.length;
+    const dashboardBefore = mocks.v2.getDashboard.mock.calls.length;
 
     await wrapper.find('[data-testid="stub-changed"]').trigger('click');
     await flushPromises();
 
     expect(wrapper.find('[data-testid="target-stub"]').exists()).toBe(false);
     expect(mocks.v2.listEnvelopes.mock.calls.length).toBe(before + 1);
+    expect(mocks.v2.getDashboard.mock.calls.length).toBe(dashboardBefore + 1);
     expect(document.body.textContent).toContain('Цель текущего периода изменена.');
   });
 });

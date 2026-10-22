@@ -4,6 +4,8 @@ import { AlertTriangle } from '@lucide/vue';
 
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import { formatMinorUnits } from '../finance/money-format.js';
+import UiAmountHero from '../ui/AmountHero.vue';
+import UiBeforeAfter from '../ui/BeforeAfter.vue';
 import UiButton from '../ui/Button.vue';
 import UiModal from '../ui/Modal.vue';
 import {
@@ -14,7 +16,8 @@ import {
   useEnvelopePlanV2,
 } from '../../composables/useEnvelopePlanV2.js';
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
-import { toDecimalText } from './envelope-plan-kind.js';
+import EnvelopeTypeIcon from './EnvelopeTypeIcon.vue';
+import { decimalToMinor, formatMoneyText, toDecimalText } from './envelope-plan-kind.js';
 
 defineOptions({ name: 'EnvelopeMovePanel' });
 
@@ -87,7 +90,7 @@ const pending = ref(false);
 
 const DIRECTION_LABELS: Record<Direction, string> = {
   'envelope-envelope': 'В другой конверт',
-  'free-envelope': 'Из свободных в этот конверт',
+  'free-envelope': 'Из свободных сюда',
   'envelope-free': 'В свободные',
 };
 
@@ -108,6 +111,8 @@ const selectable = computed(() =>
     : candidates.value,
 );
 const needsDestination = computed(() => direction.value !== 'envelope-free');
+// Every possible recipient in list order (never the source when moving envelope to envelope).
+const recipientPills = selectable;
 const destination = computed(
   () => props.envelopes.find((item) => item.id === destinationId.value) ?? null,
 );
@@ -130,6 +135,90 @@ const sourceBalanceMinor = computed(
   () => sourcePeriod.value?.balanceMinor ?? props.source?.balanceMinor ?? '0',
 );
 
+// Money lands in the current period of a period envelope (the same bucket the
+// confirm sends as destinationPeriodId); null when it has no current period.
+function receivingBalanceMinor(envelope: EnvelopePlanDto): string | null {
+  if (!isPeriodEnvelope(envelope)) return envelope.balanceMinor;
+  return periodsOf(envelope).find((item) => item.current)?.balanceMinor ?? null;
+}
+
+// The money the source can give now (the chosen period bucket for a period
+// envelope). Server value; the server still checks the limit on save.
+const sourceAvailableMinor = computed(() => sourceBalanceMinor.value);
+// Overspent source: nothing to give away, only «Из свободных сюда» stays open.
+const sourceOverspent = computed(
+  () => props.mode !== 'archive' && sourceAvailableMinor.value.startsWith('-'),
+);
+function directionDisabled(item: Direction): boolean {
+  return sourceOverspent.value && item !== 'free-envelope';
+}
+
+// Hero: the bucket that gives the money, or, for «Из свободных сюда», the one
+// that receives it.
+const heroMinor = computed(() => {
+  if (direction.value === 'free-envelope' && props.source) {
+    return receivingBalanceMinor(props.source) ?? props.source.balanceMinor;
+  }
+  return sourceAvailableMinor.value;
+});
+
+// Preview only: the one place the browser adds or subtracts money, on integer
+// minor units (bigint). Nothing here is sent; the server validates and returns
+// the real balances after the change. Invalid or zero amounts hide the preview.
+const previewAmountMinor = computed<string | null>(() => {
+  const text = amount.value.trim();
+  if (!AMOUNT_PATTERN.test(text)) return null;
+  const minor = decimalToMinor(text.replace(',', '.'));
+  if (minor === null || !/[1-9]/.test(minor)) return null;
+  return minor;
+});
+
+type PreviewRow = { label: string; beforeMinor: string; afterMinor: string };
+
+const previewRows = computed<PreviewRow[]>(() => {
+  const minor = previewAmountMinor.value;
+  const source = props.source;
+  if (minor === null || !source) return [];
+  const delta = BigInt(minor);
+  const rows: PreviewRow[] = [];
+  if (direction.value !== 'free-envelope') {
+    const before = sourceBalanceMinor.value;
+    rows.push({
+      label: source.name,
+      beforeMinor: before,
+      afterMinor: (BigInt(before) - delta).toString(),
+    });
+  }
+  const before = destination.value ? receivingBalanceMinor(destination.value) : null;
+  if (direction.value !== 'envelope-free' && destination.value && before !== null) {
+    rows.push({
+      label: destination.value.name,
+      beforeMinor: before,
+      afterMinor: (BigInt(before) + delta).toString(),
+    });
+  }
+  return rows;
+});
+
+const amountDescribedBy = computed(
+  () =>
+    [
+      direction.value !== 'free-envelope' ? 'move-amount-hint' : undefined,
+      amountError.value ? 'move-amount-error' : undefined,
+    ]
+      .filter(Boolean)
+      .join(' ') || undefined,
+);
+
+// Free money has no "before" figure in this panel: name the amount only.
+const previewNote = computed(() => {
+  const minor = previewAmountMinor.value;
+  if (minor === null) return '';
+  if (direction.value === 'envelope-free') return `Свободные деньги: +${formatMoneyText(minor)}`;
+  if (direction.value === 'free-envelope') return `Свободные деньги: −${formatMoneyText(minor)}`;
+  return '';
+});
+
 // Default: the current period when it holds money, otherwise the first that does.
 watch(
   sourceMoneyPeriods,
@@ -151,7 +240,12 @@ watch(
   () => props.source?.id,
   (id) => {
     if (!id || !props.source) return;
-    direction.value = props.mode === 'archive' ? 'envelope-free' : 'envelope-envelope';
+    direction.value =
+      props.mode === 'archive'
+        ? 'envelope-free'
+        : sourceOverspent.value
+          ? 'free-envelope'
+          : 'envelope-envelope';
     destinationId.value = '';
     amount.value =
       props.mode === 'archive'
@@ -189,6 +283,15 @@ function focusById(id: string): void {
   void nextTick(() => document.getElementById(id)?.focus());
 }
 
+// Focus the chosen recipient, or the first one when none is chosen yet.
+function focusRecipient(): void {
+  void nextTick(() => {
+    const pills = document.querySelectorAll<HTMLElement>('.move-panel__pill');
+    const chosen = [...pills].find((item) => item.getAttribute('aria-pressed') === 'true');
+    (chosen ?? pills[0])?.focus();
+  });
+}
+
 function close(): void {
   if (pending.value) return;
   emit('close');
@@ -196,7 +299,7 @@ function close(): void {
 
 async function confirm(): Promise<void> {
   const source = props.source;
-  if (!source || pending.value) return;
+  if (!source || pending.value || directionDisabled(direction.value)) return;
   // Nothing to move at all: say it before asking for an amount.
   if (direction.value !== 'free-envelope' && sourceUsesPeriods.value && !sourcePeriod.value) {
     submitError.value = 'В этом конверте нет денег, которые можно перенести.';
@@ -218,7 +321,7 @@ async function confirm(): Promise<void> {
   amountError.value = '';
   if (needsDestination.value && destinationId.value === '') {
     destinationError.value = 'Выберите конверт';
-    focusById('move-destination');
+    focusRecipient();
     return;
   }
   destinationError.value = '';
@@ -230,7 +333,7 @@ async function confirm(): Promise<void> {
     destinationPeriodId = periodsOf(destination.value).find((item) => item.current)?.periodId;
     if (destinationPeriodId === undefined) {
       destinationError.value = `У конверта «${destination.value?.name ?? ''}» нет текущего периода. Сначала распределите в него деньги кнопкой «Распределить» на главной.`;
-      focusById('move-destination');
+      focusRecipient();
       return;
     }
   }
@@ -281,17 +384,31 @@ defineExpose({ confirm });
 </script>
 
 <template>
-  <UiModal :open="source !== null" :title="title" @close="close">
+  <UiModal
+    :open="source !== null"
+    :title="title"
+    :subtitle="source ? `Источник: ${source.name}` : undefined"
+    @close="close"
+  >
     <div v-if="source" class="move-panel" data-testid="move-panel">
       <p v-if="mode === 'archive'" class="move-panel__muted" data-testid="move-archive-note">
         В конверте «{{ source.name }}» остались деньги. Выберите, куда их направить: после переноса
         конверт будет архивирован.
       </p>
 
+      <div data-testid="move-source-balance">
+        <UiAmountHero label="Сейчас в конверте" :amount-minor="heroMinor" />
+      </div>
+
       <fieldset class="move-panel__field">
         <legend class="move-panel__label">Что сделать</legend>
-        <div class="move-panel__pills">
-          <label v-for="item in directions" :key="item" class="move-panel__pill">
+        <div class="move-panel__segments">
+          <label
+            v-for="item in directions"
+            :key="item"
+            class="move-panel__segment"
+            :class="{ 'move-panel__segment--disabled': directionDisabled(item) }"
+          >
             <input
               v-model="direction"
               type="radio"
@@ -299,26 +416,15 @@ defineExpose({ confirm });
               class="move-panel__radio"
               :value="item"
               :data-testid="`move-direction-${item}`"
-              :disabled="pending"
+              :disabled="pending || directionDisabled(item)"
             />
             <span>{{ DIRECTION_LABELS[item] }}</span>
           </label>
         </div>
+        <p v-if="sourceOverspent" class="move-panel__muted" data-testid="move-overspent-note">
+          Нечего перекладывать: в конверте перерасход
+        </p>
       </fieldset>
-
-      <dl class="move-panel__route">
-        <div v-if="direction !== 'free-envelope'">
-          <dt>Откуда: «{{ source.name }}»</dt>
-          <dd data-testid="move-source-balance">
-            Сейчас осталось
-            <FinanceMoney :minor-units="sourceBalanceMinor" currency="RUB" :scale="2" />
-          </dd>
-        </div>
-        <div v-else>
-          <dt>Откуда</dt>
-          <dd>Свободные деньги</dd>
-        </div>
-      </dl>
 
       <div v-if="showSourcePeriods && sourceMoneyPeriods.length > 1" class="move-panel__field">
         <label for="move-source-period" class="move-panel__label">Из какого периода</label>
@@ -342,31 +448,28 @@ defineExpose({ confirm });
         Деньги периода: {{ periodLabel(sourcePeriod) }}.
       </p>
 
-      <div v-if="needsDestination" class="move-panel__field">
-        <label for="move-destination" class="move-panel__label">
-          {{ direction === 'free-envelope' ? 'Конверт-получатель' : 'Куда' }}
-        </label>
-        <select
-          id="move-destination"
-          v-model="destinationId"
-          class="move-panel__input"
-          data-testid="move-destination"
-          :disabled="pending"
-          :aria-invalid="destinationError ? 'true' : undefined"
+      <fieldset v-if="needsDestination" class="move-panel__field">
+        <legend class="move-panel__label">Конверт-получатель</legend>
+        <div
+          v-if="recipientPills.length > 0"
+          class="move-panel__pills"
           :aria-describedby="destinationError ? 'move-destination-error' : undefined"
         >
-          <option value="" disabled>Выберите конверт</option>
-          <option v-for="item in selectable" :key="item.id" :value="item.id">
-            {{ item.name }}
-          </option>
-        </select>
-        <p v-if="selectable.length === 0" class="move-panel__muted">
-          Другого активного конверта нет. Создайте его или выберите «В свободные».
-        </p>
-        <p v-if="destination" class="move-panel__muted" data-testid="move-destination-balance">
-          Сейчас осталось
-          <FinanceMoney :minor-units="destination.balanceMinor" currency="RUB" :scale="2" />
-        </p>
+          <button
+            v-for="item in recipientPills"
+            :key="item.id"
+            type="button"
+            class="move-panel__pill"
+            :class="{ 'move-panel__pill--selected': item.id === destinationId }"
+            :aria-pressed="item.id === destinationId ? 'true' : 'false'"
+            :data-testid="`move-recipient-pill-${item.id}`"
+            :disabled="pending"
+            @click="destinationId = item.id"
+          >
+            <EnvelopeTypeIcon :envelope-type="item.envelopeType" size="sm" />
+            <span class="move-panel__pill-name">{{ item.name }}</span>
+          </button>
+        </div>
         <p
           v-if="destinationError"
           id="move-destination-error"
@@ -377,7 +480,22 @@ defineExpose({ confirm });
           <AlertTriangle :size="14" aria-hidden="true" />
           {{ destinationError }}
         </p>
-      </div>
+        <p v-if="selectable.length === 0" class="move-panel__muted">
+          Другого активного конверта нет. Создайте его или выберите «В свободные».
+        </p>
+        <p
+          v-if="destination && previewRows.length === 0"
+          class="move-panel__muted"
+          data-testid="move-destination-balance"
+        >
+          Сейчас осталось
+          <FinanceMoney
+            :minor-units="receivingBalanceMinor(destination) ?? destination.balanceMinor"
+            currency="RUB"
+            :scale="2"
+          />
+        </p>
+      </fieldset>
 
       <div class="move-panel__field">
         <label for="move-amount" class="move-panel__label">Сумма, ₽</label>
@@ -392,9 +510,17 @@ defineExpose({ confirm });
           :readonly="amountLocked"
           :disabled="pending"
           :aria-invalid="amountError ? 'true' : undefined"
-          :aria-describedby="amountError ? 'move-amount-error' : undefined"
+          :aria-describedby="amountDescribedBy"
           @keydown.enter.prevent="confirm"
         />
+        <p
+          v-if="direction !== 'free-envelope'"
+          id="move-amount-hint"
+          class="move-panel__muted"
+          data-testid="move-amount-hint"
+        >
+          Можно переложить до {{ formatMoneyText(sourceAvailableMinor) }}
+        </p>
         <p
           v-if="amountError"
           id="move-amount-error"
@@ -407,8 +533,15 @@ defineExpose({ confirm });
         </p>
       </div>
 
+      <div v-if="previewRows.length > 0" class="move-panel__preview" data-testid="move-preview">
+        <p class="move-panel__label">Было → стало</p>
+        <UiBeforeAfter :rows="previewRows" />
+        <p v-if="previewNote" class="move-panel__muted">{{ previewNote }}</p>
+      </div>
+
       <p class="move-panel__muted">
-        Остатки после переноса покажет сервер. Ничего не изменится, пока вы не подтвердите.
+        Это предварительный расчёт: итоговые остатки покажет сервер. Ничего не изменится, пока вы не
+        подтвердите.
       </p>
 
       <p v-if="submitError" class="move-panel__error" role="alert" data-testid="move-error">
@@ -439,7 +572,7 @@ defineExpose({ confirm });
 <style scoped>
 .move-panel {
   display: grid;
-  gap: var(--hf-space-4);
+  gap: var(--hf-space-5);
   min-width: 0;
 }
 
@@ -449,26 +582,9 @@ defineExpose({ confirm });
   font-size: var(--hf-font-size-small);
 }
 
-.move-panel__route {
-  display: grid;
-  gap: var(--hf-space-2);
-  margin: 0;
-}
-
-.move-panel__route dt {
-  color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-small);
-}
-
-.move-panel__route dd {
-  margin: 0;
-  font-weight: var(--hf-font-weight-semibold);
-  overflow-wrap: anywhere;
-}
-
 .move-panel__field {
   display: grid;
-  gap: var(--hf-space-2);
+  gap: var(--hf-space-3);
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -478,6 +594,12 @@ defineExpose({ confirm });
 .move-panel__label {
   margin: 0;
   font-weight: var(--hf-font-weight-medium);
+}
+
+/* A legend sits outside its fieldset grid, so the grid gap does not reach it. */
+legend.move-panel__label {
+  margin-bottom: var(--hf-space-3);
+  padding: 0;
 }
 
 .move-panel__input {
@@ -504,6 +626,64 @@ defineExpose({ confirm });
   background: var(--hf-color-surface-subtle);
 }
 
+/* Direction: radio group drawn as a segmented control. */
+.move-panel__segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hf-space-1);
+  padding: var(--hf-space-1);
+  border-radius: var(--hf-radius-md);
+  background: var(--hf-color-surface-subtle);
+}
+
+.move-panel__segment {
+  position: relative;
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--hf-space-3);
+  border-radius: var(--hf-radius-sm);
+  color: var(--hf-color-text-muted);
+  text-align: center;
+  cursor: pointer;
+}
+
+.move-panel__segment:has(:checked) {
+  background: var(--hf-color-surface);
+  box-shadow: var(--hf-shadow-sm);
+  color: var(--hf-color-text);
+  font-weight: var(--hf-font-weight-semibold);
+}
+
+.move-panel__segment:has(:focus-visible) {
+  outline: 2px solid var(--hf-color-action-primary);
+  outline-offset: 2px;
+}
+
+/* Full-size transparent overlay: the native radio itself receives pointer
+   input (E2E `.check()` works) and keyboard focus; the segment draws state. */
+.move-panel__radio {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.move-panel__segment--disabled {
+  color: var(--hf-color-text-subtle);
+  cursor: not-allowed;
+}
+
+.move-panel__radio:disabled {
+  cursor: not-allowed;
+}
+
 .move-panel__pills {
   display: flex;
   flex-wrap: wrap;
@@ -514,30 +694,44 @@ defineExpose({ confirm });
   display: inline-flex;
   gap: var(--hf-space-2);
   align-items: center;
+  min-width: 0;
+  max-width: 100%;
   min-height: 44px;
-  padding: 0 var(--hf-space-4);
+  padding: var(--hf-space-1) var(--hf-space-3) var(--hf-space-1) var(--hf-space-1);
   border: 1px solid var(--hf-color-border);
   border-radius: 999px;
   background: var(--hf-color-surface);
   color: var(--hf-color-text);
+  font: inherit;
   cursor: pointer;
 }
 
-.move-panel__pill:has(:checked) {
+.move-panel__pill-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.move-panel__pill--selected {
   border-color: var(--hf-color-action-primary);
-  background: var(--hf-color-surface-subtle);
+  background: var(--hf-color-brand-soft);
   font-weight: var(--hf-font-weight-semibold);
 }
 
-.move-panel__pill:has(:focus-visible) {
+.move-panel__pill:focus-visible {
   outline: 2px solid var(--hf-color-action-primary);
   outline-offset: 2px;
 }
 
-.move-panel__radio {
-  width: 1.25rem;
-  height: 1.25rem;
-  accent-color: var(--hf-color-action-primary);
+.move-panel__pill:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.move-panel__preview {
+  display: grid;
+  gap: var(--hf-space-2);
+  min-width: 0;
 }
 
 .move-panel__error {

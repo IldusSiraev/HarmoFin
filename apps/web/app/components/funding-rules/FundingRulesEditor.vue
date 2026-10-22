@@ -1,8 +1,16 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
-import { AlertTriangle, ArrowDown } from '@lucide/vue';
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowDownToLine,
+  CircleCheck,
+  ListOrdered,
+  Wallet,
+} from '@lucide/vue';
 
 import UiButton from '../ui/Button.vue';
+import UiCard from '../ui/Card.vue';
 import UiEmptyState from '../ui/EmptyState.vue';
 import UiInfoTooltip from '../ui/InfoTooltip.vue';
 import UiSelect from '../ui/Select.vue';
@@ -19,7 +27,14 @@ import { useSortableList } from '../../composables/useSortableList.js';
 import { useToast } from '../../composables/useToast.js';
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
 import FundingRuleCard from './FundingRuleCard.vue';
-import { OUTSIDE_HINT, QUEUE_HINT, SUGGESTION_HINT } from './funding-rule-text.js';
+import {
+  OUTSIDE_HINT,
+  OUTSIDE_SUBTITLE,
+  QUEUE_HINT,
+  QUEUE_SUBTITLE,
+  SUGGESTION_HINT,
+  SUGGESTION_SUBTITLE,
+} from './funding-rule-text.js';
 import {
   type CardErrors,
   type EditorState,
@@ -249,22 +264,33 @@ async function save(): Promise<void> {
     </div>
 
     <template v-else-if="state">
-      <section class="rules-editor__block" aria-labelledby="suggestion-title">
-        <h2 id="suggestion-title" class="rules-editor__title">
-          Предложение для дохода
-          <UiInfoTooltip :text="SUGGESTION_HINT" label="Подсказка: предложение для дохода" />
-        </h2>
-        <label class="rules-editor__switch">
-          <input
-            type="checkbox"
-            role="switch"
-            data-testid="suggestion-enabled"
-            :disabled="saving"
-            :checked="state.suggestion.enabled"
-            @change="setSuggestion({ enabled: ($event.target as HTMLInputElement).checked })"
-          />
-          Предлагать направить доход в конверт
-        </label>
+      <UiCard as="section" class="rules-editor__card" aria-labelledby="suggestion-title">
+        <template #header>
+          <div class="rules-editor__head">
+            <span class="rules-editor__head-icon" aria-hidden="true">
+              <ArrowDownToLine :size="20" />
+            </span>
+            <div class="rules-editor__head-text">
+              <h2 id="suggestion-title" class="rules-editor__title">
+                Предложение для дохода
+                <UiInfoTooltip :text="SUGGESTION_HINT" label="Подсказка: предложение для дохода" />
+              </h2>
+              <p class="rules-editor__subtitle">{{ SUGGESTION_SUBTITLE }}</p>
+            </div>
+            <label class="rules-editor__switch">
+              <input
+                type="checkbox"
+                role="switch"
+                class="rules-editor__switch-input"
+                data-testid="suggestion-enabled"
+                :disabled="saving"
+                :checked="state.suggestion.enabled"
+                @change="setSuggestion({ enabled: ($event.target as HTMLInputElement).checked })"
+              />
+              Предлагать
+            </label>
+          </div>
+        </template>
         <div class="rules-editor__suggestion">
           <UiSelect
             id="suggestion-category"
@@ -291,13 +317,23 @@ async function save(): Promise<void> {
             @update:model-value="setSuggestion({ targetEnvelopeId: $event })"
           />
         </div>
-      </section>
+      </UiCard>
 
-      <section class="rules-editor__block" aria-labelledby="queue-title">
-        <h2 id="queue-title" class="rules-editor__title">
-          Очередь распределения
-          <UiInfoTooltip :text="QUEUE_HINT" label="Подсказка: очередь распределения" />
-        </h2>
+      <UiCard as="section" class="rules-editor__card" aria-labelledby="queue-title">
+        <template #header>
+          <div class="rules-editor__head">
+            <span class="rules-editor__head-icon" aria-hidden="true">
+              <ListOrdered :size="20" />
+            </span>
+            <div class="rules-editor__head-text">
+              <h2 id="queue-title" class="rules-editor__title">
+                Очередь распределения
+                <UiInfoTooltip :text="QUEUE_HINT" label="Подсказка: очередь распределения" />
+              </h2>
+              <p class="rules-editor__subtitle">{{ QUEUE_SUBTITLE }}</p>
+            </div>
+          </div>
+        </template>
         <p v-if="state.queue.length === 0" class="rules-editor__muted">
           В очереди пока нет конвертов: выберите тип правила у конверта ниже.
         </p>
@@ -336,13 +372,23 @@ async function save(): Promise<void> {
         <p class="rules-editor__live" role="status" aria-live="polite" data-testid="rules-announce">
           {{ announcement }}
         </p>
-      </section>
+      </UiCard>
 
-      <section class="rules-editor__block" aria-labelledby="outside-title">
-        <h2 id="outside-title" class="rules-editor__title">
-          Вне очереди
-          <UiInfoTooltip :text="OUTSIDE_HINT" label="Подсказка: вне очереди" />
-        </h2>
+      <UiCard as="section" class="rules-editor__card" aria-labelledby="outside-title">
+        <template #header>
+          <div class="rules-editor__head">
+            <span class="rules-editor__head-icon" aria-hidden="true">
+              <Wallet :size="20" />
+            </span>
+            <div class="rules-editor__head-text">
+              <h2 id="outside-title" class="rules-editor__title">
+                Вне очереди
+                <UiInfoTooltip :text="OUTSIDE_HINT" label="Подсказка: вне очереди" />
+              </h2>
+              <p class="rules-editor__subtitle">{{ OUTSIDE_SUBTITLE }}</p>
+            </div>
+          </div>
+        </template>
         <ul class="rules-editor__outside" data-testid="rules-outside">
           <li v-for="card in state.outside" :key="card.envelopeId">
             <FundingRuleCard
@@ -360,25 +406,36 @@ async function save(): Promise<void> {
             />
           </li>
         </ul>
-      </section>
+      </UiCard>
 
       <div class="rules-editor__bar">
         <p v-if="formError" class="rules-editor__error" role="alert" data-testid="rules-error">
           <AlertTriangle :size="14" aria-hidden="true" />
           {{ formError }}
         </p>
-        <div class="rules-editor__actions">
-          <UiButton
-            variant="tertiary"
-            :disabled="!dirty || saving"
-            data-testid="rules-reset"
-            @click="reset"
+        <div class="rules-editor__bar-row">
+          <p
+            class="rules-editor__status"
+            :class="dirty ? 'rules-editor__status--warning' : 'rules-editor__status--success'"
+            data-testid="rules-save-status"
           >
-            Отменить изменения
-          </UiButton>
-          <UiButton :loading="saving" :disabled="!dirty" data-testid="rules-save" @click="save">
-            Сохранить
-          </UiButton>
+            <CircleCheck v-if="!dirty" :size="16" aria-hidden="true" />
+            <AlertTriangle v-else :size="16" aria-hidden="true" />
+            {{ dirty ? 'Есть несохранённые изменения' : 'Все изменения сохранены' }}
+          </p>
+          <div class="rules-editor__actions">
+            <UiButton
+              variant="tertiary"
+              :disabled="!dirty || saving"
+              data-testid="rules-reset"
+              @click="reset"
+            >
+              Отменить изменения
+            </UiButton>
+            <UiButton :loading="saving" :disabled="!dirty" data-testid="rules-save" @click="save">
+              Сохранить
+            </UiButton>
+          </div>
         </div>
       </div>
     </template>
@@ -392,9 +449,37 @@ async function save(): Promise<void> {
   min-width: 0;
 }
 
-.rules-editor__block {
-  display: grid;
+/* Tooltips, selects and the outside grid escape the card edges; they must
+   not be clipped by the card's default overflow: hidden. */
+.rules-editor__card.ui-card {
+  overflow: visible;
+}
+
+.rules-editor__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--hf-space-3);
+  width: 100%;
+}
+
+.rules-editor__head-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--hf-radius-md);
+  background: var(--hf-color-surface-subtle);
+  color: var(--hf-color-text-muted);
+}
+
+.rules-editor__head-text {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: var(--hf-space-1);
 }
 
 .rules-editor__title {
@@ -406,11 +491,62 @@ async function save(): Promise<void> {
   line-height: var(--hf-line-height-h3);
 }
 
+.rules-editor__subtitle {
+  margin: 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+}
+
 .rules-editor__switch {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: var(--hf-space-2);
   min-height: 44px;
+}
+
+.rules-editor__switch-input {
+  position: relative;
+  flex: 0 0 auto;
+  width: 2.5rem;
+  height: 1.5rem;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--hf-color-border-strong);
+  cursor: pointer;
+  appearance: none;
+  transition: background-color 150ms ease;
+}
+
+.rules-editor__switch-input::before {
+  position: absolute;
+  top: 0.1875rem;
+  left: 0.1875rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 50%;
+  background: var(--hf-color-white, #fff);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+  content: '';
+  transition: transform 150ms ease;
+}
+
+.rules-editor__switch-input:checked {
+  background: var(--hf-color-brand);
+}
+
+.rules-editor__switch-input:checked::before {
+  transform: translateX(1rem);
+}
+
+.rules-editor__switch-input:focus-visible {
+  outline: 2px solid var(--hf-color-focus-ring);
+  outline-offset: 2px;
+}
+
+.rules-editor__switch-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .rules-editor__suggestion {
@@ -426,6 +562,12 @@ async function save(): Promise<void> {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+@media (min-width: 768px) {
+  .rules-editor__outside {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .rules-editor__item {
@@ -475,6 +617,31 @@ async function save(): Promise<void> {
   padding: var(--hf-space-3) 0;
   border-top: 1px solid var(--hf-color-border);
   background: var(--hf-color-surface);
+}
+
+.rules-editor__bar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hf-space-3);
+}
+
+.rules-editor__status {
+  display: flex;
+  align-items: center;
+  gap: var(--hf-space-1);
+  margin: 0;
+  font-size: var(--hf-font-size-small);
+  font-weight: var(--hf-font-weight-medium);
+}
+
+.rules-editor__status--success {
+  color: var(--hf-color-status-success);
+}
+
+.rules-editor__status--warning {
+  color: var(--hf-color-status-warning);
 }
 
 .rules-editor__actions {

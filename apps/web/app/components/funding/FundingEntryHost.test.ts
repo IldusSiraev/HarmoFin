@@ -20,7 +20,7 @@ vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => mocks.auth }));
 vi.mock('../../composables/useOperationReferenceData.js', () => ({
   useOperationReferenceData: () => ({
     load: mocks.reference.load,
-    envelopePlans: ref([{ id: ENV, name: 'Обязательные' }]),
+    envelopePlans: ref([{ id: ENV, name: 'Обязательные', envelopeType: 'MANDATORY_EXPENSES' }]),
   }),
 }));
 
@@ -107,6 +107,10 @@ describe('FundingEntryHost', () => {
     });
     expect(wrapper.find('[data-testid="funding-source"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('Обязательные');
+    expect(
+      wrapper.find('[data-testid="funding-line"] .envelope-type-icon--mandatory').exists(),
+    ).toBe(true);
+    expect(wrapper.get('[data-testid="funding-subtitle"]').text()).toBe('Источник: доход');
   });
 
   it('previews an opening source after an account is created', async () => {
@@ -223,12 +227,10 @@ describe('FundingEntryHost', () => {
     );
     expect(inputA).not.toBeNull();
     expect(inputB).not.toBeNull();
-    expect(inputA!.getAttribute('aria-label')).toBe(
-      'Сумма для конверта Обязательные — текущий период',
-    );
-    expect(inputB!.getAttribute('aria-label')).toBe(
-      'Сумма для конверта Обязательные — следующий период',
-    );
+    const labelOf = (input: HTMLInputElement): string | undefined =>
+      document.querySelector(`label[for="${input.id}"]`)?.textContent?.trim();
+    expect(labelOf(inputA!)).toBe('Сумма для Обязательные — текущий период');
+    expect(labelOf(inputB!)).toBe('Сумма для Обязательные — следующий период');
 
     // The server echo of the edit comes back through the same two rows.
     mocks.v2.previewFunding.mockResolvedValue(twoLines('7000', '599950'));

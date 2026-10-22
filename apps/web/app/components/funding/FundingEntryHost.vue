@@ -56,6 +56,12 @@ const envelopeNames = computed(
   () => new Map(reference.envelopePlans.value.map((envelope) => [envelope.id, envelope.name])),
 );
 
+// Only the row icon uses it; an unknown envelope falls back to the neutral icon.
+const envelopeTypes = computed(
+  () =>
+    new Map(reference.envelopePlans.value.map((envelope) => [envelope.id, envelope.envelopeType])),
+);
+
 type LineIdentifiable = {
   lineId?: string | null;
   envelopeId: string;
@@ -343,6 +349,7 @@ const sheetLines = computed(() =>
   (preview.value?.lines ?? []).map((line) => ({
     ...line,
     name: lineLabel(line),
+    envelopeType: envelopeTypes.value.get(line.envelopeId),
     error: lineErrors.value[lineKey(line)],
   })),
 );
@@ -361,6 +368,7 @@ watch(
 <template>
   <FundingReviewSheet
     :open="open"
+    :source-kind="preview?.sourceKind"
     :source-minor="preview?.sourceAvailableMinor ?? '0'"
     :period-target-drafts="preview?.periodTargetDrafts ?? []"
     :preview-lines="sheetLines"
