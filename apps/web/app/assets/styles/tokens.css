@@ -116,6 +116,8 @@
   --hf-color-status-info-background: var(--hf-color-primary-soft);
   --hf-color-status-success: #22a06b;
   --hf-color-status-success-background: #e4f3ea;
+  /* Text-grade green: status-success #22a06b is only ~3.3:1 on white; account-cash is 4.5:1+ in both themes. */
+  --hf-color-text-success: var(--hf-color-account-cash);
   --hf-color-status-warning: #92400e;
   --hf-color-status-warning-background: var(--hf-color-warning-soft);
   --hf-color-status-warning-bright: #f5a524;
