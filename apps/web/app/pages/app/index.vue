@@ -228,11 +228,7 @@ async function loadDashboard() {
         <DashboardWarnings :v2-warnings="coverageWarnings" />
 
         <div class="dashboard-hero-row">
-          <AvailableBudgetCard
-            class="dashboard-hero-row__spend"
-            :dashboard="dashboardV2"
-            @assign="funding.offer({ sourceKind: 'FREE' })"
-          />
+          <AvailableBudgetCard class="dashboard-hero-row__spend" :dashboard="dashboardV2" />
           <UpcomingObligations
             class="dashboard-hero-row__obligations"
             :items="dashboardV2.nearestObligations"

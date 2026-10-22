@@ -53,16 +53,25 @@ const v2Base = {
 const stubs = { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } };
 
 describe('AvailableBudgetCard', () => {
-  it('shows the server spendable amount with period balance and mandatory gap', () => {
+  it('shows the server amount, its deadline and the embedded month timeline', () => {
     const wrapper = mount(AvailableBudgetCard, { props: { dashboard: v2Base }, global: { stubs } });
     const text = normalize(wrapper.text());
 
     expect(text).toContain('Можно потратить');
     expect(text).toContain('55 000,00 ₽');
-    expect(text).toContain('В конверте периода 65 000,00 ₽');
-    expect(text).toContain('Не хватает на обязательные');
-    expect(text).toContain('10 000,00 ₽');
-    expect(text).not.toContain('до 20 октября');
+    expect(text).toContain('До 9 октября · доступно в текущем конверте');
+    expect(wrapper.findComponent({ name: 'FinancialMonthTimeline' }).props('embedded')).toBe(true);
+    // The gap and free money now live in the attention block, the breakdown in the overview.
+    expect(text).not.toContain('Не хватает на обязательные');
+    expect(wrapper.find('[data-action="toggle-breakdown"]').exists()).toBe(false);
+  });
+
+  it('keeps the incomplete-due note', () => {
+    const wrapper = mount(AvailableBudgetCard, {
+      props: { dashboard: { ...v2Base, dueMayBeIncomplete: true } },
+      global: { stubs },
+    });
+    expect(normalize(wrapper.text())).toContain('Сумма может быть неполной');
   });
 
   it('explains a zero period balance and points to accounts when there are none', () => {
@@ -125,24 +134,6 @@ describe('AvailableBudgetCard', () => {
     expect(overrun.find('[data-testid="available-budget-empty-hint"]').exists()).toBe(false);
   });
 
-  it('offers to assign free money as an action and shows the server amount', async () => {
-    const dashboard = { ...v2Base, freeToAssignMinor: '5215531' };
-    const wrapper = mount(AvailableBudgetCard, { props: { dashboard }, global: { stubs } });
-    const row = wrapper.get('[data-testid="available-budget-free-row"]');
-
-    expect(normalize(row.text())).toContain('Не распределено');
-    expect(normalize(row.text())).toContain('52 155,31 ₽');
-    await row.get('[data-action="assign-free-money"]').trigger('click');
-
-    expect(wrapper.emitted('assign')).toHaveLength(1);
-  });
-
-  it('hides the free money action when nothing is free to assign', () => {
-    const wrapper = mount(AvailableBudgetCard, { props: { dashboard: v2Base }, global: { stubs } });
-
-    expect(wrapper.find('[data-testid="available-budget-free-row"]').exists()).toBe(false);
-  });
-
   it('invites to set up the period limit instead of showing zero', () => {
     const wrapper = mount(AvailableBudgetCard, {
       props: {
@@ -180,56 +171,11 @@ describe('AvailableBudgetCard', () => {
     expect(text).toMatch(/(^|[^\d,])0,00 ₽/);
   });
 
-  it('marks due obligations as possibly incomplete and reveals breakdown on request', async () => {
-    const wrapper = mount(AvailableBudgetCard, {
-      props: { dashboard: { ...v2Base, dueMayBeIncomplete: true } },
-      global: { stubs },
-    });
-    expect(normalize(wrapper.text())).toContain('Сумма может быть неполной');
-    expect(wrapper.text()).not.toContain('Уже отложено на платежи и накопления');
-
-    await wrapper.get('[data-action="toggle-breakdown"]').trigger('click');
-    const text = normalize(wrapper.text());
-    expect(text).toContain('Уже отложено на платежи и накопления');
-    expect(text).toContain('На счетах');
-    expect(text).toContain('100 000,00 ₽');
-  });
-});
-
-describe('AvailableBudgetCard breakdown markup', () => {
-  it('omits aria-controls while closed and keeps dl children valid when open', async () => {
-    const wrapper = mount(AvailableBudgetCard, { props: { dashboard: v2Base }, global: { stubs } });
-    const toggle = wrapper.get('[data-action="toggle-breakdown"]');
-    expect(toggle.attributes('aria-controls')).toBeUndefined();
-
-    await toggle.trigger('click');
-    const target = toggle.attributes('aria-controls');
-    expect(target).toBeTruthy();
-    expect(wrapper.find(`#${target}`).exists()).toBe(true);
-    for (const dl of wrapper.findAll('dl')) {
-      for (const child of Array.from(dl.element.children)) {
-        expect(['DIV', 'DT', 'DD']).toContain(child.tagName);
-        if (child.tagName === 'DIV') {
-          expect(child.querySelector('dt')).not.toBeNull();
-        }
-      }
-    }
-  });
-
-  it('keeps the horizon date in the breakdown, not as a separate link line', async () => {
-    const wrapper = mount(AvailableBudgetCard, { props: { dashboard: v2Base }, global: { stubs } });
-    expect(wrapper.text()).not.toContain('Предстоящие обязательства');
-    expect(wrapper.find('a[href="/app/plans"]').exists()).toBe(false);
-
-    await wrapper.get('[data-action="toggle-breakdown"]').trigger('click');
-    expect(normalize(wrapper.text())).toContain('К оплате до 20 октября');
-  });
-
   it('shows the period figures and days left from the server', () => {
     const wrapper = mount(AvailableBudgetCard, { props: { dashboard: v2Base }, global: { stubs } });
     const text = normalize(wrapper.text());
 
-    expect(text).toContain('до 9 октября · осталось 6 дней');
+    expect(text).not.toContain('осталось 6 дней');
     expect(text).toContain('Потрачено');
     expect(text).toContain('3 482,97 ₽');
     expect(text).toContain('Было доступно');
