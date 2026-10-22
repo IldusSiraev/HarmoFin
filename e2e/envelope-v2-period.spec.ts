@@ -215,9 +215,12 @@ for (const [label, viewport, theme] of [
         await dashboardReady(page);
         const hero = page.getByRole('region', { name: 'Можно потратить' });
         await expect(hero).toContainText(/55\s000,00/);
-        await expect(hero).toContainText(/В конверте периода\s*65\s000,00/);
-        await expect(hero).toContainText('Не хватает на обязательные');
-        await expect(hero).toContainText(/10\s000,00/);
+        // The period balance lives in the overview breakdown; the gap is an attention row.
+        const overview = page.getByRole('region', { name: 'Общая картина' });
+        await overview.getByRole('button', { name: 'Как рассчитано' }).click();
+        await expect(overview).toContainText(/Остаток текущего периода\s*65\s000,00/);
+        const attention = page.getByRole('region', { name: 'Требует внимания' });
+        await expect(attention).toContainText(/Не хватает на обязательные платежи\s*10\s000/);
       } finally {
         await fixture?.cleanup();
       }
