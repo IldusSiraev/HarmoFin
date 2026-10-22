@@ -1,8 +1,17 @@
 name: harmofin
 
+# Container log rotation: without limits Docker json-file logs grow until the
+# disk is full. At most 3 files of 10 MB per container.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
 services:
   caddy:
     image: ${CADDY_IMAGE:?CADDY_IMAGE is required}
+    logging: *default-logging
     restart: unless-stopped
     init: true
     ports:
@@ -41,6 +50,7 @@ services:
 
   web:
     image: ${WEB_IMAGE:?WEB_IMAGE is required}:${IMAGE_TAG:?IMAGE_TAG is required}
+    logging: *default-logging
     restart: unless-stopped
     init: true
     environment:
@@ -81,6 +91,7 @@ services:
 
   api:
     image: ${API_IMAGE:?API_IMAGE is required}:${IMAGE_TAG:?IMAGE_TAG is required}
+    logging: *default-logging
     restart: unless-stopped
     init: true
     environment:
@@ -134,6 +145,7 @@ services:
 
   worker:
     image: ${WORKER_IMAGE:?WORKER_IMAGE is required}:${IMAGE_TAG:?IMAGE_TAG is required}
+    logging: *default-logging
     restart: unless-stopped
     init: true
     environment:
@@ -182,6 +194,7 @@ services:
 
   migrate:
     image: ${MIGRATE_IMAGE:?MIGRATE_IMAGE is required}:${IMAGE_TAG:?IMAGE_TAG is required}
+    logging: *default-logging
     profiles:
       - migration
     restart: 'no'
@@ -208,6 +221,7 @@ services:
 
   postgres:
     image: postgres:18-alpine
+    logging: *default-logging
     restart: unless-stopped
     init: true
     environment:
