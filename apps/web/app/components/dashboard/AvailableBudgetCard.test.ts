@@ -197,4 +197,32 @@ describe('AvailableBudgetCard', () => {
     });
     expect(setup.find('[data-testid="available-budget-stats"]').exists()).toBe(false);
   });
+
+  it('shows a read-only free-money line when showFreeMoney is on and money is free', () => {
+    const wrapper = mount(AvailableBudgetCard, {
+      props: { dashboard: { ...v2Base, freeToAssignMinor: '1750000' }, showFreeMoney: true },
+      global: { stubs },
+    });
+    const row = wrapper.get('[data-testid="available-budget-free-row"]');
+
+    expect(row.text()).toContain('Не распределено');
+    expect(normalize(row.text())).toContain('17 500,00 ₽');
+    expect(row.find('button').exists()).toBe(false);
+  });
+
+  it('hides the free-money line by default even when money is free', () => {
+    const wrapper = mount(AvailableBudgetCard, {
+      props: { dashboard: { ...v2Base, freeToAssignMinor: '1750000' } },
+      global: { stubs },
+    });
+    expect(wrapper.find('[data-testid="available-budget-free-row"]').exists()).toBe(false);
+  });
+
+  it('hides the free-money line when showFreeMoney is on but nothing is free', () => {
+    const wrapper = mount(AvailableBudgetCard, {
+      props: { dashboard: { ...v2Base, freeToAssignMinor: '0' }, showFreeMoney: true },
+      global: { stubs },
+    });
+    expect(wrapper.find('[data-testid="available-budget-free-row"]').exists()).toBe(false);
+  });
 });

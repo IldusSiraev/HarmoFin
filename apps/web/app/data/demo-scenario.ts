@@ -373,7 +373,7 @@ export function toDashboard(
       progress:
         key === 'mandatory'
           ? { kind: 'COVERED' as const, ...s.mandatoryProgress }
-          : key === 'current'
+          : key === 'current' && s.envelopes.current.fundedMinor !== '0'
             ? {
                 kind: 'SPENT' as const,
                 valueMinor: s.envelopes.current.spentMinor,

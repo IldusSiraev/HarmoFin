@@ -9,9 +9,15 @@ import type { DashboardV2Response } from '../../composables/useEnvelopePlanV2.js
 defineOptions({ name: 'AvailableBudgetCard' });
 
 // Every amount is shown as the server sent it.
-const props = defineProps<{
-  dashboard: DashboardV2Response;
-}>();
+const props = withDefaults(
+  defineProps<{
+    dashboard: DashboardV2Response;
+    // Demo/landing narration still describes unassigned money; the dashboard page covers it in
+    // DashboardWarnings, so this read-only line stays off by default there.
+    showFreeMoney?: boolean;
+  }>(),
+  { showFreeMoney: false },
+);
 
 const monthFormatter = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
 
@@ -30,6 +36,9 @@ const emptyPeriod = computed(
   () => !needsSetup.value && props.dashboard.currentBalanceMinor === '0',
 );
 const stats = computed(() => props.dashboard.periodStats);
+// Same string check as DashboardWarnings: not '0' and not negative.
+const freeMinor = computed(() => props.dashboard.freeToAssignMinor);
+const hasFreeMoney = computed(() => freeMinor.value !== '0' && !freeMinor.value.startsWith('-'));
 const deadlineLabel = computed(() => formatUntil(props.dashboard.period.end).replace(/^до/, 'До'));
 </script>
 
@@ -104,6 +113,14 @@ const deadlineLabel = computed(() => formatUntil(props.dashboard.period.end).rep
 
     <p v-if="dashboard.dueMayBeIncomplete" class="available-budget__caption">
       Сумма может быть неполной: более поздние платежи пока не учтены.
+    </p>
+
+    <p
+      v-if="showFreeMoney && hasFreeMoney"
+      class="available-budget__free"
+      data-testid="available-budget-free-row"
+    >
+      Не распределено <FinanceMoney :minor-units="freeMinor" currency="RUB" :scale="2" />
     </p>
   </section>
 </template>
@@ -190,5 +207,13 @@ const deadlineLabel = computed(() => formatUntil(props.dashboard.period.end).rep
 
 .available-budget__flag--danger {
   color: var(--hf-color-status-danger);
+}
+
+.available-budget__free {
+  margin: 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+  line-height: var(--hf-line-height-small);
+  font-variant-numeric: tabular-nums;
 }
 </style>

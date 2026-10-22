@@ -95,7 +95,7 @@ function openOperation(transactionId: string): void {
     <p v-if="transactions.length === 0" class="recent-operations__empty">Операций пока нет.</p>
 
     <div v-else class="recent-operations__groups">
-      <OperationGroup v-for="group in groups" :key="group.key" :label="group.label">
+      <OperationGroup v-for="group in groups" :key="group.key" :label="group.label" flat>
         <li
           v-for="transaction in group.items"
           :key="transaction.id"

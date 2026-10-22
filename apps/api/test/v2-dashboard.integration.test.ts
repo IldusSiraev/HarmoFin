@@ -136,6 +136,18 @@ describe('v2 dashboard summary (P01)', () => {
     expect(byId.get(w.mandatoryEnvelopeId)?.progress).toBeNull();
   });
 
+  it('protectedMinor не уменьшается отрицательным остатком обязательного конверта', async () => {
+    const w = await world(10_000_000n);
+    await assign(w, w.mandatoryEnvelopeId, null, 1_000_000n);
+    await expense(w, w.mandatoryEnvelopeId, 1_500_000n, '2026-03-05');
+    const savings = await envelope(w, 'SAVINGS_GOAL', 'Подушка');
+    await assign(w, savings, null, 400_000n);
+
+    const summary = await service.summary(w.userId, w.budgetId, ASOF);
+    expect(summary.mandatoryBalanceMinor).toBe('-500000');
+    expect(summary.protectedMinor).toBe('400000');
+  });
+
   it('покрытие платежа считается из остатка его конверта, чужой бюджет не влияет', async () => {
     const w = await world(10_000_000n);
     const second = await envelope(w, 'MANDATORY_EXPENSES', 'Ипотека');
