@@ -40,6 +40,10 @@ fi
 # run_deploy in a subshell, so plain variable assignments inside it would not
 # be visible here.
 export IMAGE_TAG="a1b2c3d"
+# Stubs for the old-image cleanup: no Docker calls from the orchestration tests.
+cleanup_args="$(mktemp)"
+current_release_tag() { printf 'f0e1d2c'; }
+remove_old_release_images() { printf '%s\n' "$*" > "$cleanup_args"; return 0; }
 reconcile_flag="$(mktemp)"
 smoke_flag="$(mktemp)"
 rm -f "$reconcile_flag" "$smoke_flag"
@@ -67,8 +71,8 @@ run_deploy_smoke() { touch "$smoke_flag"; return 0; }
 
 output="$(run_deploy 2>&1)"
 status=$?
-if [[ "$status" -ne 0 ]] && [[ -f "$reconcile_flag" ]] && [[ ! -f "$smoke_flag" ]]; then
-  echo "ok - run_deploy fails when services do not become healthy and skips smoke"
+if [[ "$status" -ne 0 ]] && [[ -f "$reconcile_flag" ]] && [[ ! -f "$smoke_flag" ]] && [[ ! -s "$cleanup_args" ]]; then
+  echo "ok - run_deploy fails when services do not become healthy and skips smoke and cleanup"
 else
   echo "not ok - run_deploy fails when services do not become healthy and skips smoke (status=$status, reconcile_ran=$([[ -f "$reconcile_flag" ]] && echo yes || echo no), smoke_ran=$([[ -f "$smoke_flag" ]] && echo yes || echo no))"
   failures=$((failures + 1))
@@ -90,6 +94,28 @@ else
   failures=$((failures + 1))
 fi
 rm -f "$reconcile_flag" "$smoke_flag"
+assert_equal "run_deploy removes old images keeping the new and the replaced release" \
+  "a1b2c3d f0e1d2c" "$(cat "$cleanup_args")"
+
+# A failed cleanup does not fail a deployment that already succeeded.
+remove_old_release_images() { return 1; }
+output="$(run_deploy 2>&1)"
+status=$?
+assert_equal "run_deploy stays successful when old image cleanup fails" "0" "$status"
+
+# Smoke failure: the release is not confirmed, nothing is removed.
+: > "$cleanup_args"
+remove_old_release_images() { printf '%s\n' "$*" > "$cleanup_args"; return 0; }
+run_deploy_smoke() { return 1; }
+output="$(run_deploy 2>&1)"
+status=$?
+if [[ "$status" -ne 0 ]] && [[ ! -s "$cleanup_args" ]]; then
+  echo "ok - run_deploy removes no images when smoke checks fail"
+else
+  echo "not ok - run_deploy removes no images when smoke checks fail (status=$status)"
+  failures=$((failures + 1))
+fi
+rm -f "$cleanup_args"
 
 # run_deploy never invokes a database rollback function, by construction:
 # confirm no such function is defined/sourced anywhere in deploy.sh.
@@ -130,6 +156,61 @@ else
   failures=$((failures + 1))
 fi
 rm -rf "$fake_bin" "$captured_args"
+
+# remove_old_release_images: only this project's repositories, never the kept
+# tags or untagged entries, no force removal. Real function from a fresh shell
+# with a fake docker on PATH.
+fake_bin="$(mktemp -d)"
+removed_refs="$(mktemp)"
+cat >"$fake_bin/docker" <<'DOCKER'
+#!/usr/bin/env bash
+if [[ "$1 $2" == "image ls" ]]; then
+  case "${@: -1}" in
+    registry.invalid/web) printf '%s\n' registry.invalid/web:new1 registry.invalid/web:old1 registry.invalid/web:prev1 'registry.invalid/web:<none>' ;;
+    registry.invalid/api) printf '%s\n' registry.invalid/api:old1 registry.invalid/api:old2 ;;
+  esac
+elif [[ "$1 $2" == "image rm" ]]; then
+  printf '%s\n' "${*:3}" >> "$REMOVED_REFS"
+  [[ "$3" != registry.invalid/api:old2 ]]
+fi
+DOCKER
+chmod +x "$fake_bin/docker"
+cleanup_output="$(
+  REMOVED_REFS="$removed_refs" PATH="$fake_bin:$PATH" WEB_IMAGE=registry.invalid/web API_IMAGE=registry.invalid/api \
+    WORKER_IMAGE=registry.invalid/worker MIGRATE_IMAGE=registry.invalid/migrate \
+    bash -c 'source infra/scripts/deploy.sh; remove_old_release_images new1 prev1' 2>&1
+)"
+cleanup_status=$?
+assert_equal "remove_old_release_images removes only old tags of project images" \
+  "registry.invalid/web:old1 registry.invalid/api:old1 registry.invalid/api:old2" \
+  "$(tr '\n' ' ' < "$removed_refs" | sed 's/ $//')"
+assert_equal "remove_old_release_images succeeds when one image cannot be removed" "0" "$cleanup_status"
+if [[ "$cleanup_output" == *"Could not remove old image registry.invalid/api:old2"* ]]; then
+  echo "ok - remove_old_release_images reports a skipped image"
+else
+  echo "not ok - remove_old_release_images reports a skipped image (output=$cleanup_output)"
+  failures=$((failures + 1))
+fi
+rm -rf "$fake_bin" "$removed_refs"
+
+# current_release_tag: the tag of the running api image; nothing for another image.
+fake_bin="$(mktemp -d)"
+cat >"$fake_bin/docker" <<'DOCKER'
+#!/usr/bin/env bash
+printf '%s\n' "$FAKE_API_IMAGE"
+DOCKER
+chmod +x "$fake_bin/docker"
+running_tag="$(
+  FAKE_API_IMAGE=registry.invalid/api:9f8e7d6 API_IMAGE=registry.invalid/api PATH="$fake_bin:$PATH" \
+    bash -c 'source infra/scripts/deploy.sh; current_release_tag'
+)"
+assert_equal "current_release_tag reads the running api image tag" "9f8e7d6" "$running_tag"
+foreign_tag="$(
+  FAKE_API_IMAGE=other.invalid/app:1 API_IMAGE=registry.invalid/api PATH="$fake_bin:$PATH" \
+    bash -c 'source infra/scripts/deploy.sh; current_release_tag'
+)"
+assert_equal "current_release_tag ignores an image from another repository" "" "$foreign_tag"
+rm -rf "$fake_bin"
 
 eval "$env_backup"
 

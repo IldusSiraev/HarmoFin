@@ -67,11 +67,53 @@ run_deploy_smoke() {
   EXPECTED_REVISION="${IMAGE_TAG:-}" run_smoke_checks "$base_url"
 }
 
+# current_release_tag
+# Prints the image tag the running api service uses now, or nothing when it is
+# not running. Read before reconcile, so it names the release being replaced.
+# Overridable in tests.
+current_release_tag() {
+  local image
+  image="$(compose ps --format '{{.Image}}' api 2>/dev/null | head -n 1)"
+  if [[ "$image" == "${API_IMAGE:-}:"* ]]; then
+    printf '%s' "${image#"${API_IMAGE}:"}"
+  fi
+}
+
+# remove_old_release_images <current_tag> [previous_tag]
+# Removes this project's release images (WEB/API/WORKER/MIGRATE repositories
+# only) except the current tag and the previous one kept for an application
+# rollback. Every release pulls new images and nothing removed the old ones, so
+# they filled the disk. Images of other projects on the host are never touched;
+# no force removal, so an image a container still uses is skipped. A failure
+# here never fails the deployment that already succeeded.
+remove_old_release_images() {
+  local current_tag="$1"
+  local previous_tag="${2:-}"
+  local repository reference tag
+
+  for repository in "$WEB_IMAGE" "$API_IMAGE" "$WORKER_IMAGE" "$MIGRATE_IMAGE"; do
+    while IFS= read -r reference; do
+      tag="${reference#"${repository}:"}"
+      if [[ -z "$tag" || "$tag" == "<none>" || "$tag" == "$current_tag" || "$tag" == "$previous_tag" ]]; then
+        continue
+      fi
+      if docker image rm "$reference" >/dev/null 2>&1; then
+        echo "Removed old image $reference"
+      else
+        echo "Could not remove old image $reference; skipped." >&2
+      fi
+    done < <(docker image ls --format '{{.Repository}}:{{.Tag}}' "$repository" 2>/dev/null)
+  done
+  return 0
+}
+
 # run_deploy
 # Orchestrates one controlled deployment: validate -> migrate -> reconcile ->
-# wait for health -> smoke. Stops before rollout on migration failure. Never
-# runs a database rollback.
+# wait for health -> smoke -> remove old release images. Stops before rollout
+# on migration failure. Never runs a database rollback.
 run_deploy() {
+  local previous_tag
+
   if ! require_env_vars "${REQUIRED_DEPLOY_VARS[@]}"; then
     return 1
   fi
@@ -79,6 +121,8 @@ run_deploy() {
   if ! validate_image_tag "${IMAGE_TAG:-}"; then
     return 1
   fi
+
+  previous_tag="$(current_release_tag)"
 
   echo "Running migration for SHA ${IMAGE_TAG}..."
   if ! run_migration; then
@@ -103,6 +147,9 @@ run_deploy() {
     echo "Smoke checks failed after deployment." >&2
     return 1
   fi
+
+  echo "Removing old release images (keeping ${IMAGE_TAG}${previous_tag:+ and ${previous_tag}})..."
+  remove_old_release_images "$IMAGE_TAG" "$previous_tag" || true
 
   echo "Deployment of SHA ${IMAGE_TAG} completed successfully."
   return 0
