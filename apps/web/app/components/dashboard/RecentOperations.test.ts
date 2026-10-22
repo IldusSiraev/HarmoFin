@@ -8,8 +8,9 @@ import RecentOperations from './RecentOperations.vue';
 import type { CategoryDto } from '../../composables/useBudgetReferenceData.js';
 import type { TransactionJournalV2Item } from '../../composables/useEnvelopePlanV2.js';
 
-const transaction = (id: string): TransactionJournalV2Item => ({
-  id,
+const tx = (
+  overrides: Partial<TransactionJournalV2Item> & { id: string },
+): TransactionJournalV2Item => ({
   budgetId: 'budget-id',
   accountingModelVersion: 2,
   transactionType: 'EXPENSE',
@@ -28,24 +29,27 @@ const transaction = (id: string): TransactionJournalV2Item => ({
   cancelledAt: null,
   deletedAt: null,
   createdAt: '2026-09-14T10:00:00.000Z',
+  ...overrides,
 });
 
 const categories = [
   { id: 'category-id', name: 'Продукты', templateKey: 'expense-groceries' },
 ] as unknown as CategoryDto[];
 
-const mountBlock = (count: number) =>
+const mountRecent = (transactions: TransactionJournalV2Item[], asOf = '2026-10-22') =>
   mount(RecentOperations, {
     props: {
-      transactions: Array.from({ length: count }, (_, index) =>
-        transaction(`transaction-${index}`),
-      ),
+      transactions,
       categories,
       accounts: [{ value: 'account-id', label: 'Основная карта' }],
       envelopes: [],
+      asOf,
     },
     global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } },
   });
+
+const mountBlock = (count: number) =>
+  mountRecent(Array.from({ length: count }, (_, index) => tx({ id: `transaction-${index}` })));
 
 describe('RecentOperations', () => {
   it('names the account and the category on every row', () => {
@@ -65,5 +69,19 @@ describe('RecentOperations', () => {
 
   it('says so when there is nothing yet', () => {
     expect(mountBlock(0).text()).toContain('Операций пока нет');
+  });
+
+  it('groups operations by the server day: today, yesterday, then the date', () => {
+    const wrapper = mountRecent([
+      tx({ id: 'a', occurredOn: '2026-10-22' }),
+      tx({ id: 'b', occurredOn: '2026-10-22' }),
+      tx({ id: 'c', occurredOn: '2026-10-21' }),
+      tx({ id: 'd', occurredOn: '2026-10-15' }),
+    ]);
+    const labels = wrapper
+      .findAll('[data-testid="operation-group-label"]')
+      .map((node) => node.text());
+    expect(labels).toEqual(['Сегодня', 'Вчера', '15 октября']);
+    expect(wrapper.findAll('ul')[0]!.findAll('li')).toHaveLength(2);
   });
 });

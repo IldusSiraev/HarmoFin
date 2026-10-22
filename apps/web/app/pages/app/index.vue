@@ -271,6 +271,7 @@ async function loadDashboard() {
           :categories="categories"
           :accounts="accounts"
           :envelopes="envelopes"
+          :as-of="dashboardV2.asOf"
         />
       </div>
     </template>
