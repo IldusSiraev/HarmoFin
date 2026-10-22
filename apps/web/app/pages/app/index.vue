@@ -225,7 +225,11 @@ async function loadDashboard() {
           @focus-fallback="focusFallback()"
         />
 
-        <DashboardWarnings :v2-warnings="coverageWarnings" />
+        <DashboardWarnings
+          :v2-warnings="coverageWarnings"
+          :free-to-assign-minor="dashboardV2.freeToAssignMinor"
+          @assign="funding.offer({ sourceKind: 'FREE' })"
+        />
 
         <div class="dashboard-hero-row">
           <AvailableBudgetCard class="dashboard-hero-row__spend" :dashboard="dashboardV2" />
