@@ -147,5 +147,10 @@ const rows = computed<Row[]>(() => {
   .dashboard-warnings__item:nth-child(n + 3) {
     border-top: 1px solid var(--hf-color-border);
   }
+
+  /* A row without a pair (the only one or the last of an odd count) takes the full width. */
+  .dashboard-warnings__item:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
 }
 </style>

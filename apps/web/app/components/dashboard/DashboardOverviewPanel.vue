@@ -159,6 +159,11 @@ const breakdownOpen = ref(false);
   color: var(--hf-color-text-muted);
 }
 
+/* Small labels keep each row on one line in the narrow side column. */
+.overview__rows dt {
+  font-size: var(--hf-font-size-small);
+}
+
 .overview dd {
   margin: 0;
   font-weight: var(--hf-font-weight-semibold);

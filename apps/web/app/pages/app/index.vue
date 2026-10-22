@@ -382,9 +382,12 @@ async function loadDashboard() {
   box-shadow: var(--hf-shadow-sm);
 }
 
-@media (min-width: 1024px) {
+/* Side by side only when both panels fit next to the sidebar: below 1280px the
+   overview column would squeeze the spendable amount, so the panels stack. */
+@media (min-width: 1280px) {
   .dashboard-hero {
-    grid-template-columns: 2fr 1fr;
+    /* The overview needs room for its labels on one line; the spendable panel takes the rest. */
+    grid-template-columns: minmax(0, 1fr) minmax(24rem, 28rem);
   }
 
   .dashboard-hero > :last-child {
@@ -392,7 +395,7 @@ async function loadDashboard() {
   }
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 1279px) {
   .dashboard-hero > :last-child {
     border-top: 1px solid var(--hf-color-border);
   }
