@@ -79,7 +79,7 @@ async function handleLogout() {
         </UiButton>
       </div>
     </div>
-    <nav class="app-sidebar__nav">
+    <nav class="app-sidebar__nav hf-scroll">
       <AppSidebarSection>
         <NuxtLink
           to="/app"

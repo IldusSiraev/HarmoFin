@@ -32,6 +32,17 @@ const current = cycleAndPeriodFor(
 ).period;
 const otherSlot = current.id === 'FIRST' ? 'SECOND' : 'FIRST';
 
+/** Lines the server actually proposes money for; zero lines are listed but carry nothing. */
+const positiveLines = (lines: PreviewBody['lines']) =>
+  lines
+    .filter((line) => line.suggestedMinor !== '0')
+    .map(({ envelopeId, periodId, lineId, suggestedMinor }) => ({
+      envelopeId,
+      periodId,
+      lineId,
+      suggestedMinor,
+    }));
+
 const emails = {
   owner: `v2-prev-owner-${randomUUID()}@harmofin.test`,
   outsider: `v2-prev-outsider-${randomUUID()}@harmofin.test`,
@@ -58,6 +69,9 @@ type PreviewBody = {
     periodId: string | null;
     lineId: string | null;
     suggestedMinor: string;
+    queuePosition: number | null;
+    periodStartsOn: string | null;
+    periodEndsOn: string | null;
   }>;
   remainingMinor: string;
   mandatoryGapMinor: string;
@@ -189,7 +203,7 @@ describe('v2 funding preview (R03b)', () => {
       },
     ]);
     const periodId = body.periodTargetDrafts[0]!.periodId;
-    expect(body.lines).toEqual([
+    expect(positiveLines(body.lines)).toEqual([
       {
         envelopeId: mandatoryEnvelope,
         periodId: null,
@@ -201,7 +215,10 @@ describe('v2 funding preview (R03b)', () => {
     expect(body.remainingMinor).toBe('0');
     expect(body.mandatoryGapMinor).toBe('4000000');
     expect(body.previewHash).toMatch(/^[0-9a-f]{64}$/);
-    const total = body.lines.reduce((sum, line) => sum + BigInt(line.suggestedMinor), 0n);
+    const total = positiveLines(body.lines).reduce(
+      (sum, line) => sum + BigInt(line.suggestedMinor),
+      0n,
+    );
     expect(total).toBeLessThanOrEqual(8_000_000n);
 
     const row = await prisma.envelopePeriod.findUniqueOrThrow({ where: { id: periodId } });
@@ -222,7 +239,7 @@ describe('v2 funding preview (R03b)', () => {
     expect(body.periodTargetDrafts).toEqual([
       expect.objectContaining({ targetMinor: '6500000', selectedForConfirmation: false }),
     ]);
-    expect(body.lines).toEqual([
+    expect(positiveLines(body.lines)).toEqual([
       {
         envelopeId: mandatoryEnvelope,
         periodId: null,
@@ -231,7 +248,9 @@ describe('v2 funding preview (R03b)', () => {
       },
       { envelopeId: savingsEnvelope, periodId: null, lineId: null, suggestedMinor: '500000' },
     ]);
-    expect(body.lines.some((line) => line.envelopeId === currentEnvelope)).toBe(false);
+    expect(positiveLines(body.lines).some((line) => line.envelopeId === currentEnvelope)).toBe(
+      false,
+    );
     expect(body.remainingMinor).toBe('3500000');
     expect(body.previewHash).not.toBe(selected.previewHash);
   });
@@ -285,14 +304,14 @@ describe('v2 funding preview (R03b)', () => {
       await preview({ sourceKind: 'INCOME', incomeTransactionId: income1 })
     ).json<PreviewBody>();
     expect(exhausted.sourceAvailableMinor).toBe('0');
-    expect(exhausted.lines).toEqual([]);
+    expect(positiveLines(exhausted.lines)).toEqual([]);
 
     const second = (
       await preview({ sourceKind: 'INCOME', incomeTransactionId: income2 })
     ).json<PreviewBody>();
     expect(second.periodTargetDrafts).toEqual([]);
     expect(second.sourceAvailableMinor).toBe('3000000');
-    expect(second.lines).toEqual([
+    expect(positiveLines(second.lines)).toEqual([
       { envelopeId: currentEnvelope, periodId, lineId: null, suggestedMinor: '2500000' },
       { envelopeId: savingsEnvelope, periodId: null, lineId: null, suggestedMinor: '500000' },
     ]);
@@ -324,7 +343,7 @@ describe('v2 funding preview (R03b)', () => {
     const afterExpense = (
       await preview({ sourceKind: 'INCOME', incomeTransactionId: income2 })
     ).json<PreviewBody>();
-    expect(afterExpense.lines).toEqual(second.lines);
+    expect(positiveLines(afterExpense.lines)).toEqual(positiveLines(second.lines));
     expect(afterExpense.previewHash).not.toBe(second.previewHash);
   });
 
@@ -337,7 +356,7 @@ describe('v2 funding preview (R03b)', () => {
       await preview({ sourceKind: 'INCOME', incomeTransactionId: income2 })
     ).json<PreviewBody>();
     expect(body.errors).toEqual([]);
-    expect(body.lines).toEqual([
+    expect(positiveLines(body.lines)).toEqual([
       expect.objectContaining({
         envelopeId: currentEnvelope,
         lineId: null,
@@ -361,7 +380,7 @@ describe('v2 funding preview (R03b)', () => {
     const body = (
       await preview({ sourceKind: 'INCOME', incomeTransactionId: income3 })
     ).json<PreviewBody>();
-    expect(body.lines).toEqual([
+    expect(positiveLines(body.lines)).toEqual([
       {
         envelopeId: repairEnvelope,
         periodId: null,
@@ -375,7 +394,9 @@ describe('v2 funding preview (R03b)', () => {
     const other = (
       await preview({ sourceKind: 'INCOME', incomeTransactionId: income2 })
     ).json<PreviewBody>();
-    expect(other.lines.some((line) => line.envelopeId === repairEnvelope)).toBe(false);
+    expect(positiveLines(other.lines).some((line) => line.envelopeId === repairEnvelope)).toBe(
+      false,
+    );
     expect(await prisma.envelopeAssignment.count({ where: { budgetId } })).toBe(assignmentsBefore);
   });
 
@@ -390,14 +411,14 @@ describe('v2 funding preview (R03b)', () => {
         ],
       })
     ).json<PreviewBody>();
-    expect(adjusted.lines).toEqual([
-      { envelopeId: repairEnvelope, periodId: null, lineId: null, suggestedMinor: '700000' },
+    expect(positiveLines(adjusted.lines)).toEqual([
       {
         envelopeId: mandatoryEnvelope,
         periodId: null,
         lineId: `${mandatoryEnvelope}||MANDATORY_CURRENT`,
         suggestedMinor: '500000',
       },
+      { envelopeId: repairEnvelope, periodId: null, lineId: null, suggestedMinor: '700000' },
     ]);
     expect(adjusted.remainingMinor).toBe('0');
     expect(adjusted.errors).toEqual([]);
@@ -409,7 +430,7 @@ describe('v2 funding preview (R03b)', () => {
         overrides: [{ envelopeId: repairEnvelope, amount: '2000' }],
       })
     ).json<PreviewBody>();
-    expect(partial.lines).toEqual([
+    expect(positiveLines(partial.lines)).toEqual([
       { envelopeId: repairEnvelope, periodId: null, lineId: null, suggestedMinor: '200000' },
     ]);
     expect(partial.remainingMinor).toBe('1000000');
@@ -487,9 +508,9 @@ describe('v2 funding preview (R03b)', () => {
     });
     expect(response.statusCode).toBe(200);
     const body = response.json<PreviewBody>();
-    expect(body.lines).toEqual([
-      { envelopeId: repairEnvelope, periodId: null, lineId: null, suggestedMinor: '1200000' },
+    expect(positiveLines(body.lines)).toEqual([
       { envelopeId: savingsEnvelope, periodId: null, lineId: null, suggestedMinor: '150000' },
+      { envelopeId: repairEnvelope, periodId: null, lineId: null, suggestedMinor: '1200000' },
     ]);
     expect(body.remainingMinor).toBe('0');
     expect(body.errors).toEqual([
@@ -505,7 +526,7 @@ describe('v2 funding preview (R03b)', () => {
     try {
       const base = (await preview({ sourceKind: 'FREE' })).json<PreviewBody>();
       expect(base.sourceAvailableMinor).toBe('34200000');
-      expect(base.lines).toEqual([
+      expect(positiveLines(base.lines)).toEqual([
         {
           envelopeId: mandatoryEnvelope,
           periodId: null,
@@ -535,7 +556,7 @@ describe('v2 funding preview (R03b)', () => {
           overrides: [{ envelopeId: mandatoryEnvelope, amount: '7000' }],
         })
       ).json<PreviewBody>();
-      expect(legacy.lines).toEqual([
+      expect(positiveLines(legacy.lines)).toEqual([
         {
           envelopeId: mandatoryEnvelope,
           periodId: null,
@@ -569,7 +590,7 @@ describe('v2 funding preview (R03b)', () => {
           ],
         })
       ).json<PreviewBody>();
-      expect(byLineId.lines).toEqual([
+      expect(positiveLines(byLineId.lines)).toEqual([
         {
           envelopeId: mandatoryEnvelope,
           periodId: null,
@@ -723,11 +744,150 @@ describe('v2 funding preview (R03b)', () => {
     expect(await hashOf(income3)).not.toBe(withTarget);
   });
 
+  it('все активные конверты: правила по очереди, затем без правила по имени, нули включены', async () => {
+    const response = await preview({ sourceKind: 'INCOME', incomeTransactionId: income1 });
+    expect(response.statusCode).toBe(200);
+    const body = response.json<PreviewBody>();
+    const ids = body.lines.map((line) => line.lineId ?? line.envelopeId);
+    // Queue: mandatory current (1), current-period envelope (10), savings (30), mandatory next (slot after).
+    expect(ids.slice(0, 4)).toEqual([
+      `${mandatoryEnvelope}||MANDATORY_CURRENT`,
+      currentEnvelope,
+      savingsEnvelope,
+      `${mandatoryEnvelope}||MANDATORY_NEXT`,
+    ]);
+    expect(body.lines.slice(0, 4).map((line) => line.queuePosition)).toEqual([1, 2, 3, 4]);
+    // Without a queued rule, by name: «Другой» (other half, rule skipped), «Ремонт».
+    expect(body.lines.slice(4).map((line) => line.envelopeId)).toEqual([
+      otherSlotEnvelope,
+      repairEnvelope,
+    ]);
+    expect(body.lines.slice(4).every((line) => line.queuePosition === null)).toBe(true);
+    expect(body.lines.find((line) => line.envelopeId === repairEnvelope)).toMatchObject({
+      suggestedMinor: '0',
+      periodId: null,
+      periodStartsOn: null,
+      periodEndsOn: null,
+    });
+  });
+
+  it('конверт другой половины получает ближайший период этого слота', async () => {
+    const body = (await preview({ sourceKind: 'FREE' })).json<PreviewBody>();
+    const other = body.lines.find((line) => line.envelopeId === otherSlotEnvelope)!;
+    const nextStart = addIsoDays(current.end, 1);
+    expect(other.periodStartsOn).toBe(nextStart);
+    const row = await prisma.envelopePeriod.findUniqueOrThrow({ where: { id: other.periodId! } });
+    expect(row.envelopeId).toBe(otherSlotEnvelope);
+    expect(row.startsOn.toISOString().slice(0, 10)).toBe(nextStart);
+    const currentLine = body.lines.find((line) => line.envelopeId === currentEnvelope)!;
+    expect(currentLine.periodStartsOn).toBe(current.start);
+    expect(currentLine.periodEndsOn).toBe(current.end);
+  });
+
+  it('override в нулевую строку и обнуление предложения; освобождённое остаётся в остатке', async () => {
+    const keyOf = (line: PreviewBody['lines'][number]) =>
+      line.lineId ?? `${line.envelopeId}|${line.periodId ?? ''}`;
+    const base = (await preview({ sourceKind: 'FREE' })).json<PreviewBody>();
+    const zeroed = base.lines.find((line) => line.suggestedMinor !== '0')!;
+    const overrides = [
+      {
+        envelopeId: zeroed.envelopeId,
+        ...(zeroed.periodId ? { periodId: zeroed.periodId } : {}),
+        ...(zeroed.lineId ? { lineId: zeroed.lineId } : {}),
+        amount: '0',
+      },
+      { envelopeId: repairEnvelope, amount: '100.50' },
+    ];
+    const body = (await preview({ sourceKind: 'FREE', overrides })).json<PreviewBody>();
+    expect(body.lines.map(keyOf)).toEqual(base.lines.map(keyOf));
+    const amountOf = (lines: PreviewBody['lines'], key: string) =>
+      lines.find((line) => keyOf(line) === key)!.suggestedMinor;
+    expect(amountOf(body.lines, keyOf(zeroed))).toBe('0');
+    expect(amountOf(body.lines, `${repairEnvelope}|`)).toBe('10050');
+    // Freed money does not flow to the next rule: every other line keeps its base amount.
+    for (const line of body.lines) {
+      const key = keyOf(line);
+      if (key === keyOf(zeroed) || key === `${repairEnvelope}|`) continue;
+      expect(line.suggestedMinor).toBe(amountOf(base.lines, key));
+    }
+    expect(BigInt(body.remainingMinor)).toBe(
+      BigInt(base.remainingMinor) + BigInt(zeroed.suggestedMinor) - 10_050n,
+    );
+  });
+
+  it('override по MANDATORY_NEXT, когда очередь до него не дошла, остаётся строкой следующего периода', async () => {
+    const created = await createMandatoryOccurrence(2_000_000n, day(addIsoDays(current.end, 1)));
+    try {
+      const nextId = `${mandatoryEnvelope}||MANDATORY_NEXT`;
+      const body = (
+        await preview({
+          sourceKind: 'INCOME',
+          incomeTransactionId: income3,
+          overrides: [{ envelopeId: mandatoryEnvelope, lineId: nextId, amount: '10' }],
+        })
+      ).json<PreviewBody>();
+      const mandatoryLines = body.lines.filter((line) => line.envelopeId === mandatoryEnvelope);
+      expect(mandatoryLines.map((line) => line.lineId)).toEqual([
+        `${mandatoryEnvelope}||MANDATORY_CURRENT`,
+        nextId,
+      ]);
+      expect(mandatoryLines[1]!.suggestedMinor).toBe('1000');
+    } finally {
+      await prisma.planOccurrence.deleteMany({ where: { id: created.occurrenceId } });
+      await prisma.regularPlan.deleteMany({ where: { id: created.planId } });
+    }
+  });
+
+  it('архивный конверт в строках отсутствует', async () => {
+    const archived = await createEnvelope(owner().budgetId, 'SAVINGS_GOAL', 'Архивный');
+    await prisma.envelope.update({ where: { id: archived }, data: { archivedAt: new Date() } });
+    const body = (await preview({ sourceKind: 'FREE' })).json<PreviewBody>();
+    expect(body.lines.some((line) => line.envelopeId === archived)).toBe(false);
+  });
+
+  it('периодный конверт с правилом без периода: повторный preview даёт тот же хеш (R04)', async () => {
+    // A budget slot holds one envelope, so the scenario uses the outsider's empty budget.
+    const outsider = ctx.outsider!;
+    const fresh = await createEnvelope(outsider.budgetId, 'CURRENT_EXPENSES', 'Свежий', current.id);
+    await prisma.envelopeFundingRule.create({
+      data: {
+        id: randomUUID(),
+        budgetId: outsider.budgetId,
+        envelopeId: fresh,
+        type: 'SUGGESTED_FIXED',
+        priority: 40,
+        fixedMinor: 100_000n,
+        createdByUserId: outsider.userId,
+        updatedByUserId: outsider.userId,
+      },
+    });
+    const run = () =>
+      server.inject({
+        method: 'POST',
+        url: `/api/v2/budgets/${outsider.budgetId}/funding/preview`,
+        headers: mutationHeaders(outsider),
+        payload: { sourceKind: 'FREE' },
+      });
+    const firstResponse = await run();
+    expect(firstResponse.statusCode, firstResponse.body).toBe(200);
+    const first = firstResponse.json<PreviewBody>();
+    const second = (await run()).json<PreviewBody>();
+    expect(second.previewHash).toBe(first.previewHash);
+    const line = first.lines.find((item) => item.envelopeId === fresh)!;
+    expect(line.periodStartsOn).toBe(current.start);
+    expect(line.queuePosition).not.toBeNull();
+  });
+
   it('OpenAPI описывает preview и PUT income-category-suggestion', async () => {
     const openApi = await server.inject({ method: 'GET', url: '/openapi.json' });
     const document = openApi.json<{
       paths: Record<string, Record<string, { responses: Record<string, unknown> }>>;
-      components: { schemas: Record<string, { properties?: Record<string, { type?: string }> }> };
+      components: {
+        schemas: Record<
+          string,
+          { properties?: Record<string, { type?: string; nullable?: boolean; format?: string }> }
+        >;
+      };
     }>();
     const operation = document.paths['/api/v2/budgets/{budgetId}/funding/preview']?.post;
     expect(operation).toBeDefined();
@@ -745,6 +905,10 @@ describe('v2 funding preview (R03b)', () => {
     expect(schemas.FundingPreviewResponse?.properties?.sourceAvailableMinor?.type).toBe('string');
     expect(schemas.FundingPreviewResponse?.properties?.previewHash?.type).toBe('string');
     expect(schemas.IncomeCategorySuggestionResponse?.properties?.enabled?.type).toBe('boolean');
+    const line = schemas.FundingPreviewLineDto?.properties;
+    expect(line?.queuePosition).toMatchObject({ type: 'number', nullable: true });
+    expect(line?.periodStartsOn).toMatchObject({ type: 'string', format: 'date', nullable: true });
+    expect(line?.periodEndsOn).toMatchObject({ type: 'string', format: 'date', nullable: true });
   });
 });
 

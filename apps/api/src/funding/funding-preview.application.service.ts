@@ -17,6 +17,7 @@ import { AssignmentRepository } from '../envelope-plans/assignment.repository.js
 import {
   type EnvelopePeriodRecord,
   FundingRuleRepository,
+  type PeriodActor,
 } from '../envelope-plans/funding-rule.repository.js';
 import {
   mandatoryFundingGap,
@@ -37,7 +38,7 @@ import {
   type PreviewEnvelope,
   type PreviewRule,
 } from './funding-preview.repository.js';
-import { type FundingRuleInput, suggestFunding } from './rule-engine.js';
+import { compareFundingRules, type FundingRuleInput, suggestFunding } from './rule-engine.js';
 
 const RUB_SCALE = 2;
 const DAY_MS = 86_400_000;
@@ -71,6 +72,11 @@ export type FundingPreviewBody = {
     /** Stable id of a suggestion line, null for plain lines. */
     lineId: string | null;
     suggestedMinor: string;
+    /** 1-based position in the rule queue; null for envelopes without a queued rule. */
+    queuePosition: number | null;
+    /** Period of the line (YYYY-MM-DD); null for envelopes without periods. */
+    periodStartsOn: string | null;
+    periodEndsOn: string | null;
   }>;
   remainingMinor: string;
   mandatoryGapMinor: string;
@@ -89,7 +95,12 @@ type Line = {
   periodId: string | null;
   amountMinor: bigint;
   lineId?: string;
+  queuePosition?: number | null;
+  periodStartsOn?: string | null;
+  periodEndsOn?: string | null;
 };
+
+type PeriodRange = { id: string; start: string; end: string };
 
 const dateValue = (value: string) => new Date(`${value}T00:00:00.000Z`);
 const isoDate = (value: Date) => value.toISOString().slice(0, 10);
@@ -138,8 +149,9 @@ function validationFailed(detail: string, field: string): BadRequestException {
  * Locking: preview is a POST that takes the budget row lock (FOR UPDATE) because the mandatory
  * recompute materializes occurrences and may create DRAFT/UNSET EnvelopePeriod rows (idempotent
  * structural writes through FundingRuleRepository.getOrCreatePeriod; they keep their usual
- * structural `envelope_period` audit event). Period rows are only created for the current period of
- * envelopes with a FIXED_PER_PERIOD rule (and for the category-suggestion target).
+ * structural `envelope_period` audit event). Every active period envelope gets the period of its
+ * line up front: the current half for its own slot, otherwise the next half (and the
+ * category-suggestion target its period).
  *
  * Source availability:
  *  - FREE: freeToAssign = cash - sum(positive envelope/period balances), the same definition the
@@ -235,7 +247,16 @@ export class FundingPreviewApplicationService {
       if (!income) throw resourceNotFound();
     }
 
-    // Structural: current period rows of FIXED_PER_PERIOD period envelopes (DRAFT|UNSET only).
+    // Structural: every active period envelope gets the period of its line (current half for its
+    // own slot, otherwise the next half) before anything is read. The recomputation in R04 then
+    // sees the same period rows, rule scopes and balances as the preview the user saw.
+    for (const envelope of envelopes) {
+      if (envelope.archivedAt || !envelope.periodSlot) continue;
+      const range = envelope.periodSlot === currentPeriod.id ? currentPeriod : nextPeriod;
+      await this.rules.getOrCreatePeriod(tx, budgetId, envelope.id, range.start, range.end, actor);
+    }
+
+    // Current period rows of rule-driven period envelopes (DRAFT|UNSET only).
     const periodRows = new Map<string, EnvelopePeriodRecord>();
     for (const rule of ruleRows) {
       const envelope = envelopeById.get(rule.envelopeId);
@@ -418,8 +439,24 @@ export class FundingPreviewApplicationService {
       ...(overrideLine ? { categoryOverride: overrideLine } : {}),
     });
 
+    // Every active envelope has a line; rule suggestions fill their own slot.
+    const lines = await this.lineSlots(
+      tx,
+      budgetId,
+      envelopes,
+      orderedRules,
+      periodRows,
+      { current: currentPeriod, next: nextPeriod },
+      actor,
+    );
+    for (const proposal of suggested) {
+      const key = lineKey(proposal.envelopeId, proposal.periodId);
+      const slot = lines.find((line) => lineMatchesOverride(line, proposal.lineId, key));
+      if (slot) slot.amountMinor = proposal.amountMinor;
+      else
+        lines.push({ ...proposal, queuePosition: null, periodStartsOn: null, periodEndsOn: null });
+    }
     // User overrides replace or add lines; remaining and errors are recomputed server-side.
-    const lines: Line[] = suggested.map((line) => ({ ...line }));
     const overrideStates: FundingPreviewState['overrides'] = [];
     const seenOverrides = new Set<string>();
     for (const override of input.overrides ?? []) {
@@ -459,7 +496,12 @@ export class FundingPreviewApplicationService {
         amountMinor,
         ...(override.lineId !== undefined ? { lineId: override.lineId } : {}),
       });
-      const existing = lines.find((line) => lineMatchesOverride(line, override.lineId, key));
+      // An unknown lineId falls back to the envelope/period row instead of duplicating it.
+      const existing =
+        lines.find((line) => lineMatchesOverride(line, override.lineId, key)) ??
+        (override.lineId !== undefined
+          ? lines.find((line) => lineMatchesOverride(line, undefined, key))
+          : undefined);
       if (existing) existing.amountMinor = amountMinor;
       else {
         const lineId =
@@ -471,11 +513,13 @@ export class FundingPreviewApplicationService {
           periodId,
           amountMinor,
           ...(lineId !== undefined ? { lineId } : {}),
+          queuePosition: null,
+          periodStartsOn: null,
+          periodEndsOn: null,
         });
       }
     }
-    const finalLines = lines.filter((line) => line.amountMinor > 0n);
-    const total = finalLines.reduce((sum, line) => sum + line.amountMinor, 0n);
+    const total = lines.reduce((sum, line) => sum + line.amountMinor, 0n);
     let remaining = sourceAvailable - total;
     if (remaining < 0n) {
       errors.push({
@@ -552,11 +596,14 @@ export class FundingPreviewApplicationService {
           targetMinor: formatMinorUnits(row.targetMinor!),
           selectedForConfirmation: selectedIds.has(row.id),
         })),
-        lines: finalLines.map((line) => ({
+        lines: lines.map((line) => ({
           envelopeId: line.envelopeId,
           periodId: line.periodId,
           lineId: line.lineId ?? null,
           suggestedMinor: formatMinorUnits(line.amountMinor),
+          queuePosition: line.queuePosition ?? null,
+          periodStartsOn: line.periodStartsOn ?? null,
+          periodEndsOn: line.periodEndsOn ?? null,
         })),
         remainingMinor: formatMinorUnits(remaining),
         mandatoryGapMinor: formatMinorUnits(mandatoryGap),
@@ -566,6 +613,75 @@ export class FundingPreviewApplicationService {
         errors,
       },
     };
+  }
+
+  /**
+   * One zero line per active envelope, built before overrides so every override (by lineId or
+   * envelope/period) finds its row: the rule queue in suggestFunding order, then envelopes
+   * without a queued rule by name. A period envelope outside the queue gets the current period of
+   * its slot or, for the other half, the next one (idempotent structural row, like the category
+   * target). The mandatory envelope outside the queue keeps its canonical current-slice id.
+   */
+  private async lineSlots(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    envelopes: PreviewEnvelope[],
+    orderedRules: FundingRuleInput[],
+    periodRows: Map<string, EnvelopePeriodRecord>,
+    ranges: { current: PeriodRange; next: PeriodRange },
+    actor: PeriodActor,
+  ): Promise<Line[]> {
+    const periodById = new Map([...periodRows.values()].map((row) => [row.id, row]));
+    const datesOf = (row: EnvelopePeriodRecord | undefined) => ({
+      periodStartsOn: row ? isoDate(row.startsOn) : null,
+      periodEndsOn: row ? isoDate(row.endsOn) : null,
+    });
+    const slots: Line[] = [];
+    const queued = new Set<string>();
+    [...orderedRules].sort(compareFundingRules).forEach((rule, index) => {
+      queued.add(rule.envelopeId);
+      slots.push({
+        envelopeId: rule.envelopeId,
+        periodId: rule.periodId,
+        amountMinor: 0n,
+        ...(rule.lineId !== undefined ? { lineId: rule.lineId } : {}),
+        queuePosition: index + 1,
+        ...datesOf(rule.periodId === null ? undefined : periodById.get(rule.periodId)),
+      });
+    });
+    const rest = envelopes
+      .filter((envelope) => !envelope.archivedAt && !queued.has(envelope.id))
+      .sort(
+        (a, b) => a.name.localeCompare(b.name, 'ru') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+      );
+    for (const envelope of rest) {
+      let period: EnvelopePeriodRecord | undefined;
+      if (envelope.periodSlot) {
+        const isCurrent = envelope.periodSlot === ranges.current.id;
+        const range = isCurrent ? ranges.current : ranges.next;
+        period =
+          (isCurrent ? periodRows.get(envelope.id) : undefined) ??
+          (await this.rules.getOrCreatePeriod(
+            tx,
+            budgetId,
+            envelope.id,
+            range.start,
+            range.end,
+            actor,
+          ));
+      }
+      slots.push({
+        envelopeId: envelope.id,
+        periodId: period?.id ?? null,
+        amountMinor: 0n,
+        ...(envelope.envelopeType === 'MANDATORY_EXPENSES' && !envelope.periodSlot
+          ? { lineId: mandatoryLineId(envelope.id, 'MANDATORY_CURRENT') }
+          : {}),
+        queuePosition: null,
+        ...datesOf(period),
+      });
+    }
+    return slots;
   }
 
   /** Period scope of a rule line: null (whole envelope), a period id, or undefined (skip). */

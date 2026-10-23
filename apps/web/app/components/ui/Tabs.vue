@@ -43,7 +43,7 @@ function onKeydown(event: KeyboardEvent) {
 
 <template>
   <div class="ui-tabs">
-    <div class="ui-tabs__list" role="tablist" :aria-label="label" @keydown="onKeydown">
+    <div class="ui-tabs__list hf-scroll" role="tablist" :aria-label="label" @keydown="onKeydown">
       <button
         v-for="(tab, index) in tabs"
         :id="tabId(tab.id)"
@@ -82,7 +82,6 @@ function onKeydown(event: KeyboardEvent) {
   gap: var(--hf-space-1);
   overflow-x: auto;
   border-bottom: 1px solid var(--hf-color-border);
-  scrollbar-width: thin;
 }
 .ui-tabs__tab {
   flex: 0 0 auto;

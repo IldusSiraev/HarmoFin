@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { BadRequestException, ConflictException, Inject, Injectable } from '@nestjs/common';
+import { ConflictException, Inject, Injectable } from '@nestjs/common';
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
@@ -42,14 +42,6 @@ type ParsedLine = {
 };
 
 const positive = (value: bigint) => (value > 0n ? value : 0n);
-
-function validationFailed(detail: string, field: string): BadRequestException {
-  return new BadRequestException({
-    code: 'VALIDATION_FAILED',
-    detail,
-    fieldErrors: [{ field, message: detail, code: 'invalid' }],
-  });
-}
 
 function previewStale(): ConflictException {
   return new ConflictException({
@@ -104,18 +96,15 @@ export class FundingConfirmApplicationService {
     idempotencyKey: string,
     requestId?: string,
   ): Promise<FundingConfirmResult> {
-    const parsed: ParsedLine[] = input.lines.map((line) => {
-      const amountMinor = parseDecimalToMinorUnits(line.amount, RUB_SCALE, false);
-      if (amountMinor === 0n) {
-        throw validationFailed('Сумма распределения должна быть больше нуля.', 'lines');
-      }
-      return {
-        envelopeId: line.envelopeId,
-        periodId: line.periodId ?? null,
-        amountMinor,
-        ...(line.lineId !== undefined ? { lineId: line.lineId } : {}),
-      };
-    });
+    // A zero line is the user's explicit "nothing here": it stays in the hash recompute (it is an
+    // override of the preview) but never becomes an assignment.
+    const requested: ParsedLine[] = input.lines.map((line) => ({
+      envelopeId: line.envelopeId,
+      periodId: line.periodId ?? null,
+      amountMinor: parseDecimalToMinorUnits(line.amount, RUB_SCALE, false),
+      ...(line.lineId !== undefined ? { lineId: line.lineId } : {}),
+    }));
+    const parsed = requested.filter((line) => line.amountMinor > 0n);
     const targetIds = [...new Set(input.confirmPeriodTargets)];
 
     const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
@@ -141,7 +130,7 @@ export class FundingConfirmApplicationService {
           incomeTransactionId: input.incomeTransactionId ?? null,
           previewHash: input.previewHash,
           targets: [...targetIds].sort(),
-          lines: parsed.map((line) => [
+          lines: requested.map((line) => [
             line.envelopeId,
             line.periodId,
             line.amountMinor.toString(),

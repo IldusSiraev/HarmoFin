@@ -46,6 +46,11 @@ export interface FundingPreviewResponse {
     lineId?: string | null;
     periodId: string | null;
     suggestedMinor: string;
+    /** 1-based rule-queue position; null for envelopes without a queued rule. */
+    queuePosition?: number | null;
+    /** Period of the line (YYYY-MM-DD); null for envelopes without periods. */
+    periodStartsOn?: string | null;
+    periodEndsOn?: string | null;
   }>;
   remainingMinor: string;
   mandatoryDueCurrentMinor: string;

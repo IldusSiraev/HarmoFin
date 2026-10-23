@@ -80,7 +80,7 @@ const isEmpty = computed(
       </UiButton>
     </header>
 
-    <div class="day-panel__scroll" data-testid="day-panel-scroll">
+    <div class="day-panel__scroll hf-scroll" data-testid="day-panel-scroll">
       <p v-if="isEmpty && !factsError" class="day-panel__muted" data-testid="day-empty">
         На этот день пока ничего нет
       </p>
@@ -242,19 +242,6 @@ const isEmpty = computed(
   max-height: 22rem;
   padding-right: var(--hf-space-1);
   overflow-y: auto;
-  /* Minimal scrollbar: thin thumb, no track. */
-  scrollbar-width: thin;
-  scrollbar-color: var(--hf-color-border-strong) transparent;
-}
-.day-panel__scroll::-webkit-scrollbar {
-  width: 6px;
-}
-.day-panel__scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-.day-panel__scroll::-webkit-scrollbar-thumb {
-  border-radius: var(--hf-radius-md);
-  background: var(--hf-color-border-strong);
 }
 @media (min-width: 64rem) {
   /* Beside the calendar the panel takes the calendar's height; the lists scroll inside it. */

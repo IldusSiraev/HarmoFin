@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { AlertTriangle, Info, RefreshCw } from '@lucide/vue';
 
 import type { FundingPreviewResponse } from '../../composables/useEnvelopePlanV2.js';
@@ -12,10 +12,13 @@ import UiModal from '../ui/Modal.vue';
 
 defineOptions({ name: 'FundingReviewSheet' });
 
-// Presentational only: the parent owns server preview/confirm. Every amount
-// comes in as a minor-units string from the server; nothing here sums or
-// compares money. BigInt/regex are used only to format minor units into the
-// decimal text of an input and to validate the shape of typed text.
+// Presentational only: the parent owns server preview/confirm. The sheet
+// lists every active envelope the server sent, zero included: an empty
+// field means 0, and typing re-previews after a pause so the server stays
+// the one source of the suggested amounts. Every amount comes in as a
+// minor-units string from the server; nothing here sums or compares money.
+// BigInt/regex are used only to format minor units into the decimal text of
+// an input and to validate the shape of typed text.
 
 export type FundingSheetLine = FundingPreviewResponse['lines'][number] & {
   name?: string;
@@ -100,7 +103,9 @@ function toDecimalText(minor: string): string {
 
 // Minor units -> text shown in an amount field: "2000000" -> "20 000", "1000050" -> "10 000,50".
 // Spaces only group digits; commitDraft strips them again. String-only, no arithmetic.
+// A zero amount shows an empty field with a "0" placeholder.
 function toFieldText(minor: string): string {
+  if (/^0+$/.test(minor)) return '';
   const [whole = '', fraction = ''] = toDecimalText(minor).split('.');
   if (whole === '') return '';
   const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
@@ -140,12 +145,17 @@ const activeLineKey = ref<string | null>(null);
 const drafts = reactive<Record<string, string>>({});
 const localErrors = reactive<Record<string, string>>({});
 
+// The field being typed in keeps the user's text when a recomputed preview arrives.
+const focusedLineKey = ref<string | null>(null);
+
 watch(
   () => props.previewLines,
   (lines) => {
     for (const line of lines) {
-      drafts[lineKey(line)] = toFieldText(line.suggestedMinor);
-      delete localErrors[lineKey(line)];
+      const key = lineKey(line);
+      if (key === focusedLineKey.value && drafts[key] !== undefined) continue;
+      drafts[key] = toFieldText(line.suggestedMinor);
+      delete localErrors[key];
     }
   },
   { immediate: true, deep: true },
@@ -175,21 +185,55 @@ function emitLine(line: FundingSheetLine, amount: string): void {
   emit('changeLine', payload);
 }
 
+const TYPING_PAUSE_MS = 400;
+let typingTimer: ReturnType<typeof setTimeout> | null = null;
+
+function cancelTyping(): void {
+  if (typingTimer !== null) clearTimeout(typingTimer);
+  typingTimer = null;
+}
+
+// Empty means "nothing here" and is sent as 0; anything else must be a decimal.
+function parseDraft(key: string, text: string): string | null {
+  if (text === '') {
+    delete localErrors[key];
+    return '0';
+  }
+  if (!AMOUNT_PATTERN.test(text)) {
+    localErrors[key] = 'Введите сумму числом, не более двух знаков после запятой';
+    return null;
+  }
+  delete localErrors[key];
+  return text.replace(',', '.');
+}
+
 function commitDraft(line: FundingSheetLine, event?: Event): void {
+  cancelTyping();
   const key = lineKey(line);
   // The field value in the DOM wins: a commit without a preceding 'input'
   // event (Enter, programmatic write) must not resend the stale draft.
   const field = (event?.target ?? null) as HTMLInputElement | null;
   const text = (field?.value ?? drafts[key] ?? '').replace(/\s/g, '');
-  if (!AMOUNT_PATTERN.test(text)) {
-    localErrors[key] =
-      text === '' ? 'Введите сумму' : 'Введите сумму числом, не более двух знаков после запятой';
-    return;
-  }
-  delete localErrors[key];
+  const amount = parseDraft(key, text);
+  if (amount === null) return;
   drafts[key] = text;
-  emitLine(line, text.replace(',', '.'));
+  emitLine(line, amount);
 }
+
+function onTyping(line: FundingSheetLine): void {
+  cancelTyping();
+  const key = lineKey(line);
+  const text = (drafts[key] ?? '').replace(/\s/g, '');
+  // Mid-typing text is not judged yet: only a valid amount schedules a recompute.
+  if (text !== '' && !AMOUNT_PATTERN.test(text)) return;
+  typingTimer = setTimeout(() => {
+    typingTimer = null;
+    const amount = parseDraft(key, text);
+    if (amount !== null) emitLine(line, amount);
+  }, TYPING_PAUSE_MS);
+}
+
+onBeforeUnmount(cancelTyping);
 
 function applyHint(line: FundingSheetLine, minor: string | undefined): void {
   if (minor === undefined) return;
@@ -198,6 +242,21 @@ function applyHint(line: FundingSheetLine, minor: string | undefined): void {
   drafts[lineKey(line)] = toFieldText(minor);
   delete localErrors[lineKey(line)];
   emitLine(line, text);
+}
+
+function lineNumber(line: FundingSheetLine): string {
+  return line.queuePosition == null ? '' : String(line.queuePosition);
+}
+
+const dayMonth = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' });
+function dayText(iso: string): string {
+  const [year, month, day] = iso.split('-').map(Number);
+  if (!year || !month || !day) return iso;
+  return dayMonth.format(new Date(year, month - 1, day));
+}
+function periodCaption(line: FundingSheetLine): string | null {
+  if (!line.periodStartsOn || !line.periodEndsOn) return null;
+  return `${dayText(line.periodStartsOn)} – ${dayText(line.periodEndsOn)}`;
 }
 
 const isStale = computed(() => props.error?.code === 'PREVIEW_STALE');
@@ -214,8 +273,19 @@ const hasDueBreakdown = computed(
 const hasLineError = computed(() =>
   props.previewLines.some((line) => lineError(line) !== undefined),
 );
+// String checks only: is any line non-zero, or is a period target kept?
+const hasSomethingToConfirm = computed(
+  () =>
+    props.previewLines.some((line) => !/^0+$/.test(line.suggestedMinor)) ||
+    props.periodTargetDrafts.some((draft) => draft.selectedForConfirmation),
+);
 const confirmDisabled = computed(
-  () => props.pending || props.error !== null || isExcess.value || hasLineError.value,
+  () =>
+    props.pending ||
+    props.error !== null ||
+    isExcess.value ||
+    hasLineError.value ||
+    !hasSomethingToConfirm.value,
 );
 
 function handleConfirm(): void {
@@ -225,7 +295,7 @@ function handleConfirm(): void {
 </script>
 
 <template>
-  <UiModal :open="open" title="Распределить деньги" @close="emit('later')">
+  <UiModal :open="open" title="Распределить деньги" fill @close="emit('later')">
     <div class="funding-sheet">
       <p v-if="subtitle" class="funding-sheet__subtitle" data-testid="funding-subtitle">
         {{ subtitle }}
@@ -245,9 +315,8 @@ function handleConfirm(): void {
           </template>
         </UiAmountHero>
         <p class="funding-sheet__muted" data-testid="funding-intro">
-          Эти деньги лежат на ваших счетах и пока свободны. Мы заранее предложили, для каких
-          конвертов их отметить. Деньги со счетов никуда не переводятся. Проверьте суммы и нажмите
-          «Распределить как предложено» или выберите «Позже».
+          Суммы предложены по правилам пополнения. Измените любую или впишите сумму в другой
+          конверт. Деньги со счетов никуда не переводятся.
         </p>
       </section>
 
@@ -314,12 +383,12 @@ function handleConfirm(): void {
 
       <div v-if="previewLines.length > 0" class="funding-sheet__queue">
         <div class="funding-sheet__queue-head" aria-hidden="true">
-          <span>Очередь</span>
-          <span>Предложенная сумма</span>
+          <span>Конверт</span>
+          <span>Сумма</span>
         </div>
-        <ol class="funding-sheet__lines" aria-label="Предложенные распределения">
+        <ol class="funding-sheet__lines hf-scroll" aria-label="Распределение по конвертам">
           <li
-            v-for="(line, index) in previewLines"
+            v-for="line in previewLines"
             :key="lineKey(line)"
             class="funding-sheet__line"
             data-testid="funding-line"
@@ -327,11 +396,19 @@ function handleConfirm(): void {
             @focusin="activeLineKey = lineKey(line)"
           >
             <div class="funding-sheet__line-head">
-              <span class="funding-sheet__line-number" aria-hidden="true">{{ index + 1 }}</span>
+              <span class="funding-sheet__line-number" aria-hidden="true">{{
+                lineNumber(line)
+              }}</span>
               <EnvelopeTypeIcon :envelope-type="lineType(line)" size="sm" />
-              <span class="funding-sheet__line-name">{{ lineName(line) }}</span>
+              <span class="funding-sheet__line-title">
+                <span class="funding-sheet__line-name">{{ lineName(line) }}</span>
+                <span v-if="periodCaption(line)" class="funding-sheet__line-period">
+                  {{ periodCaption(line) }}
+                </span>
+              </span>
               <label class="funding-sheet__visually-hidden" :for="lineInputId(line)">
-                Сумма для {{ lineName(line) }}
+                Сумма для {{ lineName(line)
+                }}<template v-if="periodCaption(line)">, {{ periodCaption(line) }}</template>
               </label>
               <input
                 :id="lineInputId(line)"
@@ -340,12 +417,15 @@ function handleConfirm(): void {
                 type="text"
                 inputmode="decimal"
                 autocomplete="off"
+                placeholder="0"
                 :data-testid="`funding-amount-${lineToken(line)}`"
                 :aria-invalid="lineError(line) !== undefined ? 'true' : undefined"
                 :aria-describedby="
                   lineError(line) !== undefined ? `funding-err-${lineKey(line)}` : undefined
                 "
-                :disabled="pending"
+                @input="onTyping(line)"
+                @focusin="focusedLineKey = lineKey(line)"
+                @focusout="focusedLineKey = null"
                 @change="commitDraft(line, $event)"
                 @keydown.enter.prevent="commitDraft(line, $event)"
               />
@@ -402,11 +482,21 @@ function handleConfirm(): void {
             {{ isExcess ? money(remainingMinor.slice(1)) : money(remainingMinor) }}
           </strong>
           <span
-            v-if="remainingMinor === '0' && previewLines.length > 0"
+            v-if="remainingMinor === '0' && previewLines.length > 0 && hasSomethingToConfirm"
             class="funding-sheet__muted"
             data-testid="funding-all-proposed"
           >
-            Всё предложено: ничего не остаётся.
+            Всё распределено: ничего не остаётся.
+          </span>
+          <span
+            v-if="!hasSomethingToConfirm"
+            class="funding-sheet__muted"
+            data-testid="funding-nothing"
+          >
+            Впишите сумму хотя бы в один конверт или нажмите «Позже».
+          </span>
+          <span v-if="pending" class="funding-sheet__muted" data-testid="funding-recount">
+            Пересчитываем…
           </span>
           <span v-if="isExcess" class="funding-sheet__status" data-testid="funding-excess">
             <AlertTriangle :size="14" aria-hidden="true" />
@@ -440,7 +530,7 @@ function handleConfirm(): void {
             data-testid="funding-confirm"
             @click="handleConfirm"
           >
-            Распределить как предложено
+            Распределить
           </UiButton>
         </div>
       </div>
@@ -449,10 +539,16 @@ function handleConfirm(): void {
 </template>
 
 <style scoped>
+/* Only the envelope list scrolls; everything above it stays pinned. */
 .funding-sheet {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--hf-space-4);
   min-width: 0;
+}
+
+.funding-sheet > * {
+  flex: none;
 }
 
 .funding-sheet__source {
@@ -495,16 +591,20 @@ function handleConfirm(): void {
   font-weight: var(--hf-font-weight-medium);
 }
 
-.funding-sheet__queue {
-  display: grid;
+.funding-sheet > .funding-sheet__queue {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   min-width: 0;
+  min-height: 0;
 }
 
 .funding-sheet__queue-head {
   display: flex;
   justify-content: space-between;
   gap: var(--hf-space-3);
-  padding-bottom: var(--hf-space-2);
+  /* Same inset as the scrolling list below, so the columns line up. */
+  padding: 0 var(--hf-space-2) var(--hf-space-2) var(--hf-space-1);
   border-bottom: 1px solid var(--hf-color-border);
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-small);
@@ -610,9 +710,14 @@ function handleConfirm(): void {
 
 .funding-sheet__lines {
   display: grid;
+  flex: 1 1 auto;
+  align-content: start;
   gap: var(--hf-space-2);
+  min-height: 9rem;
   margin: 0;
-  padding: 0;
+  /* Room for focus rings and the scrollbar beside the amount fields. */
+  padding: 0 var(--hf-space-2) 0 var(--hf-space-1);
+  overflow-y: auto;
   list-style: none;
 }
 
@@ -630,10 +735,20 @@ function handleConfirm(): void {
   gap: var(--hf-space-3);
 }
 
-.funding-sheet__line-name {
+.funding-sheet__line-title {
+  display: grid;
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.funding-sheet__line-name {
+  min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.funding-sheet__line-period {
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
 }
 
 .funding-sheet__input {

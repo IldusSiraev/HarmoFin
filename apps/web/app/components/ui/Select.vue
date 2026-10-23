@@ -461,7 +461,7 @@ function handleComboBlur(event: FocusEvent) {
       <ul
         v-if="open"
         :id="getListboxId()"
-        class="ui-select__listbox"
+        class="ui-select__listbox hf-scroll"
         :style="popupStyle"
         role="listbox"
       >

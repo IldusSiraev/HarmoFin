@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { suggestFunding } from './rule-engine.js';
+import { compareFundingRules, suggestFunding, type FundingRuleInput } from './rule-engine.js';
 
 type Rule = Parameters<typeof suggestFunding>[0]['orderedRules'][number];
 
@@ -245,5 +245,29 @@ describe('suggestFunding', () => {
       expect(sum(lines)).toBeLessThanOrEqual(available > 0n ? available : 0n);
       for (const line of lines) expect(line.amountMinor > 0n).toBe(true);
     }
+  });
+});
+
+describe('compareFundingRules', () => {
+  it('orders by slotAfterPeriod, priority, envelopeId, periodId', () => {
+    const rule = (
+      envelopeId: string,
+      priority: number,
+      extra: Partial<FundingRuleInput> = {},
+    ): FundingRuleInput => ({
+      envelopeId,
+      periodId: null,
+      priority,
+      kind: 'SUGGESTED_FIXED',
+      needMinor: 0n,
+      ...extra,
+    });
+    const sorted = [
+      rule('b', 1, { slotAfterPeriod: true }),
+      rule('c', 2),
+      rule('a', 2),
+      rule('z', 1),
+    ].sort(compareFundingRules);
+    expect(sorted.map((item) => item.envelopeId)).toEqual(['z', 'a', 'c', 'b']);
   });
 });

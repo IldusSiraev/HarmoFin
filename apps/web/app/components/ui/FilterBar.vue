@@ -150,7 +150,7 @@ onBeforeUnmount(() => {
 
     <div
       v-if="openChip"
-      class="ui-filter-bar__options"
+      class="ui-filter-bar__options hf-scroll"
       data-testid="chip-options"
       role="listbox"
       :aria-label="openChip.label"
@@ -271,8 +271,6 @@ onBeforeUnmount(() => {
   max-height: min(20rem, 60vh);
   overflow-x: hidden;
   overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
   padding: var(--hf-space-1);
   border: 1px solid var(--hf-color-border);
   border-radius: var(--hf-radius-lg);

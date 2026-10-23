@@ -148,3 +148,21 @@ describe('UiModal under a native dialog', () => {
     wrapper.unmount();
   });
 });
+
+describe('UiModal scroll', () => {
+  it('scrolls the body with the calm scrollbar and fills it only on request', async () => {
+    const wrapper = mount(UiModal, {
+      props: { open: true, title: 'Диалог' },
+      attachTo: document.body,
+    });
+    const content = document.querySelector('.modal__content');
+    expect(content?.classList.contains('hf-scroll')).toBe(true);
+    expect(content?.classList.contains('modal__content--fill')).toBe(false);
+    expect(document.querySelector('.modal')?.classList.contains('modal--fill')).toBe(false);
+
+    await wrapper.setProps({ fill: true });
+    expect(content?.classList.contains('modal__content--fill')).toBe(true);
+    expect(document.querySelector('.modal')?.classList.contains('modal--fill')).toBe(true);
+    wrapper.unmount();
+  });
+});

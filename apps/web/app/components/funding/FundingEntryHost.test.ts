@@ -439,6 +439,47 @@ describe('FundingEntryHost', () => {
     expect(fallback).toContain('Не удалось');
   });
 
+  it('zero in a line re-previews with amount 0 and confirm sends every line, zeros included', async () => {
+    const OTHER = '0190a000-0000-7000-8000-0000000000e2';
+    mocks.v2.previewFunding.mockResolvedValue(
+      previewBody({
+        lines: [
+          { envelopeId: ENV, periodId: null, suggestedMinor: '400050', queuePosition: 1 },
+          { envelopeId: OTHER, periodId: null, suggestedMinor: '0', queuePosition: null },
+        ],
+      }),
+    );
+    mountHost();
+    useFundingEntry().offer({ sourceKind: 'INCOME', incomeTransactionId: INCOME });
+    await flushPromises();
+
+    const input = document.querySelector<HTMLInputElement>(`[data-testid="funding-amount-${ENV}"]`);
+    input!.value = '';
+    input!.dispatchEvent(new Event('input', { bubbles: true }));
+    input!.dispatchEvent(new Event('change', { bubbles: true }));
+    await flushPromises();
+
+    expect(document.body.textContent).not.toContain('Введите сумму больше нуля');
+    expect(mocks.v2.previewFunding).toHaveBeenLastCalledWith(BUDGET, {
+      sourceKind: 'INCOME',
+      incomeTransactionId: INCOME,
+      overrides: [
+        { envelopeId: ENV, amount: '0' },
+        { envelopeId: OTHER, amount: '0.00' },
+      ],
+      confirmPeriodTargets: [PERIOD],
+    });
+
+    click('funding-confirm');
+    await flushPromises();
+    const call = mocks.v2.confirmFunding.mock.calls.at(-1) as [
+      string,
+      { lines: unknown[] },
+      string,
+    ];
+    expect(call[1].lines).toHaveLength(2);
+  });
+
   it('returns focus to the page when the opener has disappeared', async () => {
     const main = document.createElement('main');
     document.body.appendChild(main);
