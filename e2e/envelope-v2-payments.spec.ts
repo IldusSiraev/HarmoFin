@@ -102,10 +102,13 @@ test('v2: partial income assignment, rent in two parts and a smaller kindergarte
   const rentId = rentPlan.occurrenceId;
   const kindergartenId = kindergartenPlan.occurrenceId;
   if (!rentId || !kindergartenId) throw new Error('Plans did not create an occurrence');
-  const mandatory = (await getJson<ItemList>(page, `${base}/envelopes`)).items.find(
-    (item) => item.name === 'Обязательные',
-  );
+  const envelopes = (await getJson<ItemList>(page, `${base}/envelopes`)).items;
+  const mandatory = envelopes.find((item) => item.name === 'Обязательные');
   if (!mandatory) throw new Error('Envelope "Обязательные" is missing');
+  // "Первый период" is created by the same template apply with a MANUAL rule (no target
+  // amount given), so the funding sheet offers it with an empty, unfunded line.
+  const firstPeriod = envelopes.find((item) => item.name === 'Первый период');
+  if (!firstPeriod) throw new Error('Envelope "Первый период" is missing');
 
   // 1. Account with opening money: no assignment dialog before the first assignment.
   await createAccount(page, 'Основная карта', OPENING_TYPED);
@@ -137,6 +140,11 @@ test('v2: partial income assignment, rent in two parts and a smaller kindergarte
   const offer = page.getByRole('dialog', { name: 'Распределить деньги' });
   await expect(offer).toBeVisible();
   await expect(offer.getByTestId('funding-source')).toHaveText(/^30\s000,00/);
+  // Every active envelope is listed; an envelope without a suggestion shows an empty field.
+  const rows = offer.getByTestId('funding-line');
+  expect(await rows.count()).toBeGreaterThan(1);
+  await expect(offer.getByTestId('funding-confirm')).toHaveText('Распределить');
+  await expect(offer.getByTestId(`funding-amount-${firstPeriod.id}`)).toHaveValue('');
   // A mandatory current-slice line is keyed by the canonical lineId
   // `<envelopeId>||MANDATORY_CURRENT` (see `mandatoryLineId` in the API); the web
   // sheet renders the input as `funding-amount-<sanitized lineId>`
