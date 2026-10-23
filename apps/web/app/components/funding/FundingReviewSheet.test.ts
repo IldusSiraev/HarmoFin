@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 
 import FundingReviewSheet from './FundingReviewSheet.vue';
@@ -109,13 +109,14 @@ describe('FundingReviewSheet', () => {
           suggestedMinor: '4000000',
           name: 'Обязательные платежи',
           envelopeType: 'MANDATORY_EXPENSES',
+          queuePosition: 1,
         },
         { envelopeId: ENV_B, periodId: PERIOD, suggestedMinor: '1000050', name: 'Отпуск' },
       ],
     });
     const text = norm(wrapper.text());
-    expect(text).toContain('Очередь');
-    expect(text).toContain('Предложенная сумма');
+    expect(text).toContain('Конверт');
+    expect(text).toContain('Сумма');
 
     const [first, second] = wrapper.findAll('[data-testid="funding-line"]');
     expect(first?.get('.funding-sheet__line-number').text()).toBe('1');
@@ -282,15 +283,13 @@ describe('FundingReviewSheet', () => {
     const wrapper = mountSheet();
     const intro = norm(wrapper.get('[data-testid="funding-intro"]').text());
 
-    expect(intro).toContain('пока свободны');
     expect(intro).toContain('никуда не переводятся');
-    expect(intro).toContain('Распределить как предложено');
-    expect(intro).toContain('Позже');
+    expect(intro).toContain('Измените любую или впишите сумму в другой конверт');
   });
 
   it('says everything is proposed when nothing remains to assign', () => {
     const none = mountSheet({ remainingMinor: '0' });
-    expect(none.get('[data-testid="funding-all-proposed"]').text()).toContain('Всё предложено');
+    expect(none.get('[data-testid="funding-all-proposed"]').text()).toContain('Всё распределено');
 
     const some = mountSheet();
     expect(some.find('[data-testid="funding-all-proposed"]').exists()).toBe(false);
@@ -426,5 +425,136 @@ describe('FundingReviewSheet', () => {
     await wrapper.get('[data-testid="modal-close"]').trigger('click');
 
     expect(wrapper.emitted('later')).toHaveLength(1);
+  });
+
+  it('empty field means zero: emits 0, no error', async () => {
+    const wrapper = mountSheet();
+    const input = wrapper.get(`[data-testid="funding-amount-${ENV_A}"]`);
+    await input.setValue('');
+    await input.trigger('change');
+    expect(wrapper.emitted('changeLine')?.[0]).toEqual([{ envelopeId: ENV_A, amount: '0' }]);
+    expect(wrapper.find(`[data-testid="funding-line-error-${ENV_A}"]`).exists()).toBe(false);
+  });
+
+  it('a zero line renders an empty field with placeholder 0', () => {
+    const wrapper = mountSheet({
+      previewLines: [{ envelopeId: ENV_A, periodId: null, suggestedMinor: '0', name: 'Копилка' }],
+    });
+    const input = wrapper.get(`[data-testid="funding-amount-${ENV_A}"]`);
+    expect((input.element as HTMLInputElement).value).toBe('');
+    expect(input.attributes('placeholder')).toBe('0');
+  });
+
+  it('re-previews after a typing pause, once', async () => {
+    vi.useFakeTimers();
+    try {
+      const wrapper = mountSheet();
+      const input = wrapper.get(`[data-testid="funding-amount-${ENV_A}"]`);
+      (input.element as HTMLInputElement).value = '12';
+      await input.trigger('input');
+      (input.element as HTMLInputElement).value = '120';
+      await input.trigger('input');
+      vi.advanceTimersByTime(399);
+      expect(wrapper.emitted('changeLine')).toBeUndefined();
+      vi.advanceTimersByTime(1);
+      expect(wrapper.emitted('changeLine')).toEqual([[{ envelopeId: ENV_A, amount: '120' }]]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps the focused field while a new preview arrives', async () => {
+    const wrapper = mountSheet();
+    const input = wrapper.get(`[data-testid="funding-amount-${ENV_A}"]`);
+    await input.trigger('focusin');
+    await input.setValue('123');
+    await wrapper.setProps({
+      previewLines: [
+        { envelopeId: ENV_A, periodId: null, suggestedMinor: '9900', name: 'Обязательные' },
+        { envelopeId: ENV_B, periodId: PERIOD, suggestedMinor: '500', name: 'Отпуск' },
+      ],
+    });
+    expect((input.element as HTMLInputElement).value).toBe('123');
+    expect(
+      (wrapper.get(`[data-testid="funding-amount-${ENV_B}"]`).element as HTMLInputElement).value,
+    ).toBe('5');
+  });
+
+  it('fields stay editable while a preview is pending; confirm does not', () => {
+    const wrapper = mountSheet({ pending: true });
+    expect(
+      wrapper.get(`[data-testid="funding-amount-${ENV_A}"]`).attributes('disabled'),
+    ).toBeUndefined();
+    expect(wrapper.get('[data-testid="funding-confirm"]').attributes('disabled')).toBeDefined();
+  });
+
+  it('numbers only queued lines and shows period dates', () => {
+    const wrapper = mountSheet({
+      previewLines: [
+        {
+          envelopeId: ENV_A,
+          periodId: null,
+          suggestedMinor: '100',
+          name: 'Обязательные',
+          queuePosition: 1,
+        },
+        {
+          envelopeId: ENV_B,
+          periodId: PERIOD,
+          suggestedMinor: '0',
+          name: 'Второй период',
+          queuePosition: null,
+          periodStartsOn: '2026-10-25',
+          periodEndsOn: '2026-11-09',
+        },
+      ],
+    });
+    const [first, second] = wrapper.findAll('[data-testid="funding-line"]');
+    expect(first?.get('.funding-sheet__line-number').text()).toBe('1');
+    expect(second?.find('.funding-sheet__line-number').text()).toBe('');
+    expect(norm(second!.text())).toContain('25 окт. – 9 нояб.');
+  });
+
+  it('confirm is off when every line is zero and no period target is selected', () => {
+    const wrapper = mountSheet({
+      periodTargetDrafts: [],
+      previewLines: [{ envelopeId: ENV_A, periodId: null, suggestedMinor: '0', name: 'Копилка' }],
+      remainingMinor: '8000000',
+    });
+    expect(wrapper.get('[data-testid="funding-confirm"]').attributes('disabled')).toBeDefined();
+  });
+
+  it('explains why confirm is off when every line is zero and no period target is selected', () => {
+    const wrapper = mountSheet({
+      periodTargetDrafts: [],
+      previewLines: [{ envelopeId: ENV_A, periodId: null, suggestedMinor: '0', name: 'Копилка' }],
+      remainingMinor: '8000000',
+    });
+    expect(wrapper.get('[data-testid="funding-nothing"]').text()).toBe(
+      'Впишите сумму хотя бы в один конверт или нажмите «Позже».',
+    );
+
+    const normal = mountSheet();
+    expect(normal.find('[data-testid="funding-nothing"]').exists()).toBe(false);
+  });
+
+  it('does not claim everything is proposed when nothing was actually assigned', () => {
+    const wrapper = mountSheet({
+      periodTargetDrafts: [],
+      previewLines: [{ envelopeId: ENV_A, periodId: null, suggestedMinor: '0', name: 'Копилка' }],
+      remainingMinor: '0',
+    });
+    expect(wrapper.find('[data-testid="funding-all-proposed"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="funding-nothing"]').text()).toBe(
+      'Впишите сумму хотя бы в один конверт или нажмите «Позже».',
+    );
+  });
+
+  it('labels the primary action «Распределить» and explains editing any envelope', () => {
+    const wrapper = mountSheet();
+    expect(wrapper.get('[data-testid="funding-confirm"]').text()).toBe('Распределить');
+    expect(norm(wrapper.get('[data-testid="funding-intro"]').text())).toContain(
+      'Измените любую или впишите сумму в другой конверт',
+    );
   });
 });

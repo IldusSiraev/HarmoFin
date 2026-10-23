@@ -26,15 +26,15 @@ defineOptions({ name: 'FundingEntryHost' });
 // never computes an amount: it only turns the server's minor-unit strings into
 // decimal text for the next request (string formatting, no arithmetic).
 //
-// Confirm recomputes the preview on the server with overrides = lines, so every
-// preview that can end in a confirm is requested with overrides = all lines and
-// an explicit target selection. The Idempotency-Key belongs to one preview
-// result: a retry of the same confirm reuses it, a new preview rotates it.
+// Every active envelope comes back as a line (zero when nothing is proposed);
+// every preview that can end in a confirm is requested with overrides = all
+// lines, zeros included, and confirm sends the same lines. The
+// Idempotency-Key belongs to one preview result: a retry of the same confirm
+// reuses it, a new preview rotates it.
 
 const emit = defineEmits<{ confirmed: [result: FundingConfirmResponse] }>();
 
 const SCALE = 2;
-const ZERO_AMOUNT = /^0+(?:[.,]0+)?$/;
 
 const v2 = useEnvelopePlanV2();
 const entry = useFundingEntry();
@@ -126,7 +126,7 @@ const ERROR_TEXT: Record<string, string> = {
   ENVELOPE_ARCHIVED: 'Конверт в архиве: в него нельзя распределить деньги.',
   PERIOD_REQUIRED: 'Для этого конверта нужен период.',
   PERIOD_NOT_ALLOWED: 'У этого конверта нет периодов.',
-  VALIDATION_FAILED: 'Проверьте суммы: они должны быть больше нуля.',
+  VALIDATION_FAILED: 'Проверьте суммы: они не могут быть отрицательными.',
   FORBIDDEN: 'Распределять деньги может только владелец бюджета.',
 };
 const GENERIC_ERROR = 'Не удалось распределить деньги. Повторите попытку или нажмите «Позже».';
@@ -268,15 +268,6 @@ function changeLine(payload: FundingChangeLinePayload): void {
   const current = preview.value;
   if (!current) return;
   const key = lineKey(payload);
-  // The server drops a zero line from the preview but would re-suggest it on
-  // confirm, so "nothing here" is expressed with Later, not with a zero.
-  if (ZERO_AMOUNT.test(payload.amount)) {
-    lineErrors.value = {
-      ...lineErrors.value,
-      [key]: 'Введите сумму больше нуля. Чтобы оставить деньги свободными, нажмите «Позже».',
-    };
-    return;
-  }
   // Replace the edited row in place, matched by lineId, so the server's row
   // order and the identities of the untouched rows survive the recompute.
   void reload(
