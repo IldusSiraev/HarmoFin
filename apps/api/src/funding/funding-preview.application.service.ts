@@ -149,8 +149,9 @@ function validationFailed(detail: string, field: string): BadRequestException {
  * Locking: preview is a POST that takes the budget row lock (FOR UPDATE) because the mandatory
  * recompute materializes occurrences and may create DRAFT/UNSET EnvelopePeriod rows (idempotent
  * structural writes through FundingRuleRepository.getOrCreatePeriod; they keep their usual
- * structural `envelope_period` audit event). Period rows are only created for the current period of
- * envelopes with a FIXED_PER_PERIOD rule (and for the category-suggestion target).
+ * structural `envelope_period` audit event). Every active period envelope gets the period of its
+ * line up front: the current half for its own slot, otherwise the next half (and the
+ * category-suggestion target its period).
  *
  * Source availability:
  *  - FREE: freeToAssign = cash - sum(positive envelope/period balances), the same definition the
@@ -246,7 +247,16 @@ export class FundingPreviewApplicationService {
       if (!income) throw resourceNotFound();
     }
 
-    // Structural: current period rows of FIXED_PER_PERIOD period envelopes (DRAFT|UNSET only).
+    // Structural: every active period envelope gets the period of its line (current half for its
+    // own slot, otherwise the next half) before anything is read. The recomputation in R04 then
+    // sees the same period rows, rule scopes and balances as the preview the user saw.
+    for (const envelope of envelopes) {
+      if (envelope.archivedAt || !envelope.periodSlot) continue;
+      const range = envelope.periodSlot === currentPeriod.id ? currentPeriod : nextPeriod;
+      await this.rules.getOrCreatePeriod(tx, budgetId, envelope.id, range.start, range.end, actor);
+    }
+
+    // Current period rows of rule-driven period envelopes (DRAFT|UNSET only).
     const periodRows = new Map<string, EnvelopePeriodRecord>();
     for (const rule of ruleRows) {
       const envelope = envelopeById.get(rule.envelopeId);

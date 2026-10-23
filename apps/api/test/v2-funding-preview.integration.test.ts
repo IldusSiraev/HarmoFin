@@ -845,6 +845,39 @@ describe('v2 funding preview (R03b)', () => {
     expect(body.lines.some((line) => line.envelopeId === archived)).toBe(false);
   });
 
+  it('периодный конверт с правилом без периода: повторный preview даёт тот же хеш (R04)', async () => {
+    // A budget slot holds one envelope, so the scenario uses the outsider's empty budget.
+    const outsider = ctx.outsider!;
+    const fresh = await createEnvelope(outsider.budgetId, 'CURRENT_EXPENSES', 'Свежий', current.id);
+    await prisma.envelopeFundingRule.create({
+      data: {
+        id: randomUUID(),
+        budgetId: outsider.budgetId,
+        envelopeId: fresh,
+        type: 'SUGGESTED_FIXED',
+        priority: 40,
+        fixedMinor: 100_000n,
+        createdByUserId: outsider.userId,
+        updatedByUserId: outsider.userId,
+      },
+    });
+    const run = () =>
+      server.inject({
+        method: 'POST',
+        url: `/api/v2/budgets/${outsider.budgetId}/funding/preview`,
+        headers: mutationHeaders(outsider),
+        payload: { sourceKind: 'FREE' },
+      });
+    const firstResponse = await run();
+    expect(firstResponse.statusCode, firstResponse.body).toBe(200);
+    const first = firstResponse.json<PreviewBody>();
+    const second = (await run()).json<PreviewBody>();
+    expect(second.previewHash).toBe(first.previewHash);
+    const line = first.lines.find((item) => item.envelopeId === fresh)!;
+    expect(line.periodStartsOn).toBe(current.start);
+    expect(line.queuePosition).not.toBeNull();
+  });
+
   it('OpenAPI описывает preview и PUT income-category-suggestion', async () => {
     const openApi = await server.inject({ method: 'GET', url: '/openapi.json' });
     const document = openApi.json<{
