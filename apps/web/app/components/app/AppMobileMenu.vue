@@ -54,7 +54,7 @@ watch(
     <Transition name="mobile-menu">
       <div v-if="open" class="mobile-menu">
         <div class="mobile-menu__overlay" @click="handleClose" />
-        <nav class="mobile-menu__panel" aria-label="Мобильное меню">
+        <nav class="mobile-menu__panel hf-scroll" aria-label="Мобильное меню">
           <div class="mobile-menu__header">
             <button
               type="button"

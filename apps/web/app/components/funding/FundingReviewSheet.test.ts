@@ -67,6 +67,15 @@ describe('FundingReviewSheet', () => {
     expect(text).toContain('Позже');
   });
 
+  it('прокручивается только список конвертов, остальное закреплено', () => {
+    mountSheet();
+
+    expect(document.querySelector('.modal__content')?.classList).toContain('modal__content--fill');
+    const lines = document.querySelector('.funding-sheet__lines');
+    expect(lines?.classList).toContain('hf-scroll');
+    expect(lines?.querySelectorAll('[data-testid="funding-line"]').length).toBeGreaterThan(0);
+  });
+
   it('keeps lines in the order the server sent them', () => {
     const wrapper = mountSheet();
     const rows = wrapper.findAll('[data-testid="funding-line"]');

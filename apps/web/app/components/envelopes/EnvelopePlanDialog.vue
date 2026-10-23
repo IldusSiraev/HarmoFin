@@ -225,7 +225,13 @@ const statusIcon = computed(() => {
           <p v-if="showDeleted" class="plan-dialog__note">
             Только для чтения: эти записи отменены и не влияют на остаток.
           </p>
-          <ul v-if="items.length > 0" class="plan-dialog__list">
+          <ul
+            v-if="items.length > 0"
+            class="plan-dialog__list hf-scroll"
+            tabindex="0"
+            aria-label="История конверта"
+            data-testid="plan-history-list"
+          >
             <li v-for="(item, index) in items" :key="`${item.effectiveOn}-${index}`">
               <span class="plan-dialog__kind-icon" aria-hidden="true">
                 <component :is="KIND_ICONS[item.kind]" :size="16" />
@@ -426,12 +432,22 @@ const statusIcon = computed(() => {
   gap: var(--hf-space-2);
 }
 
+/* The history scrolls inside the dialog; it holds no controls, so the list
+   itself takes focus for keyboard scrolling. */
 .plan-dialog__list {
   display: grid;
   gap: var(--hf-space-2);
+  max-height: 20rem;
   margin: 0;
-  padding: 0;
+  padding: var(--hf-space-1) var(--hf-space-2) var(--hf-space-1) 0;
+  overflow-y: auto;
   list-style: none;
+  border-radius: var(--hf-radius-md);
+}
+
+.plan-dialog__list:focus-visible {
+  outline: 2px solid var(--hf-color-action-primary);
+  outline-offset: 2px;
 }
 
 .plan-dialog__list li {

@@ -295,7 +295,7 @@ function handleConfirm(): void {
 </script>
 
 <template>
-  <UiModal :open="open" title="Распределить деньги" @close="emit('later')">
+  <UiModal :open="open" title="Распределить деньги" fill @close="emit('later')">
     <div class="funding-sheet">
       <p v-if="subtitle" class="funding-sheet__subtitle" data-testid="funding-subtitle">
         {{ subtitle }}
@@ -386,7 +386,7 @@ function handleConfirm(): void {
           <span>Конверт</span>
           <span>Сумма</span>
         </div>
-        <ol class="funding-sheet__lines" aria-label="Распределение по конвертам">
+        <ol class="funding-sheet__lines hf-scroll" aria-label="Распределение по конвертам">
           <li
             v-for="line in previewLines"
             :key="lineKey(line)"
@@ -539,10 +539,16 @@ function handleConfirm(): void {
 </template>
 
 <style scoped>
+/* Only the envelope list scrolls; everything above it stays pinned. */
 .funding-sheet {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--hf-space-4);
   min-width: 0;
+}
+
+.funding-sheet > * {
+  flex: none;
 }
 
 .funding-sheet__source {
@@ -585,16 +591,20 @@ function handleConfirm(): void {
   font-weight: var(--hf-font-weight-medium);
 }
 
-.funding-sheet__queue {
-  display: grid;
+.funding-sheet > .funding-sheet__queue {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   min-width: 0;
+  min-height: 0;
 }
 
 .funding-sheet__queue-head {
   display: flex;
   justify-content: space-between;
   gap: var(--hf-space-3);
-  padding-bottom: var(--hf-space-2);
+  /* Same inset as the scrolling list below, so the columns line up. */
+  padding: 0 var(--hf-space-2) var(--hf-space-2) var(--hf-space-1);
   border-bottom: 1px solid var(--hf-color-border);
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-small);
@@ -700,9 +710,14 @@ function handleConfirm(): void {
 
 .funding-sheet__lines {
   display: grid;
+  flex: 1 1 auto;
+  align-content: start;
   gap: var(--hf-space-2);
+  min-height: 9rem;
   margin: 0;
-  padding: 0;
+  /* Room for focus rings and the scrollbar beside the amount fields. */
+  padding: 0 var(--hf-space-2) 0 var(--hf-space-1);
+  overflow-y: auto;
   list-style: none;
 }
 

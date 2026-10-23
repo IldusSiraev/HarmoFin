@@ -93,6 +93,19 @@ describe('EnvelopePlanDialog: статус и история', () => {
     expect(rows[2]?.querySelector('.plan-dialog__kind-amount')?.className).not.toContain('--in');
   });
 
+  it('история прокручивается внутри диалога и доступна с клавиатуры', async () => {
+    mocks.v2.getEnvelopeHistory.mockResolvedValue({
+      items: [{ kind: 'ASSIGNMENT', amountMinor: '1200000', effectiveOn: '2026-10-21' }],
+      nextCursor: null,
+    });
+    await mountDialog({ envelope: envelope('env-a', 'Еда') });
+
+    const list = document.querySelector('[data-testid="plan-history-list"]');
+    expect(list?.classList.contains('hf-scroll')).toBe(true);
+    expect(list?.getAttribute('tabindex')).toBe('0');
+    expect(list?.getAttribute('aria-label')).toBe('История конверта');
+  });
+
   it('архивный конверт — статус «В архиве» раньше бейджа', async () => {
     await mountDialog({
       envelope: { ...envelope('env-a', 'Еда'), archivedAt: '2026-09-01T00:00:00.000Z' },

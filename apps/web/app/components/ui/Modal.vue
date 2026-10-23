@@ -18,8 +18,13 @@ const props = withDefaults(
     size?: 'sm' | 'md' | 'lg';
     /** Short line under the title, inside the header. */
     subtitle?: string | undefined;
+    /**
+     * The body is a flex column that fills the dialog; the slot decides which
+     * part scrolls (for example a long list under a pinned summary).
+     */
+    fill?: boolean;
   }>(),
-  { size: 'md', subtitle: undefined },
+  { size: 'md', subtitle: undefined, fill: false },
 );
 
 const emit = defineEmits<{
@@ -121,7 +126,7 @@ onBeforeUnmount(release);
         <div
           ref="dialog"
           class="modal"
-          :class="{ 'modal--sm': size === 'sm', 'modal--lg': size === 'lg' }"
+          :class="{ 'modal--sm': size === 'sm', 'modal--lg': size === 'lg', 'modal--fill': fill }"
           data-testid="modal"
           role="dialog"
           :aria-label="title"
@@ -152,7 +157,7 @@ onBeforeUnmount(release);
               </button>
             </slot>
           </div>
-          <div class="modal__content">
+          <div class="modal__content hf-scroll" :class="{ 'modal__content--fill': fill }">
             <slot />
           </div>
           <div v-if="$slots['footer']" class="modal__footer"><slot name="footer" /></div>
@@ -205,6 +210,13 @@ onBeforeUnmount(release);
    reading order instead of pushing a wrapped row to the right. */
 .modal--sm .modal__footer {
   justify-content: flex-start;
+}
+
+/* A filled dialog grows to the viewport minus the backdrop padding, so a list
+   that nearly fits does not scroll by a few pixels. */
+.modal--fill {
+  max-height: calc(100vh - 2 * var(--hf-space-4));
+  max-height: calc(100dvh - 2 * var(--hf-space-4));
 }
 
 @media (max-width: 767px) {
@@ -290,6 +302,18 @@ onBeforeUnmount(release);
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+}
+
+/* The slot fills the body; the body still scrolls as a fallback when the
+   pinned part alone is taller than the dialog. */
+.modal__content--fill {
+  display: flex;
+  flex-direction: column;
+}
+
+.modal__content--fill > * {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .modal__footer {
