@@ -570,7 +570,7 @@ describe('v2 funding confirm (R04)', () => {
     expect(await prisma.envelopeAssignment.count({ where: { budgetId } })).toBe(noop.assignments);
   });
 
-  it('чужой конверт/период/цель 404, архивный 422, дубль 400, ноль 400', async () => {
+  it('чужой конверт/период/цель 404, архивный 422, дубль 400, отрицательная 400', async () => {
     const income = await createIncome(owner().budgetId, accountId, salaryCategory, 1_000_000n);
     const base = {
       sourceKind: 'INCOME',
@@ -616,8 +616,15 @@ describe('v2 funding confirm (R04)', () => {
       ).statusCode,
     ).toBe(404);
     expect(
-      (await confirm({ ...base, lines: [{ envelopeId: repairEnvelope, amount: '0' }] })).statusCode,
+      (await confirm({ ...base, lines: [{ envelopeId: repairEnvelope, amount: '-1.00' }] }))
+        .statusCode,
     ).toBe(400);
+    const zeroOnly = await confirm({
+      ...base,
+      lines: [{ envelopeId: repairEnvelope, amount: '0' }],
+    });
+    expect(zeroOnly.statusCode).toBe(200);
+    expect(zeroOnly.json()).toMatchObject({ assignedMinor: '0', assignments: [] });
     expect(
       (
         await confirm({
@@ -638,6 +645,60 @@ describe('v2 funding confirm (R04)', () => {
     expect(archivedResponse.statusCode).toBe(422);
     expect(archivedResponse.json<{ code: string }>().code).toBe('ENVELOPE_ARCHIVED');
     expect(await snapshot()).toEqual(before);
+  });
+
+  it('нулевые строки участвуют в хеше, но не создают назначений', async () => {
+    const income = await createIncome(owner().budgetId, accountId, salaryCategory, 1_000_000n);
+    const lines: Line[] = [
+      { envelopeId: repairEnvelope, amount: '0' },
+      { envelopeId: savingsEnvelope, amount: '300.00' },
+    ];
+    const previewed = await preview({
+      sourceKind: 'INCOME',
+      incomeTransactionId: income,
+      overrides: lines,
+      confirmPeriodTargets: [],
+    });
+    const response = await confirm({
+      sourceKind: 'INCOME',
+      incomeTransactionId: income,
+      previewHash: previewed.previewHash,
+      confirmPeriodTargets: [],
+      lines,
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{
+      assignedMinor: string;
+      assignments: Array<{ envelopeId: string }>;
+    }>();
+    expect(body.assignedMinor).toBe('30000');
+    expect(body.assignments.map((item) => item.envelopeId)).toEqual([savingsEnvelope]);
+    expect(
+      await prisma.envelopeAssignment.count({
+        where: {
+          budgetId: owner().budgetId,
+          envelopeId: repairEnvelope,
+          sourceIncomeTransactionId: income,
+        },
+      }),
+    ).toBe(0);
+
+    // Dropping the zero line from confirm changes the overrides -> stale.
+    const again = await preview({
+      sourceKind: 'INCOME',
+      incomeTransactionId: income,
+      overrides: lines,
+      confirmPeriodTargets: [],
+    });
+    const stale = await confirm({
+      sourceKind: 'INCOME',
+      incomeTransactionId: income,
+      previewHash: again.previewHash,
+      confirmPeriodTargets: [],
+      lines: [lines[1]!],
+    });
+    expect(stale.statusCode).toBe(409);
+    expect(stale.json<{ code: string }>().code).toBe('PREVIEW_STALE');
   });
 
   it('доступ: VIEWER/EDITOR 403, посторонний 404, 401, CSRF, uuid 400', async () => {

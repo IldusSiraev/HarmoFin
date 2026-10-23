@@ -15,6 +15,7 @@ export type PreviewIncome = {
 
 export type PreviewEnvelope = {
   id: string;
+  name: string;
   envelopeType: EnvelopeType;
   periodSlot: 'FIRST' | 'SECOND' | null;
   archivedAt: Date | null;
@@ -84,7 +85,7 @@ export class FundingPreviewRepository {
   async listEnvelopes(tx: Prisma.TransactionClient, budgetId: string): Promise<PreviewEnvelope[]> {
     return tx.envelope.findMany({
       where: { budgetId },
-      select: { id: true, envelopeType: true, periodSlot: true, archivedAt: true },
+      select: { id: true, name: true, envelopeType: true, periodSlot: true, archivedAt: true },
       orderBy: { id: 'asc' },
     });
   }

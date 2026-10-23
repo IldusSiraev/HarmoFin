@@ -92,8 +92,37 @@ export class FundingPreviewLineDto {
   })
   lineId?: string | null;
 
-  @ApiProperty({ type: String, example: '4000000' })
+  @ApiProperty({
+    type: String,
+    example: '4000000',
+    description: 'Предложенная или введённая сумма в копейках; "0" — конверт в списке без суммы.',
+  })
   suggestedMinor!: string;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    example: 1,
+    description:
+      'Номер строки в очереди правил пополнения (с 1); null — у конверта нет правила в очереди.',
+  })
+  queuePosition!: number | null;
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    nullable: true,
+    description: 'Начало периода строки; null для конверта без периодов.',
+  })
+  periodStartsOn!: string | null;
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    nullable: true,
+    description: 'Конец периода строки; null для конверта без периодов.',
+  })
+  periodEndsOn!: string | null;
 }
 
 export class FundingPreviewErrorDto {
@@ -169,7 +198,8 @@ export class FundingConfirmLineDto {
   @ApiProperty({
     type: String,
     example: '7000.00',
-    description: 'Положительная сумма в рублях: десятичная строка, до 2 знаков.',
+    description:
+      'Сумма в рублях ≥ 0: десятичная строка, до 2 знаков. Строка с 0 участвует в проверке previewHash, но назначения не создаёт.',
   })
   amount!: string;
 

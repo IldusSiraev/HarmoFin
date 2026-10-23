@@ -45,6 +45,16 @@ function needOf(rule: FundingRuleInput, incomeAmount: bigint | null): bigint {
   return nonNegative(rule.needMinor);
 }
 
+/** Queue order of rule lines: `slotAfterPeriod` last, then priority, envelopeId, periodId. */
+export function compareFundingRules(a: FundingRuleInput, b: FundingRuleInput): number {
+  return (
+    Number(Boolean(a.slotAfterPeriod)) - Number(Boolean(b.slotAfterPeriod)) ||
+    a.priority - b.priority ||
+    compareText(a.envelopeId, b.envelopeId) ||
+    compareText(a.periodId ?? '', b.periodId ?? '')
+  );
+}
+
 /**
  * Чистый расчёт предложений: обычный порядок (priority, envelopeId, periodId),
  * каждая строка = min(остаток, потребность), сумма не превышает available.
@@ -66,13 +76,7 @@ export function suggestFunding(input: SuggestFundingInput): FundingSuggestionLin
     ];
   }
 
-  const ordered = [...input.orderedRules].sort(
-    (a, b) =>
-      Number(Boolean(a.slotAfterPeriod)) - Number(Boolean(b.slotAfterPeriod)) ||
-      a.priority - b.priority ||
-      compareText(a.envelopeId, b.envelopeId) ||
-      compareText(a.periodId ?? '', b.periodId ?? ''),
-  );
+  const ordered = [...input.orderedRules].sort(compareFundingRules);
 
   const lines: FundingSuggestionLine[] = [];
   let remaining = available;
