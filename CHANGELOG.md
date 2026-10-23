@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.6.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.5.0...v1.6.0) (2026-10-23)
+
+
+### Новое
+
+* **api:** распределение по всем конвертам и нулевые строки ([4c7476a](https://github.com/IldusSiraev/HarmoFin/commit/4c7476a510eda0cdf66495b038b4a21377707181))
+* **web:** аккуратный скролл в стиле Calm Fintech ([b1ec5a8](https://github.com/IldusSiraev/HarmoFin/commit/b1ec5a832eb754e2f0343d10fbf3f0ca96fd6fe1))
+* **web:** окно распределения со всеми конвертами ([9547f0c](https://github.com/IldusSiraev/HarmoFin/commit/9547f0c4ab65b83ac104ec289453b2b47c8118a1))
+* окно распределения со всеми конвертами и аккуратный скролл ([a140198](https://github.com/IldusSiraev/HarmoFin/commit/a140198ed6bc754c5b6de520ced766ee7ea7a769))
+
+
+### Исправления
+
+* **api:** preview создаёт периоды до расчёта хеша ([5ef2eac](https://github.com/IldusSiraev/HarmoFin/commit/5ef2eacfb81aeecb2d19faf2ad1c34775510b5f9))
+
 ## [1.5.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.4.0...v1.5.0) (2026-10-22)
 
 
