@@ -459,7 +459,7 @@ export class EnvelopePlanApplicationService {
       if (row.periodId !== null) byPeriod.set(row.periodId, row);
     }
     for (const period of periods) {
-      // Periods that have not started yet have no balance row.
+      // Periods that have not started yet have a balance row only once money is in them.
       const row = byPeriod.get(period.id);
       if (!row) continue;
       const startsOn = period.startsOn.toISOString().slice(0, 10);

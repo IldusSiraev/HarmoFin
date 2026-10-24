@@ -43,6 +43,7 @@ type RegisteredUser = {
 };
 type PreviewBody = {
   periodTargetDrafts: Array<{ periodId: string; targetMinor: string }>;
+  sourceAvailableMinor: string;
   lines: Array<{
     envelopeId: string;
     periodId: string | null;
@@ -699,6 +700,63 @@ describe('v2 funding confirm (R04)', () => {
     });
     expect(stale.statusCode).toBe(409);
     expect(stale.json<{ code: string }>().code).toBe('PREVIEW_STALE');
+  });
+
+  it('распределение в период следующей половины сразу отложено: свободных меньше, повтор отклонён', async () => {
+    const otherSlot = current.id === 'FIRST' ? 'SECOND' : 'FIRST';
+    const next = await createEnvelope(owner().budgetId, 'CURRENT_EXPENSES', 'Следующий', otherSlot);
+    const before = await preview({ sourceKind: 'FREE' });
+    const nextLine = before.lines.find((line) => line.envelopeId === next)!;
+    expect(nextLine.periodId).not.toBeNull();
+    const free = BigInt(before.sourceAvailableMinor);
+    expect(free).toBeGreaterThan(100_000n);
+
+    const lines: Line[] = [
+      {
+        envelopeId: next,
+        periodId: nextLine.periodId!,
+        amount: `${free / 100n}.${(free % 100n).toString().padStart(2, '0')}`,
+      },
+    ];
+    const funded = await preview({
+      sourceKind: 'FREE',
+      overrides: lines,
+      confirmPeriodTargets: [],
+    });
+    const first = await confirm({
+      sourceKind: 'FREE',
+      previewHash: funded.previewHash,
+      confirmPeriodTargets: [],
+      lines,
+    });
+    expect(first.statusCode, first.body).toBe(200);
+
+    // The money sits in a period that has not started yet, yet it is no longer free.
+    const after = await preview({ sourceKind: 'FREE' });
+    expect(after.sourceAvailableMinor).toBe('0');
+    const envelope = await server.inject({
+      method: 'GET',
+      url: `/api/v2/budgets/${owner().budgetId}/envelopes/${next}`,
+      headers: authHeaders(ctx.owner),
+    });
+    expect(envelope.statusCode, envelope.body).toBe(200);
+    const periods = envelope.json<{ periods: Array<{ periodId: string; fundedMinor: string }> }>()
+      .periods;
+    expect(periods).toContainEqual(
+      expect.objectContaining({ periodId: nextLine.periodId, fundedMinor: free.toString() }),
+    );
+
+    const again = await preview({ sourceKind: 'FREE', overrides: lines, confirmPeriodTargets: [] });
+    const second = await confirm({
+      sourceKind: 'FREE',
+      previewHash: again.previewHash,
+      confirmPeriodTargets: [],
+      lines,
+    });
+    expect(second.statusCode, second.body).toBe(409);
+    expect(
+      await prisma.envelopeAssignment.count({ where: { envelopeId: next, status: 'CONFIRMED' } }),
+    ).toBe(1);
   });
 
   it('доступ: VIEWER/EDITOR 403, посторонний 404, 401, CSRF, uuid 400', async () => {

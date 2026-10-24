@@ -118,7 +118,25 @@ export class AssignmentBalanceRepository {
         FROM "envelope_periods" p
         JOIN "envelopes" e ON e.id = p."envelope_id" AND e."budget_id" = p."budget_id"
         WHERE p."budget_id" = ${budgetId}::uuid
-          AND p."starts_on" <= ${asOfDate}
+          AND (
+            p."starts_on" <= ${asOfDate}
+            -- A period that has not started yet counts once money is already in it (funding
+            -- of the next half): that money is protected and no longer free to assign.
+            OR EXISTS (
+              SELECT 1 FROM "envelope_assignments" a
+              WHERE a."budget_id" = ${budgetId}::uuid
+                AND a."period_id" = p.id
+                AND a."status" = 'CONFIRMED'
+                AND a."effective_on" <= ${asOfDate}
+            )
+            OR EXISTS (
+              SELECT 1 FROM "envelope_movements" m
+              WHERE m."budget_id" = ${budgetId}::uuid
+                AND (m."destination_period_id" = p.id OR m."source_period_id" = p.id)
+                AND m."status" = 'CONFIRMED'
+                AND m."effective_on" <= ${asOfDate}
+            )
+          )
         UNION ALL
         SELECT e.id, NULL::uuid, NULL::date, NULL::date
         FROM "envelopes" e
