@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.6.1](https://github.com/IldusSiraev/HarmoFin/compare/v1.6.0...v1.6.1) (2026-10-24)
+
+
+### Исправления
+
+* **api:** деньги в ещё не начавшемся периоде считаются отложенными ([3672c5d](https://github.com/IldusSiraev/HarmoFin/commit/3672c5d69b147a498d716a75e5034882cb1538fc))
+* **deps:** обновить zod, happy-dom и undici из-за уязвимостей ([c846f17](https://github.com/IldusSiraev/HarmoFin/commit/c846f17ba8b8d25d7774e3f97758aff423e67160))
+* **deps:** обновить zod, happy-dom и undici из-за уязвимостей ([9346ed5](https://github.com/IldusSiraev/HarmoFin/commit/9346ed569e29654d05b2552a79391c0c1d7fea54))
+
 ## [1.6.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.5.0...v1.6.0) (2026-10-23)
 
 
