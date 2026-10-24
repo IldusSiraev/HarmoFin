@@ -87,7 +87,15 @@ test('v2: перевод в журнале — создать, изменить,
   await expect(page.getByTestId('type-tab-TRANSFER')).toBeVisible();
   await page.getByRole('button', { name: /Открыть перевод Карта → Вклад/ }).click();
   await page.getByTestId('transfer-dialog-restore').click();
+  // Navigating right after the click could abort the restore request or list
+  // before it commits; wait for the server to confirm the restore first.
+  const restored = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      /\/transfers\/[^/]+\/restore$/.test(new URL(response.url()).pathname),
+  );
   await page.getByRole('button', { name: 'Подтвердить' }).click();
+  expect((await restored).ok()).toBe(true);
   await page.goto('/app/operations?type=TRANSFER');
   await expect(page.getByTestId('type-tab-TRANSFER')).toBeVisible();
   await expect(page.getByRole('button', { name: /Открыть перевод Карта → Вклад/ })).toBeVisible();
