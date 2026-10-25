@@ -458,6 +458,22 @@ describe('operations page (v2 journal)', () => {
     expect(wrapper!.find('[data-action="download-csv"]').exists()).toBe(false);
   });
 
+  it('hides operation creation from a viewer, who cannot write operations', async () => {
+    auth.currentData.value!.workspaces.at(0)!.role = 'VIEWER';
+    mountPage();
+    await flushPromises();
+
+    expect(wrapper!.find('[data-action="create-operation"]').exists()).toBe(false);
+  });
+
+  it('shows operation creation for an editor, who may record operations', async () => {
+    auth.currentData.value!.workspaces.at(0)!.role = 'EDITOR';
+    mountPage();
+    await flushPromises();
+
+    expect(wrapper!.find('[data-action="create-operation"]').exists()).toBe(true);
+  });
+
   it('shows skeletons while the first page is loading', async () => {
     v2.listJournal.mockReturnValueOnce(new Promise(() => {}));
     mountPage();

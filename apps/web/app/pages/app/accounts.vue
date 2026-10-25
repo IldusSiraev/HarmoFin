@@ -32,6 +32,7 @@ import {
 } from '../../composables/useBudgetReferenceData.js';
 import { useEnvelopePlanV2 } from '../../composables/useEnvelopePlanV2.js';
 import { useFundingEntry } from '../../composables/useFundingEntry.js';
+import { usePermissions } from '../../composables/usePermissions.js';
 import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js';
 import { useToast } from '../../composables/useToast.js';
 
@@ -84,6 +85,9 @@ const form = reactive({
 });
 
 const { budgetId } = useActiveWorkspace();
+// Creating and archiving accounts is OWNER-only on the server; the buttons
+// below only hide the action a VIEWER or EDITOR would be refused anyway.
+const { canManage } = usePermissions();
 
 function getAccountTypeOptions() {
   return [
@@ -348,7 +352,9 @@ watch(globalOperationDialog, (value, previous) => {
         Счёт — это место, где физически находятся деньги: карта, банковский счёт или наличные.
       </template>
       <template #actions>
-        <UiButton data-action="create-account" @click="startCreate">Создать счёт</UiButton>
+        <UiButton v-if="canManage" data-action="create-account" @click="startCreate">
+          Создать счёт
+        </UiButton>
       </template>
       <template #filters>
         <UiButtonGroup
@@ -390,7 +396,9 @@ watch(globalOperationDialog, (value, previous) => {
             title="Счетов пока нет"
             description="Создайте счёт, чтобы вести на нём операции."
           >
-            <template #action><UiButton @click="startCreate">Создать счёт</UiButton></template>
+            <template v-if="canManage" #action>
+              <UiButton @click="startCreate">Создать счёт</UiButton>
+            </template>
           </UiEmptyState>
 
           <ul v-else class="accounts-page__grid" aria-label="Список счетов">
@@ -478,9 +486,9 @@ watch(globalOperationDialog, (value, previous) => {
         </label>
         <div class="reference-form__actions">
           <UiButton type="submit" :loading="saving">Сохранить счёт</UiButton>
-          <UiButton type="button" variant="tertiary" :disabled="saving" @click="cancelForm"
-            >Отмена</UiButton
-          >
+          <UiButton type="button" variant="tertiary" :disabled="saving" @click="cancelForm">
+            Отмена
+          </UiButton>
         </div>
       </form>
     </UiModal>

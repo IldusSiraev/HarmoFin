@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 const mutations = {
   pending: ref(false),
@@ -9,8 +9,13 @@ const mutations = {
   restore: vi.fn(),
 };
 
+const roleState = vi.hoisted(() => ({ role: 'OWNER' as 'OWNER' | 'EDITOR' | 'VIEWER' | null }));
+
 vi.mock('../../composables/useTransferMutations.js', () => ({
   useTransferMutations: () => mutations,
+}));
+vi.mock('../../composables/useActiveWorkspace.js', () => ({
+  useActiveWorkspace: () => ({ role: computed(() => roleState.role) }),
 }));
 
 import TransferDialog from './TransferDialog.vue';
@@ -66,6 +71,7 @@ function mountDialog(
 beforeEach(() => {
   vi.clearAllMocks();
   mutations.pending.value = false;
+  roleState.role = 'OWNER';
   vi.spyOn(HTMLDialogElement.prototype, 'showModal').mockImplementation(function (
     this: HTMLDialogElement,
   ) {
@@ -198,5 +204,15 @@ describe('TransferDialog', () => {
       expect(wrapper.find('dialog[open] button[data-confirm]').exists()).toBe(false);
       expect(wrapper.text()).toContain('Удалён');
     });
+  });
+
+  it('hides edit and delete for a viewer, who cannot write transfers', () => {
+    roleState.role = 'VIEWER';
+    const wrapper = mountDialog();
+
+    expect(wrapper.find('[data-testid="transfer-dialog-edit"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="transfer-dialog-delete"]').exists()).toBe(false);
+    // No footer action at all: the modal must not render an empty padded bar.
+    expect(wrapper.find('.modal__footer').exists()).toBe(false);
   });
 });

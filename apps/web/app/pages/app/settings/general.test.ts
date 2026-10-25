@@ -405,4 +405,47 @@ describe('settings general page', () => {
       expect(mocks.planV2.confirmCycleChange).toHaveBeenCalledTimes(2);
     });
   });
+
+  describe('non-owner roles: read-only budget settings', () => {
+    type MockedWorkspaces = { workspaces: Array<{ role: string }> };
+
+    function setRole(role: 'EDITOR' | 'VIEWER') {
+      (mocks.auth.currentData.value as MockedWorkspaces).workspaces[0]!.role = role;
+    }
+
+    it('editor sees values disabled, no submit button, and the read-only note', async () => {
+      setRole('EDITOR');
+      const wrapper = mountPage();
+      await flushPromises();
+
+      expect(wrapper.get('[data-testid="general-settings-readonly-note"]').text()).toBe(
+        'Изменять настройки бюджета может только создатель семьи.',
+      );
+      expect(wrapper.get('input[name="name"]').attributes('disabled')).toBeDefined();
+      expect(wrapper.get('input[name="cycleStartDay"]').attributes('disabled')).toBeDefined();
+      expect(wrapper.get('input[name="periodBoundaryOffset"]').attributes('disabled')).toBeDefined();
+      expect(wrapper.find('[data-action="submit-general"]').exists()).toBe(false);
+    });
+
+    it('viewer sees values disabled, no submit button, and the read-only note', async () => {
+      setRole('VIEWER');
+      const wrapper = mountPage();
+      await flushPromises();
+
+      expect(wrapper.get('[data-testid="general-settings-readonly-note"]').text()).toBe(
+        'Изменять настройки бюджета может только создатель семьи.',
+      );
+      expect(wrapper.get('input[name="name"]').attributes('disabled')).toBeDefined();
+      expect(wrapper.find('[data-action="submit-general"]').exists()).toBe(false);
+    });
+
+    it('owner sees no read-only note and an enabled, submittable form', async () => {
+      const wrapper = mountPage();
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="general-settings-readonly-note"]').exists()).toBe(false);
+      expect(wrapper.get('input[name="name"]').attributes('disabled')).toBeUndefined();
+      expect(wrapper.find('[data-action="submit-general"]').exists()).toBe(true);
+    });
+  });
 });

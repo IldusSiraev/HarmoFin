@@ -7,6 +7,7 @@ import UiModal from '../ui/Modal.vue';
 import UiStatus from '../ui/Status.vue';
 import type { AccountDto } from '../../composables/useBudgetReferenceData.js';
 import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
+import { usePermissions } from '../../composables/usePermissions.js';
 import { formatPlainDate } from '../obligations/format-plain-date.js';
 
 defineOptions({ name: 'AccountDialog' });
@@ -32,6 +33,9 @@ const operationsLink = computed(() =>
 );
 
 const { openTransfer } = useOperationDialogs();
+// Editing/archiving an account is OWNER-only on the server; a transfer needs
+// OWNER or EDITOR. A viewer sees only the read-only "Операции счёта" link.
+const { canManage, canWrite } = usePermissions();
 
 function transferFromAccount(): void {
   if (!props.account) return;
@@ -94,14 +98,14 @@ function transferFromAccount(): void {
     </div>
 
     <template v-if="account" #footer>
-      <UiButton data-testid="account-dialog-edit" @click="emit('edit', account)">
+      <UiButton v-if="canManage" data-testid="account-dialog-edit" @click="emit('edit', account)">
         Изменить
       </UiButton>
       <UiButton variant="secondary" data-testid="account-dialog-operations" :to="operationsLink">
         Операции счёта
       </UiButton>
       <UiButton
-        v-if="!account.archivedAt"
+        v-if="!account.archivedAt && canWrite"
         variant="secondary"
         data-testid="account-dialog-transfer"
         @click="transferFromAccount"
@@ -109,7 +113,7 @@ function transferFromAccount(): void {
         Перевести со счёта
       </UiButton>
       <UiButton
-        v-if="!account.archivedAt"
+        v-if="!account.archivedAt && canManage"
         variant="tertiary"
         data-testid="account-dialog-archive"
         @click="emit('archive', account)"

@@ -22,6 +22,7 @@ import {
   type EnvelopePlanDto,
   useEnvelopePlanV2,
 } from '../../composables/useEnvelopePlanV2.js';
+import { usePermissions } from '../../composables/usePermissions.js';
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
 import {
   type PlanBadge,
@@ -57,6 +58,10 @@ const emit = defineEmits<{
 }>();
 
 const planV2 = useEnvelopePlanV2();
+// Reassigning, editing, setting a period target and archiving are OWNER-only
+// on the server. Viewing cancelled ("deleted") history entries has no server
+// role check, so that toggle stays visible to every role.
+const { canManage } = usePermissions();
 
 const KIND_LABELS: Record<EnvelopeHistoryItem['kind'], string> = {
   ASSIGNMENT: 'Распределение',
@@ -289,7 +294,7 @@ const statusIcon = computed(() => {
 
     <template v-if="envelope" #footer>
       <UiButton
-        v-if="!envelope.archivedAt"
+        v-if="!envelope.archivedAt && canManage"
         data-testid="plan-dialog-reassign"
         @click="emit('reassign', envelope)"
       >
@@ -297,7 +302,7 @@ const statusIcon = computed(() => {
         Переложить
       </UiButton>
       <UiButton
-        v-if="!envelope.archivedAt"
+        v-if="!envelope.archivedAt && canManage"
         variant="secondary"
         data-testid="plan-dialog-target"
         @click="emit('target', envelope)"
@@ -305,7 +310,7 @@ const statusIcon = computed(() => {
         Изменить цель периода
       </UiButton>
       <UiButton
-        v-if="!envelope.archivedAt"
+        v-if="!envelope.archivedAt && canManage"
         variant="secondary"
         data-testid="plan-dialog-edit"
         @click="emit('edit', envelope)"
@@ -318,7 +323,7 @@ const statusIcon = computed(() => {
         Операции конверта
       </UiButton>
       <UiButton
-        v-if="!envelope.archivedAt"
+        v-if="!envelope.archivedAt && canManage"
         variant="tertiary"
         class="plan-dialog__archive"
         data-testid="plan-dialog-archive"

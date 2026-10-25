@@ -46,6 +46,7 @@ import {
   useEnvelopePlanV2,
 } from '../../composables/useEnvelopePlanV2.js';
 import { useFundingEntry } from '../../composables/useFundingEntry.js';
+import { usePermissions } from '../../composables/usePermissions.js';
 import { ApiRequestError } from '../../composables/useApiClient.js';
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
 import {
@@ -76,6 +77,9 @@ const confirmation = ref<null | { action: 'skip'; occurrenceId: string }>(null);
 const mutationKeys = new Map<string, string>();
 
 const { budget } = useActiveWorkspace();
+// Creating/editing a plan is OWNER-only on the server; paying, skipping and
+// recording income need OWNER or EDITOR.
+const { canManage, canWrite } = usePermissions();
 // Every status, remainder and total comes from the server calendar DTO.
 const monthKey = ref(format(new Date(), 'yyyy-MM'));
 const monthAnchor = computed(() => `${monthKey.value}-01`);
@@ -694,7 +698,11 @@ function errorMessage(exception: unknown) {
       <template #kicker>Регулярные планы</template>
       <template #title>Планы</template>
       <template #actions>
-        <UiButton data-testid="plan-add-obligation" @click="openPlanDialog('obligation')">
+        <UiButton
+          v-if="canManage"
+          data-testid="plan-add-obligation"
+          @click="openPlanDialog('obligation')"
+        >
           <Plus :size="16" aria-hidden="true" />
           Добавить платёж
         </UiButton>
@@ -746,6 +754,8 @@ function errorMessage(exception: unknown) {
               :facts-loading="factsLoading"
               :facts-error="factsError"
               :busy="pending"
+              :can-manage="canManage"
+              :can-write="canWrite"
               @add-plan="openPlanDialog('obligation', $event)"
               @pay="onPay"
               @skip="onSkip"
@@ -763,6 +773,8 @@ function errorMessage(exception: unknown) {
             :has-any-plans="(calendar?.totals.activePlanCount ?? 0) > 0"
             :busy="pending || payPending || incomePending"
             :linked-id="linkedOccurrenceId"
+            :can-manage="canManage"
+            :can-write="canWrite"
             @pay="onPay"
             @skip="onSkip"
             @record-income="onRecordIncome"
@@ -773,6 +785,7 @@ function errorMessage(exception: unknown) {
             :entries="catalog"
             :load-failed="catalogLoadFailed"
             :busy="planEditPending"
+            :can-manage="canManage"
             @edit="openPlanEditFor"
             @resume="resumePlan"
           />

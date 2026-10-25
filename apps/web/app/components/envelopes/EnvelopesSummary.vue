@@ -12,7 +12,10 @@ defineOptions({ name: 'EnvelopesSummary' });
 
 // Money summary of the envelopes page. Every amount is a server minor-units
 // string shown as is: nothing is added, subtracted or compared numerically here.
-const props = defineProps<{ dashboard: DashboardV2Response }>();
+const props = withDefaults(
+  defineProps<{ dashboard: DashboardV2Response; canManage?: boolean }>(),
+  { canManage: true },
+);
 const emit = defineEmits<{ distribute: [] }>();
 
 type Warning = DashboardV2Response['warnings'][number];
@@ -99,7 +102,7 @@ const hasAttention = computed(
           tone="info"
           :title="`Не распределено · ${formatMoneyText(dashboard.freeToAssignMinor)}`"
           description="Доход ещё не разложен по конвертам"
-          action-label="Распределить"
+          :action-label="canManage ? 'Распределить' : undefined"
           @action="emit('distribute')"
         />
         <UiAttentionRow

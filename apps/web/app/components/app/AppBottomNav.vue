@@ -2,16 +2,24 @@
 import { House, Menu, Plus, Receipt } from '@lucide/vue';
 
 import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
+import { usePermissions } from '../../composables/usePermissions.js';
 
 defineOptions({ name: 'AppBottomNav' });
 
 defineEmits<{ more: [] }>();
 
 const { openOperation } = useOperationDialogs();
+// A viewer cannot record operations: the server would reject it, so the
+// central "+" is not offered at all.
+const { canWrite } = usePermissions();
 </script>
 
 <template>
-  <nav class="app-bottom-nav" aria-label="Основные разделы">
+  <nav
+    class="app-bottom-nav"
+    :class="{ 'app-bottom-nav--no-add': !canWrite }"
+    aria-label="Основные разделы"
+  >
     <NuxtLink to="/app" class="app-bottom-nav__item">
       <House :size="20" aria-hidden="true" />
       <span>Главная</span>
@@ -23,6 +31,7 @@ const { openOperation } = useOperationDialogs();
     </NuxtLink>
 
     <button
+      v-if="canWrite"
       type="button"
       class="app-bottom-nav__add"
       data-testid="bottom-nav-add"
@@ -57,6 +66,13 @@ const { openOperation } = useOperationDialogs();
   padding: var(--hf-space-2) var(--hf-space-2) calc(var(--hf-space-2) + env(safe-area-inset-bottom));
   border-top: 1px solid var(--hf-color-border);
   background: var(--hf-color-surface);
+}
+
+/* A viewer has no "+": three columns keep "Ещё" at the right edge instead of
+   leaving a hole where the add button used to be. Only the column count
+   changes here; surface, border and safe-area padding stay on the base rule. */
+.app-bottom-nav--no-add {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .app-bottom-nav__item {

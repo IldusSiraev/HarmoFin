@@ -26,6 +26,7 @@ import {
 } from '../../composables/useEnvelopePlanV2.js';
 import { useFundingEntry } from '../../composables/useFundingEntry.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
+import { usePermissions } from '../../composables/usePermissions.js';
 import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js';
 import { useToast } from '../../composables/useToast.js';
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
@@ -55,6 +56,10 @@ const props = defineProps<{ budgetId: string; query: Record<string, string | und
 
 const planV2 = useEnvelopePlanV2();
 const { push } = useToast();
+// Envelope management, reassignment, funding rules and assignment are
+// OWNER-only on the server (editing/archiving envelopes, moving money between
+// them, setting a period target, and the free/opening distribution flow).
+const { canManage } = usePermissions();
 const formFields = ['name', 'envelopeType', 'periodSlot', 'targetAmountMinor', 'comment'] as const;
 const formHelper = useReferenceDataForm(formFields);
 
@@ -550,17 +555,27 @@ onMounted(() => {
       Распределяйте деньги по целям, не перемещая их между счетами.
     </template>
     <template #actions>
-      <UiButton variant="secondary" to="/app/envelopes/rules" data-action="envelope-rules">
+      <UiButton
+        v-if="canManage"
+        variant="secondary"
+        to="/app/envelopes/rules"
+        data-action="envelope-rules"
+      >
         <Settings2 :size="18" aria-hidden="true" />
         Задать правила
       </UiButton>
-      <UiButton data-action="create-envelope" @click="startCreate">
+      <UiButton v-if="canManage" data-action="create-envelope" @click="startCreate">
         <Plus :size="18" aria-hidden="true" />
         Создать конверт
       </UiButton>
     </template>
     <template #content>
-      <EnvelopesSummary v-if="dashboard" :dashboard="dashboard" @distribute="distributeFree" />
+      <EnvelopesSummary
+        v-if="dashboard"
+        :dashboard="dashboard"
+        :can-manage="canManage"
+        @distribute="distributeFree"
+      />
       <UiAttentionRow
         v-else-if="summaryError"
         data-testid="summary-retry"
@@ -625,7 +640,9 @@ onMounted(() => {
           title="Конвертов пока нет"
           description="Создайте конверт, чтобы распределять в него деньги."
         >
-          <template #action><UiButton @click="startCreate">Создать конверт</UiButton></template>
+          <template v-if="canManage" #action>
+            <UiButton @click="startCreate">Создать конверт</UiButton>
+          </template>
         </UiEmptyState>
 
         <section
@@ -683,7 +700,7 @@ onMounted(() => {
                       :trigger-test-id="`row-actions-${envelope.id}`"
                     >
                       <button
-                        v-if="!envelope.archivedAt"
+                        v-if="!envelope.archivedAt && canManage"
                         type="button"
                         role="menuitem"
                         data-testid="row-reassign"
@@ -694,7 +711,7 @@ onMounted(() => {
                         Переложить
                       </button>
                       <button
-                        v-if="!envelope.archivedAt"
+                        v-if="!envelope.archivedAt && canManage"
                         type="button"
                         role="menuitem"
                         data-testid="row-edit"
@@ -713,7 +730,7 @@ onMounted(() => {
                         Операции конверта
                       </NuxtLink>
                       <button
-                        v-if="!envelope.archivedAt"
+                        v-if="!envelope.archivedAt && canManage"
                         type="button"
                         role="menuitem"
                         data-testid="row-archive"

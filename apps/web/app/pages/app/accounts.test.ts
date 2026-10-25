@@ -375,4 +375,22 @@ describe('accounts page', () => {
 
     expect(wrapper.text()).toContain('В архиве пусто');
   });
+
+  type MockedWorkspaces = { workspaces: Array<{ role: string }> };
+
+  it('hides account creation for a viewer, who cannot manage accounts', async () => {
+    (mocks.auth.currentData.value as MockedWorkspaces).workspaces[0]!.role = 'VIEWER';
+    wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('[data-action="create-account"]').exists()).toBe(false);
+  });
+
+  it('hides account creation for an editor too: only the owner manages accounts', async () => {
+    (mocks.auth.currentData.value as MockedWorkspaces).workspaces[0]!.role = 'EDITOR';
+    wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('[data-action="create-account"]').exists()).toBe(false);
+  });
 });

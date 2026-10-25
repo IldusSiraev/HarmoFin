@@ -1,5 +1,11 @@
 import { mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { computed } from 'vue';
+
+const state = vi.hoisted(() => ({ role: 'OWNER' as 'OWNER' | 'EDITOR' | 'VIEWER' | null }));
+vi.mock('../../composables/useActiveWorkspace.js', () => ({
+  useActiveWorkspace: () => ({ role: computed(() => state.role) }),
+}));
 
 import AppBottomNav from './AppBottomNav.vue';
 import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
@@ -14,6 +20,7 @@ const mountNav = () => mount(AppBottomNav, { global: { stubs: { NuxtLink: NuxtLi
 
 beforeEach(() => {
   useOperationDialogs().close();
+  state.role = 'OWNER';
 });
 
 describe('AppBottomNav', () => {
@@ -47,5 +54,33 @@ describe('AppBottomNav', () => {
     expect(wrapper.get('[data-testid="bottom-nav-add"]').attributes('aria-label')).toBe(
       'Добавить операцию',
     );
+  });
+
+  it('shows the add button for an editor', () => {
+    state.role = 'EDITOR';
+    const wrapper = mountNav();
+
+    expect(wrapper.find('[data-testid="bottom-nav-add"]').exists()).toBe(true);
+  });
+
+  it('hides the add button for a viewer, who cannot record operations', () => {
+    state.role = 'VIEWER';
+    const wrapper = mountNav();
+
+    expect(wrapper.find('[data-testid="bottom-nav-add"]').exists()).toBe(false);
+  });
+
+  it('switches to a 3-column grid for a viewer, keeping "Ещё" at the edge', () => {
+    state.role = 'VIEWER';
+    const wrapper = mountNav();
+
+    expect(wrapper.get('.app-bottom-nav').classes()).toContain('app-bottom-nav--no-add');
+  });
+
+  it('keeps the 4-column grid for an editor, who still has the add button', () => {
+    state.role = 'EDITOR';
+    const wrapper = mountNav();
+
+    expect(wrapper.get('.app-bottom-nav').classes()).not.toContain('app-bottom-nav--no-add');
   });
 });

@@ -124,4 +124,13 @@ describe('EnvelopesSummary', () => {
     expect(shortfall.text()).toMatch(/Не хватает денег на счетах · 5\s000,00/);
     expect(shortfall.find('a').attributes('href')).toBe('/app/envelopes');
   });
+
+  it('hides the "Распределить" action when the viewer cannot manage assignments', () => {
+    const wrapper = mount(EnvelopesSummary, {
+      props: { dashboard: dashboard() as never, canManage: false },
+      global: { stubs },
+    });
+    const free = wrapper.find('[data-testid="summary-free"]');
+    expect(free.find('button').exists()).toBe(false);
+  });
 });

@@ -1,13 +1,18 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { computed } from 'vue';
 
 const BUDGET = '0190a000-0000-7000-8000-000000000001';
 
 const mocks = vi.hoisted(() => ({
   v2: { getEnvelopeHistory: vi.fn() },
+  role: { current: 'OWNER' as 'OWNER' | 'EDITOR' | 'VIEWER' | null },
 }));
 
 vi.mock('../../composables/useEnvelopePlanV2.js', () => ({ useEnvelopePlanV2: () => mocks.v2 }));
+vi.mock('../../composables/useActiveWorkspace.js', () => ({
+  useActiveWorkspace: () => ({ role: computed(() => mocks.role.current) }),
+}));
 
 import EnvelopePlanDialog from './EnvelopePlanDialog.vue';
 
@@ -42,6 +47,7 @@ async function mountDialog(props: Record<string, unknown>) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.v2.getEnvelopeHistory.mockResolvedValue({ items: [], nextCursor: null });
+  mocks.role.current = 'OWNER';
 });
 
 afterEach(() => {
@@ -137,5 +143,18 @@ describe('EnvelopePlanDialog: статус и история', () => {
       expect.anything(),
       expect.objectContaining({ status: 'DELETED' }),
     );
+  });
+
+  it('hides reassign, target, edit and archive for a viewer, but keeps read-only actions', async () => {
+    mocks.role.current = 'VIEWER';
+    await mountDialog({ envelope: envelope('env-a', 'Еда') });
+
+    expect(document.querySelector('[data-testid="plan-dialog-reassign"]')).toBeNull();
+    expect(document.querySelector('[data-testid="plan-dialog-target"]')).toBeNull();
+    expect(document.querySelector('[data-testid="plan-dialog-edit"]')).toBeNull();
+    expect(document.querySelector('[data-testid="plan-dialog-archive"]')).toBeNull();
+    expect(document.querySelector('[data-testid="plan-dialog-operations"]')).not.toBeNull();
+    // The server's envelope history endpoint has no role check, so every role sees the toggle.
+    expect(document.querySelector('[data-testid="history-toggle-deleted"]')).not.toBeNull();
   });
 });

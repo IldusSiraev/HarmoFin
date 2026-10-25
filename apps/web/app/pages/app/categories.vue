@@ -25,6 +25,7 @@ import {
   type UpdateCategoryInput,
   useBudgetReferenceData,
 } from '../../composables/useBudgetReferenceData.js';
+import { usePermissions } from '../../composables/usePermissions.js';
 import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js';
 import { useToast } from '../../composables/useToast.js';
 
@@ -64,6 +65,8 @@ const form = reactive({
 });
 
 const { budgetId } = useActiveWorkspace();
+// Category management is OWNER-only on the server.
+const { canManage } = usePermissions();
 function getStatusOptions() {
   return [
     { value: 'active', label: 'Активные' },
@@ -290,7 +293,9 @@ onMounted(() => {
       <template #title>Категории</template>
       <template #description>Разделяйте доходы и расходы для будущего учёта.</template>
       <template #actions>
-        <UiButton data-action="create-category" @click="startCreate">Создать категорию</UiButton>
+        <UiButton v-if="canManage" data-action="create-category" @click="startCreate">
+          Создать категорию
+        </UiButton>
       </template>
       <template #filters>
         <UiButtonGroup
@@ -343,7 +348,7 @@ onMounted(() => {
                   </p>
                 </div>
                 <UiStatus v-if="entry.category.archivedAt" label="В архиве" tone="neutral" />
-                <div class="category-row__actions">
+                <div v-if="canManage" class="category-row__actions">
                   <UiButton
                     class="category-row__icon-btn"
                     variant="tertiary"
@@ -424,9 +429,9 @@ onMounted(() => {
         </label>
         <div class="reference-form__actions">
           <UiButton type="submit" :loading="saving">Сохранить категорию</UiButton>
-          <UiButton type="button" variant="tertiary" :disabled="saving" @click="cancelForm"
-            >Отмена</UiButton
-          >
+          <UiButton type="button" variant="tertiary" :disabled="saving" @click="cancelForm">
+            Отмена
+          </UiButton>
         </div>
       </form>
     </UiModal>

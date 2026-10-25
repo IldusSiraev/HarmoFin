@@ -12,8 +12,10 @@ withDefaults(
     entries: PlanCatalogEntry[];
     loadFailed?: boolean;
     busy?: boolean;
+    // Editing/resuming a plan is OWNER-only on the server.
+    canManage?: boolean;
   }>(),
-  { loadFailed: false, busy: false },
+  { loadFailed: false, busy: false, canManage: true },
 );
 
 const emit = defineEmits<{
@@ -39,6 +41,7 @@ const emit = defineEmits<{
         v-for="entry in entries"
         :key="`${entry.kind}-${entry.id}`"
         class="obligation-row"
+        :class="{ 'obligation-row--no-actions': !canManage }"
         :data-testid="`catalog-row-${entry.kind}-${entry.id}`"
       >
         <div class="obligation-row__main">
@@ -56,7 +59,7 @@ const emit = defineEmits<{
         <div class="obligation-row__amounts">
           <FinanceMoney :minor-units="entry.amountMinor" currency="RUB" :scale="2" />
         </div>
-        <div class="obligation-row__actions">
+        <div v-if="canManage" class="obligation-row__actions">
           <UiButton
             v-if="entry.active"
             variant="secondary"
@@ -150,6 +153,11 @@ const emit = defineEmits<{
   .obligation-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 10rem 8.5rem;
+  }
+  /* No actions column for a non-manager: drop the third column instead of
+     leaving an empty gap where it used to be. */
+  .obligation-row--no-actions {
+    grid-template-columns: minmax(0, 1fr) 10rem;
   }
   .obligation-row__amounts {
     justify-items: end;

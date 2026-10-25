@@ -10,6 +10,7 @@ import UiEmptyState from '../../../components/ui/EmptyState.vue';
 import UiStatus from '../../../components/ui/Status.vue';
 import { useActiveWorkspace } from '../../../composables/useActiveWorkspace.js';
 import { useAuth } from '../../../composables/useAuth.js';
+import { usePermissions } from '../../../composables/usePermissions.js';
 
 defineOptions({ name: 'AppSettingsPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
@@ -25,6 +26,9 @@ const templateSummary = ref('');
 const templateSheetOpen = ref(false);
 
 const { budgetId } = useActiveWorkspace();
+// Applying the budget template and changing the financial cycle are
+// OWNER-only on the server.
+const { canManage } = usePermissions();
 
 async function loadPage() {
   loading.value = true;
@@ -87,7 +91,7 @@ onMounted(() => {
             <span>Общие настройки</span>
             <span class="settings-page__row-link">Изменить →</span>
           </NuxtLink>
-          <div class="settings-page__static-row">
+          <div v-if="canManage" class="settings-page__static-row">
             <div>
               <p class="settings-page__static-row-title">Базовый шаблон</p>
               <p class="settings-page__hint">
@@ -104,6 +108,7 @@ onMounted(() => {
             </UiButton>
           </div>
           <TemplatePreviewSheet
+            v-if="canManage"
             :open="templateSheetOpen"
             :budget-id="budgetId"
             @close="templateSheetOpen = false"
@@ -128,7 +133,9 @@ onMounted(() => {
               Изменение цикла вступает в силу только с будущего периода: сначала покажем, с какой
               даты, а прошлые периоды останутся без изменений.
             </p>
-            <UiButton variant="secondary" to="/app/settings/general">Изменить цикл</UiButton>
+            <UiButton v-if="canManage" variant="secondary" to="/app/settings/general">
+              Изменить цикл
+            </UiButton>
           </div>
         </UiCard>
 

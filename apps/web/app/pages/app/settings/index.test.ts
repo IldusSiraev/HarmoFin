@@ -210,4 +210,24 @@ describe('settings hub page', () => {
     wrapper.unmount();
     document.body.innerHTML = '';
   });
+
+  type MockedWorkspaces = { workspaces: Array<{ role: string }> };
+
+  it('hides the template and cycle management for a viewer', async () => {
+    (mocks.auth.currentData.value as MockedWorkspaces).workspaces[0]!.role = 'VIEWER';
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('[data-action="initialize-template"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('Изменить цикл');
+  });
+
+  it('hides the template and cycle management for an editor too', async () => {
+    (mocks.auth.currentData.value as MockedWorkspaces).workspaces[0]!.role = 'EDITOR';
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('[data-action="initialize-template"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('Изменить цикл');
+  });
 });

@@ -221,4 +221,20 @@ describe('PlanDayPanel', () => {
       expect(wrapper.get(`[data-testid="${id}"]`).attributes('disabled')).toBeDefined();
     }
   });
+
+  it('hides "Добавить план" and edit when canManage is false', () => {
+    const wrapper = mountPanel({ items: [rent, salary], canManage: false });
+
+    expect(wrapper.find('[data-testid="plan-add-for-day"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="day-edit-occ-rent"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="day-edit-occ-salary"]').exists()).toBe(false);
+  });
+
+  it('hides pay, skip and record-income when canWrite is false', () => {
+    const wrapper = mountPanel({ items: [rent, salary], canWrite: false });
+
+    expect(wrapper.find('[data-testid="day-pay-occ-rent"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="day-skip-occ-rent"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="day-record-occ-salary"]').exists()).toBe(false);
+  });
 });

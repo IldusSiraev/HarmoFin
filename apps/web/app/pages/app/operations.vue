@@ -41,6 +41,7 @@ import {
   useOperationMutations,
 } from '../../composables/useOperationMutations.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
+import { usePermissions } from '../../composables/usePermissions.js';
 import { useToast } from '../../composables/useToast.js';
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
 
@@ -86,6 +87,9 @@ let requestVersion = 0;
 
 const { role, budget } = useActiveWorkspace();
 const isOwner = computed(() => role.value === 'OWNER');
+// Recording, editing, deleting and restoring operations and transfers need
+// OWNER or EDITOR on the server; a viewer only reads the journal.
+const { canWrite } = usePermissions();
 // Accounts, categories and envelopes come from the shared cache the global add
 // dialogs already use, so opening the journal does not re-read them every time.
 const { accounts, categories, envelopes, load: loadReferenceData } = useOperationReferenceData();
@@ -120,8 +124,9 @@ function transferRoute(item: TransferJournalItem) {
 }
 
 // A deleted transfer offers only restore, and only the owner sees deleted rows.
+// A viewer never gets a menu at all: every entry inside needs OWNER or EDITOR.
 function hasTransferActions(item: TransferJournalItem): boolean {
-  return item.status === 'CONFIRMED' || isOwner.value;
+  return canWrite.value && (item.status === 'CONFIRMED' || isOwner.value);
 }
 
 function openTransfer(item: TransferJournalItem, intent: TransferDialogIntent): void {
@@ -242,9 +247,12 @@ function envelopeName(transaction: TransactionJournalV2Item): string | null {
 }
 
 // An operation from before model 2 has no actions at all: an empty menu would
-// only be a dead control.
+// only be a dead control. A viewer never gets a menu either: edit, delete and
+// restore all need OWNER or EDITOR on the server.
 function hasRowActions(transaction: TransactionJournalV2Item): boolean {
-  return canEditTransaction(transaction) || availableActions(transaction).length > 0;
+  return (
+    canWrite.value && (canEditTransaction(transaction) || availableActions(transaction).length > 0)
+  );
 }
 
 function onFilterChange(key: keyof OperationFilters, value: string): void {
@@ -412,7 +420,12 @@ async function downloadCsv() {
         >
           <Download :size="18" aria-hidden="true" />
         </UiButton>
-        <UiButton data-action="create-operation" class="operations-page__add" @click="openChoose">
+        <UiButton
+          v-if="canWrite"
+          data-action="create-operation"
+          class="operations-page__add"
+          @click="openChoose"
+        >
           Добавить операцию
         </UiButton>
       </template>
