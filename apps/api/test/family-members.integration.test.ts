@@ -205,17 +205,16 @@ describe('family members API', () => {
     const left = await inject('POST', `/api/v1/workspaces/${ownerWorkspaceId}/leave`, invitedOnly);
     expect(left.statusCode).toBe(204);
 
-    const ownedWorkspaces = await prisma.workspaceMembership.findMany({
-      where: {
-        userId: invitedOnly.user.id,
-        isActive: true,
-        role: 'OWNER',
-        workspace: { status: 'ACTIVE' },
-      },
-      select: { workspaceId: true },
-    });
-    expect(ownedWorkspaces).toHaveLength(1);
-    expect(ownedWorkspaces[0]!.workspaceId).not.toBe(ownerWorkspaceId);
+    const me = await inject('GET', '/api/v1/me', invitedOnly);
+    expect(me.statusCode).toBe(200);
+    const body = me.json<{
+      activeWorkspaceId: string | null;
+      workspaces: Array<{ id: string; isCreator: boolean }>;
+    }>();
+    expect(body.workspaces).toHaveLength(1);
+    expect(body.workspaces[0]!.isCreator).toBe(true);
+    expect(body.workspaces[0]!.id).not.toBe(ownerWorkspaceId);
+    expect(body.activeWorkspaceId).toBe(body.workspaces[0]!.id);
   });
 
   it('does not let the creator leave', async () => {

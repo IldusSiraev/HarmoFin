@@ -14,12 +14,8 @@ export const acceptInvitationSchema = z
     displayName: z.string().trim().min(1).max(120).optional(),
   })
   .strict();
-export const updateProfileSchema = z
-  .object({ displayName: z.string().trim().min(1).max(120) })
-  .strict();
 
 export type ChangeRoleInput = z.output<typeof changeRoleSchema>;
 export type CreateInvitationInput = z.output<typeof createInvitationSchema>;
 export type InvitationTokenInput = z.output<typeof invitationTokenSchema>;
 export type AcceptInvitationInput = z.output<typeof acceptInvitationSchema>;
-export type UpdateProfileInput = z.output<typeof updateProfileSchema>;

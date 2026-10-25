@@ -7,6 +7,10 @@ import type { ApiConfig } from '../config/env.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { FamilyController } from './family.controller.js';
 import { FamilyRepository } from './family.repository.js';
+import {
+  InvitationAcceptController,
+  InvitationPreviewController,
+} from './invitation-public.controller.js';
 import { InvitationsApplicationService } from './invitations.application.service.js';
 import { MembersApplicationService } from './members.application.service.js';
 
@@ -22,7 +26,7 @@ export class FamilyModule {
   static register(): DynamicModule {
     return {
       module: FamilyModule,
-      controllers: [FamilyController],
+      controllers: [FamilyController, InvitationPreviewController, InvitationAcceptController],
       providers: [
         {
           provide: FamilyRepository,

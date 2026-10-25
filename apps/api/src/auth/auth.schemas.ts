@@ -13,6 +13,7 @@ export const registerSchema = z
     workspaceName: optionalNameSchema,
     budgetName: optionalNameSchema,
     consents: consentListSchema.optional(),
+    invitationToken: z.string().min(16).max(128).optional(),
   })
   .strict();
 
@@ -28,8 +29,13 @@ export const changePasswordSchema = z
   .object({ currentPassword: z.string(), newPassword: passwordSchema })
   .strict();
 
+export const updateProfileSchema = z
+  .object({ displayName: z.string().trim().min(1).max(120) })
+  .strict();
+
 export type RegisterInput = z.output<typeof registerSchema>;
 export type LoginInput = z.output<typeof loginSchema>;
 export type RecoveryRequestInput = z.output<typeof recoveryRequestSchema>;
 export type RecoveryConfirmInput = z.output<typeof recoveryConfirmSchema>;
 export type ChangePasswordInput = z.output<typeof changePasswordSchema>;
+export type UpdateProfileInput = z.output<typeof updateProfileSchema>;

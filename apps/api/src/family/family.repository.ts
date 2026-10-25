@@ -14,8 +14,23 @@ export interface MemberRow {
   joinedAt: Date;
 }
 
+/**
+ * Serializes member/invitation limit checks of one workspace. Lock order everywhere:
+ * actor membership (if any) -> workspace -> invitation rows -> acceptor membership.
+ */
+export async function lockActiveWorkspace(tx: Tx, workspaceId: string): Promise<boolean> {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT id FROM workspaces WHERE id = ${workspaceId}::uuid AND status = 'ACTIVE' FOR UPDATE
+  `;
+  return rows.length === 1;
+}
+
 export class FamilyRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  lockWorkspace(tx: Tx, workspaceId: string): Promise<boolean> {
+    return lockActiveWorkspace(tx, workspaceId);
+  }
 
   transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
     return this.prisma.$transaction(fn);

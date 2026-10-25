@@ -11,11 +11,16 @@ import type { ApiConfig } from '../config/env.js';
 import {
   alreadyMember,
   displayNameRequired,
+  invitationAlreadyAccepted,
   invitationAlreadyPending,
+  invitationExpired,
   invitationLimitReached,
+  invitationNotFound,
+  invitationRevoked,
   memberLimitReached,
 } from './family.errors.js';
 import { FamilyRepository, type Tx } from './family.repository.js';
+import { acceptInvitationInTx } from './invitation-acceptance.js';
 import {
   MEMBER_LIMIT,
   PENDING_INVITATION_LIMIT,
@@ -23,6 +28,7 @@ import {
   buildInviteUrl,
   invitationExpiresAt,
   isExpired,
+  maskEmail,
   normalizeEmail,
   type InvitableRole,
 } from './invitation.domain.js';
@@ -36,6 +42,17 @@ export interface InvitationResponse {
   createdAt: string;
 }
 export type CreatedInvitationResponse = InvitationResponse & { inviteUrl: string };
+export interface InvitationPreviewResponse {
+  workspaceName: string;
+  inviterName: string;
+  role: InvitableRole;
+  maskedEmail: string;
+  expiresAt: string;
+}
+export interface AcceptedInvitationResponse {
+  workspaceId: string;
+  budgetId: string;
+}
 
 type InvitationRow = {
   id: string;
@@ -89,6 +106,8 @@ export class InvitationsApplicationService {
     const result = await this.repository.transaction(async (tx) => {
       const actor = await this.requireCreator(tx, workspaceId, userId);
       const inviter = await this.requireInviterName(tx, userId);
+      // Concurrent accepts/creates of this workspace wait here, so limits cannot be overshot.
+      if (!(await this.repository.lockWorkspace(tx, workspaceId))) throw resourceNotFound();
       await this.expireStale(tx, workspaceId, now);
       const existingMember = await tx.workspaceMembership.findFirst({
         where: { workspaceId, isActive: true, user: { email } },
@@ -157,6 +176,8 @@ export class InvitationsApplicationService {
     const result = await this.repository.transaction(async (tx) => {
       const actor = await this.requireCreator(tx, workspaceId, userId);
       const inviter = await this.requireInviterName(tx, userId);
+      // Concurrent accepts/creates of this workspace wait here, so limits cannot be overshot.
+      if (!(await this.repository.lockWorkspace(tx, workspaceId))) throw resourceNotFound();
       await this.expireStale(tx, workspaceId, now);
       const target = await tx.workspaceInvitation.findFirst({
         where: { id: invitationId, workspaceId, status: { in: ['PENDING', 'EXPIRED'] } },
@@ -227,6 +248,61 @@ export class InvitationsApplicationService {
         action: 'REVOKED',
         requestId,
       });
+    });
+  }
+
+  async preview(rawToken: string): Promise<InvitationPreviewResponse> {
+    const now = new Date();
+    const row = await this.repository.transaction((tx) =>
+      tx.workspaceInvitation.findFirst({
+        where: { tokenHash: this.tokens.digest(rawToken), workspace: { status: 'ACTIVE' } },
+        select: {
+          email: true,
+          role: true,
+          status: true,
+          expiresAt: true,
+          workspace: { select: { name: true } },
+          invitedBy: { select: { displayName: true } },
+        },
+      }),
+    );
+    if (!row) throw invitationNotFound();
+    if (row.status === 'ACCEPTED') throw invitationAlreadyAccepted();
+    if (row.status === 'REVOKED') throw invitationRevoked();
+    if (row.status === 'EXPIRED' || isExpired(row.expiresAt, now)) throw invitationExpired();
+    return {
+      workspaceName: row.workspace.name,
+      inviterName: row.invitedBy.displayName ?? 'Создатель семьи',
+      role: row.role as InvitableRole,
+      maskedEmail: maskEmail(row.email),
+      expiresAt: row.expiresAt.toISOString(),
+    };
+  }
+
+  async accept(
+    userId: string,
+    input: { token: string; displayName?: string | undefined },
+    requestId?: string,
+  ): Promise<AcceptedInvitationResponse> {
+    const now = new Date();
+    return this.repository.transaction(async (tx) => {
+      const user = await tx.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { email: true, displayName: true },
+      });
+      const displayName = input.displayName ?? user.displayName;
+      if (!displayName) throw displayNameRequired();
+      if (input.displayName && input.displayName !== user.displayName) {
+        await tx.user.update({ where: { id: userId }, data: { displayName: input.displayName } });
+      }
+      const accepted = await acceptInvitationInTx(tx, {
+        tokenHash: this.tokens.digest(input.token),
+        userId,
+        userEmail: user.email,
+        now,
+        requestId,
+      });
+      return { workspaceId: accepted.workspaceId, budgetId: accepted.budget.id };
     });
   }
 

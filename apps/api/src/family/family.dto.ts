@@ -70,8 +70,8 @@ export class InvitationPreviewResponse {
   @ApiProperty({ type: String })
   workspaceName!: string;
 
-  @ApiProperty({ type: String, nullable: true })
-  inviterName!: string | null;
+  @ApiProperty({ type: String })
+  inviterName!: string;
 
   @ApiProperty({ type: String, enum: ['EDITOR', 'VIEWER'] })
   role!: 'EDITOR' | 'VIEWER';
@@ -79,8 +79,8 @@ export class InvitationPreviewResponse {
   @ApiProperty({ type: String, description: 'Email с маской, например a***@mail.ru.' })
   maskedEmail!: string;
 
-  @ApiProperty({ type: String, enum: ['PENDING', 'ACCEPTED', 'REVOKED', 'EXPIRED'] })
-  status!: 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED';
+  @ApiProperty({ type: String, format: 'date-time' })
+  expiresAt!: string;
 }
 
 export class AcceptInvitationRequest {
@@ -97,12 +97,4 @@ export class AcceptedInvitationResponse {
 
   @ApiProperty({ type: String, format: 'uuid' })
   budgetId!: string;
-
-  @ApiProperty({ type: String, enum: ['EDITOR', 'VIEWER'] })
-  role!: 'EDITOR' | 'VIEWER';
-}
-
-export class UpdateProfileRequest {
-  @ApiProperty({ type: String, minLength: 1, maxLength: 120 })
-  displayName!: string;
 }
