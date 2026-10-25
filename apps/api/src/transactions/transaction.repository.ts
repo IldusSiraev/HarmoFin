@@ -144,9 +144,10 @@ export class TransactionRepository {
       categoryId?: string | undefined;
       envelopeId?: string | undefined;
       planId?: string | undefined;
+      createdByUserId?: string | undefined;
     },
   ): Promise<boolean> {
-    const [account, category, envelope, plan] = await Promise.all([
+    const [account, category, envelope, plan, author] = await Promise.all([
       references.accountId
         ? this.prisma.account.findFirst({
             where: { id: references.accountId, budgetId },
@@ -171,8 +172,17 @@ export class TransactionRepository {
             select: { id: true },
           })
         : Promise.resolve(true),
+      references.createdByUserId
+        ? this.prisma.workspaceMembership.findFirst({
+            where: {
+              userId: references.createdByUserId,
+              workspace: { budgets: { some: { id: budgetId } } },
+            },
+            select: { id: true },
+          })
+        : Promise.resolve(true),
     ]);
-    return Boolean(account && category && envelope && plan);
+    return Boolean(account && category && envelope && plan && author);
   }
   async list(
     userId: string,

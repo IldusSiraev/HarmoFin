@@ -17,7 +17,13 @@ const password = 'correct-password-10';
 const dayMs = 86_400_000;
 const d = (delta: number) => new Date(Date.now() + delta * dayMs);
 
-type Session = { userId: string; workspaceId: string; budgetId: string; cookie: string };
+type Session = {
+  userId: string;
+  workspaceId: string;
+  budgetId: string;
+  cookie: string;
+  csrfToken: string;
+};
 
 const emails = {
   owner: `v2-journal-feed-owner-${randomUUID()}@harmofin.test`,
@@ -74,6 +80,10 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
         userId: ctx.editor!.userId,
         role: 'EDITOR',
       },
+    });
+    await prisma.user.update({
+      where: { id: ctx.editor!.userId },
+      data: { displayName: 'Алия' },
     });
 
     a = await createRawAccount(ctx.owner!.budgetId, 'RUB', 1_000_000n);
@@ -167,6 +177,28 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
     });
   }
 
+  async function createExpense(user: Session, occurredOn: string): Promise<string> {
+    const response = await server.inject({
+      method: 'POST',
+      url: `/api/v2/budgets/${owner().budgetId}/transactions`,
+      headers: {
+        ...authCookieHeaders(user),
+        'x-csrf-token': user.csrfToken,
+        'idempotency-key': randomUUID(),
+      },
+      payload: {
+        transactionType: 'EXPENSE',
+        status: 'CONFIRMED',
+        amount: '1.00',
+        occurredOn,
+        accountId: a,
+        categoryId: food,
+      },
+    });
+    expect(response.statusCode, response.body).toBe(201);
+    return response.json<{ id: string }>().id;
+  }
+
   async function page(user: Session, query: Record<string, string>) {
     const search = new URLSearchParams(query).toString();
     const response = await server.inject({
@@ -256,6 +288,7 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
       comment: null,
       createdAt: '2026-10-10T10:00:00.000Z',
       deletedAt: null,
+      createdBy: { userId: owner().userId, displayName: null, isActiveMember: true },
     });
     expect(body.items[1]).toMatchObject({
       kind: 'TRANSACTION',
@@ -339,6 +372,60 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
     expect(await all(owner(), {})).toEqual([]);
   });
 
+  it('у каждой записи журнала есть автор; фильтр по автору отбирает только его записи', async () => {
+    await reset();
+    const ownerExpenseId = await createExpense(owner(), '2026-10-10');
+    const editorExpenseId = await createExpense(editor(), '2026-10-11');
+
+    const allBody = (await page(owner(), {})).json<{
+      items: Array<{ id: string; createdBy: { userId: string; displayName: string | null; isActiveMember: boolean } }>;
+    }>();
+    expect(allBody.items.map((item) => item.createdBy.userId)).toEqual(
+      expect.arrayContaining([owner().userId, editor().userId]),
+    );
+    expect(allBody.items.find((item) => item.id === editorExpenseId)?.createdBy).toEqual({
+      userId: editor().userId,
+      displayName: 'Алия',
+      isActiveMember: true,
+    });
+    expect(allBody.items.find((item) => item.id === ownerExpenseId)?.createdBy.userId).toBe(
+      owner().userId,
+    );
+
+    const filteredBody = (
+      await page(owner(), { createdByUserId: editor().userId })
+    ).json<{ items: Array<{ createdBy: { userId: string } }> }>();
+    expect(filteredBody.items.length).toBeGreaterThan(0);
+    expect(filteredBody.items.every((item) => item.createdBy.userId === editor().userId)).toBe(
+      true,
+    );
+  });
+
+  it('автор исключённого участника помечается как неактивный', async () => {
+    await reset();
+    await createExpense(editor(), '2026-10-10');
+    await prisma.workspaceMembership.updateMany({
+      where: { workspaceId: owner().workspaceId, userId: editor().userId },
+      data: { isActive: false, removedAt: new Date() },
+    });
+    try {
+      const body = (await page(owner(), {})).json<{
+        items: Array<{ createdBy: { userId: string; isActiveMember: boolean } }>;
+      }>();
+      const item = body.items.find((it) => it.createdBy.userId === editor().userId);
+      expect(item?.createdBy.isActiveMember).toBe(false);
+    } finally {
+      await prisma.workspaceMembership.updateMany({
+        where: { workspaceId: owner().workspaceId, userId: editor().userId },
+        data: { isActive: true, removedAt: null },
+      });
+    }
+  });
+
+  it('createdByUserId вне рабочего пространства — 404', async () => {
+    expect((await page(owner(), { createdByUserId: outsider().userId })).statusCode).toBe(404);
+  });
+
   it('некорректный курсор — 400; лишний параметр — 400', async () => {
     expect((await page(owner(), { cursor: 'garbage' })).statusCode).toBe(400);
     expect((await page(owner(), { sortBy: 'amount' })).statusCode).toBe(400);
@@ -357,6 +444,7 @@ async function register(email: string): Promise<Session> {
     user: { id: string };
     workspace: { id: string };
     budget: { id: string };
+    csrfToken: string;
   }>();
   const setCookieRaw = response.headers['set-cookie'];
   const setCookie = Array.isArray(setCookieRaw) ? setCookieRaw.join('; ') : (setCookieRaw ?? '');
@@ -366,6 +454,7 @@ async function register(email: string): Promise<Session> {
     workspaceId: body.workspace.id,
     budgetId: body.budget.id,
     cookie: match ? decodeURIComponent(match[1]!) : '',
+    csrfToken: body.csrfToken,
   };
 }
 
@@ -430,6 +519,7 @@ async function cleanupUser(userId: string): Promise<void> {
   });
   await prisma.workspaceMembership.deleteMany({ where: { userId } });
   for (const { workspaceId } of memberships) {
+    await prisma.auditEvent.deleteMany({ where: { workspaceId } });
     await prisma.idempotencyRecord.deleteMany({ where: { budget: { workspaceId } } });
     await prisma.planPayment.deleteMany({ where: { budget: { workspaceId } } });
     await prisma.planOccurrence.deleteMany({ where: { budget: { workspaceId } } });

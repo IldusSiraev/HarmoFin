@@ -493,7 +493,7 @@ describe('v2 OpenAPI contract (P06)', () => {
     const pageSchema = schemas[refName(pageRef!)];
     const itemsSchema = pageSchema?.properties?.['items'];
     const transactionRef = '#/components/schemas/TransactionFeedItemResponse';
-    const transferRef = '#/components/schemas/TransferJournalItemResponse';
+    const transferRef = '#/components/schemas/JournalTransferItemResponse';
     expect(itemsSchema?.items?.oneOf?.map((s) => s.$ref)).toEqual([transactionRef, transferRef]);
     expect(itemsSchema?.items?.discriminator?.propertyName).toBe('kind');
     expect(itemsSchema?.items?.discriminator?.mapping).toEqual({

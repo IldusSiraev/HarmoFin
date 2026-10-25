@@ -14,6 +14,7 @@ export const listJournalSchema = z
     accountId: uuid.optional(),
     categoryId: uuid.optional(),
     envelopeId: uuid.optional(),
+    createdByUserId: uuid.optional(),
   })
   .strict()
   .superRefine((input, context) => {
