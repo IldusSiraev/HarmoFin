@@ -2,6 +2,8 @@ import type { Prisma } from '@prisma/client';
 
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
 import { PrismaService } from '../database/prisma.service.js';
+import { lockActiveWorkspace } from '../family/family.repository.js';
+import { MEMBER_LIMIT } from '../family/invitation.domain.js';
 
 export type Tx = Prisma.TransactionClient;
 
@@ -10,6 +12,12 @@ export interface OwnedWorkspace {
   timezone: string;
   activeBudgetIds: string[];
   otherActiveMemberCount: number;
+}
+
+export interface DeactivatedMembership {
+  id: string;
+  workspaceId: string;
+  ownerId: string;
 }
 
 export class AccountDeletionRepository {
@@ -22,7 +30,7 @@ export class AccountDeletionRepository {
   findUserCredentials(userId: string) {
     return this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, passwordHash: true, status: true },
+      select: { id: true, email: true, displayName: true, passwordHash: true, status: true },
     });
   }
 
@@ -70,16 +78,17 @@ export class AccountDeletionRepository {
       });
   }
 
-  /** Deactivates the user's memberships in workspaces they do not own; returns their ids. */
+  /** Deactivates the user's memberships in workspaces they do not own; returns each one's id,
+   * workspace and owner, so the caller can notify the owner and resolve the member's notifications. */
   async deactivateForeignMemberships(
     tx: Tx,
     userId: string,
     ownedWorkspaceIds: string[],
     now: Date,
-  ): Promise<string[]> {
+  ): Promise<DeactivatedMembership[]> {
     const memberships = await tx.workspaceMembership.findMany({
       where: { userId, isActive: true, workspaceId: { notIn: ownedWorkspaceIds } },
-      select: { id: true },
+      select: { id: true, workspaceId: true, workspace: { select: { ownerId: true } } },
     });
     const ids = memberships.map((membership) => membership.id);
     if (ids.length > 0)
@@ -87,7 +96,21 @@ export class AccountDeletionRepository {
         where: { id: { in: ids } },
         data: { isActive: false, removedAt: now },
       });
-    return ids;
+    return memberships.map((membership) => ({
+      id: membership.id,
+      workspaceId: membership.workspaceId,
+      ownerId: membership.workspace.ownerId,
+    }));
+  }
+
+  /** The active budget of a workspace, if any — used to target the MEMBER_LEFT notification. */
+  async findActiveBudgetId(tx: Tx, workspaceId: string): Promise<string | null> {
+    const budget = await tx.budget.findFirst({
+      where: { workspaceId, status: 'ACTIVE' },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    return budget?.id ?? null;
   }
 
   async revokeCredentials(tx: Tx, userId: string, now: Date): Promise<void> {
@@ -169,11 +192,27 @@ export class AccountDeletionRepository {
         where: { id: { in: scope.archivedBudgetIds }, status: 'ARCHIVED' },
         data: { status: 'ACTIVE' },
       });
-    if (scope.deactivatedMembershipIds.length > 0)
-      await tx.workspaceMembership.updateMany({
+    if (scope.deactivatedMembershipIds.length > 0) {
+      const memberships = await tx.workspaceMembership.findMany({
         where: { id: { in: scope.deactivatedMembershipIds }, isActive: false },
-        data: { isActive: true, removedAt: null },
+        select: { id: true, workspaceId: true },
       });
+      // Each foreign membership belongs to a family this user does not own; the family may have
+      // filled up to the member limit (or been archived) while the account was gone, so restore
+      // must not reactivate past the limit — the user can be re-invited instead.
+      for (const membership of memberships) {
+        const active = await lockActiveWorkspace(tx, membership.workspaceId);
+        if (!active) continue;
+        const activeMemberCount = await tx.workspaceMembership.count({
+          where: { workspaceId: membership.workspaceId, isActive: true },
+        });
+        if (activeMemberCount >= MEMBER_LIMIT) continue;
+        await tx.workspaceMembership.update({
+          where: { id: membership.id },
+          data: { isActive: true, removedAt: null },
+        });
+      }
+    }
   }
 
   async markRestored(tx: Tx, deletionId: string, now: Date): Promise<void> {

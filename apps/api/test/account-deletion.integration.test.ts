@@ -101,6 +101,8 @@ describe('account deletion', () => {
         MAIL_FROM: 'no-reply@harmofin.test',
         WEB_BASE_URL: origin,
         LOG_LEVEL: 'silent',
+        RATE_LIMIT_LOGIN_MAX: '100',
+        RATE_LIMIT_RECOVERY_MAX: '100',
       }),
     );
     await app.init();
@@ -202,12 +204,107 @@ describe('account deletion', () => {
     const response = await requestDeletion(owner, { password });
 
     expect(response.statusCode).toBe(409);
-    expect(response.json()).toMatchObject({ code: 'ACCOUNT_DELETION_HAS_MEMBERS' });
+    expect(response.json()).toMatchObject({
+      code: 'ACCOUNT_DELETION_HAS_MEMBERS',
+      detail: 'В вашей семье есть другие участники. Сначала удалите их на странице «Семья».',
+    });
     expect((await prisma.user.findUniqueOrThrow({ where: { id: owner.userId } })).status).toBe(
       'ACTIVE',
     );
     await prisma.workspaceMembership.deleteMany({
       where: { workspaceId: owner.workspaceId, userId: member.userId },
+    });
+  });
+
+  it('deleting a member closes their open notifications in the family and notifies the creator', async () => {
+    const creator = await register('del-member-creator');
+    const member = await register('del-member-leaver');
+    await prisma.workspaceMembership.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: creator.workspaceId,
+        userId: member.userId,
+        role: 'EDITOR',
+      },
+    });
+    await prisma.notification.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: creator.workspaceId,
+        budgetId: creator.budgetId,
+        userId: member.userId,
+        notificationType: 'PLAN_UPCOMING',
+        title: 'Скоро платёж',
+        body: 'Подписка через 3 дня',
+        notificationKey: `member-open-${randomUUID()}`,
+      },
+    });
+
+    const response = await requestDeletion(member, { password });
+
+    expect(response.statusCode).toBe(202);
+    expect(
+      await prisma.notification.count({
+        where: { userId: member.userId, workspaceId: creator.workspaceId, resolvedAt: null },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.notification.count({
+        where: { userId: creator.userId, notificationType: 'MEMBER_LEFT' },
+      }),
+    ).toBe(1);
+
+    await prisma.workspaceMembership.deleteMany({
+      where: { workspaceId: creator.workspaceId, userId: member.userId },
+    });
+  });
+
+  it('restoring a member account skips reactivating a family membership that is now full', async () => {
+    const creator = await register('del-restore-limit-creator');
+    const member = await register('del-restore-limit-member');
+    await prisma.workspaceMembership.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: creator.workspaceId,
+        userId: member.userId,
+        role: 'EDITOR',
+      },
+    });
+
+    const rawToken = `restore-limit-${randomUUID()}`;
+    await deleteWithKnownToken(member, rawToken);
+
+    // Fill the family to the member limit (1 creator + 9 others = 10) while the member is gone.
+    const fillerIds: string[] = [];
+    for (let i = 0; i < 9; i += 1) {
+      const filler = await register(`del-restore-limit-filler-${i}`);
+      fillerIds.push(filler.userId);
+      await prisma.workspaceMembership.create({
+        data: {
+          id: randomUUID(),
+          workspaceId: creator.workspaceId,
+          userId: filler.userId,
+          role: 'EDITOR',
+        },
+      });
+    }
+
+    expect((await cancel(rawToken)).statusCode).toBe(204);
+
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: member.userId } })).status,
+    ).toBe('ACTIVE');
+    expect(
+      (await prisma.workspace.findUniqueOrThrow({ where: { id: member.workspaceId } })).status,
+    ).toBe('ACTIVE');
+    expect(
+      await prisma.workspaceMembership.count({
+        where: { workspaceId: creator.workspaceId, userId: member.userId, isActive: true },
+      }),
+    ).toBe(0);
+
+    await prisma.workspaceMembership.deleteMany({
+      where: { workspaceId: creator.workspaceId, userId: { in: [member.userId, ...fillerIds] } },
     });
   });
 
