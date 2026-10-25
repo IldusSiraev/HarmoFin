@@ -18,7 +18,14 @@ export class NotificationRuleHandler {
         id: true,
         workspaceId: true,
         timezone: true,
-        workspace: { select: { ownerId: true } },
+        workspace: {
+          select: {
+            memberships: {
+              where: { isActive: true, role: { in: ['OWNER', 'EDITOR'] } },
+              select: { userId: true },
+            },
+          },
+        },
       },
     });
     for (const budget of budgets) {
@@ -33,7 +40,7 @@ type ActiveBudget = {
   id: string;
   workspaceId: string;
   timezone: string;
-  workspace: { ownerId: string };
+  workspace: { memberships: Array<{ userId: string }> };
 };
 
 /**
@@ -41,6 +48,8 @@ type ActiveBudget = {
  * "free money" rules (those are the actionable dashboard). The notification carries only ids, the
  * plan name and the date; amounts and remainders never go into title, body or audit payload.
  * "Remainder > 0" is evaluated only to decide whether the occurrence still needs attention.
+ * Recipients are every active OWNER and EDITOR of the budget's workspace; VIEWERs and former
+ * members receive none, and their open plan notifications are resolved below.
  */
 async function evaluateBudget(
   tx: Prisma.TransactionClient,
@@ -48,7 +57,7 @@ async function evaluateBudget(
   now: Date,
 ): Promise<void> {
   const today = localDate(now, budget.timezone);
-  const ownerId = budget.workspace.ownerId;
+  const recipientIds = budget.workspace.memberships.map((membership) => membership.userId);
   const occurrences = await tx.planOccurrence.findMany({
     where: {
       budgetId: budget.id,
@@ -77,38 +86,67 @@ async function evaluateBudget(
     if (occurrence.amountMinor - paid <= 0n) continue;
     const type = isoDate(occurrence.scheduledOn) < today ? 'PLAN_OVERDUE' : 'PLAN_TODAY';
     active.add(`${occurrence.id}:${type}`);
-    await createOccurrenceNotification(tx, budget, ownerId, type, occurrence);
+    for (const userId of recipientIds) {
+      await createOccurrenceNotification(tx, budget, userId, type, occurrence);
+    }
   }
 
   const unresolved = await tx.notification.findMany({
     where: {
       budgetId: budget.id,
-      userId: ownerId,
+      userId: { in: recipientIds },
       resolvedAt: null,
       notificationType: { in: ['PLAN_TODAY', 'PLAN_OVERDUE'] },
       occurrenceId: { not: null },
     },
-    select: { id: true, notificationType: true, occurrenceId: true, actionPath: true },
+    select: { id: true, userId: true, notificationType: true, occurrenceId: true, actionPath: true },
   });
   for (const notification of unresolved) {
     const stillActive =
       notification.occurrenceId !== null &&
       active.has(`${notification.occurrenceId}:${notification.notificationType}`);
     if (stillActive) continue;
-    const result = await tx.notification.updateMany({
-      where: { id: notification.id, budgetId: budget.id, resolvedAt: null },
-      data: { resolvedAt: new Date() },
-    });
-    if (result.count === 0) continue;
-    await createNotificationAudit(tx, budget, ownerId, notification.id, {
-      notificationType: notification.notificationType,
-      occurrenceId: notification.occurrenceId,
-      relatedEntityType: null,
-      relatedEntityId: null,
-      actionPath: notification.actionPath ?? '/app/plans',
-      state: 'RESOLVED',
-    });
+    await resolveNotification(tx, budget, notification);
   }
+
+  const forExRecipients = await tx.notification.findMany({
+    where: {
+      budgetId: budget.id,
+      resolvedAt: null,
+      notificationType: { in: ['PLAN_TODAY', 'PLAN_OVERDUE'] },
+      userId: { notIn: recipientIds },
+    },
+    select: { id: true, userId: true, notificationType: true, occurrenceId: true, actionPath: true },
+  });
+  for (const notification of forExRecipients) {
+    await resolveNotification(tx, budget, notification);
+  }
+}
+
+async function resolveNotification(
+  tx: Prisma.TransactionClient,
+  budget: ActiveBudget,
+  notification: {
+    id: string;
+    userId: string;
+    notificationType: string;
+    occurrenceId: string | null;
+    actionPath: string | null;
+  },
+): Promise<void> {
+  const result = await tx.notification.updateMany({
+    where: { id: notification.id, budgetId: budget.id, resolvedAt: null },
+    data: { resolvedAt: new Date() },
+  });
+  if (result.count === 0) return;
+  await createNotificationAudit(tx, budget, notification.userId, notification.id, {
+    notificationType: notification.notificationType,
+    occurrenceId: notification.occurrenceId,
+    relatedEntityType: null,
+    relatedEntityId: null,
+    actionPath: notification.actionPath ?? '/app/plans',
+    state: 'RESOLVED',
+  });
 }
 
 async function createOccurrenceNotification(
