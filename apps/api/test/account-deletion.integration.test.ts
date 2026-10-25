@@ -632,6 +632,93 @@ describe('account deletion', () => {
     });
   }
 
+  function invitationData(
+    workspaceId: string,
+    invitedByUserId: string,
+    email: string,
+    extra: Partial<{
+      status: 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED';
+      acceptedByUserId: string;
+      acceptedAt: Date;
+    }> = {},
+  ) {
+    return {
+      id: randomUUID(),
+      workspaceId,
+      email,
+      role: 'EDITOR' as const,
+      tokenHash: randomUUID().replace(/-/g, '').padEnd(64, '0'),
+      expiresAt: new Date(Date.now() + 86_400_000),
+      invitedByUserId,
+      ...extra,
+    };
+  }
+
+  it('purges invitations of a deleted owner workspace across several statuses', async () => {
+    const owner = await register('del-invites-owner');
+    await prisma.workspaceInvitation.create({
+      data: invitationData(owner.workspaceId, owner.userId, 'pending@harmofin.test'),
+    });
+    await prisma.workspaceInvitation.create({
+      data: invitationData(owner.workspaceId, owner.userId, 'revoked@harmofin.test', {
+        status: 'REVOKED',
+      }),
+    });
+    await prisma.workspaceInvitation.create({
+      data: invitationData(owner.workspaceId, owner.userId, 'expired@harmofin.test', {
+        status: 'EXPIRED',
+      }),
+    });
+
+    expect((await requestDeletion(owner, { password })).statusCode).toBe(202);
+    await makeDue(owner.userId);
+    await new AccountPurgeHandler(prisma).execute(new Date());
+
+    expect(
+      await prisma.workspaceInvitation.count({ where: { workspaceId: owner.workspaceId } }),
+    ).toBe(0);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: owner.userId } })).status).toBe(
+      'DELETED',
+    );
+  });
+
+  it('retains and anonymizes an invitation accepted into another owner workspace by a deleted member', async () => {
+    const otherOwner = await register('del-invites-other-owner');
+    const member = await register('del-invites-member');
+    const invitation = await prisma.workspaceInvitation.create({
+      data: invitationData(otherOwner.workspaceId, otherOwner.userId, member.email, {
+        status: 'ACCEPTED',
+        acceptedByUserId: member.userId,
+        acceptedAt: new Date(),
+      }),
+    });
+    await prisma.workspaceMembership.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: otherOwner.workspaceId,
+        userId: member.userId,
+        role: 'EDITOR',
+      },
+    });
+
+    expect((await requestDeletion(member, { password })).statusCode).toBe(202);
+    await makeDue(member.userId);
+    await new AccountPurgeHandler(prisma).execute(new Date());
+
+    const stored = await prisma.workspaceInvitation.findUniqueOrThrow({
+      where: { id: invitation.id },
+    });
+    expect(stored.email).toBe(`deleted-${member.userId}@invalid`);
+    expect(stored.acceptedByUserId).toBe(member.userId);
+    expect(
+      (await prisma.workspace.findUniqueOrThrow({ where: { id: otherOwner.workspaceId } })).status,
+    ).toBe('ACTIVE');
+    await prisma.workspaceMembership.deleteMany({
+      where: { workspaceId: otherOwner.workspaceId, userId: member.userId },
+    });
+    await prisma.workspaceInvitation.deleteMany({ where: { id: invitation.id } });
+  });
+
   it('purges every row of the owned scope and anonymizes the user, leaving others intact', async () => {
     const target = await register('del-purge');
     const bystander = await register('del-bystander');
