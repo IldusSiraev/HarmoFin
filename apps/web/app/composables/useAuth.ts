@@ -52,6 +52,7 @@ export function useAuth() {
     workspaceName?: string;
     budgetName?: string;
     consents?: Consent[];
+    invitationToken?: string;
   }) {
     const result = await api.request<{ user: User }>('/api/v1/auth/register', {
       method: 'POST',

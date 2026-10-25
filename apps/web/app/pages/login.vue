@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { navigateTo } from '#app';
+import { navigateTo, useRoute } from '#app';
 
 import UiInput from '../components/ui/Input.vue';
 import { errorMessage, useAuth } from '../composables/useAuth.js';
 
 defineOptions({ name: 'LoginPage' });
 
+const route = useRoute();
 const email = ref('');
 const password = ref('');
 const loading = ref(false);
@@ -20,7 +21,7 @@ async function submit() {
   fieldErrors.value = {};
   try {
     await login({ email: email.value, password: password.value });
-    await navigateTo('/app');
+    await navigateTo(route.query.invite === '1' ? '/invite' : '/app');
   } catch (error) {
     const result = errorMessage(error);
     summary.value = result.summary;

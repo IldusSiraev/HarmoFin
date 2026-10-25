@@ -28,5 +28,25 @@ describe('NotificationCard', () => {
     expect(wrapper.text()).toContain('Новое');
     expect(wrapper.text()).toContain('Плановый платёж сегодня');
     expect(wrapper.get('a[href="/app/plans?occurrence=occurrence-id"]')).toBeTruthy();
+    expect(wrapper.find('.notification-card__icon').exists()).toBe(false);
+  });
+
+  it('shows an aria-hidden icon for a member access event', () => {
+    const wrapper = mount(NotificationCard, {
+      props: {
+        notification: {
+          ...notification,
+          notificationType: 'MEMBER_JOINED',
+          title: 'Новый участник семьи',
+          body: 'Анна присоединилась к семье «Сираевы».',
+          actionPath: '/app/settings/family',
+        },
+      },
+      global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } },
+    });
+
+    const icon = wrapper.get('.notification-card__icon');
+    expect(icon.attributes('aria-hidden')).toBe('true');
+    expect(wrapper.text()).toContain('Новый участник семьи');
   });
 });

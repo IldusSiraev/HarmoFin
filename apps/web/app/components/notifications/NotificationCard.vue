@@ -1,11 +1,26 @@
 <script setup lang="ts">
-import type { NotificationDto } from '../../composables/useBudgetReferenceData.js';
+import { UserMinus, UserPlus, UserX } from '@lucide/vue';
+import type { Component } from 'vue';
+
+import type { NotificationDto, NotificationType } from '../../composables/useBudgetReferenceData.js';
 
 const props = defineProps<{ notification: NotificationDto }>();
 defineEmits<{ open: [event: MouseEvent] }>();
 
+// Access-event types only: plan/financial notifications keep their plain
+// title/body with no icon.
+const MEMBER_EVENT_ICONS: Partial<Record<NotificationType, Component>> = {
+  MEMBER_JOINED: UserPlus,
+  MEMBER_LEFT: UserMinus,
+  MEMBER_REMOVED: UserX,
+};
+
 function stateText() {
   return props.notification.readAt ? 'Прочитано' : 'Новое';
+}
+
+function memberEventIcon(): Component | null {
+  return MEMBER_EVENT_ICONS[props.notification.notificationType] ?? null;
 }
 </script>
 
@@ -15,7 +30,10 @@ function stateText() {
       <span>{{ stateText() }}</span>
       <time :datetime="notification.createdAt">{{ notification.createdAt.slice(0, 10) }}</time>
     </div>
-    <h2>{{ notification.title }}</h2>
+    <h2 class="notification-card__title">
+      <component :is="memberEventIcon()" v-if="memberEventIcon()" class="notification-card__icon" aria-hidden="true" />
+      {{ notification.title }}
+    </h2>
     <p>{{ notification.body }}</p>
     <NuxtLink
       v-if="notification.actionPath"
@@ -43,6 +61,17 @@ function stateText() {
 .notification-card h2,
 .notification-card p {
   margin: 0;
+}
+.notification-card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--hf-space-2);
+}
+.notification-card__icon {
+  flex-shrink: 0;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--hf-color-text-muted);
 }
 .notification-card p {
   color: var(--hf-color-text-muted);

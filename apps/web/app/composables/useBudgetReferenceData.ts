@@ -112,7 +112,10 @@ export type NotificationType =
   | 'UNALLOCATED_INCOME'
   | 'NEGATIVE_ACCOUNT'
   | 'NEGATIVE_ENVELOPE'
-  | 'INSUFFICIENT_MANDATORY_OBLIGATIONS';
+  | 'INSUFFICIENT_MANDATORY_OBLIGATIONS'
+  | 'MEMBER_JOINED'
+  | 'MEMBER_LEFT'
+  | 'MEMBER_REMOVED';
 
 export interface NotificationDto {
   id: string;
