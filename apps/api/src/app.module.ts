@@ -11,6 +11,7 @@ import { API_CONFIG } from './common/security/security.constants.js';
 import type { ApiConfig } from './config/env.js';
 import { CycleModule } from './cycles/cycle.module.js';
 import { DatabaseModule } from './database/database.module.js';
+import { FamilyModule } from './family/family.module.js';
 import { DashboardV2Module } from './v2-dashboard/dashboard-v2.module.js';
 import { DirectTransferModule } from './v2-transfers/direct-transfer.module.js';
 import { JournalModule } from './v2-journal/journal.module.js';
@@ -43,6 +44,7 @@ export class AppModule {
         PlanModelModule.register(),
         AuditModule.register(),
         WorkspaceModule.register(),
+        FamilyModule.register(),
         BudgetModule.register(),
         CycleModule.register(),
         AccountModule.register(),
