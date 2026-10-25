@@ -2,13 +2,27 @@ import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Re
 import { ApiBody, ApiCookieAuth, ApiNoContentResponse, ApiOkResponse, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 
+import { AuthRateLimitGuard } from '../auth/auth-rate-limit.guard.js';
 import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { ProblemDetailsResponse } from '../common/errors/problem-details.dto.js';
 import type { RequestContext } from '../common/request-context/request-context.js';
 import { CsrfGuard } from '../common/security/csrf.guard.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
-import { ChangeRoleRequest, MemberResponse } from './family.dto.js';
-import { changeRoleSchema, uuidParamSchema, type ChangeRoleInput } from './family.schemas.js';
+import {
+  ChangeRoleRequest,
+  CreatedInvitationResponse,
+  CreateInvitationRequest,
+  InvitationResponse,
+  MemberResponse,
+} from './family.dto.js';
+import {
+  changeRoleSchema,
+  createInvitationSchema,
+  uuidParamSchema,
+  type ChangeRoleInput,
+  type CreateInvitationInput,
+} from './family.schemas.js';
+import { InvitationsApplicationService } from './invitations.application.service.js';
 import { MembersApplicationService } from './members.application.service.js';
 
 const UuidParam = () => new ZodValidationPipe(uuidParamSchema);
@@ -22,6 +36,7 @@ type AuthenticatedRequest = FastifyRequest & { authContext?: RequestContext };
 export class FamilyController {
   constructor(
     @Inject(MembersApplicationService) private readonly members: MembersApplicationService,
+    @Inject(InvitationsApplicationService) private readonly invitations: InvitationsApplicationService,
   ) {}
 
   @Get('members')
@@ -104,6 +119,73 @@ export class FamilyController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.members.select(contextOf(request).userId, workspaceId);
+  }
+
+  @Get('invitations')
+  @ApiOkResponse({ type: [InvitationResponse] })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  listInvitations(
+    @Param('workspaceId', UuidParam()) workspaceId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.invitations.list(contextOf(request).userId, workspaceId);
+  }
+
+  @Post('invitations')
+  @UseGuards(CsrfGuard, AuthRateLimitGuard)
+  @ApiBody({ type: CreateInvitationRequest })
+  @ApiResponse({ status: 201, type: CreatedInvitationResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 429, type: ProblemDetailsResponse })
+  createInvitation(
+    @Param('workspaceId', UuidParam()) workspaceId: string,
+    @Body(new ZodValidationPipe(createInvitationSchema)) input: CreateInvitationInput,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.invitations.create(contextOf(request).userId, workspaceId, input, request.id);
+  }
+
+  @Post('invitations/:invitationId/resend')
+  @UseGuards(CsrfGuard, AuthRateLimitGuard)
+  @HttpCode(200)
+  @ApiOkResponse({ type: CreatedInvitationResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 429, type: ProblemDetailsResponse })
+  resendInvitation(
+    @Param('workspaceId', UuidParam()) workspaceId: string,
+    @Param('invitationId', UuidParam()) invitationId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.invitations.resend(contextOf(request).userId, workspaceId, invitationId, request.id);
+  }
+
+  @Delete('invitations/:invitationId')
+  @UseGuards(CsrfGuard)
+  @HttpCode(204)
+  @ApiNoContentResponse()
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  revokeInvitation(
+    @Param('workspaceId', UuidParam()) workspaceId: string,
+    @Param('invitationId', UuidParam()) invitationId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.invitations.revoke(contextOf(request).userId, workspaceId, invitationId, request.id);
   }
 }
 

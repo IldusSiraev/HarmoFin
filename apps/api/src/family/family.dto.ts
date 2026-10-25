@@ -38,8 +38,8 @@ export class InvitationResponse {
   @ApiProperty({ type: String, enum: ['EDITOR', 'VIEWER'] })
   role!: 'EDITOR' | 'VIEWER';
 
-  @ApiProperty({ type: String, enum: ['PENDING', 'ACCEPTED', 'REVOKED'] })
-  status!: 'PENDING' | 'ACCEPTED' | 'REVOKED';
+  @ApiProperty({ type: String, enum: ['PENDING', 'EXPIRED'] })
+  status!: 'PENDING' | 'EXPIRED';
 
   @ApiProperty({ type: String, format: 'date-time' })
   expiresAt!: string;

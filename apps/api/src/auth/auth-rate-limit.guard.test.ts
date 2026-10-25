@@ -42,6 +42,59 @@ describe('AuthRateLimitGuard', () => {
     expect(guard.canActivate(context)).toBe(true);
     expectRateLimited(() => guard.canActivate(context));
   });
+
+  it('limits invitation preview and accept with the recovery budget', () => {
+    const guard = new AuthRateLimitGuard({
+      rateLimit: { windowSeconds: 900, loginMax: 5, recoveryMax: 1 },
+    } as never);
+    const preview = contextFor({
+      method: 'POST',
+      url: '/api/v1/invitations/preview',
+      ip: '127.0.0.1',
+    });
+    expect(guard.canActivate(preview)).toBe(true);
+    expectRateLimited(() => guard.canActivate(preview));
+
+    const accept = contextFor({
+      method: 'POST',
+      url: '/api/v1/invitations/accept',
+      ip: '127.0.0.1',
+    });
+    expect(guard.canActivate(accept)).toBe(true);
+    expectRateLimited(() => guard.canActivate(accept));
+  });
+
+  it('limits creating and resending workspace invitations with the login budget, but not listing', () => {
+    const guard = new AuthRateLimitGuard({
+      rateLimit: { windowSeconds: 900, loginMax: 1, recoveryMax: 1 },
+    } as never);
+    const workspaceId = '11111111-1111-1111-1111-111111111111';
+    const invitationId = '22222222-2222-2222-2222-222222222222';
+    const create = contextFor({
+      method: 'POST',
+      url: `/api/v1/workspaces/${workspaceId}/invitations`,
+      ip: '127.0.0.1',
+    });
+    const resend = contextFor({
+      method: 'POST',
+      url: `/api/v1/workspaces/${workspaceId}/invitations/${invitationId}/resend`,
+      ip: '127.0.0.1',
+    });
+
+    expect(guard.canActivate(create)).toBe(true);
+    expectRateLimited(() => guard.canActivate(create));
+    expect(guard.canActivate(resend)).toBe(true);
+    expectRateLimited(() => guard.canActivate(resend));
+
+    const list = contextFor({
+      method: 'GET',
+      url: `/api/v1/workspaces/${workspaceId}/invitations`,
+      ip: '127.0.0.1',
+    });
+    expect(guard.canActivate(list)).toBe(true);
+    expect(guard.canActivate(list)).toBe(true);
+    expect(guard.canActivate(list)).toBe(true);
+  });
 });
 
 function contextFor(request: object): never {

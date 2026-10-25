@@ -29,4 +29,26 @@ describe('SmtpEmailSender', () => {
     expect(text).toContain('http://localhost:3000/restore-account?token=abc');
     expect(text).toContain('Если это были не вы');
   });
+
+  it('sends the family invitation with inviter, workspace, role and link', async () => {
+    await new SmtpEmailSender(config).sendFamilyInvitation({
+      recipient: 'alia@harmofin.test',
+      inviteUrl: 'http://localhost:3000/invite#token=abc',
+      inviterName: 'Иван',
+      workspaceName: 'Семья Ивановых',
+      roleLabel: 'Участник',
+    });
+
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: 'no-reply@harmofin.test',
+        to: 'alia@harmofin.test',
+        subject: 'Иван приглашает вас в HarmoFin',
+      }),
+    );
+    const text = (sendMail.mock.calls.at(-1)![0] as { text: string }).text;
+    expect(text).toContain('Семья Ивановых');
+    expect(text).toContain('Участник');
+    expect(text).toContain('http://localhost:3000/invite#token=abc');
+  });
 });

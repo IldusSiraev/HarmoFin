@@ -41,4 +41,26 @@ export class SmtpEmailSender implements EmailSender {
       ].join('\n\n'),
     });
   }
+
+  async sendFamilyInvitation(input: {
+    recipient: string;
+    inviteUrl: string;
+    inviterName: string;
+    workspaceName: string;
+    roleLabel: string;
+  }): Promise<void> {
+    await this.transporter.sendMail({
+      from: this.config.mail.from,
+      to: input.recipient,
+      subject: `${input.inviterName} приглашает вас в HarmoFin`,
+      text: [
+        `${input.inviterName} приглашает вас в семью «${input.workspaceName}» в HarmoFin.`,
+        `Роль: ${input.roleLabel}.`,
+        '',
+        `Принять приглашение: ${input.inviteUrl}`,
+        '',
+        'Ссылка действует 7 дней. Если вы не ждали приглашения, просто проигнорируйте письмо.',
+      ].join('\n'),
+    });
+  }
 }

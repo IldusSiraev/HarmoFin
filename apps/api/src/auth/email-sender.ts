@@ -5,6 +5,13 @@ export interface EmailSender {
     restoreUrl: string;
     purgeDateLabel: string;
   }): Promise<void>;
+  sendFamilyInvitation(input: {
+    recipient: string;
+    inviteUrl: string;
+    inviterName: string;
+    workspaceName: string;
+    roleLabel: string;
+  }): Promise<void>;
 }
 
 export const EMAIL_SENDER = Symbol('EMAIL_SENDER');
