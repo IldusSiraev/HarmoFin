@@ -99,12 +99,21 @@ describe('settings hub page', () => {
     expect(wrapper.text()).toContain('Как пользоваться HarmoFin');
   });
 
-  it('orders the cards so a single column reads «Бюджет», «Финансовый цикл», «Аккаунт»', async () => {
+  it('orders the cards so a single column reads «Бюджет», «Финансовый цикл», «Семья», «Аккаунт»', async () => {
     const wrapper = mountPage();
     await flushPromises();
 
     const headings = wrapper.findAll('section h2').map((heading) => heading.text());
-    expect(headings).toEqual(['Бюджет', 'Финансовый цикл', 'Аккаунт']);
+    expect(headings).toEqual(['Бюджет', 'Финансовый цикл', 'Семья', 'Аккаунт']);
+  });
+
+  it('links to the family page before the account card', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const link = wrapper.find('a[href="/app/settings/family"]');
+    expect(link.exists()).toBe(true);
+    expect(link.text()).toContain('Участники и приглашения');
   });
 
   it('does not show the income allocation rule anywhere on the page', async () => {

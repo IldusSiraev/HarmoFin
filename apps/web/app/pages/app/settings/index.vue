@@ -141,6 +141,18 @@ onMounted(() => {
 
         <UiCard
           as="section"
+          class="settings-page__area settings-page__area--family"
+          aria-labelledby="settings-family-title"
+        >
+          <template #header><h2 id="settings-family-title">Семья</h2></template>
+          <NuxtLink to="/app/settings/family" class="settings-page__row">
+            <span>Участники и приглашения</span>
+            <span class="settings-page__row-link">Управлять →</span>
+          </NuxtLink>
+        </UiCard>
+
+        <UiCard
+          as="section"
           class="settings-page__area settings-page__area--account"
           aria-labelledby="settings-account-title"
         >
@@ -180,7 +192,8 @@ onMounted(() => {
 }
 
 /* Single column: the spec orders the cards «Бюджет», «Финансовый цикл»,
-   «Аккаунт» — the cycle is promoted as the most frequently used setting. */
+   «Семья», «Аккаунт» — the cycle is promoted as the most frequently used
+   setting. */
 .settings-page__grid {
   display: grid;
   gap: var(--hf-space-5);
@@ -188,6 +201,7 @@ onMounted(() => {
   grid-template-areas:
     'budget'
     'cycle'
+    'family'
     'account';
   align-items: start;
 }
@@ -198,6 +212,10 @@ onMounted(() => {
 
 .settings-page__area--cycle {
   grid-area: cycle;
+}
+
+.settings-page__area--family {
+  grid-area: family;
 }
 
 .settings-page__area--account {
@@ -261,16 +279,17 @@ onMounted(() => {
   font-size: var(--hf-font-size-small);
 }
 
-/* Two columns: «Бюджет» over «Аккаунт» on the left, «Финансовый цикл»
-   spanning both rows on the right. */
+/* Two columns: «Бюджет», «Семья», «Аккаунт» stacked on the left, «Финансовый
+   цикл» spanning all three rows on the right. */
 @media (min-width: 48rem) {
   .settings-page__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    /* The flexible second row absorbs the taller cycle card, so the spanning
-       card cannot inflate row 1 and push «Аккаунт» away from «Бюджет». */
-    grid-template-rows: auto 1fr;
+    /* The flexible last row absorbs the taller cycle card, so the spanning
+       card cannot inflate the earlier rows and push the left column apart. */
+    grid-template-rows: auto auto 1fr;
     grid-template-areas:
       'budget cycle'
+      'family cycle'
       'account cycle';
   }
 }
