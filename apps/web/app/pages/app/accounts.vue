@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { onMounted, reactive, ref, watch } from 'vue';
 import { definePageMeta, navigateTo, useRoute } from '#imports';
 
 import AccountDialog from '../../components/accounts/AccountDialog.vue';
@@ -17,6 +17,7 @@ import UiSelect from '../../components/ui/Select.vue';
 import UiSkeleton from '../../components/ui/Skeleton.vue';
 import UiStatus from '../../components/ui/Status.vue';
 import { ApiRequestError } from '../../composables/useApiClient.js';
+import { useActiveWorkspace } from '../../composables/useActiveWorkspace.js';
 import { useAuth } from '../../composables/useAuth.js';
 import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
@@ -82,7 +83,7 @@ const form = reactive({
   comment: '',
 });
 
-const budgetId = computed(() => currentData.value?.workspaces[0]?.budgets[0]?.id);
+const { budgetId } = useActiveWorkspace();
 
 function getAccountTypeOptions() {
   return [

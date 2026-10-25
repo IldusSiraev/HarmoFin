@@ -138,8 +138,9 @@ describe('accounts page', () => {
 
   it('offers the opening assignment once money has been assigned before', async () => {
     useFundingEntry().dismiss();
-    const budget = (mocks.auth.currentData.value as { workspaces: Array<{ budgets: object[] }> })
-      .workspaces[0]!.budgets[0] as Record<string, unknown>;
+    const budget = (
+      mocks.auth.currentData.value as { workspaces: Array<{ budgets: object[] }> }
+    ).workspaces.at(0)!.budgets.at(0) as Record<string, unknown>;
     budget.planModelVersion = 2;
 
     await createWithBalance('1000');
@@ -150,8 +151,9 @@ describe('accounts page', () => {
 
   it('offers nothing for a zero starting balance', async () => {
     useFundingEntry().dismiss();
-    const budget = (mocks.auth.currentData.value as { workspaces: Array<{ budgets: object[] }> })
-      .workspaces[0]!.budgets[0] as Record<string, unknown>;
+    const budget = (
+      mocks.auth.currentData.value as { workspaces: Array<{ budgets: object[] }> }
+    ).workspaces.at(0)!.budgets.at(0) as Record<string, unknown>;
     budget.planModelVersion = 2;
     await createWithBalance('0');
     expect(useFundingEntry().request.value).toBeNull();

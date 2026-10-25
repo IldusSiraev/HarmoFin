@@ -12,6 +12,7 @@ import UiInput from '../../../components/ui/Input.vue';
 import UiSelect from '../../../components/ui/Select.vue';
 import UiStatus from '../../../components/ui/Status.vue';
 import { ApiRequestError } from '../../../composables/useApiClient.js';
+import { useActiveWorkspace } from '../../../composables/useActiveWorkspace.js';
 import { useAuth } from '../../../composables/useAuth.js';
 import {
   type BudgetDto,
@@ -53,7 +54,7 @@ const form = reactive({
   periodBoundaryOffset: '',
 });
 
-const budgetId = computed(() => currentData.value?.workspaces[0]?.budgets[0]?.id);
+const { budgetId } = useActiveWorkspace();
 // The cycle changes only through a read-only preview and one explicit confirmation.
 
 const cycleErrors = ref<Partial<Record<CycleErrorField, string>>>({});

@@ -20,6 +20,7 @@ import { useColorScheme } from '../../composables/useColorScheme.js';
 import UiButton from '../ui/Button.vue';
 import AppAddMenu from './AppAddMenu.vue';
 import AppSidebarSection from './AppSidebarSection.vue';
+import AppWorkspaceSwitcher from './AppWorkspaceSwitcher.vue';
 
 defineOptions({ name: 'AppSidebar' });
 
@@ -79,6 +80,7 @@ async function handleLogout() {
         </UiButton>
       </div>
     </div>
+    <AppWorkspaceSwitcher class="app-sidebar__workspace" />
     <nav class="app-sidebar__nav hf-scroll">
       <AppSidebarSection>
         <NuxtLink
@@ -203,6 +205,10 @@ async function handleLogout() {
 .app-sidebar__add {
   min-width: 2.25rem;
   padding-inline: 0;
+}
+
+.app-sidebar__workspace {
+  padding: 0 var(--hf-space-3);
 }
 
 .app-sidebar__nav {

@@ -451,7 +451,7 @@ describe('operations page (v2 journal)', () => {
   });
 
   it('hides CSV download from an editor', async () => {
-    auth.currentData.value!.workspaces[0]!.role = 'EDITOR';
+    auth.currentData.value!.workspaces.at(0)!.role = 'EDITOR';
     mountPage();
     await flushPromises();
 

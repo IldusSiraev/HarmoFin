@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref } from 'vue';
 import { definePageMeta } from '#imports';
 import { Archive, Pencil } from '@lucide/vue';
 
@@ -14,6 +14,7 @@ import UiInput from '../../components/ui/Input.vue';
 import UiModal from '../../components/ui/Modal.vue';
 import UiSelect from '../../components/ui/Select.vue';
 import UiStatus from '../../components/ui/Status.vue';
+import { useActiveWorkspace } from '../../composables/useActiveWorkspace.js';
 import { useAuth } from '../../composables/useAuth.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
 import {
@@ -62,7 +63,7 @@ const form = reactive({
   comment: '',
 });
 
-const budgetId = computed(() => currentData.value?.workspaces[0]?.budgets[0]?.id);
+const { budgetId } = useActiveWorkspace();
 function getStatusOptions() {
   return [
     { value: 'active', label: 'Активные' },

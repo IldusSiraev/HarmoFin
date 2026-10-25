@@ -5,6 +5,7 @@ import { definePageMeta, useRoute } from '#imports';
 import EnvelopePlanView from '../../../components/envelopes/EnvelopesPlanView.vue';
 import UiButton from '../../../components/ui/Button.vue';
 import UiEmptyState from '../../../components/ui/EmptyState.vue';
+import { useActiveWorkspace } from '../../../composables/useActiveWorkspace.js';
 import { useAuth } from '../../../composables/useAuth.js';
 
 defineOptions({ name: 'AppEnvelopesPage' });
@@ -16,7 +17,7 @@ const loading = ref(true);
 const loadError = ref('');
 const hydrated = ref(false);
 
-const budgetId = computed(() => currentData.value?.workspaces[0]?.budgets[0]?.id);
+const { budgetId } = useActiveWorkspace();
 const planQuery = computed(() => route.query as Record<string, string | undefined>);
 
 async function loadPage() {

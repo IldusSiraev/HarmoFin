@@ -1,4 +1,4 @@
-import { useState } from '#imports';
+import { reloadNuxtApp, useState } from '#imports';
 import { ApiRequestError, useApiClient } from './useApiClient.js';
 
 type User = { id: string; email: string; displayName: string | null };
@@ -10,14 +10,18 @@ export type BudgetSummary = {
   planModelVersion: 2;
 };
 export type Consent = { document: 'TERMS' | 'PRIVACY_POLICY' | 'PD_CONSENT'; version: string };
-type MeResponse = {
+export type WorkspaceRole = 'OWNER' | 'EDITOR' | 'VIEWER';
+export type WorkspaceMembership = {
+  id: string;
+  name: string;
+  role: WorkspaceRole;
+  isCreator: boolean;
+  budgets: Array<BudgetSummary>;
+};
+export type MeResponse = {
   user: User;
-  workspaces: Array<{
-    id: string;
-    name: string;
-    role: string;
-    budgets: Array<BudgetSummary>;
-  }>;
+  activeWorkspaceId: string | null;
+  workspaces: WorkspaceMembership[];
   pendingConsents: Consent[];
 };
 
@@ -137,6 +141,37 @@ export function useAuth() {
     if (currentData.value) currentData.value = { ...currentData.value, pendingConsents: [] };
   }
 
+  async function selectWorkspace(workspaceId: string): Promise<void> {
+    await api.request(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/select`, {
+      method: 'POST',
+    });
+    await loadMe();
+    // Every page loads its budget data in onMounted; navigateTo('/app') would
+    // not remount anything when already there, so a full reload is the only
+    // way every page/composable (dashboard, journal, caches) picks up the
+    // newly selected budget instead of keeping the previous one on screen.
+    await reloadNuxtApp({ path: '/app' });
+  }
+
+  async function createPersonalWorkspace(): Promise<void> {
+    await api.request('/api/v1/workspaces', {
+      method: 'POST',
+      body: JSON.stringify({ workspaceName: 'Мой бюджет', budgetName: 'Мой бюджет' }),
+    });
+    await loadMe();
+    // Creating a personal workspace also makes it the active one on the
+    // server, so it needs the same full reload as selectWorkspace.
+    await reloadNuxtApp({ path: '/app' });
+  }
+
+  async function updateProfile(displayName: string): Promise<void> {
+    const result = await api.request<{ user: User }>('/api/v1/me', {
+      method: 'PATCH',
+      body: JSON.stringify({ displayName }),
+    });
+    currentUser.value = result.user;
+  }
+
   return {
     currentUser,
     currentData,
@@ -153,6 +188,9 @@ export function useAuth() {
     requestAccountDeletion,
     cancelAccountDeletion,
     acceptConsents,
+    selectWorkspace,
+    createPersonalWorkspace,
+    updateProfile,
   };
 }
 

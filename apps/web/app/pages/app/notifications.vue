@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { definePageMeta, navigateTo } from '#imports';
 
 import NotificationCard from '../../components/notifications/NotificationCard.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
+import { useActiveWorkspace } from '../../composables/useActiveWorkspace.js';
 import { useAuth } from '../../composables/useAuth.js';
 import { ApiRequestError } from '../../composables/useApiClient.js';
 import {
@@ -24,7 +25,7 @@ const pending = ref(false);
 const error = ref('');
 const statusText = ref('');
 const mutationKeys = new Map<string, string>();
-const budget = computed(() => auth.currentData.value?.workspaces[0]?.budgets[0] ?? null);
+const { budget } = useActiveWorkspace();
 
 onMounted(() => {
   void load();

@@ -21,6 +21,7 @@ import UiModal from '../../components/ui/Modal.vue';
 import UiReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiSkeleton from '../../components/ui/Skeleton.vue';
 import { ApiRequestError } from '../../composables/useApiClient.js';
+import { useActiveWorkspace } from '../../composables/useActiveWorkspace.js';
 import { useAuth } from '../../composables/useAuth.js';
 import {
   useEnvelopePlanV2,
@@ -83,9 +84,8 @@ const confirmation = ref<null | {
 }>(null);
 let requestVersion = 0;
 
-const workspace = computed(() => auth.currentData.value?.workspaces[0] ?? null);
-const budget = computed(() => workspace.value?.budgets[0] ?? null);
-const isOwner = computed(() => workspace.value?.role === 'OWNER');
+const { role, budget } = useActiveWorkspace();
+const isOwner = computed(() => role.value === 'OWNER');
 // Accounts, categories and envelopes come from the shared cache the global add
 // dialogs already use, so opening the journal does not re-read them every time.
 const { accounts, categories, envelopes, load: loadReferenceData } = useOperationReferenceData();

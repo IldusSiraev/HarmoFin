@@ -34,6 +34,7 @@ import IncomeRecordSheet, {
 import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
+import { useActiveWorkspace } from '../../composables/useActiveWorkspace.js';
 import { useAuth } from '../../composables/useAuth.js';
 import {
   type IncomeOccurrenceItem,
@@ -74,7 +75,7 @@ const statusText = ref('');
 const confirmation = ref<null | { action: 'skip'; occurrenceId: string }>(null);
 const mutationKeys = new Map<string, string>();
 
-const budget = computed(() => auth.currentData.value?.workspaces[0]?.budgets[0] ?? null);
+const { budget } = useActiveWorkspace();
 // Every status, remainder and total comes from the server calendar DTO.
 const monthKey = ref(format(new Date(), 'yyyy-MM'));
 const monthAnchor = computed(() => `${monthKey.value}-01`);

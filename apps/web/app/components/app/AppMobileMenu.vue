@@ -3,6 +3,7 @@ import { watch } from 'vue';
 import { navigateTo, useRoute } from '#imports';
 
 import { useAuth } from '../../composables/useAuth.js';
+import AppWorkspaceSwitcher from './AppWorkspaceSwitcher.vue';
 
 defineOptions({ name: 'AppMobileMenu' });
 
@@ -74,6 +75,7 @@ watch(
           </div>
 
           <div class="mobile-menu__user">
+            <AppWorkspaceSwitcher class="mobile-menu__workspace" />
             <div class="mobile-menu__user-email">{{ userEmail() }}</div>
           </div>
 
@@ -229,8 +231,14 @@ watch(
 }
 
 .mobile-menu__user {
+  display: grid;
+  gap: var(--hf-space-3);
   padding: var(--hf-space-5) var(--hf-space-4);
   border-bottom: 1px solid var(--hf-color-border);
+}
+
+.mobile-menu__workspace {
+  width: 100%;
 }
 
 .mobile-menu__user-email {

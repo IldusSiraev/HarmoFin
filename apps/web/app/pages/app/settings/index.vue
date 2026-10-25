@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { definePageMeta, useRuntimeConfig } from '#imports';
 
 import TemplatePreviewSheet from '../../../components/funding/TemplatePreviewSheet.vue';
@@ -8,6 +8,7 @@ import UiButton from '../../../components/ui/Button.vue';
 import UiCard from '../../../components/ui/Card.vue';
 import UiEmptyState from '../../../components/ui/EmptyState.vue';
 import UiStatus from '../../../components/ui/Status.vue';
+import { useActiveWorkspace } from '../../../composables/useActiveWorkspace.js';
 import { useAuth } from '../../../composables/useAuth.js';
 
 defineOptions({ name: 'AppSettingsPage' });
@@ -23,7 +24,7 @@ const loadError = ref('');
 const templateSummary = ref('');
 const templateSheetOpen = ref(false);
 
-const budgetId = computed(() => currentData.value?.workspaces[0]?.budgets[0]?.id);
+const { budgetId } = useActiveWorkspace();
 
 async function loadPage() {
   loading.value = true;
