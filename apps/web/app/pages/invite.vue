@@ -35,6 +35,7 @@ const { preview: previewInvitation, accept: acceptInvitation } = useInvitation()
 const isWelcome = computed(() => route.query.welcome === '1');
 
 const loading = ref(true);
+const hydrated = ref(false);
 const invitation = ref<InvitationPreview | null>(null);
 const isLoggedIn = ref(false);
 const errorCode = ref('');
@@ -50,6 +51,7 @@ const needsName = computed(() => isLoggedIn.value && !currentUser.value?.display
 const workspaceName = computed(() => workspace.value?.name ?? '');
 
 onMounted(async () => {
+  hydrated.value = true;
   if (isWelcome.value) {
     await loadWelcome();
     return;
@@ -183,7 +185,7 @@ async function continueWelcome() {
 </script>
 
 <template>
-  <main class="invite-page">
+  <main class="invite-page" :data-hydrated="hydrated ? 'true' : 'false'">
     <UiCard class="invite-page__card" as="section" aria-labelledby="invite-title">
       <template v-if="isWelcome">
         <template v-if="loading">

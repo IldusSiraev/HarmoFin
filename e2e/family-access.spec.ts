@@ -20,9 +20,14 @@ test('creator invites a family member who records an expense', async ({ browser 
 
   await creatorPage.goto('/app/settings/family');
   await waitForHydration(creatorPage);
-  await creatorPage.getByLabel('Ваше имя').fill('Создатель');
+  // The card's own aria-labelledby heading («Укажите ваше имя») also matches
+  // a substring label lookup, so target the textbox role.
+  await creatorPage.getByRole('textbox', { name: 'Ваше имя' }).fill('Создатель');
   await creatorPage.getByRole('button', { name: 'Сохранить' }).click();
-  await expect(creatorPage.getByText('Имя сохранено.')).toBeVisible();
+  // Once the name is saved the page drops the prompt card (and its transient
+  // «Имя сохранено.» status) and unlocks inviting.
+  await expect(creatorPage.getByRole('heading', { name: 'Укажите ваше имя' })).toBeHidden();
+  await expect(creatorPage.getByRole('button', { name: 'Пригласить' })).toBeEnabled();
 
   // An account is needed before any operation (quick-add account list would
   // otherwise be empty), so the creator sets one up before inviting.
@@ -34,6 +39,21 @@ test('creator invites a family member who records an expense', async ({ browser 
   await creatorPage.getByLabel('Дата начала учёта').pressSequentially('04092026');
   await creatorPage.getByRole('button', { name: 'Сохранить счёт' }).click();
   await expect(creatorPage.getByTestId('toast-stack')).toContainText('Счёт создан');
+
+  // A fresh workspace has no categories either, and the quick-add category
+  // picker would be empty. The categories page has no hydration marker, so
+  // retry the click until the dialog opens.
+  await creatorPage.goto('/app/categories');
+  const categoryName = creatorPage.getByLabel('Название категории');
+  await expect(async () => {
+    await creatorPage.getByRole('button', { name: 'Создать категорию' }).first().click();
+    await expect(categoryName).toBeVisible({ timeout: 2_000 });
+  }).toPass();
+  await categoryName.fill('Продукты');
+  await creatorPage.getByRole('combobox', { name: 'Тип категории' }).click();
+  await creatorPage.getByRole('option', { name: 'Расход' }).click();
+  await creatorPage.getByRole('button', { name: 'Сохранить категорию' }).click();
+  await expect(creatorPage.getByTestId('toast-stack')).toContainText('Категория создана');
 
   // 2. Invite the member keeping the default role («Участник»/EDITOR).
   await creatorPage.goto('/app/settings/family');
@@ -74,7 +94,9 @@ test('creator invites a family member who records an expense', async ({ browser 
   // 5. Add an expense through the quick entry dialog.
   await memberPage.goto('/app/operations');
   await waitForHydration(memberPage);
-  await memberPage.getByRole('button', { name: 'Добавить операцию' }).click();
+  // The sidebar's «Добавить операцию или перевод» trigger also matches by
+  // substring; scope to the page content.
+  await memberPage.getByRole('main').getByRole('button', { name: 'Добавить операцию' }).click();
   await memberPage.getByTestId('operation-type-expense').click();
   await expect(memberPage.getByTestId('entry-tab-EXPENSE')).toHaveAttribute(
     'aria-selected',
@@ -94,7 +116,8 @@ test('creator invites a family member who records an expense', async ({ browser 
   // now that the family has more than one member.
   await creatorPage.goto('/app/operations');
   await waitForHydration(creatorPage);
-  await expect(creatorPage.getByText('Алия')).toBeVisible();
+  // Scoped to the row author: the author filter lists the same name.
+  await expect(creatorPage.locator('.operation-row__author', { hasText: 'Алия' })).toBeVisible();
 
   await creator.close();
   await member.close();

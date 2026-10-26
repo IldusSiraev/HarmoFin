@@ -38,6 +38,7 @@ const {
 } = useFamily(workspaceId);
 
 const inviteButton = ref<InstanceType<typeof UiButton> | null>(null);
+const hydrated = ref(false);
 const inviteDialogOpen = ref(false);
 const invitePending = ref(false);
 const inviteSent = ref<CreatedInvitation | null>(null);
@@ -139,12 +140,13 @@ async function confirmLeave() {
 }
 
 onMounted(() => {
+  hydrated.value = true;
   void load();
 });
 </script>
 
 <template>
-  <ReferencePageLayout>
+  <ReferencePageLayout :data-hydrated="hydrated ? 'true' : 'false'">
     <template #kicker>Настройки</template>
     <template #title>Семья</template>
     <template #actions>

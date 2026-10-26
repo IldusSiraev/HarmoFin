@@ -413,7 +413,7 @@ async function downloadCsv() {
 </script>
 
 <template>
-  <div v-if="hydrated" class="operations-page">
+  <div v-if="hydrated" class="operations-page" data-hydrated="true">
     <UiEmptyState
       v-if="!budget"
       title="Бюджет не выбран"
