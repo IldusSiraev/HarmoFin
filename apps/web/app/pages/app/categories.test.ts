@@ -213,4 +213,25 @@ describe('categories page', () => {
 
     expect(document.querySelector('.category-icon-picker')).toBeNull();
   });
+
+  type MockedWorkspaces = { workspaces: Array<{ role: string }> };
+
+  it('hides category management for a viewer', async () => {
+    (mocks.auth.currentData.value as MockedWorkspaces).workspaces[0]!.role = 'VIEWER';
+    wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('[data-action="create-category"]').exists()).toBe(false);
+    expect(wrapper.find('[data-action="edit-category"]').exists()).toBe(false);
+    expect(wrapper.find('[data-action="archive-category"]').exists()).toBe(false);
+  });
+
+  it('hides category management for an editor too: only the owner manages categories', async () => {
+    (mocks.auth.currentData.value as MockedWorkspaces).workspaces[0]!.role = 'EDITOR';
+    wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('[data-action="create-category"]').exists()).toBe(false);
+    expect(wrapper.find('[data-action="edit-category"]').exists()).toBe(false);
+  });
 });

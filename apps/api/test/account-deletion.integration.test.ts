@@ -101,6 +101,8 @@ describe('account deletion', () => {
         MAIL_FROM: 'no-reply@harmofin.test',
         WEB_BASE_URL: origin,
         LOG_LEVEL: 'silent',
+        RATE_LIMIT_LOGIN_MAX: '100',
+        RATE_LIMIT_RECOVERY_MAX: '100',
       }),
     );
     await app.init();
@@ -202,12 +204,226 @@ describe('account deletion', () => {
     const response = await requestDeletion(owner, { password });
 
     expect(response.statusCode).toBe(409);
-    expect(response.json()).toMatchObject({ code: 'ACCOUNT_DELETION_HAS_MEMBERS' });
+    expect(response.json()).toMatchObject({
+      code: 'ACCOUNT_DELETION_HAS_MEMBERS',
+      detail: 'В вашей семье есть другие участники. Сначала удалите их на странице «Семья».',
+    });
     expect((await prisma.user.findUniqueOrThrow({ where: { id: owner.userId } })).status).toBe(
       'ACTIVE',
     );
     await prisma.workspaceMembership.deleteMany({
       where: { workspaceId: owner.workspaceId, userId: member.userId },
+    });
+  });
+
+  it('deleting a member closes their open notifications in the family and notifies the creator', async () => {
+    const creator = await register('del-member-creator');
+    const member = await register('del-member-leaver');
+    await prisma.workspaceMembership.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: creator.workspaceId,
+        userId: member.userId,
+        role: 'EDITOR',
+      },
+    });
+    await prisma.notification.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: creator.workspaceId,
+        budgetId: creator.budgetId,
+        userId: member.userId,
+        notificationType: 'PLAN_UPCOMING',
+        title: 'Скоро платёж',
+        body: 'Подписка через 3 дня',
+        notificationKey: `member-open-${randomUUID()}`,
+      },
+    });
+
+    const response = await requestDeletion(member, { password });
+
+    expect(response.statusCode).toBe(202);
+    expect(
+      await prisma.notification.count({
+        where: { userId: member.userId, workspaceId: creator.workspaceId, resolvedAt: null },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.notification.count({
+        where: { userId: creator.userId, notificationType: 'MEMBER_LEFT' },
+      }),
+    ).toBe(1);
+
+    await prisma.workspaceMembership.deleteMany({
+      where: { workspaceId: creator.workspaceId, userId: member.userId },
+    });
+  });
+
+  it('restoring a member account skips reactivating a family membership that is now full', async () => {
+    const creator = await register('del-restore-limit-creator');
+    const member = await register('del-restore-limit-member');
+    await prisma.workspaceMembership.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: creator.workspaceId,
+        userId: member.userId,
+        role: 'EDITOR',
+      },
+    });
+
+    const rawToken = `restore-limit-${randomUUID()}`;
+    await deleteWithKnownToken(member, rawToken);
+
+    // Fill the family to the member limit (1 creator + 9 others = 10) while the member is gone.
+    const fillerIds: string[] = [];
+    for (let i = 0; i < 9; i += 1) {
+      const filler = await register(`del-restore-limit-filler-${i}`);
+      fillerIds.push(filler.userId);
+      await prisma.workspaceMembership.create({
+        data: {
+          id: randomUUID(),
+          workspaceId: creator.workspaceId,
+          userId: filler.userId,
+          role: 'EDITOR',
+        },
+      });
+    }
+
+    expect((await cancel(rawToken)).statusCode).toBe(204);
+
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: member.userId } })).status).toBe(
+      'ACTIVE',
+    );
+    expect(
+      (await prisma.workspace.findUniqueOrThrow({ where: { id: member.workspaceId } })).status,
+    ).toBe('ACTIVE');
+    expect(
+      await prisma.workspaceMembership.count({
+        where: { workspaceId: creator.workspaceId, userId: member.userId, isActive: true },
+      }),
+    ).toBe(0);
+
+    await prisma.workspaceMembership.deleteMany({
+      where: { workspaceId: creator.workspaceId, userId: { in: [member.userId, ...fillerIds] } },
+    });
+  });
+
+  async function registerViaInvitation(
+    workspaceId: string,
+    invitedByUserId: string,
+  ): Promise<{
+    fixture: Fixture;
+    invitationId: string;
+  }> {
+    const email = `del-zero-member-${randomUUID()}@harmofin.test`;
+    const rawInviteToken = `invite-zero-${randomUUID()}`;
+    const invitation = await prisma.workspaceInvitation.create({
+      data: {
+        id: randomUUID(),
+        workspaceId,
+        email,
+        role: 'EDITOR',
+        tokenHash: digest(rawInviteToken),
+        expiresAt: new Date(Date.now() + 86_400_000),
+        invitedByUserId,
+      },
+    });
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/auth/register',
+      headers: { origin },
+      payload: { email, password, invitationToken: rawInviteToken },
+    });
+    expect(response.statusCode).toBe(201);
+    const body = response.json<{
+      user: { id: string };
+      workspace: { id: string };
+      budget: { id: string };
+      csrfToken: string;
+    }>();
+    const setCookieRaw = response.headers['set-cookie'];
+    const setCookie = Array.isArray(setCookieRaw) ? setCookieRaw.join('; ') : (setCookieRaw ?? '');
+    const cookie = decodeURIComponent(/harmofin_session=([^;]+)/.exec(setCookie)?.[1] ?? '');
+    createdUserIds.push(body.user.id);
+    return {
+      fixture: {
+        email,
+        userId: body.user.id,
+        workspaceId: body.workspace.id,
+        budgetId: body.budget.id,
+        cookie,
+        csrfToken: body.csrfToken,
+      },
+      invitationId: invitation.id,
+    };
+  }
+
+  it('restoring an invited member without an owned workspace never leaves them with zero workspaces, and audits the membership change', async () => {
+    const creator = await register('del-zero-creator');
+    const { fixture: member } = await registerViaInvitation(creator.workspaceId, creator.userId);
+
+    const rawToken = `restore-zero-${randomUUID()}`;
+    await deleteWithKnownToken(member, rawToken);
+    const leftAudit = await prisma.auditEvent.findFirstOrThrow({
+      where: {
+        entityType: 'workspace_membership',
+        action: 'LEFT',
+        workspaceId: creator.workspaceId,
+        actorUserId: member.userId,
+      },
+    });
+    expect(leftAudit.budgetId).toBe(creator.budgetId);
+    expect(JSON.stringify(leftAudit)).not.toContain(member.email);
+
+    // Fill the family to the member limit while the member is gone, so restore cannot
+    // reactivate the foreign membership and must fall back to a fresh personal workspace.
+    const fillerIds: string[] = [];
+    for (let i = 0; i < 9; i += 1) {
+      const filler = await register(`del-restore-zero-filler-${i}`);
+      fillerIds.push(filler.userId);
+      await prisma.workspaceMembership.create({
+        data: {
+          id: randomUUID(),
+          workspaceId: creator.workspaceId,
+          userId: filler.userId,
+          role: 'EDITOR',
+        },
+      });
+    }
+
+    expect((await cancel(rawToken)).statusCode).toBe(204);
+    expect(
+      await prisma.auditEvent.count({
+        where: {
+          entityType: 'workspace_membership',
+          action: 'REACTIVATED',
+          actorUserId: member.userId,
+        },
+      }),
+    ).toBe(0);
+
+    const loginResponse = await login(member);
+    expect(loginResponse.statusCode).toBe(201);
+    const loginSetCookieRaw = loginResponse.headers['set-cookie'];
+    const loginSetCookie = Array.isArray(loginSetCookieRaw)
+      ? loginSetCookieRaw.join('; ')
+      : (loginSetCookieRaw ?? '');
+    const loginCookie = decodeURIComponent(
+      /harmofin_session=([^;]+)/.exec(loginSetCookie)?.[1] ?? '',
+    );
+
+    const me = await server.inject({
+      method: 'GET',
+      url: '/api/v1/me',
+      headers: { cookie: `harmofin_session=${encodeURIComponent(loginCookie)}` },
+    });
+    expect(me.statusCode).toBe(200);
+    const meBody = me.json<{ workspaces: Array<{ id: string; isCreator: boolean }> }>();
+    expect(meBody.workspaces).toHaveLength(1);
+    expect(meBody.workspaces[0]).toMatchObject({ isCreator: true });
+
+    await prisma.workspaceMembership.deleteMany({
+      where: { workspaceId: creator.workspaceId, userId: { in: fillerIds } },
     });
   });
 
@@ -631,6 +847,93 @@ describe('account deletion', () => {
       },
     });
   }
+
+  function invitationData(
+    workspaceId: string,
+    invitedByUserId: string,
+    email: string,
+    extra: Partial<{
+      status: 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED';
+      acceptedByUserId: string;
+      acceptedAt: Date;
+    }> = {},
+  ) {
+    return {
+      id: randomUUID(),
+      workspaceId,
+      email,
+      role: 'EDITOR' as const,
+      tokenHash: randomUUID().replace(/-/g, '').padEnd(64, '0'),
+      expiresAt: new Date(Date.now() + 86_400_000),
+      invitedByUserId,
+      ...extra,
+    };
+  }
+
+  it('purges invitations of a deleted owner workspace across several statuses', async () => {
+    const owner = await register('del-invites-owner');
+    await prisma.workspaceInvitation.create({
+      data: invitationData(owner.workspaceId, owner.userId, 'pending@harmofin.test'),
+    });
+    await prisma.workspaceInvitation.create({
+      data: invitationData(owner.workspaceId, owner.userId, 'revoked@harmofin.test', {
+        status: 'REVOKED',
+      }),
+    });
+    await prisma.workspaceInvitation.create({
+      data: invitationData(owner.workspaceId, owner.userId, 'expired@harmofin.test', {
+        status: 'EXPIRED',
+      }),
+    });
+
+    expect((await requestDeletion(owner, { password })).statusCode).toBe(202);
+    await makeDue(owner.userId);
+    await new AccountPurgeHandler(prisma).execute(new Date());
+
+    expect(
+      await prisma.workspaceInvitation.count({ where: { workspaceId: owner.workspaceId } }),
+    ).toBe(0);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: owner.userId } })).status).toBe(
+      'DELETED',
+    );
+  });
+
+  it('retains and anonymizes an invitation accepted into another owner workspace by a deleted member', async () => {
+    const otherOwner = await register('del-invites-other-owner');
+    const member = await register('del-invites-member');
+    const invitation = await prisma.workspaceInvitation.create({
+      data: invitationData(otherOwner.workspaceId, otherOwner.userId, member.email, {
+        status: 'ACCEPTED',
+        acceptedByUserId: member.userId,
+        acceptedAt: new Date(),
+      }),
+    });
+    await prisma.workspaceMembership.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: otherOwner.workspaceId,
+        userId: member.userId,
+        role: 'EDITOR',
+      },
+    });
+
+    expect((await requestDeletion(member, { password })).statusCode).toBe(202);
+    await makeDue(member.userId);
+    await new AccountPurgeHandler(prisma).execute(new Date());
+
+    const stored = await prisma.workspaceInvitation.findUniqueOrThrow({
+      where: { id: invitation.id },
+    });
+    expect(stored.email).toBe(`deleted-${member.userId}@invalid`);
+    expect(stored.acceptedByUserId).toBe(member.userId);
+    expect(
+      (await prisma.workspace.findUniqueOrThrow({ where: { id: otherOwner.workspaceId } })).status,
+    ).toBe('ACTIVE');
+    await prisma.workspaceMembership.deleteMany({
+      where: { workspaceId: otherOwner.workspaceId, userId: member.userId },
+    });
+    await prisma.workspaceInvitation.deleteMany({ where: { id: invitation.id } });
+  });
 
   it('purges every row of the owned scope and anonymizes the user, leaving others intact', async () => {
     const target = await register('del-purge');

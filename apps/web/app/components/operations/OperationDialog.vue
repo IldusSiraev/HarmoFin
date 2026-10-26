@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 
 import { auditActionLabel, auditActorName, formatAuditMoment } from './audit-event.js';
+import { authorLabel } from './author-label.js';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiButton from '../ui/Button.vue';
 import UiModal from '../ui/Modal.vue';
@@ -12,6 +13,7 @@ import {
 } from '../../composables/useBudgetReferenceData.js';
 import type { TransactionJournalV2Item } from '../../composables/useEnvelopePlanV2.js';
 import { availableActions, canEditTransaction } from '../../composables/useOperationMutations.js';
+import { usePermissions } from '../../composables/usePermissions.js';
 import { formatPlainDate } from '../obligations/format-plain-date.js';
 
 defineOptions({ name: 'OperationDialog' });
@@ -36,6 +38,8 @@ const emit = defineEmits<{
 // The audit route is not bound to the accounting model, so it still lives on the
 // shared reference client; everything else here is the v2 journal row.
 const api = useBudgetReferenceData();
+// Editing, deleting and restoring an operation need OWNER or EDITOR on the server.
+const { canWrite } = usePermissions();
 
 // The journal money scale is fixed: the API serves RUB in minor units.
 const SCALE = 2;
@@ -56,6 +60,11 @@ const editable = computed(() =>
   props.transaction ? canEditTransaction(props.transaction) : false,
 );
 const planPayment = computed(() => (props.transaction?.planOccurrenceIds.length ?? 0) > 0);
+// A viewer has no footer action at all; an empty padded footer bar would be
+// worse than no footer.
+const hasFooterActions = computed(
+  () => canWrite.value && (editable.value || actions.value.length > 0),
+);
 
 watch(
   () => props.transaction?.id,
@@ -88,8 +97,11 @@ watch(
         <UiStatus :label="statusLabel" tone="neutral" />
         <UiStatus v-if="planPayment" label="По плану" tone="info" />
       </p>
-
       <dl class="operation-dialog__rows">
+        <div v-if="transaction.createdBy">
+          <dt>Автор</dt>
+          <dd>{{ authorLabel(transaction.createdBy) }}</dd>
+        </div>
         <div>
           <dt>Дата</dt>
           <dd>{{ formatPlainDate(transaction.occurredOn) }}</dd>
@@ -142,9 +154,9 @@ watch(
       </section>
     </div>
 
-    <template v-if="transaction" #footer>
+    <template v-if="transaction && hasFooterActions" #footer>
       <UiButton
-        v-if="editable"
+        v-if="editable && canWrite"
         variant="secondary"
         data-testid="operation-dialog-edit"
         :disabled="busy"
@@ -153,7 +165,7 @@ watch(
         Изменить
       </UiButton>
       <UiButton
-        v-if="actions.includes('delete')"
+        v-if="actions.includes('delete') && canWrite"
         variant="tertiary"
         data-testid="operation-dialog-delete"
         :disabled="busy"
@@ -162,7 +174,7 @@ watch(
         Удалить
       </UiButton>
       <UiButton
-        v-if="actions.includes('restore')"
+        v-if="actions.includes('restore') && canWrite"
         variant="secondary"
         data-testid="operation-dialog-restore"
         :disabled="busy"

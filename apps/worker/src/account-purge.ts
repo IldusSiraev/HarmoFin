@@ -32,6 +32,7 @@ export const BUDGET_SCOPE_EXTRA_TABLES = ['categories', 'accounts'] as const;
 export const WORKSPACE_SCOPE_TABLES = [
   'notifications',
   'audit_events',
+  'workspace_invitations',
   'workspace_memberships',
 ] as const;
 
@@ -60,6 +61,8 @@ export const USER_RETAINED_OUTSIDE_SCOPE: Record<string, string> = {
     "deleted below by actor_user_id since they belong to no other owner's scope.",
   notifications:
     "user_id rows outside the owned workspace/budget scope belong to another owner's workspace and are retained.",
+  workspace_invitations:
+    "rows in other owners' workspaces (invited_by/accepted_by this user) are that owner's history and are retained.",
 };
 
 /** Every table a budget_id/workspace_id-scoped row is guaranteed to be removed from. */
@@ -123,6 +126,7 @@ export async function purgeUserData(tx: Prisma.TransactionClient, userId: string
   if (workspaceIds.length > 0) {
     await tx.$executeRaw`DELETE FROM "notifications" WHERE "workspace_id" = ANY(${workspaceIds}::uuid[])`;
     await tx.$executeRaw`DELETE FROM "audit_events" WHERE "workspace_id" = ANY(${workspaceIds}::uuid[])`;
+    await tx.$executeRaw`DELETE FROM "workspace_invitations" WHERE "workspace_id" = ANY(${workspaceIds}::uuid[])`;
     await tx.$executeRaw`DELETE FROM "workspace_memberships" WHERE "workspace_id" = ANY(${workspaceIds}::uuid[])`;
     await assertNoRowsLeft(tx, 'workspace_id', workspaceIds);
     await tx.$executeRaw`DELETE FROM "workspaces" WHERE "id" = ANY(${workspaceIds}::uuid[])`;
@@ -138,6 +142,13 @@ export async function purgeUserData(tx: Prisma.TransactionClient, userId: string
   await tx.$executeRaw`DELETE FROM "recovery_tokens" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "workspace_memberships" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "user_consents" WHERE "user_id" = ${userId}::uuid`;
+  // An invitation this user accepted into another owner's workspace stores their old email as PII;
+  // the row itself (inviter's history) is retained, but the email is anonymized. PENDING/REVOKED/
+  // EXPIRED invitations in other workspaces are the inviter's own data and are left untouched.
+  await tx.$executeRaw`
+    UPDATE "workspace_invitations"
+    SET "email" = 'deleted-' || "accepted_by_user_id"::text || '@invalid'
+    WHERE "accepted_by_user_id" = ${userId}::uuid`;
   // Account-level audit events (auth actions written with no workspace/budget, e.g.
   // RECOVERY_REQUESTED, PASSWORD_CHANGED before a membership existed) belong to no other owner's
   // scope, so they are safe and necessary to delete by actor_user_id here.

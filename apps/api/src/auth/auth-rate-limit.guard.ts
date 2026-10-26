@@ -25,7 +25,7 @@ export class AuthRateLimitGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<FastifyRequest>();
     const path = new URL(request.url, 'http://localhost').pathname;
-    const maximum = this.maximumFor(path);
+    const maximum = this.maximumFor(path, request.method);
     if (!maximum) return true;
 
     const now = Date.now();
@@ -46,10 +46,17 @@ export class AuthRateLimitGuard implements CanActivate {
     return true;
   }
 
-  private maximumFor(url: string): number | null {
+  private maximumFor(url: string, method: string): number | null {
     if (url.startsWith('/api/v1/auth/login')) return this.config.rateLimit.loginMax;
     if (url.startsWith('/api/v1/auth/recovery/request')) return this.config.rateLimit.recoveryMax;
     if (url.startsWith('/api/v1/auth/deletion/cancel')) return this.config.rateLimit.recoveryMax;
+    if (url.startsWith('/api/v1/invitations/preview')) return this.config.rateLimit.recoveryMax;
+    if (url.startsWith('/api/v1/invitations/accept')) return this.config.rateLimit.recoveryMax;
+    if (
+      /^\/api\/v1\/workspaces\/[^/]+\/invitations(\/[^/]+\/resend)?$/.test(url) &&
+      method === 'POST'
+    )
+      return this.config.rateLimit.loginMax;
     return null;
   }
 }

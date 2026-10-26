@@ -20,6 +20,14 @@ export class RegisterRequest {
     description: 'Принятые редакции документов; без поля пользователь примет их после входа.',
   })
   consents?: ConsentItem[];
+
+  @ApiPropertyOptional({
+    type: String,
+    minLength: 16,
+    maxLength: 128,
+    description: 'Токен приглашения: вместо личного пространства пользователь вступает в семью.',
+  })
+  invitationToken?: string;
 }
 
 export class LoginRequest {
@@ -136,6 +144,9 @@ export class WorkspaceMembershipResponse extends WorkspaceResponse {
   @ApiProperty({ type: String, enum: ['OWNER', 'EDITOR', 'VIEWER'] })
   role!: string;
 
+  @ApiProperty({ type: Boolean, description: 'Пользователь — создатель этого пространства.' })
+  isCreator!: boolean;
+
   @ApiProperty({ type: [MeBudgetResponse] })
   budgets!: MeBudgetResponse[];
 }
@@ -143,6 +154,14 @@ export class WorkspaceMembershipResponse extends WorkspaceResponse {
 export class MeResponse {
   @ApiProperty({ type: UserResponse })
   user!: UserResponse;
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'Пространство по умолчанию: последнее выбранное.',
+  })
+  activeWorkspaceId!: string | null;
 
   @ApiProperty({ type: [WorkspaceMembershipResponse] })
   workspaces!: WorkspaceMembershipResponse[];
@@ -152,4 +171,14 @@ export class MeResponse {
     description: 'Текущие документы, которые пользователь ещё не принял.',
   })
   pendingConsents!: ConsentItem[];
+}
+
+export class UpdateProfileRequest {
+  @ApiProperty({ type: String, minLength: 1, maxLength: 120 })
+  displayName!: string;
+}
+
+export class ProfileResponse {
+  @ApiProperty({ type: UserResponse })
+  user!: UserResponse;
 }

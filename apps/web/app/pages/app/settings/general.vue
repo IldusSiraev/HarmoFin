@@ -12,7 +12,9 @@ import UiInput from '../../../components/ui/Input.vue';
 import UiSelect from '../../../components/ui/Select.vue';
 import UiStatus from '../../../components/ui/Status.vue';
 import { ApiRequestError } from '../../../composables/useApiClient.js';
+import { useActiveWorkspace } from '../../../composables/useActiveWorkspace.js';
 import { useAuth } from '../../../composables/useAuth.js';
+import { usePermissions } from '../../../composables/usePermissions.js';
 import {
   type BudgetDto,
   useBudgetReferenceData,
@@ -53,7 +55,10 @@ const form = reactive({
   periodBoundaryOffset: '',
 });
 
-const budgetId = computed(() => currentData.value?.workspaces[0]?.budgets[0]?.id);
+const { budgetId } = useActiveWorkspace();
+// Budget settings and the financial cycle are OWNER-only on the server; a
+// non-owner sees the current values read-only, with no submit/preview/confirm.
+const { canManage } = usePermissions();
 // The cycle changes only through a read-only preview and one explicit confirmation.
 
 const cycleErrors = ref<Partial<Record<CycleErrorField, string>>>({});
@@ -382,12 +387,21 @@ onMounted(() => {
         >
           <UiStatus :label="confirmedNote" tone="success" />
         </div>
+        <p
+          v-if="!canManage"
+          class="general-settings-form__note"
+          role="note"
+          data-testid="general-settings-readonly-note"
+        >
+          Изменять настройки бюджета может только создатель семьи.
+        </p>
         <form class="general-settings-form" @submit.prevent="save">
           <UiInput
             v-model="form.name"
             name="name"
             label="Название бюджета"
             :error="getFieldError('name')"
+            :disabled="!canManage"
             required
           />
           <UiSelect
@@ -398,10 +412,11 @@ onMounted(() => {
             :options="timezoneOptions"
             tooltip="Часовой пояс используется для расчёта границ финансового месяца и определения «сегодня» на дашборде, в отчётах и планах."
             :error="getFieldError('timezone')"
+            :disabled="!canManage"
             required
           />
           <label class="general-settings-form__checkbox">
-            <input v-model="form.allowNegativeBalance" type="checkbox" />
+            <input v-model="form.allowNegativeBalance" type="checkbox" :disabled="!canManage" />
             <span>Разрешить уходить в минус</span>
             <UiInfoTooltip
               text="Если выключено, HarmoFin не даст сохранить операцию, которая уведёт счёт или конверт в минус."
@@ -413,6 +428,7 @@ onMounted(() => {
             label="Начало первого периода"
             inputmode="numeric"
             :error="getCycleError('cycleStartDay')"
+            :disabled="!canManage"
             required
           />
           <UiInput
@@ -421,17 +437,23 @@ onMounted(() => {
             label="Граница второго периода (дней от начала первого)"
             inputmode="numeric"
             :error="getCycleError('periodBoundaryOffset')"
+            :disabled="!canManage"
             required
           />
-          <p v-if="showCycleFlow" class="general-settings-form__note">
+          <p v-if="showCycleFlow && canManage" class="general-settings-form__note">
             Сначала покажем, с какой даты изменение вступит в силу. Ничего не изменится, пока вы не
             подтвердите.
           </p>
-          <UiButton type="submit" :loading="saving || previewLoading" data-action="submit-general">
+          <UiButton
+            v-if="canManage"
+            type="submit"
+            :loading="saving || previewLoading"
+            data-action="submit-general"
+          >
             {{ showCycleFlow ? 'Показать последствия' : 'Сохранить' }}
           </UiButton>
         </form>
-        <div v-if="preview && previewRequest" class="general-settings-form__effect">
+        <div v-if="canManage && preview && previewRequest" class="general-settings-form__effect">
           <CyclePreview
             ref="previewRef"
             :cycle-start-day="previewRequest.cycleStartDay"

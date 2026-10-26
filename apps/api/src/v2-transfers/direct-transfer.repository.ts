@@ -40,6 +40,7 @@ export const transferRowSelect = {
   destinationAccountId: true,
   createdAt: true,
   deletedAt: true,
+  createdByUserId: true,
 } as const;
 
 export type TransferRow = Prisma.TransferGetPayload<{ select: typeof transferRowSelect }>;

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 
+import { authorLabel } from './author-label.js';
 import DirectTransferForm from '../transfers/DirectTransferForm.vue';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiButton from '../ui/Button.vue';
@@ -17,6 +18,7 @@ import {
   transferFormFrom,
   type TransferFormModel,
 } from '../../composables/useTransferForm.js';
+import { usePermissions } from '../../composables/usePermissions.js';
 import { useTransferMutations } from '../../composables/useTransferMutations.js';
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
 import { formatPlainDate } from '../obligations/format-plain-date.js';
@@ -43,6 +45,8 @@ const emit = defineEmits<{ close: []; changed: [] }>();
 
 const SCALE = 2;
 const mutations = useTransferMutations();
+// Editing and deleting a transfer need OWNER or EDITOR on the server.
+const { canWrite } = usePermissions();
 const editing = ref(false);
 const form = ref<TransferFormModel | null>(null);
 const formErrors = ref<Partial<Record<string, string>>>({});
@@ -78,6 +82,11 @@ function cancelConfirm(): void {
 }
 
 const deleted = computed(() => props.transfer?.status === 'DELETED');
+// A viewer has no footer action at all; an empty padded footer bar would be
+// worse than no footer.
+const hasFooterActions = computed(
+  () => (!deleted.value && canWrite.value) || (deleted.value && props.canRestore),
+);
 
 function name(accountId: string): string {
   return props.accountNames.get(accountId) ?? 'Счёт';
@@ -168,6 +177,10 @@ async function confirm(): Promise<void> {
       </p>
       <p v-if="deleted"><UiStatus label="Удалён" tone="danger" /></p>
       <dl class="transfer-dialog__rows">
+        <div v-if="transfer.createdBy">
+          <dt>Автор</dt>
+          <dd>{{ authorLabel(transfer.createdBy) }}</dd>
+        </div>
         <div>
           <dt>Дата</dt>
           <dd>{{ formatPlainDate(transfer.occurredOn) }}</dd>
@@ -187,9 +200,9 @@ async function confirm(): Promise<void> {
       </dl>
     </div>
 
-    <template v-if="transfer" #footer>
+    <template v-if="transfer && hasFooterActions" #footer>
       <UiButton
-        v-if="!deleted"
+        v-if="!deleted && canWrite"
         variant="secondary"
         data-testid="transfer-dialog-edit"
         :disabled="mutations.pending.value"
@@ -198,7 +211,7 @@ async function confirm(): Promise<void> {
         Изменить
       </UiButton>
       <UiButton
-        v-if="!deleted"
+        v-if="!deleted && canWrite"
         variant="tertiary"
         data-testid="transfer-dialog-delete"
         :disabled="mutations.pending.value"

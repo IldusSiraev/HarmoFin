@@ -19,12 +19,13 @@ const transfer: TransferJournalItem = {
   deletedAt: null,
 };
 
-function mountRow(overrides: Partial<TransferJournalItem> = {}) {
+function mountRow(overrides: Partial<TransferJournalItem> = {}, showAuthor = false) {
   return mount(TransferRow, {
     props: {
       transfer: { ...transfer, ...overrides },
       sourceName: 'Карта',
       destinationName: 'Вклад',
+      showAuthor,
     },
   });
 }
@@ -64,6 +65,13 @@ describe('TransferRow', () => {
     expect(mountRow({ status: 'DELETED' }).find('[data-testid="transfer-row-status"]').text()).toBe(
       'Удалён',
     );
+  });
+
+  it('shows the author only when the page asks for it', () => {
+    const createdBy = { userId: 'u1', displayName: 'Алия', isActiveMember: true };
+
+    expect(mountRow({ createdBy }, true).text()).toContain('Алия');
+    expect(mountRow({ createdBy }, false).text()).not.toContain('Алия');
   });
 
   it('emits select', async () => {

@@ -73,7 +73,17 @@ describe('auth API', () => {
     expect(document.paths['/api/v1/auth/recovery/request']).toBeDefined();
     expect(document.paths['/api/v1/auth/recovery/confirm']).toBeDefined();
     expect(document.paths['/api/v1/auth/sessions']).toBeDefined();
-    expect(document.paths['/api/v1/me']).toBeDefined();
+    expect(document.paths['/api/v1/me']).toMatchObject({
+      get: expect.any(Object),
+      patch: expect.any(Object),
+    });
+    expect(document.paths['/api/v1/invitations/preview']).toMatchObject({
+      post: { responses: { '200': expect.any(Object), '404': expect.any(Object) } },
+    });
+    expect(document.paths['/api/v1/invitations/preview']).not.toHaveProperty('post.security');
+    expect(document.paths['/api/v1/invitations/accept']).toMatchObject({
+      post: { responses: { '200': expect.any(Object), '422': expect.any(Object) } },
+    });
     expect(document.paths['/api/v1/auth/register']).toMatchObject({
       post: {
         requestBody: {
@@ -193,6 +203,67 @@ describe('auth API', () => {
     } finally {
       await prisma.budget.update({ where: { id: budgetId }, data: { planModelVersion: 2 } });
     }
+  });
+
+  it('updates the display name via PATCH /me with CSRF and reports creator access in /me', async () => {
+    const login = await server.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      headers: { origin },
+      payload: { email, password },
+    });
+    const cookie = login.cookies.find((item) => item.name === 'harmofin_session')?.value ?? '';
+    const { csrfToken, workspace } = login.json<{ csrfToken: string; workspace: { id: string } }>();
+
+    const withoutCsrf = await server.inject({
+      method: 'PATCH',
+      url: '/api/v1/me',
+      headers: { origin },
+      cookies: { harmofin_session: cookie },
+      payload: { displayName: 'Ильдар' },
+    });
+    expect(withoutCsrf.statusCode).toBe(403);
+
+    const invalid = await server.inject({
+      method: 'PATCH',
+      url: '/api/v1/me',
+      headers: { origin, 'x-csrf-token': csrfToken },
+      cookies: { harmofin_session: cookie },
+      payload: { displayName: '   ' },
+    });
+    expect(invalid.statusCode).toBe(400);
+
+    const updated = await server.inject({
+      method: 'PATCH',
+      url: '/api/v1/me',
+      headers: { origin, 'x-csrf-token': csrfToken },
+      cookies: { harmofin_session: cookie },
+      payload: { displayName: '  Ильдар Заметный ' },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json()).toEqual({
+      user: { id: userId, email, displayName: 'Ильдар Заметный' },
+    });
+    const audit = await prisma.auditEvent.findFirstOrThrow({
+      where: { actorUserId: userId ?? '', action: 'PROFILE_UPDATED' },
+    });
+    expect(JSON.stringify(audit)).not.toContain('Ильдар');
+
+    const me = await server.inject({
+      method: 'GET',
+      url: '/api/v1/me',
+      cookies: { harmofin_session: cookie },
+    });
+    const body = me.json<{
+      user: { displayName: string };
+      activeWorkspaceId: string;
+      workspaces: Array<{ id: string; isCreator: boolean }>;
+    }>();
+    expect(body.user.displayName).toBe('Ильдар Заметный');
+    expect(body.activeWorkspaceId).toBe(workspace.id);
+    expect(body.workspaces).toEqual([
+      expect.objectContaining({ id: workspace.id, isCreator: true }),
+    ]);
   });
 
   it('requires CSRF for logout and revokes session after valid logout', async () => {

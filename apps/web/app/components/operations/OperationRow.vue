@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
+import { authorLabel } from './author-label.js';
 import { categoryIcon as categoryIconComponent } from './category-icon.js';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiListRow from '../ui/ListRow.vue';
@@ -10,13 +11,19 @@ import { formatPlainDate } from '../obligations/format-plain-date.js';
 
 defineOptions({ name: 'OperationRow' });
 
-const props = defineProps<{
-  transaction: TransactionJournalV2Item;
-  categoryName: string;
-  categoryIcon: string | null;
-  accountName: string;
-  envelopeName: string | null;
-}>();
+const props = withDefaults(
+  defineProps<{
+    transaction: TransactionJournalV2Item;
+    categoryName: string;
+    categoryIcon: string | null;
+    accountName: string;
+    envelopeName: string | null;
+    // Hidden by the page while the family has only one member: a single-author
+    // filter chip and label would be pure noise then.
+    showAuthor?: boolean;
+  }>(),
+  { showAuthor: false },
+);
 
 defineEmits<{ select: [] }>();
 
@@ -90,6 +97,9 @@ const rowLabel = computed(
       <span v-if="envelopeName" class="operation-row__subtitle operation-row__placement">
         {{ envelopeName }}
       </span>
+      <span v-if="showAuthor && transaction.createdBy" class="operation-row__author">
+        {{ authorLabel(transaction.createdBy) }}
+      </span>
     </template>
 
     <template v-if="$slots.actions" #actions><slot name="actions" /></template>
@@ -132,6 +142,16 @@ const rowLabel = computed(
 
 .operation-row__amount--expense {
   color: var(--hf-color-text);
+}
+
+.operation-row__author {
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-caption);
+  line-height: var(--hf-line-height-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* A phone has no room for three columns of text: the account and the envelope

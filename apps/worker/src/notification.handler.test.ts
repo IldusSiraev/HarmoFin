@@ -6,7 +6,14 @@ const budgetSelect = {
   id: true,
   workspaceId: true,
   timezone: true,
-  workspace: { select: { ownerId: true } },
+  workspace: {
+    select: {
+      memberships: {
+        where: { isActive: true, role: { in: ['OWNER', 'EDITOR'] } },
+        select: { userId: true },
+      },
+    },
+  },
 };
 
 function budget() {
@@ -14,7 +21,7 @@ function budget() {
     id: 'budget-1',
     workspaceId: 'workspace-1',
     timezone: 'UTC',
-    workspace: { ownerId: 'owner-1' },
+    workspace: { memberships: [{ userId: 'owner-1' }] },
   };
 }
 
@@ -159,16 +166,85 @@ describe('NotificationRuleHandler', () => {
   it('resolves notifications of occurrences that are no longer open or whose period passed', async () => {
     const tx = makeTx();
     tx.planOccurrence.findMany.mockResolvedValue([occurrence('occ-late', '2026-09-09', 100n)]);
-    tx.notification.findMany.mockResolvedValue([
-      { id: 'n-done', notificationType: 'PLAN_OVERDUE', occurrenceId: 'occ-done', actionPath: 'x' },
-      { id: 'n-stale', notificationType: 'PLAN_TODAY', occurrenceId: 'occ-late', actionPath: 'x' },
-      { id: 'n-keep', notificationType: 'PLAN_OVERDUE', occurrenceId: 'occ-late', actionPath: 'x' },
-    ]);
+    tx.notification.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'n-done',
+          userId: 'owner-1',
+          notificationType: 'PLAN_OVERDUE',
+          occurrenceId: 'occ-done',
+          actionPath: 'x',
+        },
+        {
+          id: 'n-stale',
+          userId: 'owner-1',
+          notificationType: 'PLAN_TODAY',
+          occurrenceId: 'occ-late',
+          actionPath: 'x',
+        },
+        {
+          id: 'n-keep',
+          userId: 'owner-1',
+          notificationType: 'PLAN_OVERDUE',
+          occurrenceId: 'occ-late',
+          actionPath: 'x',
+        },
+      ])
+      .mockResolvedValueOnce([]);
     await new NotificationRuleHandler(makePrisma([budget()], tx) as never).execute(now);
 
     const resolvedIds = tx.notification.updateMany.mock.calls.map(
       ([args]) => (args as { where: { id: string } }).where.id,
     );
     expect(resolvedIds.sort()).toEqual(['n-done', 'n-stale']);
+  });
+
+  it('resolves open notifications of ex-recipients (demoted or deactivated) with an audit event, leaving current recipients untouched', async () => {
+    const tx = makeTx();
+    const multiMember = {
+      id: 'budget-1',
+      workspaceId: 'workspace-1',
+      timezone: 'UTC',
+      workspace: { memberships: [{ userId: 'owner-1' }, { userId: 'editor-1' }] },
+    };
+    tx.planOccurrence.findMany.mockResolvedValue([occurrence('occ-late', '2026-09-09', 100n)]);
+    tx.notification.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: 'n-ex-viewer',
+        userId: 'viewer-1',
+        notificationType: 'PLAN_OVERDUE',
+        occurrenceId: 'occ-late',
+        actionPath: '/app/plans?occurrence=occ-late',
+      },
+    ]);
+
+    await new NotificationRuleHandler(makePrisma([multiMember], tx) as never).execute(now);
+
+    const createdFor = tx.notification.createMany.mock.calls.map(
+      ([args]) => (args as { data: { userId: string } }).data.userId,
+    );
+    expect(createdFor.sort()).toEqual(['editor-1', 'owner-1']);
+
+    expect(tx.notification.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: { notIn: ['owner-1', 'editor-1'] },
+        }),
+      }),
+    );
+    expect(tx.notification.updateMany).toHaveBeenCalledWith({
+      where: { id: 'n-ex-viewer', budgetId: 'budget-1', resolvedAt: null },
+      data: { resolvedAt: expect.any(Date) },
+    });
+    const auditPayloads = tx.auditEvent.create.mock.calls.map(
+      ([args]) => (args as { data: Record<string, unknown> }).data,
+    );
+    expect(
+      auditPayloads.some(
+        (data) =>
+          data.entityId === 'n-ex-viewer' &&
+          (data.newValues as { state: string }).state === 'RESOLVED',
+      ),
+    ).toBe(true);
   });
 });

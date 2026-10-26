@@ -1,5 +1,11 @@
 import { mount } from '@vue/test-utils';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { computed } from 'vue';
+
+const state = vi.hoisted(() => ({ role: 'OWNER' as 'OWNER' | 'EDITOR' | 'VIEWER' | null }));
+vi.mock('../../composables/useActiveWorkspace.js', () => ({
+  useActiveWorkspace: () => ({ role: computed(() => state.role) }),
+}));
 
 import AccountDialog from './AccountDialog.vue';
 import type { AccountDto } from '../../composables/useBudgetReferenceData.js';
@@ -32,6 +38,10 @@ const mountDialog = (overrides: Partial<AccountDto> = {}) =>
       },
     },
   });
+
+beforeEach(() => {
+  state.role = 'OWNER';
+});
 
 afterEach(() => {
   useOperationDialogs().close();
@@ -87,6 +97,27 @@ describe('AccountDialog', () => {
     const wrapper = mountDialog({ archivedAt: '2026-09-10T00:00:00.000Z' });
 
     expect(wrapper.find('[data-testid="account-dialog-transfer"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('offers a transfer but not edit or archive for an editor', () => {
+    state.role = 'EDITOR';
+    const wrapper = mountDialog();
+
+    expect(wrapper.find('[data-testid="account-dialog-edit"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="account-dialog-archive"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="account-dialog-transfer"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('offers no edit, archive or transfer for a viewer', () => {
+    state.role = 'VIEWER';
+    const wrapper = mountDialog();
+
+    expect(wrapper.find('[data-testid="account-dialog-edit"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="account-dialog-archive"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="account-dialog-transfer"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="account-dialog-operations"]').exists()).toBe(true);
     wrapper.unmount();
   });
 });

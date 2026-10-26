@@ -1,14 +1,20 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { computed } from 'vue';
 
 const api = {
   listTransactionAudit: vi.fn(),
   listTransactionAllocations: vi.fn(),
 };
 
+const roleState = vi.hoisted(() => ({ role: 'OWNER' as 'OWNER' | 'EDITOR' | 'VIEWER' | null }));
+
 vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useBudgetReferenceData: () => api,
+}));
+vi.mock('../../composables/useActiveWorkspace.js', () => ({
+  useActiveWorkspace: () => ({ role: computed(() => roleState.role) }),
 }));
 
 import OperationDialog from './OperationDialog.vue';
@@ -55,6 +61,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   useToast().clear();
   api.listTransactionAudit.mockResolvedValue([]);
+  roleState.role = 'OWNER';
 });
 
 describe('OperationDialog', () => {
@@ -67,6 +74,26 @@ describe('OperationDialog', () => {
     expect(text).toContain('Основная карта');
     expect(text).toContain('Текущие');
     expect(text).toContain('Еженедельная закупка');
+    wrapper.unmount();
+  });
+
+  it('shows the author of the operation as a row in the details list', async () => {
+    const wrapper = mountDialog({
+      createdBy: { userId: 'u1', displayName: 'Алия', isActiveMember: true },
+    });
+    await flushPromises();
+
+    const rows = wrapper.findAll('.operation-dialog__rows > div');
+    const authorRow = rows.find((row) => row.get('dt').text() === 'Автор');
+    expect(authorRow?.get('dd').text()).toBe('Алия');
+    wrapper.unmount();
+  });
+
+  it('shows no author line when the journal did not send one', async () => {
+    const wrapper = mountDialog();
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain('Автор');
     wrapper.unmount();
   });
 
@@ -171,6 +198,18 @@ describe('OperationDialog', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('По плану');
+    wrapper.unmount();
+  });
+
+  it('hides edit and delete for a viewer, who cannot write operations', async () => {
+    roleState.role = 'VIEWER';
+    const wrapper = mountDialog();
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="operation-dialog-edit"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="operation-dialog-delete"]').exists()).toBe(false);
+    // No footer action at all: the modal must not render an empty padded bar.
+    expect(wrapper.find('.modal__footer').exists()).toBe(false);
     wrapper.unmount();
   });
 });

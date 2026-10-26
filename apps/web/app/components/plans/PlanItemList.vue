@@ -18,8 +18,12 @@ const props = withDefaults(
     hasAnyPlans: boolean;
     busy?: boolean;
     linkedId?: string | null;
+    // Creating/editing a plan is OWNER-only on the server; paying, skipping
+    // and recording income need OWNER or EDITOR.
+    canManage?: boolean;
+    canWrite?: boolean;
   }>(),
-  { busy: false, linkedId: null },
+  { busy: false, linkedId: null, canManage: true, canWrite: true },
 );
 
 const emit = defineEmits<{
@@ -99,6 +103,7 @@ defineExpose({ focus: () => root.value?.focus() });
           Добавьте аренду, коммунальные платежи, кредиты — «Можно потратить» учтёт их заранее.
         </p>
         <UiButton
+          v-if="canManage"
           variant="secondary"
           data-testid="plan-add-obligation-empty"
           @click="emit('add-plan', 'obligation')"
@@ -107,6 +112,7 @@ defineExpose({ focus: () => root.value?.focus() });
         </UiButton>
         <p class="obligation-list__empty">Здесь будут ожидаемые поступления.</p>
         <UiButton
+          v-if="canManage"
           variant="secondary"
           data-testid="plan-add-income-empty"
           @click="emit('add-plan', 'income')"
@@ -118,7 +124,7 @@ defineExpose({ focus: () => root.value?.focus() });
         <p class="obligation-list__empty">
           {{ mode === 'upcoming' ? 'Ближайших планов нет.' : 'На этот месяц планов нет.' }}
         </p>
-        <div class="plan-list__empty-actions">
+        <div v-if="canManage" class="plan-list__empty-actions">
           <UiButton
             variant="secondary"
             data-testid="plan-add-obligation-empty"
@@ -179,6 +185,7 @@ defineExpose({ focus: () => root.value?.focus() });
           </div>
           <div class="obligation-row__actions">
             <UiButton
+              v-if="canManage"
               variant="tertiary"
               size="sm"
               class="obligation-row__icon-btn"
@@ -191,7 +198,7 @@ defineExpose({ focus: () => root.value?.focus() });
               <Pencil :size="16" aria-hidden="true" />
             </UiButton>
             <UiButton
-              v-if="isOpen(item)"
+              v-if="isOpen(item) && canWrite"
               variant="tertiary"
               size="sm"
               class="obligation-row__icon-btn"
@@ -204,7 +211,7 @@ defineExpose({ focus: () => root.value?.focus() });
               <Check :size="16" aria-hidden="true" />
             </UiButton>
             <UiButton
-              v-if="isOpen(item) && item.paidMinor === '0'"
+              v-if="isOpen(item) && item.paidMinor === '0' && canWrite"
               size="sm"
               variant="tertiary"
               class="obligation-row__icon-btn"
@@ -236,6 +243,7 @@ defineExpose({ focus: () => root.value?.focus() });
           </div>
           <div class="obligation-row__actions">
             <UiButton
+              v-if="canManage"
               variant="tertiary"
               size="sm"
               class="obligation-row__icon-btn"
@@ -248,7 +256,7 @@ defineExpose({ focus: () => root.value?.focus() });
               <Pencil :size="16" aria-hidden="true" />
             </UiButton>
             <UiButton
-              v-if="isOpen(item)"
+              v-if="isOpen(item) && canWrite"
               variant="tertiary"
               size="sm"
               class="obligation-row__icon-btn"

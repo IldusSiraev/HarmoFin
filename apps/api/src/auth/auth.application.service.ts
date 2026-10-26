@@ -6,9 +6,10 @@ import {
 } from '@nestjs/common';
 import type { LegalDocumentType, Prisma } from '@prisma/client';
 
-import { newBudgetModelData } from '../common/plan-model/new-budget-model.js';
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
 import type { ApiConfig } from '../config/env.js';
+import { acceptInvitationInTx } from '../family/invitation-acceptance.js';
+import { createPersonalWorkspace } from '../family/personal-workspace.js';
 import { assertCurrentConsents, pendingConsents } from '../legal/legal-documents.js';
 import { MetricsRegistry } from '../observability/observability.js';
 import type {
@@ -16,6 +17,7 @@ import type {
   LoginInput,
   RecoveryConfirmInput,
   RegisterInput,
+  UpdateProfileInput,
 } from './auth.schemas.js';
 import { AuthRepository } from './auth.repository.js';
 import type { CreatedSession, SessionMetadata, SessionView } from './auth.types.js';
@@ -59,8 +61,6 @@ export class AuthApplicationService {
     const passwordHash = await this.passwordService.hash(input.password);
     const session = await this.repository.transaction(async (tx) => {
       const userId = createUuidV7();
-      const workspaceId = createUuidV7();
-      const budgetId = createUuidV7();
       const now = new Date();
 
       let user;
@@ -79,22 +79,28 @@ export class AuthApplicationService {
         throw error;
       }
 
-      const workspace = await tx.workspace.create({
-        data: { id: workspaceId, ownerId: user.id, name: input.workspaceName ?? 'Мой бюджет' },
-        select: { id: true, name: true },
-      });
-      await tx.workspaceMembership.create({
-        data: { id: createUuidV7(), workspaceId: workspace.id, userId: user.id, role: 'OWNER' },
-      });
-      const budget = await tx.budget.create({
-        data: {
-          id: budgetId,
-          workspaceId: workspace.id,
-          name: input.budgetName ?? 'Семейный бюджет',
-          ...newBudgetModelData(now),
-        },
-        select: { id: true, name: true, primaryCurrency: true },
-      });
+      let workspace: { id: string; name: string };
+      let budget: { id: string; name: string; primaryCurrency: string };
+      if (input.invitationToken) {
+        // An invited person joins the family instead of getting a personal workspace;
+        // any acceptance error rolls back the whole registration.
+        const accepted = await acceptInvitationInTx(tx, {
+          tokenHash: this.tokenService.digest(input.invitationToken),
+          userId: user.id,
+          userEmail: user.email,
+          now,
+          requestId: requestMeta.requestId,
+        });
+        workspace = { id: accepted.workspaceId, name: accepted.workspaceName };
+        budget = accepted.budget;
+      } else {
+        const personal = await createPersonalWorkspace(tx, user.id, now, requestMeta.requestId, {
+          workspaceName: input.workspaceName ?? 'Мой бюджет',
+          budgetName: input.budgetName ?? 'Семейный бюджет',
+        });
+        workspace = { id: personal.workspace.id, name: personal.workspace.name };
+        budget = personal.budget;
+      }
       await tx.auditEvent.create({
         data: {
           id: createUuidV7(),
@@ -382,10 +388,12 @@ export class AuthApplicationService {
 
   async me(userId: string): Promise<{
     user: { id: string; email: string; displayName: string | null };
+    activeWorkspaceId: string | null;
     workspaces: Array<{
       id: string;
       name: string;
       role: string;
+      isCreator: boolean;
       budgets: Array<{
         id: string;
         name: string;
@@ -406,10 +414,13 @@ export class AuthApplicationService {
         where: { userId, isActive: true, workspace: { status: 'ACTIVE' } },
         select: {
           role: true,
+          lastSelectedAt: true,
+          createdAt: true,
           workspace: {
             select: {
               id: true,
               name: true,
+              ownerId: true,
               budgets: {
                 where: { status: 'ACTIVE' },
                 select: { id: true, name: true, primaryCurrency: true, planModelVersion: true },
@@ -423,11 +434,54 @@ export class AuthApplicationService {
         select: { document: true, version: true },
       }),
     }));
+    const ordered = [...memberships].sort(compareDefault);
     return {
       user,
-      workspaces: memberships.map(({ role, workspace }) => ({ ...workspace, role })),
+      activeWorkspaceId: ordered[0]?.workspace.id ?? null,
+      workspaces: memberships.map(({ role, workspace }) => ({
+        id: workspace.id,
+        name: workspace.name,
+        role,
+        isCreator: workspace.ownerId === userId,
+        budgets: workspace.budgets,
+      })),
       pendingConsents: pendingConsents(accepted),
     };
+  }
+
+  async updateProfile(
+    userId: string,
+    input: UpdateProfileInput,
+    requestId?: string,
+  ): Promise<{ user: { id: string; email: string; displayName: string | null } }> {
+    const user = await this.repository.transaction(async (tx) => {
+      const updated = await tx.user.updateMany({
+        where: { id: userId, status: 'ACTIVE' },
+        data: { displayName: input.displayName },
+      });
+      if (updated.count !== 1)
+        throw new UnauthorizedException({
+          code: 'SESSION_INVALID',
+          detail: 'Сессия недействительна.',
+        });
+      // Names are personal data: the audit records the fact of change, not the values.
+      await tx.auditEvent.create({
+        data: {
+          id: createUuidV7(),
+          actorUserId: userId,
+          entityType: 'user',
+          entityId: userId,
+          action: 'PROFILE_UPDATED',
+          source: 'API',
+          requestId: requestId ?? null,
+        },
+      });
+      return tx.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { id: true, email: true, displayName: true },
+      });
+    });
+    return { user };
   }
 
   private async createSession(
@@ -472,9 +526,25 @@ export class AuthApplicationService {
           },
         },
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ lastSelectedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'asc' }],
     });
   }
+}
+
+/** Same order as findDefaultMembership: last selected first, never-selected by join date. */
+function compareDefault(
+  left: { lastSelectedAt: Date | null; createdAt: Date },
+  right: { lastSelectedAt: Date | null; createdAt: Date },
+): number {
+  if (left.lastSelectedAt && right.lastSelectedAt) {
+    const bySelection = right.lastSelectedAt.getTime() - left.lastSelectedAt.getTime();
+    if (bySelection !== 0) return bySelection;
+  } else if (left.lastSelectedAt) {
+    return -1;
+  } else if (right.lastSelectedAt) {
+    return 1;
+  }
+  return left.createdAt.getTime() - right.createdAt.getTime();
 }
 
 function isUniqueConstraint(error: unknown): boolean {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { definePageMeta, useRuntimeConfig } from '#imports';
 
 import TemplatePreviewSheet from '../../../components/funding/TemplatePreviewSheet.vue';
@@ -8,7 +8,9 @@ import UiButton from '../../../components/ui/Button.vue';
 import UiCard from '../../../components/ui/Card.vue';
 import UiEmptyState from '../../../components/ui/EmptyState.vue';
 import UiStatus from '../../../components/ui/Status.vue';
+import { useActiveWorkspace } from '../../../composables/useActiveWorkspace.js';
 import { useAuth } from '../../../composables/useAuth.js';
+import { usePermissions } from '../../../composables/usePermissions.js';
 
 defineOptions({ name: 'AppSettingsPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
@@ -23,7 +25,10 @@ const loadError = ref('');
 const templateSummary = ref('');
 const templateSheetOpen = ref(false);
 
-const budgetId = computed(() => currentData.value?.workspaces[0]?.budgets[0]?.id);
+const { budgetId } = useActiveWorkspace();
+// Applying the budget template and changing the financial cycle are
+// OWNER-only on the server.
+const { canManage } = usePermissions();
 
 async function loadPage() {
   loading.value = true;
@@ -86,7 +91,7 @@ onMounted(() => {
             <span>Общие настройки</span>
             <span class="settings-page__row-link">Изменить →</span>
           </NuxtLink>
-          <div class="settings-page__static-row">
+          <div v-if="canManage" class="settings-page__static-row">
             <div>
               <p class="settings-page__static-row-title">Базовый шаблон</p>
               <p class="settings-page__hint">
@@ -103,6 +108,7 @@ onMounted(() => {
             </UiButton>
           </div>
           <TemplatePreviewSheet
+            v-if="canManage"
             :open="templateSheetOpen"
             :budget-id="budgetId"
             @close="templateSheetOpen = false"
@@ -127,8 +133,22 @@ onMounted(() => {
               Изменение цикла вступает в силу только с будущего периода: сначала покажем, с какой
               даты, а прошлые периоды останутся без изменений.
             </p>
-            <UiButton variant="secondary" to="/app/settings/general">Изменить цикл</UiButton>
+            <UiButton v-if="canManage" variant="secondary" to="/app/settings/general">
+              Изменить цикл
+            </UiButton>
           </div>
+        </UiCard>
+
+        <UiCard
+          as="section"
+          class="settings-page__area settings-page__area--family"
+          aria-labelledby="settings-family-title"
+        >
+          <template #header><h2 id="settings-family-title">Семья</h2></template>
+          <NuxtLink to="/app/settings/family" class="settings-page__row">
+            <span>Участники и приглашения</span>
+            <span class="settings-page__row-link">Управлять →</span>
+          </NuxtLink>
         </UiCard>
 
         <UiCard
@@ -172,7 +192,8 @@ onMounted(() => {
 }
 
 /* Single column: the spec orders the cards «Бюджет», «Финансовый цикл»,
-   «Аккаунт» — the cycle is promoted as the most frequently used setting. */
+   «Семья», «Аккаунт» — the cycle is promoted as the most frequently used
+   setting. */
 .settings-page__grid {
   display: grid;
   gap: var(--hf-space-5);
@@ -180,6 +201,7 @@ onMounted(() => {
   grid-template-areas:
     'budget'
     'cycle'
+    'family'
     'account';
   align-items: start;
 }
@@ -190,6 +212,10 @@ onMounted(() => {
 
 .settings-page__area--cycle {
   grid-area: cycle;
+}
+
+.settings-page__area--family {
+  grid-area: family;
 }
 
 .settings-page__area--account {
@@ -253,16 +279,17 @@ onMounted(() => {
   font-size: var(--hf-font-size-small);
 }
 
-/* Two columns: «Бюджет» over «Аккаунт» on the left, «Финансовый цикл»
-   spanning both rows on the right. */
+/* Two columns: «Бюджет», «Семья», «Аккаунт» stacked on the left, «Финансовый
+   цикл» spanning all three rows on the right. */
 @media (min-width: 48rem) {
   .settings-page__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    /* The flexible second row absorbs the taller cycle card, so the spanning
-       card cannot inflate row 1 and push «Аккаунт» away from «Бюджет». */
-    grid-template-rows: auto 1fr;
+    /* The flexible last row absorbs the taller cycle card, so the spanning
+       card cannot inflate the earlier rows and push the left column apart. */
+    grid-template-rows: auto auto 1fr;
     grid-template-areas:
       'budget cycle'
+      'family cycle'
       'account cycle';
   }
 }

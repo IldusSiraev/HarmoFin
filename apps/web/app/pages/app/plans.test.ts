@@ -29,7 +29,7 @@ const budgetRow = {
   planModelVersion: 2,
 };
 const auth = {
-  currentData: { value: { workspaces: [{ budgets: [budgetRow] }] } },
+  currentData: { value: { workspaces: [{ role: 'OWNER', budgets: [budgetRow] }] } },
   loadMe: vi.fn(),
 };
 const { route } = vi.hoisted(() => ({ route: { query: {} } }));
@@ -1335,6 +1335,41 @@ describe('plans page', () => {
       expect(wrapper!.find('[data-testid="calendar-day-2026-09-24"]').exists()).toBe(true);
       expect(wrapper!.find('[data-testid="catalog-error"]').exists()).toBe(true);
       expect(wrapper!.find('.plans-page__error').exists()).toBe(false);
+    });
+  });
+
+  describe('permissions by role', () => {
+    function setRole(role: 'OWNER' | 'EDITOR' | 'VIEWER') {
+      (auth.currentData.value.workspaces[0] as { role: string }).role = role;
+    }
+
+    it('viewer: no plan creation, editing or catalog management', async () => {
+      setRole('VIEWER');
+      wrapper = mountV2();
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="plan-add-obligation"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="obligation-edit-occ-rent"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="catalog-edit-plan-rent"]').exists()).toBe(false);
+    });
+
+    it('viewer: no pay, skip or record-income on open obligations/income', async () => {
+      setRole('VIEWER');
+      wrapper = mountV2();
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="obligation-pay-occ-rent"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="obligation-skip-occ-rent"]').exists()).toBe(false);
+    });
+
+    it('editor: plan management stays hidden, but recording stays available', async () => {
+      setRole('EDITOR');
+      wrapper = mountV2();
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="plan-add-obligation"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="obligation-edit-occ-rent"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="obligation-pay-occ-rent"]').exists()).toBe(true);
     });
   });
 });

@@ -9,6 +9,10 @@ import type { PasswordService } from '../auth/password.service.js';
 import type { TokenService } from '../auth/token.service.js';
 import type { EmailSender } from '../auth/email-sender.js';
 import type { ApiConfig } from '../config/env.js';
+import {
+  createAccessNotification,
+  resolveUserNotifications,
+} from '../family/family-notifications.js';
 import type { CancelDeletionInput, RequestDeletionInput } from './account-deletion.schemas.js';
 import type { AccountDeletionRepository } from './account-deletion.repository.js';
 
@@ -47,12 +51,38 @@ export class AccountDeletionApplicationService {
 
       const workspaceIds = owned.map((workspace) => workspace.id);
       const budgetIds = owned.flatMap((workspace) => workspace.activeBudgetIds);
-      const membershipIds = await this.repository.deactivateForeignMemberships(
+      const deactivated = await this.repository.deactivateForeignMemberships(
         tx,
         userId,
         workspaceIds,
         now,
       );
+      const memberName = user.displayName ?? user.email;
+      for (const membership of deactivated) {
+        await resolveUserNotifications(tx, membership.workspaceId, userId, now);
+        const foreignBudgetId = await this.repository.findActiveBudgetId(
+          tx,
+          membership.workspaceId,
+        );
+        await this.repository.auditMembership(tx, {
+          userId,
+          workspaceId: membership.workspaceId,
+          budgetId: foreignBudgetId,
+          membershipId: membership.id,
+          action: 'LEFT',
+          requestId: meta.requestId,
+        });
+        if (foreignBudgetId) {
+          await createAccessNotification(tx, {
+            workspaceId: membership.workspaceId,
+            budgetId: foreignBudgetId,
+            userId: membership.ownerId,
+            type: 'MEMBER_LEFT',
+            memberName,
+            eventKey: `${membership.id}:${now.toISOString()}`,
+          });
+        }
+      }
       await this.repository.archiveScope(tx, workspaceIds, budgetIds);
       await this.repository.revokeCredentials(tx, userId, now);
       await this.repository.createDeletion(tx, {
@@ -62,7 +92,7 @@ export class AccountDeletionApplicationService {
         restoreTokenHash: this.tokenService.digest(rawToken),
         archivedWorkspaceIds: workspaceIds,
         archivedBudgetIds: budgetIds,
-        deactivatedMembershipIds: membershipIds,
+        deactivatedMembershipIds: deactivated.map((membership) => membership.id),
       });
       await this.repository.audit(tx, {
         userId,
@@ -103,7 +133,7 @@ export class AccountDeletionApplicationService {
       );
       if (!deletion) throw invalidRestoreToken();
       if (!(await this.repository.reactivateUser(tx, deletion.userId))) throw invalidRestoreToken();
-      await this.repository.restoreScope(tx, deletion);
+      await this.repository.restoreScope(tx, deletion.userId, now, deletion, meta.requestId);
       await this.repository.markRestored(tx, deletion.id, now);
       await this.repository.audit(tx, {
         userId: deletion.userId,
@@ -147,6 +177,6 @@ function invalidRestoreToken(): UnprocessableEntityException {
 function hasMembers(): ConflictException {
   return new ConflictException({
     code: 'ACCOUNT_DELETION_HAS_MEMBERS',
-    detail: 'В бюджете есть другие участники. Сначала отключите их доступ.',
+    detail: 'В вашей семье есть другие участники. Сначала удалите их на странице «Семья».',
   });
 }

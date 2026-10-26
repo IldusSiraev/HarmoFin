@@ -111,6 +111,7 @@ describe('useOperationFilters', () => {
       to: '2026-09-30',
       categoryId: 'category-id',
       envelopeId: 'envelope-id',
+      createdByUserId: 'user-id',
     };
 
     const { toListInput } = useOperationFilters();
@@ -123,6 +124,17 @@ describe('useOperationFilters', () => {
       to: '2026-09-30',
       categoryId: 'category-id',
       envelopeId: 'envelope-id',
+      createdByUserId: 'user-id',
     });
+  });
+
+  it('reads and forwards the author filter', () => {
+    route.query = { createdByUserId: 'user-id' };
+
+    const { filters, toListInput, activeCount } = useOperationFilters();
+
+    expect(filters.value.createdByUserId).toBe('user-id');
+    expect(toListInput()).toEqual({ createdByUserId: 'user-id' });
+    expect(activeCount.value).toBe(1);
   });
 });

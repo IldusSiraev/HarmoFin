@@ -12,6 +12,7 @@ export interface OperationFilters {
   accountId: string;
   categoryId: string;
   envelopeId: string;
+  createdByUserId: string;
 }
 
 const DEFAULTS: OperationFilters = {
@@ -22,6 +23,7 @@ const DEFAULTS: OperationFilters = {
   accountId: '',
   categoryId: '',
   envelopeId: '',
+  createdByUserId: '',
 };
 
 const TYPES = ['INCOME', 'EXPENSE', 'TRANSFER'] as const;
@@ -70,6 +72,7 @@ export function useOperationFilters(): {
     accountId: readString(query, 'accountId'),
     categoryId: readString(query, 'categoryId'),
     envelopeId: readString(query, 'envelopeId'),
+    createdByUserId: readString(query, 'createdByUserId'),
   });
 
   const activeCount = computed(
@@ -86,6 +89,7 @@ export function useOperationFilters(): {
       ...(current.accountId ? { accountId: current.accountId } : {}),
       ...(current.categoryId ? { categoryId: current.categoryId } : {}),
       ...(current.envelopeId ? { envelopeId: current.envelopeId } : {}),
+      ...(current.createdByUserId ? { createdByUserId: current.createdByUserId } : {}),
     };
   }
 

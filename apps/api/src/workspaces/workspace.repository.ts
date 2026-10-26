@@ -1,5 +1,4 @@
-import { newBudgetModelData } from '../common/plan-model/new-budget-model.js';
-import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
+import { createPersonalWorkspace } from '../family/personal-workspace.js';
 import { PrismaService } from '../database/prisma.service.js';
 
 export interface WorkspaceSummary {
@@ -46,35 +45,13 @@ export class WorkspaceRepository {
     requestId?: string,
   ): Promise<WorkspaceWithBudget> {
     return this.prisma.$transaction(async (tx) => {
-      const workspace = await tx.workspace.create({
-        data: { id: createUuidV7(), ownerId: userId, name: input.workspaceName },
-        select: { id: true, name: true, timezone: true },
-      });
-      await tx.workspaceMembership.create({
-        data: { id: createUuidV7(), workspaceId: workspace.id, userId, role: 'OWNER' },
-      });
-      const budget = await tx.budget.create({
-        data: {
-          id: createUuidV7(),
-          workspaceId: workspace.id,
-          name: input.budgetName,
-          ...newBudgetModelData(),
-        },
-        select: { id: true, name: true, primaryCurrency: true },
-      });
-      await tx.auditEvent.create({
-        data: {
-          id: createUuidV7(),
-          actorUserId: userId,
-          workspaceId: workspace.id,
-          budgetId: budget.id,
-          entityType: 'workspace',
-          entityId: workspace.id,
-          action: 'CREATED',
-          source: 'API',
-          requestId: requestId ?? null,
-        },
-      });
+      const { workspace, budget } = await createPersonalWorkspace(
+        tx,
+        userId,
+        new Date(),
+        requestId,
+        input,
+      );
       return { ...workspace, timezone: workspace.timezone, role: 'OWNER' as const, budget };
     });
   }

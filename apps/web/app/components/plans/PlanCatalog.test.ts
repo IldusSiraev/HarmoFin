@@ -118,4 +118,27 @@ describe('PlanCatalog', () => {
     expect(wrapper.get('summary').text()).toBe('Все планы (3)');
     expect(wrapper.get('summary').text()).not.toContain('ошибка');
   });
+
+  it('hides edit and resume when canManage is false', () => {
+    const wrapper = mount(PlanCatalog, { props: { entries, canManage: false } });
+
+    expect(wrapper.find('[data-testid="catalog-edit-plan-1"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="catalog-resume-plan-2"]').exists()).toBe(false);
+  });
+
+  it('drops the actions column when canManage is false, instead of an empty gap', () => {
+    const wrapper = mount(PlanCatalog, { props: { entries, canManage: false } });
+
+    expect(wrapper.get('[data-testid="catalog-row-obligation-plan-1"]').classes()).toContain(
+      'obligation-row--no-actions',
+    );
+  });
+
+  it('keeps the actions column when canManage is true', () => {
+    const wrapper = mount(PlanCatalog, { props: { entries } });
+
+    expect(wrapper.get('[data-testid="catalog-row-obligation-plan-1"]').classes()).not.toContain(
+      'obligation-row--no-actions',
+    );
+  });
 });

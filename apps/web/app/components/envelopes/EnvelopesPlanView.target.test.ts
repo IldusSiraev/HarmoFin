@@ -1,6 +1,6 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { defineComponent, h } from 'vue';
+import { computed, defineComponent, h } from 'vue';
 
 const BUDGET = '0190a000-0000-7000-8000-000000000001';
 
@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../composables/useEnvelopePlanV2.js', () => ({ useEnvelopePlanV2: () => mocks.v2 }));
+vi.mock('../../composables/useActiveWorkspace.js', () => ({
+  useActiveWorkspace: () => ({ role: computed(() => 'OWNER' as const) }),
+}));
 vi.mock('../../composables/useOperationReferenceData.js', () => ({
   useOperationReferenceData: () => ({ invalidate: vi.fn() }),
 }));

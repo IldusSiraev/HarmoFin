@@ -20,6 +20,7 @@ import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
 import UiSkeleton from '../../components/ui/Skeleton.vue';
+import { useActiveWorkspace } from '../../composables/useActiveWorkspace.js';
 import { useAuth } from '../../composables/useAuth.js';
 import { useFundingEntry } from '../../composables/useFundingEntry.js';
 import {
@@ -89,11 +90,11 @@ const periodLine = computed(() => {
   return parts.join(' · ');
 });
 
-const activeBudget = computed(() => currentData.value?.workspaces[0]?.budgets[0] ?? null);
+const { budget: activeBudget, workspace: activeWorkspace } = useActiveWorkspace();
 const planV2 = useEnvelopePlanV2();
 const funding = useFundingEntry();
 function workspaceName() {
-  return currentData.value?.workspaces[0]?.name ?? 'Бюджет';
+  return activeWorkspace.value?.name ?? 'Бюджет';
 }
 
 // The dialogs live in the layout now, so the page reloads its summary whenever

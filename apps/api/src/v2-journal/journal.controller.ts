@@ -1,6 +1,6 @@
 import { Controller, Get, Inject, Param, Query, Req, UseGuards } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
-import { ApiCookieAuth, ApiOkResponse, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiCookieAuth, ApiOkResponse, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { ProblemDetailsResponse } from '../common/errors/problem-details.dto.js';
@@ -28,6 +28,11 @@ export class JournalController {
   ) {}
 
   @Get()
+  @ApiQuery({
+    name: 'createdByUserId',
+    required: false,
+    schema: { type: 'string', format: 'uuid' },
+  })
   @ApiOkResponse({ type: JournalPageResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })

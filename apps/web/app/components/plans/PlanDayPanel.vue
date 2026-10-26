@@ -30,8 +30,12 @@ const props = withDefaults(
     factsLoading?: boolean;
     factsError?: boolean;
     busy?: boolean;
+    // Creating/editing a plan is OWNER-only on the server; paying, skipping
+    // and recording income need OWNER or EDITOR.
+    canManage?: boolean;
+    canWrite?: boolean;
   }>(),
-  { factsLoading: false, factsError: false, busy: false },
+  { factsLoading: false, factsError: false, busy: false, canManage: true, canWrite: true },
 );
 
 const emit = defineEmits<{
@@ -70,6 +74,7 @@ const isEmpty = computed(
     <header class="day-panel__header">
       <h2 class="day-panel__title">{{ title }}</h2>
       <UiButton
+        v-if="canManage"
         variant="secondary"
         size="sm"
         data-testid="plan-add-for-day"
@@ -120,6 +125,7 @@ const isEmpty = computed(
           </div>
           <div class="day-panel__actions" :data-testid="`day-actions-${item.occurrenceId}`">
             <UiButton
+              v-if="canManage"
               variant="tertiary"
               size="sm"
               class="day-panel__icon-btn"
@@ -131,7 +137,7 @@ const isEmpty = computed(
             >
               <Pencil :size="16" aria-hidden="true" />
             </UiButton>
-            <template v-if="isOpen(item) && item.kind === 'OBLIGATION'">
+            <template v-if="isOpen(item) && item.kind === 'OBLIGATION' && canWrite">
               <UiButton
                 variant="tertiary"
                 size="sm"
@@ -159,7 +165,7 @@ const isEmpty = computed(
               </UiButton>
             </template>
             <UiButton
-              v-else-if="isOpen(item)"
+              v-else-if="isOpen(item) && canWrite"
               variant="tertiary"
               size="sm"
               class="day-panel__icon-btn"

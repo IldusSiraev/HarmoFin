@@ -21,7 +21,9 @@ import UiModal from '../../components/ui/Modal.vue';
 import UiReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiSkeleton from '../../components/ui/Skeleton.vue';
 import { ApiRequestError } from '../../composables/useApiClient.js';
+import { useActiveWorkspace } from '../../composables/useActiveWorkspace.js';
 import { useAuth } from '../../composables/useAuth.js';
+import { useFamily } from '../../composables/useFamily.js';
 import {
   useEnvelopePlanV2,
   type JournalItem,
@@ -40,6 +42,7 @@ import {
   useOperationMutations,
 } from '../../composables/useOperationMutations.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
+import { usePermissions } from '../../composables/usePermissions.js';
 import { useToast } from '../../composables/useToast.js';
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
 
@@ -83,12 +86,27 @@ const confirmation = ref<null | {
 }>(null);
 let requestVersion = 0;
 
-const workspace = computed(() => auth.currentData.value?.workspaces[0] ?? null);
-const budget = computed(() => workspace.value?.budgets[0] ?? null);
-const isOwner = computed(() => workspace.value?.role === 'OWNER');
+const { role, budget, workspace } = useActiveWorkspace();
+const isOwner = computed(() => role.value === 'OWNER');
+// Recording, editing, deleting and restoring operations and transfers need
+// OWNER or EDITOR on the server; a viewer only reads the journal.
+const { canWrite } = usePermissions();
 // Accounts, categories and envelopes come from the shared cache the global add
 // dialogs already use, so opening the journal does not re-read them every time.
 const { accounts, categories, envelopes, load: loadReferenceData } = useOperationReferenceData();
+// The author column and filter only earn their place once there is more than
+// one person who could have recorded a row.
+const workspaceId = computed(() => workspace.value?.id);
+const family = useFamily(workspaceId);
+const showAuthor = computed(() => family.members.value.length > 1);
+const authorOptions = computed(() =>
+  showAuthor.value
+    ? family.members.value.map((member) => ({
+        value: member.userId,
+        label: member.displayName ?? member.email,
+      }))
+    : [],
+);
 
 const categoryOptions = computed(() =>
   categories.value.map((category) => ({ value: category.id, label: category.name })),
@@ -120,8 +138,9 @@ function transferRoute(item: TransferJournalItem) {
 }
 
 // A deleted transfer offers only restore, and only the owner sees deleted rows.
+// A viewer never gets a menu at all: every entry inside needs OWNER or EDITOR.
 function hasTransferActions(item: TransferJournalItem): boolean {
-  return item.status === 'CONFIRMED' || isOwner.value;
+  return canWrite.value && (item.status === 'CONFIRMED' || isOwner.value);
 }
 
 function openTransfer(item: TransferJournalItem, intent: TransferDialogIntent): void {
@@ -156,6 +175,9 @@ const confirmationCopy = computed(() => {
 onMounted(() => {
   hydrated.value = true;
   void load();
+  // The author filter is a nice-to-have: a failure here must not block the
+  // journal itself, so it is never awaited into the journal's own try/catch.
+  void family.load().catch(() => {});
 });
 
 // The quick-add and transfer dialogs live in the layout now, so the journal
@@ -242,9 +264,12 @@ function envelopeName(transaction: TransactionJournalV2Item): string | null {
 }
 
 // An operation from before model 2 has no actions at all: an empty menu would
-// only be a dead control.
+// only be a dead control. A viewer never gets a menu either: edit, delete and
+// restore all need OWNER or EDITOR on the server.
 function hasRowActions(transaction: TransactionJournalV2Item): boolean {
-  return canEditTransaction(transaction) || availableActions(transaction).length > 0;
+  return (
+    canWrite.value && (canEditTransaction(transaction) || availableActions(transaction).length > 0)
+  );
 }
 
 function onFilterChange(key: keyof OperationFilters, value: string): void {
@@ -388,7 +413,7 @@ async function downloadCsv() {
 </script>
 
 <template>
-  <div v-if="hydrated" class="operations-page">
+  <div v-if="hydrated" class="operations-page" data-hydrated="true">
     <UiEmptyState
       v-if="!budget"
       title="Бюджет не выбран"
@@ -412,7 +437,12 @@ async function downloadCsv() {
         >
           <Download :size="18" aria-hidden="true" />
         </UiButton>
-        <UiButton data-action="create-operation" class="operations-page__add" @click="openChoose">
+        <UiButton
+          v-if="canWrite"
+          data-action="create-operation"
+          class="operations-page__add"
+          @click="openChoose"
+        >
           Добавить операцию
         </UiButton>
       </template>
@@ -424,6 +454,7 @@ async function downloadCsv() {
           :categories="categoryOptions"
           :envelopes="envelopes"
           :can-view-deleted="isOwner"
+          :authors="authorOptions"
           @change="onFilterChange"
           @reset="onReset"
         />
@@ -459,6 +490,7 @@ async function downloadCsv() {
                 v-if="isTransfer(item)"
                 :transfer="item"
                 v-bind="transferRoute(item)"
+                :show-author="showAuthor"
                 @select="openTransfer(item, 'view')"
               >
                 <template v-if="hasTransferActions(item)" #actions>
@@ -500,6 +532,7 @@ async function downloadCsv() {
                 :category-icon="categoryIcon(item)"
                 :account-name="accountName(item)"
                 :envelope-name="envelopeName(item)"
+                :show-author="showAuthor"
                 @select="detailed = item"
               >
                 <template v-if="hasRowActions(item)" #actions>

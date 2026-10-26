@@ -99,12 +99,21 @@ describe('settings hub page', () => {
     expect(wrapper.text()).toContain('Как пользоваться HarmoFin');
   });
 
-  it('orders the cards so a single column reads «Бюджет», «Финансовый цикл», «Аккаунт»', async () => {
+  it('orders the cards so a single column reads «Бюджет», «Финансовый цикл», «Семья», «Аккаунт»', async () => {
     const wrapper = mountPage();
     await flushPromises();
 
     const headings = wrapper.findAll('section h2').map((heading) => heading.text());
-    expect(headings).toEqual(['Бюджет', 'Финансовый цикл', 'Аккаунт']);
+    expect(headings).toEqual(['Бюджет', 'Финансовый цикл', 'Семья', 'Аккаунт']);
+  });
+
+  it('links to the family page before the account card', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const link = wrapper.find('a[href="/app/settings/family"]');
+    expect(link.exists()).toBe(true);
+    expect(link.text()).toContain('Участники и приглашения');
   });
 
   it('does not show the income allocation rule anywhere on the page', async () => {
@@ -209,5 +218,25 @@ describe('settings hub page', () => {
     expect(document.body.textContent).toContain('Укажу позже');
     wrapper.unmount();
     document.body.innerHTML = '';
+  });
+
+  type MockedWorkspaces = { workspaces: Array<{ role: string }> };
+
+  it('hides the template and cycle management for a viewer', async () => {
+    (mocks.auth.currentData.value as MockedWorkspaces).workspaces[0]!.role = 'VIEWER';
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('[data-action="initialize-template"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('Изменить цикл');
+  });
+
+  it('hides the template and cycle management for an editor too', async () => {
+    (mocks.auth.currentData.value as MockedWorkspaces).workspaces[0]!.role = 'EDITOR';
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('[data-action="initialize-template"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('Изменить цикл');
   });
 });

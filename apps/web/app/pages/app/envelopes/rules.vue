@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { onBeforeRouteLeave } from 'vue-router';
 import { ArrowLeft } from '@lucide/vue';
 import { definePageMeta, navigateTo } from '#imports';
@@ -9,6 +9,7 @@ import ReferencePageLayout from '../../../components/ui/ReferencePageLayout.vue'
 import UiButton from '../../../components/ui/Button.vue';
 import UiConfirmDialog from '../../../components/ui/ConfirmDialog.vue';
 import UiEmptyState from '../../../components/ui/EmptyState.vue';
+import { useActiveWorkspace } from '../../../composables/useActiveWorkspace.js';
 import { useAuth } from '../../../composables/useAuth.js';
 
 defineOptions({ name: 'AppEnvelopeRulesPage' });
@@ -23,7 +24,7 @@ const leaveOpen = ref(false);
 let pendingPath: string | null = null;
 let leaving = false;
 
-const budgetId = computed(() => currentData.value?.workspaces[0]?.budgets[0]?.id);
+const { budgetId } = useActiveWorkspace();
 
 async function loadPage(): Promise<void> {
   loading.value = true;

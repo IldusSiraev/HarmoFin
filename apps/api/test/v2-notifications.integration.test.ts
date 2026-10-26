@@ -148,6 +148,186 @@ describe('v2 notifications', () => {
     expect(await open(v2, 'PLAN_OVERDUE')).toHaveLength(0);
   });
 
+  it('notifies every active OWNER and EDITOR, never a VIEWER, and resolves on payment', async () => {
+    const editorId = randomUUID();
+    const viewerId = randomUUID();
+    await prisma.user.createMany({
+      data: [
+        { id: editorId, email: `editor-${randomUUID()}@harmofin.test`, passwordHash: 'x' },
+        { id: viewerId, email: `viewer-${randomUUID()}@harmofin.test`, passwordHash: 'x' },
+      ],
+    });
+    await prisma.workspaceMembership.createMany({
+      data: [
+        { id: randomUUID(), workspaceId: v2.workspaceId, userId: editorId, role: 'EDITOR' },
+        { id: randomUUID(), workspaceId: v2.workspaceId, userId: viewerId, role: 'VIEWER' },
+      ],
+    });
+    const occurrenceId = randomUUID();
+    await prisma.planOccurrence.create({
+      data: {
+        id: occurrenceId,
+        workspaceId: v2.workspaceId,
+        budgetId: v2.budgetId,
+        planId: v2.planId,
+        scheduledOn: day('2026-09-08'),
+        planName: 'Аренда',
+        planType: 'EXPENSE',
+        amountMinor: 100n,
+        accountId: v2.accountId,
+        categoryId: v2.categoryId,
+        envelopeId: v2.envelopeId,
+        status: 'DUE',
+      },
+    });
+
+    await new NotificationRuleHandler(prisma).execute(now, v2.budgetId);
+
+    const overdueRecipients = await prisma.notification.findMany({
+      where: {
+        budgetId: v2.budgetId,
+        notificationType: 'PLAN_OVERDUE',
+        occurrenceId,
+        resolvedAt: null,
+      },
+      select: { userId: true },
+      orderBy: { userId: 'asc' },
+    });
+    expect(overdueRecipients).toEqual(
+      [{ userId: v2.userId }, { userId: editorId }].sort((a, b) =>
+        a.userId.localeCompare(b.userId),
+      ),
+    );
+    expect(overdueRecipients.some((item) => item.userId === viewerId)).toBe(false);
+
+    await pay(v2, occurrenceId, 100n);
+    await new NotificationRuleHandler(prisma).execute(now, v2.budgetId);
+
+    const afterPayment = await prisma.notification.findMany({
+      where: { budgetId: v2.budgetId, notificationType: 'PLAN_OVERDUE', occurrenceId },
+      select: { userId: true, resolvedAt: true },
+    });
+    expect(afterPayment).toHaveLength(2);
+    expect(afterPayment.every((item) => item.resolvedAt !== null)).toBe(true);
+
+    await prisma.notification.deleteMany({
+      where: { budgetId: v2.budgetId, userId: { in: [editorId, viewerId] } },
+    });
+    await prisma.workspaceMembership.deleteMany({
+      where: { workspaceId: v2.workspaceId, userId: { in: [editorId, viewerId] } },
+    });
+    await prisma.user.deleteMany({ where: { id: { in: [editorId, viewerId] } } });
+  });
+
+  it('resolves open notifications of a member demoted to VIEWER or deactivated, with an audit event, and leaves the owner unaffected', async () => {
+    const demotedId = randomUUID();
+    const deactivatedId = randomUUID();
+    await prisma.user.createMany({
+      data: [
+        { id: demotedId, email: `demoted-${randomUUID()}@harmofin.test`, passwordHash: 'x' },
+        {
+          id: deactivatedId,
+          email: `deactivated-${randomUUID()}@harmofin.test`,
+          passwordHash: 'x',
+        },
+      ],
+    });
+    const demotedMembershipId = randomUUID();
+    const deactivatedMembershipId = randomUUID();
+    await prisma.workspaceMembership.createMany({
+      data: [
+        {
+          id: demotedMembershipId,
+          workspaceId: v2.workspaceId,
+          userId: demotedId,
+          role: 'EDITOR',
+        },
+        {
+          id: deactivatedMembershipId,
+          workspaceId: v2.workspaceId,
+          userId: deactivatedId,
+          role: 'EDITOR',
+        },
+      ],
+    });
+    const occurrenceId = randomUUID();
+    await prisma.planOccurrence.create({
+      data: {
+        id: occurrenceId,
+        workspaceId: v2.workspaceId,
+        budgetId: v2.budgetId,
+        planId: v2.planId,
+        scheduledOn: day('2026-09-07'),
+        planName: 'Аренда',
+        planType: 'EXPENSE',
+        amountMinor: 100n,
+        accountId: v2.accountId,
+        categoryId: v2.categoryId,
+        envelopeId: v2.envelopeId,
+        status: 'DUE',
+      },
+    });
+
+    // Both are EDITORs first: each gets the open overdue notification.
+    await new NotificationRuleHandler(prisma).execute(now, v2.budgetId);
+    const beforeChange = await prisma.notification.findMany({
+      where: { budgetId: v2.budgetId, notificationType: 'PLAN_OVERDUE', occurrenceId },
+      select: { userId: true, resolvedAt: true },
+    });
+    expect(beforeChange.filter((item) => item.resolvedAt === null)).toHaveLength(3);
+
+    // Demote one to VIEWER, deactivate the other's membership.
+    await prisma.workspaceMembership.update({
+      where: { id: demotedMembershipId },
+      data: { role: 'VIEWER' },
+    });
+    await prisma.workspaceMembership.update({
+      where: { id: deactivatedMembershipId },
+      data: { isActive: false },
+    });
+
+    await new NotificationRuleHandler(prisma).execute(now, v2.budgetId);
+
+    const afterChange = await prisma.notification.findMany({
+      where: { budgetId: v2.budgetId, notificationType: 'PLAN_OVERDUE', occurrenceId },
+      select: { userId: true, resolvedAt: true },
+    });
+    const ownerRow = afterChange.find((item) => item.userId === v2.userId);
+    const demotedRow = afterChange.find((item) => item.userId === demotedId);
+    const deactivatedRow = afterChange.find((item) => item.userId === deactivatedId);
+    expect(ownerRow?.resolvedAt).toBeNull();
+    expect(demotedRow?.resolvedAt).not.toBeNull();
+    expect(deactivatedRow?.resolvedAt).not.toBeNull();
+
+    const audit = await prisma.auditEvent.findMany({
+      where: {
+        workspaceId: v2.workspaceId,
+        entityType: 'notification',
+        action: 'RESOLVED',
+      },
+      select: { entityId: true },
+    });
+    const auditedNotificationIds = new Set(audit.map((item) => item.entityId));
+    const demotedNotification = await prisma.notification.findFirst({
+      where: { budgetId: v2.budgetId, userId: demotedId, occurrenceId },
+      select: { id: true },
+    });
+    const deactivatedNotification = await prisma.notification.findFirst({
+      where: { budgetId: v2.budgetId, userId: deactivatedId, occurrenceId },
+      select: { id: true },
+    });
+    expect(auditedNotificationIds.has(demotedNotification?.id as string)).toBe(true);
+    expect(auditedNotificationIds.has(deactivatedNotification?.id as string)).toBe(true);
+
+    await prisma.notification.deleteMany({
+      where: { budgetId: v2.budgetId, userId: { in: [demotedId, deactivatedId] } },
+    });
+    await prisma.workspaceMembership.deleteMany({
+      where: { workspaceId: v2.workspaceId, userId: { in: [demotedId, deactivatedId] } },
+    });
+    await prisma.user.deleteMany({ where: { id: { in: [demotedId, deactivatedId] } } });
+  });
+
   it('shows the inbox only to the budget member', async () => {
     const own = await server.inject({
       method: 'GET',

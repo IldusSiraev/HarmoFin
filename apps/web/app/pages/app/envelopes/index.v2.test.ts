@@ -1128,4 +1128,28 @@ describe('envelopes page, plan model v2', () => {
     expect(text).toContain('Первая половина периода');
     expect(text).not.toContain('Первая половина периода · 10–24 октября');
   });
+
+  type MockedWorkspaces = { workspaces: Array<{ role: string }> };
+
+  it('hides envelope management for a viewer: no create, rules link or row actions', async () => {
+    (mocks.auth.currentData.value as MockedWorkspaces).workspaces[0]!.role = 'VIEWER';
+    const wrapper = mountPage();
+    await flushPromises();
+    await wrapper.get(`[data-testid="row-actions-${repair.id}"]`).trigger('click');
+
+    expect(wrapper.find('[data-action="create-envelope"]').exists()).toBe(false);
+    expect(wrapper.find('[data-action="envelope-rules"]').exists()).toBe(false);
+    expect(wrapper.find('[data-action="reassign-envelope"]').exists()).toBe(false);
+    expect(wrapper.find('[data-action="edit-envelope"]').exists()).toBe(false);
+    expect(wrapper.find('[data-action="archive-envelope"]').exists()).toBe(false);
+  });
+
+  it('hides envelope management for an editor too: only the owner manages envelopes', async () => {
+    (mocks.auth.currentData.value as MockedWorkspaces).workspaces[0]!.role = 'EDITOR';
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('[data-action="create-envelope"]').exists()).toBe(false);
+    expect(wrapper.find('[data-action="envelope-rules"]').exists()).toBe(false);
+  });
 });

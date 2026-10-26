@@ -6,6 +6,7 @@ import {
   Get,
   HttpCode,
   Inject,
+  Patch,
   Post,
   Req,
   Res,
@@ -44,10 +45,12 @@ import {
   CsrfTokenResponse,
   LoginRequest,
   MeResponse,
+  ProfileResponse,
   RecoveryConfirmRequest,
   RecoveryRequest,
   RegisterRequest,
   SessionResponse,
+  UpdateProfileRequest,
 } from './auth.dto.js';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard.js';
 import {
@@ -56,11 +59,13 @@ import {
   recoveryConfirmSchema,
   recoveryRequestSchema,
   registerSchema,
+  updateProfileSchema,
   type ChangePasswordInput,
   type LoginInput,
   type RecoveryConfirmInput,
   type RecoveryRequestInput,
   type RegisterInput,
+  type UpdateProfileInput,
 } from './auth.schemas.js';
 import { SessionAuthGuard } from './session-auth.guard.js';
 import { SessionService } from './session.service.js';
@@ -81,7 +86,10 @@ export class AuthController {
   @ApiCreatedResponse({ type: AuthSessionResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 410, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
   async register(
     @Body(new ZodValidationPipe(registerSchema)) input: RegisterInput,
     @Req() request: FastifyRequest,
@@ -250,6 +258,21 @@ export class AuthController {
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   me(@Req() request: AuthenticatedRequest) {
     return this.authService.me(requiredContext(request).userId);
+  }
+
+  @Patch('me')
+  @UseGuards(SessionAuthGuard, CsrfGuard)
+  @ApiCookieAuth('session')
+  @ApiBody({ type: UpdateProfileRequest })
+  @ApiOkResponse({ type: ProfileResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  updateProfile(
+    @Body(new ZodValidationPipe(updateProfileSchema)) input: UpdateProfileInput,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.authService.updateProfile(requiredContext(request).userId, input, request.id);
   }
 
   private setSession(reply: FastifyReply, result: ApplicationAuthSessionResponse) {

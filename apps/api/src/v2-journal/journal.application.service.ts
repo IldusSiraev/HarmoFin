@@ -13,11 +13,13 @@ import {
 } from '../v2-transfers/direct-transfer.application.service.js';
 import { decodeFeedCursor, encodeFeedCursor } from './journal.cursor.js';
 import { mergeNewestFirst, type FeedPosition } from './journal.merge.js';
-import { JournalRepository } from './journal.repository.js';
+import { JournalRepository, type AuthorRef } from './journal.repository.js';
 import type { ListJournalInput } from './journal.schemas.js';
 
+export type { AuthorRef };
 export type JournalItem =
-  ({ kind: 'TRANSACTION' } & TransactionJournalV2Item) | TransferJournalItem;
+  | ({ kind: 'TRANSACTION' } & TransactionJournalV2Item & { createdBy: AuthorRef })
+  | (TransferJournalItem & { createdBy: AuthorRef });
 export type JournalPage = { items: JournalItem[]; nextCursor: string | null };
 
 const positionOf = (item: JournalItem): FeedPosition => ({
@@ -55,6 +57,7 @@ export class JournalApplicationService {
       accountId: input.accountId,
       categoryId: input.categoryId,
       envelopeId: input.envelopeId,
+      createdByUserId: input.createdByUserId,
     };
     const [transactionRows, transferRows] = await Promise.all([
       this.feed.transactions(budgetId, filter),
@@ -64,11 +67,24 @@ export class JournalApplicationService {
       budgetId,
       transactionRows.map((row) => row.id),
     );
+    const authorUserIds = [
+      ...new Set([
+        ...transactionRows.map((row) => row.createdByUserId),
+        ...transferRows.map((row) => row.createdByUserId),
+      ]),
+    ];
+    const authors = await this.feed.findAuthors(budgetId, authorUserIds);
+    const authorOf = (userId: string): AuthorRef =>
+      authors.get(userId) ?? { userId, displayName: null, isActiveMember: false };
     const left: JournalItem[] = transactionRows.map((row) => ({
       kind: 'TRANSACTION' as const,
       ...toJournalItem(row, links.get(row.id) ?? []),
+      createdBy: authorOf(row.createdByUserId),
     }));
-    const right: JournalItem[] = transferRows.map(toTransferJournalItem);
+    const right: JournalItem[] = transferRows.map((row) => ({
+      ...toTransferJournalItem(row),
+      createdBy: authorOf(row.createdByUserId),
+    }));
     const merged = mergeNewestFirst(left, right, positionOf, input.limit + 1);
     const hasNext = merged.length > input.limit;
     const items = merged.slice(0, input.limit);

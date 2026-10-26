@@ -13,6 +13,7 @@ import UiFilterBar, { type FilterBarChip } from '../../components/ui/FilterBar.v
 import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
 import UiTabs from '../../components/ui/Tabs.vue';
+import { useActiveWorkspace } from '../../composables/useActiveWorkspace.js';
 import { useAuth } from '../../composables/useAuth.js';
 import { useBudgetReferenceData } from '../../composables/useBudgetReferenceData.js';
 import { type ReportV2Filters, useEnvelopePlanV2 } from '../../composables/useEnvelopePlanV2.js';
@@ -83,8 +84,8 @@ const filters = ref<AnalyticsFilters>(filtersFromQuery());
 const accounts = ref<Array<{ value: string; label: string }>>([]);
 const categories = ref<Array<{ value: string; label: string }>>([]);
 const envelopes = ref<Array<{ value: string; label: string }>>([]);
-const budget = computed(() => auth.currentData.value?.workspaces[0]?.budgets[0] ?? null);
-const isOwner = computed(() => auth.currentData.value?.workspaces[0]?.role === 'OWNER');
+const { budget, role } = useActiveWorkspace();
+const isOwner = computed(() => role.value === 'OWNER');
 const activeTab = computed(() => TABS.find((item) => item.id === tab.value) ?? TABS[0]!);
 
 /** Only the filters of the active tab reach its reports; the others stay in the URL. */

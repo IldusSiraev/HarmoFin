@@ -1,5 +1,6 @@
 import { ref, type Ref } from 'vue';
 
+import { useActiveWorkspace } from './useActiveWorkspace.js';
 import { useAuth } from './useAuth.js';
 import {
   useBudgetReferenceData,
@@ -41,7 +42,10 @@ export function useOperationReferenceData(): {
 
   async function load(): Promise<void> {
     if (!auth.currentData.value) await auth.loadMe();
-    const id = auth.currentData.value?.workspaces[0]?.budgets[0]?.id ?? null;
+    // Created fresh on every call: test doubles for `useAuth` are plain
+    // objects, not Vue refs, so a computed built once and cached would never
+    // see a later `currentData` swap — only a brand-new computed re-reads it.
+    const id = useActiveWorkspace().budgetId.value ?? null;
     budgetId.value = id;
     if (id === null) {
       forget();

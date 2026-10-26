@@ -13,7 +13,10 @@ export type FeedFilter = {
   accountId?: string | undefined;
   categoryId?: string | undefined;
   envelopeId?: string | undefined;
+  createdByUserId?: string | undefined;
 };
+
+export type AuthorRef = { userId: string; displayName: string | null; isActiveMember: boolean };
 
 // Same fields the transaction journal maps (transactionSelect in transaction.repository.ts).
 const transactionFeedSelect = {
@@ -38,6 +41,7 @@ const transactionFeedSelect = {
   preDeleteStatus: true,
   createdAt: true,
   accountingModelVersion: true,
+  createdByUserId: true,
 } as const;
 
 export type TransactionFeedRow = Prisma.TransactionGetPayload<{
@@ -96,6 +100,7 @@ export class JournalRepository {
         ...(filter.accountId ? { accountId: filter.accountId } : {}),
         ...(filter.categoryId ? { categoryId: filter.categoryId } : {}),
         ...(filter.envelopeId ? { envelopeId: filter.envelopeId } : {}),
+        ...(filter.createdByUserId ? { createdByUserId: filter.createdByUserId } : {}),
         AND: [
           filter.status ? { status: filter.status } : { status: { not: 'DELETED' } },
           dateRange(filter),
@@ -114,6 +119,7 @@ export class JournalRepository {
       where: {
         budgetId,
         mode: 'ACCOUNT_ONLY',
+        ...(filter.createdByUserId ? { createdByUserId: filter.createdByUserId } : {}),
         AND: [
           filter.status
             ? { status: filter.status as 'CONFIRMED' | 'DELETED' }
@@ -134,5 +140,20 @@ export class JournalRepository {
       orderBy: [...order],
       take: filter.limit + 1,
     });
+  }
+
+  /** Authors of journal items, scoped by the budget's workspace. Missing membership (historical data) is omitted. */
+  async findAuthors(budgetId: string, userIds: string[]): Promise<Map<string, AuthorRef>> {
+    if (userIds.length === 0) return new Map<string, AuthorRef>();
+    const rows = await this.prisma.workspaceMembership.findMany({
+      where: { userId: { in: userIds }, workspace: { budgets: { some: { id: budgetId } } } },
+      select: { userId: true, isActive: true, user: { select: { displayName: true } } },
+    });
+    return new Map(
+      rows.map((row) => [
+        row.userId,
+        { userId: row.userId, displayName: row.user.displayName, isActiveMember: row.isActive },
+      ]),
+    );
   }
 }

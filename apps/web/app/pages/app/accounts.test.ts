@@ -138,8 +138,11 @@ describe('accounts page', () => {
 
   it('offers the opening assignment once money has been assigned before', async () => {
     useFundingEntry().dismiss();
-    const budget = (mocks.auth.currentData.value as { workspaces: Array<{ budgets: object[] }> })
-      .workspaces[0]!.budgets[0] as Record<string, unknown>;
+    const budget = (
+      mocks.auth.currentData.value as { workspaces: Array<{ budgets: object[] }> }
+    ).workspaces
+      .at(0)!
+      .budgets.at(0) as Record<string, unknown>;
     budget.planModelVersion = 2;
 
     await createWithBalance('1000');
@@ -150,8 +153,11 @@ describe('accounts page', () => {
 
   it('offers nothing for a zero starting balance', async () => {
     useFundingEntry().dismiss();
-    const budget = (mocks.auth.currentData.value as { workspaces: Array<{ budgets: object[] }> })
-      .workspaces[0]!.budgets[0] as Record<string, unknown>;
+    const budget = (
+      mocks.auth.currentData.value as { workspaces: Array<{ budgets: object[] }> }
+    ).workspaces
+      .at(0)!
+      .budgets.at(0) as Record<string, unknown>;
     budget.planModelVersion = 2;
     await createWithBalance('0');
     expect(useFundingEntry().request.value).toBeNull();
@@ -372,5 +378,23 @@ describe('accounts page', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('В архиве пусто');
+  });
+
+  type MockedWorkspaces = { workspaces: Array<{ role: string }> };
+
+  it('hides account creation for a viewer, who cannot manage accounts', async () => {
+    (mocks.auth.currentData.value as MockedWorkspaces).workspaces[0]!.role = 'VIEWER';
+    wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('[data-action="create-account"]').exists()).toBe(false);
+  });
+
+  it('hides account creation for an editor too: only the owner manages accounts', async () => {
+    (mocks.auth.currentData.value as MockedWorkspaces).workspaces[0]!.role = 'EDITOR';
+    wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('[data-action="create-account"]').exists()).toBe(false);
   });
 });

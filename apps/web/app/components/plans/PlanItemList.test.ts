@@ -267,4 +267,19 @@ describe('PlanItemList', () => {
       expect(wrapper.get(`[data-testid="${id}"]`).attributes('disabled')).toBeDefined();
     }
   });
+
+  it('hides edit when canManage is false', () => {
+    const wrapper = mountList({ canManage: false });
+
+    expect(wrapper.find('[data-testid="obligation-edit-occ-rent"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="income-edit-inc-occ"]').exists()).toBe(false);
+  });
+
+  it('hides pay, skip and record-income when canWrite is false', () => {
+    const wrapper = mountList({ canWrite: false });
+
+    expect(wrapper.find('[data-testid="obligation-pay-occ-rent"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="obligation-skip-occ-rent"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="income-record-inc-occ"]').exists()).toBe(false);
+  });
 });

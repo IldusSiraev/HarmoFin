@@ -135,6 +135,17 @@ jobs:
           --health-timeout 5s
           --health-retries 12
           --health-start-period 5s
+      mailpit:
+        image: axllent/mailpit:v1.21.8
+        ports:
+          - 1025:1025
+          - 8025:8025
+        options: >-
+          --health-cmd "wget -qO- http://localhost:8025/livez >/dev/null 2>&1"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 5s
     steps:
       - name: Check out repository
         uses: actions/checkout@v7

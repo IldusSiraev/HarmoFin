@@ -1,6 +1,6 @@
 import { readonly, ref, type Ref } from 'vue';
 
-import { useAuth } from './useAuth.js';
+import { useActiveWorkspace } from './useActiveWorkspace.js';
 
 // One optional "assign this money" step offered after the money fact is saved:
 // an income (INCOME), the first account balance (OPENING) or free money (FREE).
@@ -33,10 +33,8 @@ export function useFundingEntry(): {
   dismiss: () => void;
   markConfirmed: () => void;
 } {
-  const auth = useAuth();
-
   function offer(source: FundingEntrySource): boolean {
-    const budget = auth.currentData.value?.workspaces[0]?.budgets[0] ?? null;
+    const budget = useActiveWorkspace().budget.value;
     if (!budget) return false;
     nextSeq += 1;
     request.value = { budgetId: budget.id, source, seq: nextSeq };
