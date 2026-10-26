@@ -437,7 +437,13 @@ export class EnvelopePlanController {
   @ApiCreatedResponse({ type: AssignmentResultResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description:
+      'FORBIDDEN — нет права записи; NOT_INCOME_AUTHOR — доход принадлежит другому участнику ' +
+      '(sourceKind=INCOME).',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
@@ -484,7 +490,11 @@ export class EnvelopePlanController {
   @ApiOkResponse({ type: AssignmentResultResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description: 'FORBIDDEN — нет права записи; NOT_OPERATION_AUTHOR — изменять может только автор распределения.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
@@ -514,7 +524,11 @@ export class EnvelopePlanController {
   @ApiOkResponse({ type: AssignmentResultResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description: 'FORBIDDEN — нет права записи; NOT_OPERATION_AUTHOR — отменить может только автор распределения.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
@@ -542,7 +556,11 @@ export class EnvelopePlanController {
   @ApiCreatedResponse({ type: MovementResultResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description: 'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — исходный конверт принадлежит другому участнику.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })

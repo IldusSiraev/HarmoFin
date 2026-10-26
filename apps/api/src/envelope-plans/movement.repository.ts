@@ -40,15 +40,15 @@ export class MovementRepository {
     tx: Prisma.TransactionClient,
     budgetId: string,
     envelopeId: string,
-  ): Promise<{ id: string }> {
+  ): Promise<{ id: string; ownerUserId: string }> {
     const envelope = await tx.envelope.findFirst({
       where: { id: envelopeId, budgetId },
-      select: { id: true },
+      select: { id: true, ownerUserId: true },
     });
     if (!envelope) {
       throw resourceNotFound();
     }
-    return { id: envelope.id };
+    return { id: envelope.id, ownerUserId: envelope.ownerUserId };
   }
 
   async lockEnvelopes(tx: Prisma.TransactionClient, envelopeIds: string[]): Promise<void> {

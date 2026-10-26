@@ -4,15 +4,15 @@ import { ConflictException, Inject, Injectable } from '@nestjs/common';
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
+import { findAccessActor, requireAccessActor } from '../common/policies/access-actor.repository.js';
+import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
-import { RolePolicy } from '../common/policies/role-policy.js';
 import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { AssignmentBalanceRepository } from '../envelope-plans/assignment-balance.repository.js';
 import { AssignmentRepository } from '../envelope-plans/assignment.repository.js';
 import { FundingRuleRepository } from '../envelope-plans/funding-rule.repository.js';
 import { FundingPreviewApplicationService } from './funding-preview.application.service.js';
-import { FundingPreviewRepository } from './funding-preview.repository.js';
 import { computePreviewHash } from './funding-state.js';
 import type { FundingConfirmRequestInput } from './funding.schemas.js';
 
@@ -76,11 +76,10 @@ function insufficientFunds(): ConflictException {
  */
 @Injectable()
 export class FundingConfirmApplicationService {
-  private readonly repository = new FundingPreviewRepository();
   private readonly assignments = new AssignmentRepository();
   private readonly balances = new AssignmentBalanceRepository();
   private readonly rules = new FundingRuleRepository();
-  private readonly rolePolicy = new RolePolicy();
+  private readonly access = new BudgetAccessPolicy();
 
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
@@ -108,8 +107,9 @@ export class FundingConfirmApplicationService {
     const targetIds = [...new Set(input.confirmPeriodTargets)];
 
     const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
-    const early = await this.repository.findMemberRole(this.prisma, model.workspaceId, userId);
-    if (!early || !this.rolePolicy.canManage(early)) throw forbidden();
+    const early = await findAccessActor(this.prisma, model.workspaceId, userId);
+    if (!early) throw forbidden();
+    this.access.requireWriter(early);
 
     if (parsed.length === 0 && targetIds.length === 0) {
       return {
@@ -152,13 +152,36 @@ export class FundingConfirmApplicationService {
           requestHash,
         },
         async (): Promise<FundingConfirmResult> => {
-          const role = await this.repository.findMemberRole(tx, model.workspaceId, userId);
-          if (!role || !this.rolePolicy.canManage(role)) throw forbidden();
+          const actor = await requireAccessActor(tx, model.workspaceId, userId);
+          this.access.requireWriter(actor);
 
           const incomeId = input.sourceKind === 'INCOME' ? input.incomeTransactionId : undefined;
           if (input.sourceKind === 'INCOME') {
             if (!incomeId) throw resourceNotFound();
             await this.assignments.lockIncome(tx, budgetId, incomeId);
+          }
+          if (incomeId) {
+            this.access.requireIncomeAuthor(
+              actor,
+              await this.assignments.requireIncome(tx, budgetId, incomeId),
+            );
+          }
+          const guardedEnvelopeIds = new Set<string>(
+            input.sourceKind === 'OPENING' ? parsed.map((line) => line.envelopeId) : [],
+          );
+          if (targetIds.length > 0) {
+            const periods = await tx.envelopePeriod.findMany({
+              where: { budgetId, id: { in: targetIds } },
+              select: { envelopeId: true },
+            });
+            for (const period of periods) guardedEnvelopeIds.add(period.envelopeId);
+          }
+          if (guardedEnvelopeIds.size > 0) {
+            const envelopes = await tx.envelope.findMany({
+              where: { budgetId, id: { in: [...guardedEnvelopeIds] } },
+              select: { ownerUserId: true },
+            });
+            for (const envelope of envelopes) this.access.requireObjectOwner(actor, envelope);
           }
 
           // Same inputs the preview used: lines are the overrides, targets are the selection.

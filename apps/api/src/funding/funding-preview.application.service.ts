@@ -7,8 +7,9 @@ import {
 } from '@nestjs/common';
 
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
+import { findAccessActor, requireAccessActor } from '../common/policies/access-actor.repository.js';
+import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
-import { RolePolicy } from '../common/policies/role-policy.js';
 import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import { cycleAndPeriodFor, todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { PrismaService } from '../database/prisma.service.js';
@@ -166,7 +167,7 @@ export class FundingPreviewApplicationService {
   private readonly assignments = new AssignmentRepository();
   private readonly balances = new AssignmentBalanceRepository();
   private readonly rules = new FundingRuleRepository();
-  private readonly rolePolicy = new RolePolicy();
+  private readonly access = new BudgetAccessPolicy();
   private readonly mandatory: MandatoryDueRepository;
 
   constructor(
@@ -188,12 +189,17 @@ export class FundingPreviewApplicationService {
   ): Promise<FundingPreviewBody> {
     const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
     return this.prisma.$transaction(async (tx) => {
-      // Cheap role read first: EDITOR/VIEWER get 403 without taking the budget lock.
-      const early = await this.repository.findMemberRole(tx, model.workspaceId, userId);
-      if (!early || !this.rolePolicy.canManage(early)) throw forbidden();
+      // Cheap role read first: VIEWER gets 403 without taking the budget lock.
+      const early = await findAccessActor(this.prisma, model.workspaceId, userId);
+      if (!early) throw forbidden();
+      this.access.requireWriter(early);
       await this.assignments.lockBudget(tx, budgetId);
-      const role = await this.repository.findMemberRole(tx, model.workspaceId, userId);
-      if (!role || !this.rolePolicy.canManage(role)) throw forbidden();
+      const actor = await requireAccessActor(tx, model.workspaceId, userId);
+      this.access.requireWriter(actor);
+      if (input.sourceKind === 'INCOME' && input.incomeTransactionId) {
+        const income = await this.assignments.requireIncome(tx, budgetId, input.incomeTransactionId);
+        this.access.requireIncomeAuthor(actor, income);
+      }
       const { body } = await this.compute(tx, {
         budgetId,
         workspaceId: model.workspaceId,

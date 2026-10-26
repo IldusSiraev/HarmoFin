@@ -7,6 +7,7 @@ export type EnvelopeRecord = {
   id: string;
   archivedAt: Date | null;
   hasPeriods: boolean;
+  ownerUserId: string;
 };
 
 export type PeriodRecord = {
@@ -31,6 +32,7 @@ export type AssignmentCreateParams = {
 export type IncomeRecord = {
   id: string;
   amountMinor: bigint;
+  createdByUserId: string;
 };
 
 export type AssignmentModifyParams = {
@@ -51,6 +53,7 @@ export type LockedAssignment = {
   envelopeId: string;
   periodId: string | null;
   sourceIncomeTransactionId: string | null;
+  createdByUserId: string;
 };
 
 type RawLockedAssignment = {
@@ -62,6 +65,7 @@ type RawLockedAssignment = {
   envelope_id: unknown;
   period_id: string | null;
   source_income_transaction_id: string | null;
+  created_by_user_id: unknown;
 };
 
 function toDate(value: string | Date): Date {
@@ -110,7 +114,14 @@ export class AssignmentRepository {
   ): Promise<IncomeRecord> {
     const income = await tx.transaction.findFirst({
       where: { id: incomeId, budgetId },
-      select: { id: true, amountMinor: true, transactionType: true, status: true, deletedAt: true },
+      select: {
+        id: true,
+        amountMinor: true,
+        transactionType: true,
+        status: true,
+        deletedAt: true,
+        createdByUserId: true,
+      },
     });
     if (
       !income ||
@@ -120,7 +131,11 @@ export class AssignmentRepository {
     ) {
       throw resourceNotFound();
     }
-    return { id: income.id, amountMinor: income.amountMinor };
+    return {
+      id: income.id,
+      amountMinor: income.amountMinor,
+      createdByUserId: income.createdByUserId,
+    };
   }
 
   async sumIncomeAssigned(
@@ -163,7 +178,7 @@ export class AssignmentRepository {
   ): Promise<EnvelopeRecord> {
     const envelope = await tx.envelope.findFirst({
       where: { id: envelopeId, budgetId },
-      select: { id: true, archivedAt: true },
+      select: { id: true, archivedAt: true, ownerUserId: true },
     });
     if (!envelope) {
       throw resourceNotFound();
@@ -171,7 +186,12 @@ export class AssignmentRepository {
     const periodCount = await tx.envelopePeriod.count({
       where: { budgetId, envelopeId },
     });
-    return { id: envelope.id, archivedAt: envelope.archivedAt, hasPeriods: periodCount > 0 };
+    return {
+      id: envelope.id,
+      archivedAt: envelope.archivedAt,
+      hasPeriods: periodCount > 0,
+      ownerUserId: envelope.ownerUserId,
+    };
   }
 
   async findPeriod(
@@ -285,7 +305,8 @@ export class AssignmentRepository {
   ): Promise<LockedAssignment> {
     const rows = await tx.$queryRaw`
       SELECT e."id", e."amount_minor", e."status", e."type", e."effective_on",
-             e."envelope_id", e."period_id", e."source_income_transaction_id"
+             e."envelope_id", e."period_id", e."source_income_transaction_id",
+             e."created_by_user_id"
       FROM "envelope_assignments" e
       WHERE e."id" = ${assignmentId}::uuid
         AND e."budget_id" = ${budgetId}::uuid
@@ -306,6 +327,7 @@ export class AssignmentRepository {
       sourceIncomeTransactionId: row.source_income_transaction_id
         ? String(row.source_income_transaction_id)
         : null,
+      createdByUserId: String(row.created_by_user_id),
     };
   }
 

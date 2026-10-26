@@ -97,13 +97,17 @@ export class FundingController {
   @ApiOperation({
     summary: 'Предпросмотр назначений из источника без записи денег',
     description:
-      'Сервер предлагает назначения INCOME/OPENING/FREE по правилам, потребности обязательных и целям текущего периода. Ничего не назначает и не подтверждает цели; допустима только идемпотентная запись структурной строки периода (DRAFT/UNSET). POST берёт блокировку бюджета, ключ идемпотентности не нужен. Только OWNER (как будущее подтверждение). Коды: 404 (бюджет/доход/конверт/период), 409 MODEL_VERSION_MISMATCH, 422 OPENING_NOT_AVAILABLE|ENVELOPE_ARCHIVED|PERIOD_REQUIRED|PERIOD_NOT_ALLOWED. lines содержит строку для каждого неархивного конверта: сначала очередь правил (queuePosition), затем конверты без правила по имени; конверт без предложения — suggestedMinor "0". Конверт другой половины получает ближайший период своего слота (идемпотентная структурная строка).',
+      'Сервер предлагает назначения INCOME/OPENING/FREE по правилам, потребности обязательных и целям текущего периода. Ничего не назначает и не подтверждает цели; допустима только идемпотентная запись структурной строки периода (DRAFT/UNSET). POST берёт блокировку бюджета, ключ идемпотентности не нужен. Доступно writer (OWNER или EDITOR); sourceKind=INCOME требует свой доход. Коды: 404 (бюджет/доход/конверт/период), 409 MODEL_VERSION_MISMATCH, 422 OPENING_NOT_AVAILABLE|ENVELOPE_ARCHIVED|PERIOD_REQUIRED|PERIOD_NOT_ALLOWED. lines содержит строку для каждого неархивного конверта: сначала очередь правил (queuePosition), затем конверты без правила по имени; конверт без предложения — suggestedMinor "0". Конверт другой половины получает ближайший период своего слота (идемпотентная структурная строка).',
   })
   @ApiBody({ type: FundingPreviewRequest })
   @ApiOkResponse({ type: FundingPreviewResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description: 'FORBIDDEN — нет права записи; NOT_INCOME_AUTHOR — доход принадлежит другому участнику.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
@@ -121,7 +125,7 @@ export class FundingController {
   @ApiOperation({
     summary: 'Атомарно подтвердить назначения и цели периода',
     description:
-      'Одна транзакция: блокировка бюджета, идемпотентность, блокировка дохода, пересчёт previewHash из реальных данных (расхождение даёт 409 PREVIEW_STALE без записи), подтверждение целей периода, затем назначения. Любая ошибка откатывает всё, включая подтверждение целей. Ручная сумма строки может отличаться от предложенной в пределах фактического источника. Пустые lines с непустым confirmPeriodTargets подтверждают только цели; оба пустых — без записи. Без записи: lines=[] и confirmPeriodTargets=[] возвращают 200 с нулями без проверки ключа, хеша и дохода. previewHash годится, только если lines/confirmPeriodTargets подтверждения равны overrides/выбору предпросмотра; строки с суммой 0 передаются так же, как в overrides preview, и не создают назначений; только нулевые строки без целей — 200 без записи. Только OWNER. Коды: 400 VALIDATION_FAILED, 403 FORBIDDEN, 404 (бюджет/доход/конверт/период), 409 PREVIEW_STALE|SOURCE_EXHAUSTED|ASSIGNMENT_UNBACKED|IDEMPOTENCY_CONFLICT|MODEL_VERSION_MISMATCH, 422 OPENING_NOT_AVAILABLE|ENVELOPE_ARCHIVED|PERIOD_REQUIRED|PERIOD_NOT_ALLOWED.',
+      'Одна транзакция: блокировка бюджета, идемпотентность, блокировка дохода, пересчёт previewHash из реальных данных (расхождение даёт 409 PREVIEW_STALE без записи), подтверждение целей периода, затем назначения. Любая ошибка откатывает всё, включая подтверждение целей. Ручная сумма строки может отличаться от предложенной в пределах фактического источника. Пустые lines с непустым confirmPeriodTargets подтверждают только цели; оба пустых — без записи. Без записи: lines=[] и confirmPeriodTargets=[] возвращают 200 с нулями без проверки ключа, хеша и дохода. previewHash годится, только если lines/confirmPeriodTargets подтверждения равны overrides/выбору предпросмотра; строки с суммой 0 передаются так же, как в overrides preview, и не создают назначений; только нулевые строки без целей — 200 без записи. Доступно writer (OWNER или EDITOR); sourceKind=INCOME требует свой доход; sourceKind=OPENING и confirmPeriodTargets требуют свои конверты. Коды: 400 VALIDATION_FAILED, 403 FORBIDDEN|NOT_INCOME_AUTHOR|NOT_OBJECT_OWNER, 404 (бюджет/доход/конверт/период), 409 PREVIEW_STALE|SOURCE_EXHAUSTED|ASSIGNMENT_UNBACKED|IDEMPOTENCY_CONFLICT|MODEL_VERSION_MISMATCH, 422 OPENING_NOT_AVAILABLE|ENVELOPE_ARCHIVED|PERIOD_REQUIRED|PERIOD_NOT_ALLOWED.',
   })
   @ApiHeader(idempotencyHeader)
   @ApiBody({ type: FundingConfirmRequest })
@@ -132,7 +136,13 @@ export class FundingController {
     description: 'VALIDATION_FAILED: некорректное тело, ключ, отрицательная или повторная строка.',
   })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse, description: 'FORBIDDEN: не OWNER.' })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description:
+      'FORBIDDEN — нет права записи; NOT_INCOME_AUTHOR — доход принадлежит другому участнику; ' +
+      'NOT_OBJECT_OWNER — строка OPENING или подтверждаемая цель принадлежит чужому конверту.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({
     status: 409,
