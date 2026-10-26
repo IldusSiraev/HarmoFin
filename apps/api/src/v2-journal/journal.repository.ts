@@ -16,7 +16,7 @@ export type FeedFilter = {
   createdByUserId?: string | undefined;
 };
 
-export type AuthorRef = { userId: string; displayName: string | null; isActiveMember: boolean };
+export type { PersonRef as AuthorRef } from '../common/people/person-ref.repository.js';
 
 // Same fields the transaction journal maps (transactionSelect in transaction.repository.ts).
 const transactionFeedSelect = {
@@ -140,20 +140,5 @@ export class JournalRepository {
       orderBy: [...order],
       take: filter.limit + 1,
     });
-  }
-
-  /** Authors of journal items, scoped by the budget's workspace. Missing membership (historical data) is omitted. */
-  async findAuthors(budgetId: string, userIds: string[]): Promise<Map<string, AuthorRef>> {
-    if (userIds.length === 0) return new Map<string, AuthorRef>();
-    const rows = await this.prisma.workspaceMembership.findMany({
-      where: { userId: { in: userIds }, workspace: { budgets: { some: { id: budgetId } } } },
-      select: { userId: true, isActive: true, user: { select: { displayName: true } } },
-    });
-    return new Map(
-      rows.map((row) => [
-        row.userId,
-        { userId: row.userId, displayName: row.user.displayName, isActiveMember: row.isActive },
-      ]),
-    );
   }
 }
