@@ -20,6 +20,9 @@ const rent: PlansCalendarItem = {
   categoryId: 'cat-rent',
   overdue: false,
   transactionId: null,
+  factOn: null,
+  factMinor: null,
+  factTransactionIds: [],
 };
 const salary: PlansCalendarItem = {
   ...rent,
@@ -151,6 +154,38 @@ describe('PlanDayPanel', () => {
     expect(wrapper.find('[data-testid="day-pay-occ-part"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="day-skip-occ-part"]').exists()).toBe(false);
     expect(wrapper.get('[data-testid="day-item-occ-rent"]').text()).toContain('Выполнено');
+  });
+
+  it('shows a plan settled on this day once: no separate row for its operation', () => {
+    const settled = {
+      ...rent,
+      status: 'COMPLETED',
+      scheduledOn: '2026-09-25',
+      paidMinor: '250000',
+      unpaidMinor: '0',
+      factOn: '2026-09-24',
+      factMinor: '250000',
+      factTransactionIds: ['tx-1'],
+    };
+    const wrapper = mountPanel({ items: [settled], facts: [expenseFact, incomeFact] });
+    const row = wrapper.get('[data-testid="day-item-occ-rent"]');
+    expect(row.text()).toContain('Выполнено');
+    expect(row.text()).toContain('по плану 25 сентября');
+    expect(norm(row.text())).toContain('2 500,00');
+    expect(wrapper.find('[data-testid="day-fact-tx-1"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="day-fact-tx-2"]').exists()).toBe(true);
+  });
+
+  it('keeps an operation listed when its plan is shown on another day', () => {
+    const settled = {
+      ...rent,
+      status: 'COMPLETED',
+      factOn: '2026-09-25',
+      factMinor: '250000',
+      factTransactionIds: ['tx-1'],
+    };
+    const wrapper = mountPanel({ items: [settled], facts: [expenseFact] });
+    expect(wrapper.find('[data-testid="day-fact-tx-1"]').exists()).toBe(true);
   });
 
   it('shows facts with words, category, caption and amount', () => {

@@ -33,7 +33,7 @@ describe('DashboardWarnings', () => {
     ['MANDATORY_GAP', 'ALERT', 'warning', 'Не хватает на обязательные платежи', 'Покрыть'],
     ['MANDATORY_GAP', 'INFO', 'info', 'Заложите на следующий период', 'Покрыть'],
     ['MANDATORY_GAP', undefined, 'warning', 'Не хватает на обязательные платежи', 'Покрыть'],
-    ['CASH_SHORTFALL', undefined, 'danger', 'Не хватает денег на счетах', 'Проверить счета'],
+    ['CASH_SHORTFALL', undefined, 'danger', 'Не хватает денег на счетах', 'Разобраться'],
   ] as const)(
     '%s %s: tone %s, title, server text and server link',
     (code, level, tone, title, label) => {

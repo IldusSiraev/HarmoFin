@@ -15,7 +15,8 @@ defineOptions({ name: 'EnvelopesSummary' });
 const props = withDefaults(defineProps<{ dashboard: DashboardV2Response; canManage?: boolean }>(), {
   canManage: true,
 });
-const emit = defineEmits<{ distribute: [] }>();
+// Each action opens its panel on this page: free money, the mandatory gap, the cash shortfall.
+const emit = defineEmits<{ distribute: []; 'cover-mandatory': []; shortfall: [] }>();
 
 type Warning = DashboardV2Response['warnings'][number];
 
@@ -113,8 +114,8 @@ const hasAttention = computed(
           :description="
             gap.level === 'ALERT' ? gap.message : 'На следующий период — можно отложить заранее'
           "
-          action-label="Покрыть"
-          :action-to="gap.actionPath"
+          :action-label="canManage ? 'Покрыть' : undefined"
+          @action="emit('cover-mandatory')"
         />
         <UiAttentionRow
           v-if="shortfall"
@@ -124,7 +125,7 @@ const hasAttention = computed(
           :title="`Не хватает денег на счетах · ${formatMoneyText(shortfall.amountMinor)}`"
           description="Отложено больше, чем есть на счетах"
           action-label="Разобраться"
-          :action-to="shortfall.actionPath"
+          @action="emit('shortfall')"
         />
         <p v-if="!hasAttention" class="envelopes-summary__calm" data-testid="summary-calm">
           <CircleCheck class="envelopes-summary__calm-icon" :size="18" aria-hidden="true" />

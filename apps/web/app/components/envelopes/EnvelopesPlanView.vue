@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { Archive, ArrowLeftRight, List, Pencil, Plus, Search, Settings2 } from '@lucide/vue';
+import { navigateTo } from '#imports';
 
 import PeriodDecisionCard from '../dashboard/PeriodDecisionCard.vue';
 import FinanceMoney from '../finance/FinanceMoney.vue';
@@ -31,9 +32,14 @@ import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js'
 import { useToast } from '../../composables/useToast.js';
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
 import { describeRule } from '../funding-rules/funding-rule-text.js';
+import EnvelopeCoverPanel, {
+  type CoverPanelResult,
+  type CoverTarget,
+} from './EnvelopeCoverPanel.vue';
 import EnvelopeMovePanel, { type MovePanelResult } from './EnvelopeMovePanel.vue';
 import EnvelopePlanDialog from './EnvelopePlanDialog.vue';
 import EnvelopePlanRow from './EnvelopePlanRow.vue';
+import EnvelopesShortfallDialog from './EnvelopesShortfallDialog.vue';
 import EnvelopesSummary from './EnvelopesSummary.vue';
 import PeriodTargetDialog from './PeriodTargetDialog.vue';
 import {
@@ -182,24 +188,16 @@ const mandatoryProgress = computed(() =>
 );
 const mandatoryGap = computed(() => dashboard.value?.mandatoryGapMinor ?? null);
 
-// actionPath hints from the dashboard. They only explain or highlight; nothing
-// is moved without an explicit action, and unknown parameters are ignored.
+// actionPath hints from the dashboard. A leftover only gets an explanation (the
+// period card holds its decision); cover and shortfall links open their panel
+// (see applyActionQuery). Nothing is moved without an explicit confirmation, and
+// unknown parameters are ignored.
 const actionNote = computed(() => {
   if (props.query.leftoverPeriod) {
     return 'Остаток прошлого периода не добавлен к текущему автоматически. Откройте конверт и нажмите «Переложить», чтобы выбрать, куда его направить.';
   }
-  if (props.query.coverPeriod) {
-    return 'В прошлом периоде есть перерасход. Откройте конверт и нажмите «Переложить», чтобы покрыть его из другого конверта или свободных денег.';
-  }
-  if (props.query.cover === 'mandatory') {
-    return 'Не хватает на обязательные платежи. Отложите деньги в конверт обязательных платежей кнопкой «Переложить».';
-  }
   return '';
 });
-const highlightLabel = 'Нужно пополнить';
-function isHighlighted(envelope: EnvelopePlanDto): boolean {
-  return props.query.cover === 'mandatory' && envelope.envelopeType === 'MANDATORY_EXPENSES';
-}
 
 // Money summary from the server dashboard. It loads next to the list; a failed
 // read hides the summary only, the list keeps working.
@@ -231,6 +229,117 @@ async function loadDashboard(): Promise<void> {
 function distributeFree(): void {
   funding.offer({ sourceKind: 'FREE' });
 }
+
+// Cover panel: a past-period overspend or the mandatory gap, with a fixed
+// recipient. The shortage is the server warning amount.
+
+type Warning = DashboardV2Response['warnings'][number];
+const coverTarget = ref<CoverTarget | null>(null);
+const shortfallOpen = ref(false);
+
+const deficitWarnings = computed(() =>
+  (dashboard.value?.warnings ?? []).filter(
+    (item) => item.code === 'PERIOD_DEFICIT' && item.envelopeId !== null && item.periodId !== null,
+  ),
+);
+const shortfallDeficits = computed(() =>
+  deficitWarnings.value.map((warning) => ({
+    warning,
+    name: envelopes.value.find((item) => item.id === warning.envelopeId)?.name ?? 'Конверт',
+  })),
+);
+const shortfallMinor = computed(
+  () =>
+    dashboard.value?.warnings.find((item) => item.code === 'CASH_SHORTFALL')?.amountMinor ?? '0',
+);
+
+function coverDeficit(warning: Warning): boolean {
+  const envelope = envelopes.value.find((item) => item.id === warning.envelopeId);
+  if (!envelope || warning.periodId === null) return false;
+  // From the shortfall dialog focus returns to what opened the dialog.
+  if (!shortfallOpen.value) rememberFocus();
+  shortfallOpen.value = false;
+  coverTarget.value = {
+    reason: 'deficit',
+    envelope,
+    periodId: warning.periodId,
+    shortageMinor: warning.amountMinor,
+  };
+  return true;
+}
+
+function coverMandatory(): boolean {
+  const gap = dashboard.value?.warnings.find((item) => item.code === 'MANDATORY_GAP');
+  const envelope = activeEnvelopes.value.find((item) => item.envelopeType === 'MANDATORY_EXPENSES');
+  if (!gap || !envelope) return false;
+  rememberFocus();
+  coverTarget.value = {
+    reason: 'mandatory',
+    envelope,
+    periodId: null,
+    shortageMinor: gap.amountMinor,
+  };
+  return true;
+}
+
+function openShortfall(): void {
+  rememberFocus();
+  shortfallOpen.value = true;
+}
+
+function closeShortfall(): void {
+  shortfallOpen.value = false;
+  void restoreFocus();
+}
+
+function closeCover(): void {
+  coverTarget.value = null;
+  void restoreFocus();
+}
+
+async function onCoverDone(result: CoverPanelResult): Promise<void> {
+  coverTarget.value = null;
+  statusMessage.value = describeResult(result);
+  push({ tone: 'success', title: 'Покрыто' });
+  await load();
+  void restoreFocus();
+}
+
+// Dashboard and period-card links (?coverPeriod=, ?cover=mandatory, ?shortfall=1)
+// open their panel once the data is loaded; the parameter is then dropped from
+// the address so the same link opens the panel again.
+const ACTION_KEYS = ['coverPeriod', 'cover', 'shortfall'] as const;
+// The link already handled: a reload of the data must not open its panel again.
+let appliedAction = '';
+function applyActionQuery(): void {
+  const query = props.query;
+  const action = ACTION_KEYS.map((key) => query[key] ?? '').join('|');
+  if (!ACTION_KEYS.some((key) => query[key])) {
+    appliedAction = '';
+    return;
+  }
+  if (action === appliedAction || loading.value || !dashboard.value) return;
+  appliedAction = action;
+  const covers = Boolean(query.coverPeriod) || query.cover === 'mandatory';
+  if (covers && !canManage.value) {
+    statusMessage.value = 'Распределять деньги между конвертами может владелец бюджета.';
+  } else if (query.coverPeriod) {
+    const warning = deficitWarnings.value.find((item) => item.periodId === query.coverPeriod);
+    if (!warning || !coverDeficit(warning)) {
+      statusMessage.value = 'Перерасхода за этот период уже нет.';
+    }
+  } else if (query.cover === 'mandatory') {
+    coverMandatory();
+  }
+  if (query.shortfall) openShortfall();
+  const rest = Object.fromEntries(
+    Object.entries(query).filter(
+      ([key, value]) => value !== undefined && !(ACTION_KEYS as readonly string[]).includes(key),
+    ),
+  );
+  void navigateTo({ path: '/app/envelopes', query: rest }, { replace: true });
+}
+watch([() => props.query, loading, dashboard], applyActionQuery);
 
 // A confirmed assignment changes envelope balances and what is free.
 watch(
@@ -575,6 +684,8 @@ onMounted(() => {
         :dashboard="dashboard"
         :can-manage="canManage"
         @distribute="distributeFree"
+        @cover-mandatory="coverMandatory"
+        @shortfall="openShortfall"
       />
       <UiAttentionRow
         v-else-if="summaryError"
@@ -686,9 +797,6 @@ onMounted(() => {
                   :progress="planProgress(envelope, mandatoryProgress)"
                   :badge="planBadge(envelope, mandatoryGap)"
                   :data-testid="`envelope-row-${envelope.id}`"
-                  :data-highlighted="isHighlighted(envelope) ? 'true' : undefined"
-                  :highlight="isHighlighted(envelope) ? highlightLabel : undefined"
-                  :class="{ 'plan-view__row--highlight': isHighlighted(envelope) }"
                   @select="
                     rememberFocus();
                     detailed = envelope;
@@ -773,6 +881,24 @@ onMounted(() => {
     :period-start="targetPeriodStart"
     @close="closeTarget"
     @changed="onTargetChanged"
+  />
+
+  <EnvelopeCoverPanel
+    :budget-id="budgetId"
+    :target="coverTarget"
+    :envelopes="activeEnvelopes"
+    :free-minor="dashboard?.freeToAssignMinor ?? '0'"
+    @close="closeCover"
+    @done="onCoverDone"
+  />
+
+  <EnvelopesShortfallDialog
+    :open="shortfallOpen"
+    :amount-minor="shortfallMinor"
+    :deficits="shortfallDeficits"
+    :can-manage="canManage"
+    @close="closeShortfall"
+    @cover="coverDeficit"
   />
 
   <EnvelopeMovePanel
@@ -987,10 +1113,6 @@ form[data-envelope-form] {
 
 .plan-view__item {
   min-width: 0;
-}
-
-.plan-view__row--highlight {
-  border-left: 4px solid var(--hf-color-status-info);
 }
 
 .plan-form__field {

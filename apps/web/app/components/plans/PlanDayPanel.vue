@@ -64,8 +64,31 @@ const statusLabel: Record<string, string> = {
 const isOpen = (item: PlansCalendarItem) => item.status === 'PENDING' || item.status === 'DUE';
 const caption = (fact: TransactionJournalV2Item) =>
   fact.merchantName ?? fact.sourceDescription ?? fact.comment;
+// A completed plan shown on this day already stands for the operations that settled it:
+// those operations are not listed a second time.
+const settledFactIds = computed(
+  () =>
+    new Set(
+      props.items
+        .filter((item) => item.factOn === props.date)
+        .flatMap((item) => item.factTransactionIds),
+    ),
+);
+const visibleFacts = computed(() =>
+  props.facts.filter((fact) => !settledFactIds.value.has(fact.id)),
+);
+// Settled on another day than planned: say when it was planned.
+function dayOf(iso: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : null;
+}
+const plannedNote = (item: PlansCalendarItem) => {
+  if (!item.factOn || item.factOn === item.scheduledOn) return '';
+  const day = dayOf(item.scheduledOn);
+  return day ? `по плану ${format(day, 'd MMMM', { locale: ru })}` : '';
+};
 const isEmpty = computed(
-  () => props.items.length === 0 && props.facts.length === 0 && !props.factsLoading,
+  () => props.items.length === 0 && visibleFacts.value.length === 0 && !props.factsLoading,
 );
 </script>
 
@@ -103,6 +126,7 @@ const isEmpty = computed(
               {{ item.kind === 'INCOME_PLAN' ? 'Плановый доход' : 'Платёж' }}
               ·
               {{ statusLabel[item.status] ?? item.status }}
+              <template v-if="plannedNote(item)"> · {{ plannedNote(item) }}</template>
             </span>
             <span
               v-if="item.overdue"
@@ -114,7 +138,11 @@ const isEmpty = computed(
             </span>
           </div>
           <div class="day-panel__amounts">
-            <FinanceMoney :minor-units="item.expectedMinor" currency="RUB" :scale="2" />
+            <FinanceMoney
+              :minor-units="item.factMinor ?? item.expectedMinor"
+              currency="RUB"
+              :scale="2"
+            />
             <span
               v-if="item.unpaidMinor !== '0' && item.paidMinor !== '0'"
               class="day-panel__muted"
@@ -186,9 +214,9 @@ const isEmpty = computed(
         <p class="day-panel__error-text">Не удалось загрузить операции дня.</p>
         <UiButton variant="secondary" size="sm" @click="emit('retry-facts')">Повторить</UiButton>
       </div>
-      <ul v-else-if="facts.length > 0" class="day-panel__list">
+      <ul v-else-if="visibleFacts.length > 0" class="day-panel__list">
         <li
-          v-for="fact in facts"
+          v-for="fact in visibleFacts"
           :key="fact.id"
           class="day-panel__row"
           :data-testid="`day-fact-${fact.id}`"

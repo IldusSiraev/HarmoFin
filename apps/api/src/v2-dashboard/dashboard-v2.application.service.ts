@@ -426,7 +426,7 @@ export class DashboardV2ApplicationService {
         envelopeId: null,
         periodId: null,
         balanceMinor: null,
-        actionPath: '/app/accounts',
+        actionPath: '/app/envelopes?shortfall=1',
       });
     }
 

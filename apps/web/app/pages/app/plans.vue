@@ -103,8 +103,14 @@ const calendarItems = computed(() =>
   calendar.value?.month === monthKey.value ? calendar.value.items : [],
 );
 const overdueItems = computed(() => calendar.value?.overdue ?? []);
+// A completed plan sits on the day of the operation that settled it (server factOn),
+// so the plan and its operation are shown once. The month list keeps the plan's own date
+// and only the plans scheduled in this month.
 const dayItems = computed(() =>
-  calendarItems.value.filter((item) => item.scheduledOn === selectedDate.value),
+  calendarItems.value.filter((item) => (item.factOn ?? item.scheduledOn) === selectedDate.value),
+);
+const monthItems = computed(() =>
+  calendarItems.value.filter((item) => item.scheduledOn.startsWith(monthKey.value)),
 );
 const categoryNames = computed(() =>
   Object.fromEntries(categories.value.map((category) => [category.id, category.name])),
@@ -767,7 +773,7 @@ function errorMessage(exception: unknown) {
           <PlanItemList
             ref="planListEl"
             v-model:mode="listMode"
-            :items="calendarItems"
+            :items="monthItems"
             :overdue="overdueItems"
             :today="calendar?.today ?? today"
             :has-any-plans="(calendar?.totals.activePlanCount ?? 0) > 0"

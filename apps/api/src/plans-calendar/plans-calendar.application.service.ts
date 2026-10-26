@@ -14,11 +14,16 @@ import {
   monthWindow,
   plannedTotals,
   previousDay,
+  settlementOf,
   type CalendarDot,
   type CalendarItemKind,
   type PlannedItem,
+  type Settlement,
 } from './plans-calendar.domain.js';
-import { PlansCalendarRepository } from './plans-calendar.repository.js';
+import {
+  PlansCalendarRepository,
+  type CompletedOccurrenceRow,
+} from './plans-calendar.repository.js';
 import type { PlansCalendarQuery } from './plans-calendar.schemas.js';
 
 const dateValue = (value: string) => new Date(`${value}T00:00:00.000Z`);
@@ -38,6 +43,12 @@ export interface PlansCalendarItemView {
   categoryId: string | null;
   overdue: boolean;
   transactionId: string | null;
+  /** COMPLETED with a confirmed fact: date of the latest fact, the plan is shown on it. */
+  factOn: string | null;
+  /** Sum of the confirmed facts that settled the plan. */
+  factMinor: string | null;
+  /** Confirmed operations that settled the plan; the day list shows them as this plan. */
+  factTransactionIds: string[];
 }
 
 export interface PlansCalendarView {
@@ -96,8 +107,8 @@ export class PlansCalendarApplicationService {
         }
         const today = todayInTimezone(this.now(), budget.timezone);
         const range = { from: dateValue(window.from), to: dateValue(window.to) };
-        const [obligationRows, incomeRows, overdueRows, facts, activePlanCount] = await Promise.all(
-          [
+        const [obligationRows, incomeRows, overdueRows, facts, activePlanCount, completed] =
+          await Promise.all([
             this.obligations.listOccurrences(tx, budgetId, range),
             this.incomes.listOccurrences(tx, budgetId, range),
             this.obligations.listOccurrences(tx, budgetId, {
@@ -106,14 +117,33 @@ export class PlansCalendarApplicationService {
             }),
             this.repository.factsByDay(tx, budgetId, window),
             this.repository.countActivePlans(tx, budgetId),
-          ],
-        );
+            this.repository.completedWithFacts(tx, budgetId, window),
+          ]);
 
+        // A completed plan is shown once, on the date of the operation that settled it. One
+        // scheduled in another month but settled in this one is added here; totals stay on
+        // the plans scheduled in this month.
+        const settlements = new Map(
+          completed.map((row) => [row.id, settlementOf(row.facts)] as const),
+        );
+        const scheduledIds = new Set([...obligationRows, ...incomeRows].map((row) => row.id));
+        const settledHere = completed.filter((row) => {
+          const settlement = settlements.get(row.id);
+          return (
+            !scheduledIds.has(row.id) &&
+            settlement != null &&
+            settlement.factOn >= window.from &&
+            settlement.factOn <= window.to
+          );
+        });
         const items = [
-          ...obligationRows.map((row) => this.obligationItem(row, today)),
-          ...incomeRows.map((row) => this.incomeItem(row)),
+          ...obligationRows.map((row) =>
+            this.obligationItem(row, today, settlements.get(row.id) ?? null),
+          ),
+          ...incomeRows.map((row) => this.incomeItem(row, settlements.get(row.id) ?? null)),
+          ...settledHere.map((row) => this.settledItem(row, settlements.get(row.id)!)),
         ].sort(byDateThenName);
-        const overdue = overdueRows.map((row) => this.obligationItem(row, today));
+        const overdue = overdueRows.map((row) => this.obligationItem(row, today, null));
         const planned: PlannedItem[] = [
           ...obligationRows.map((row) => ({
             kind: 'OBLIGATION' as const,
@@ -153,7 +183,11 @@ export class PlansCalendarApplicationService {
     );
   }
 
-  private obligationItem(row: ObligationRow, today: string): PlansCalendarItemView {
+  private obligationItem(
+    row: ObligationRow,
+    today: string,
+    settlement: Settlement | null,
+  ): PlansCalendarItemView {
     const scheduledOn = isoDate(row.scheduledOn);
     return {
       kind: 'OBLIGATION',
@@ -168,10 +202,11 @@ export class PlansCalendarApplicationService {
       categoryId: row.categoryId,
       overdue: isOverdue('OBLIGATION', row.status, scheduledOn, today),
       transactionId: null,
+      ...settlementFields(settlement),
     };
   }
 
-  private incomeItem(row: IncomeRow): PlansCalendarItemView {
+  private incomeItem(row: IncomeRow, settlement: Settlement | null): PlansCalendarItemView {
     return {
       kind: 'INCOME_PLAN',
       occurrenceId: row.id,
@@ -185,8 +220,38 @@ export class PlansCalendarApplicationService {
       categoryId: row.categoryId,
       overdue: false,
       transactionId: row.transactionId,
+      ...settlementFields(settlement),
     };
   }
+
+  private settledItem(row: CompletedOccurrenceRow, settlement: Settlement): PlansCalendarItemView {
+    const income = row.planType === 'INCOME';
+    return {
+      kind: income ? 'INCOME_PLAN' : 'OBLIGATION',
+      occurrenceId: row.id,
+      planId: row.planId,
+      name: row.planName,
+      scheduledOn: isoDate(row.scheduledOn),
+      status: 'COMPLETED',
+      expectedMinor: formatMinorUnits(row.amountMinor),
+      paidMinor: income ? '0' : formatMinorUnits(settlement.factMinor),
+      unpaidMinor: '0',
+      categoryId: row.categoryId,
+      overdue: false,
+      transactionId: income ? row.transactionId : null,
+      ...settlementFields(settlement),
+    };
+  }
+}
+
+function settlementFields(
+  settlement: Settlement | null,
+): Pick<PlansCalendarItemView, 'factOn' | 'factMinor' | 'factTransactionIds'> {
+  return {
+    factOn: settlement?.factOn ?? null,
+    factMinor: settlement ? formatMinorUnits(settlement.factMinor) : null,
+    factTransactionIds: settlement?.transactionIds ?? [],
+  };
 }
 
 function byDateThenName(a: PlansCalendarItemView, b: PlansCalendarItemView): number {

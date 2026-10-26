@@ -7,6 +7,7 @@ import {
   monthWindow,
   plannedTotals,
   previousDay,
+  settlementOf,
 } from './plans-calendar.domain.js';
 
 describe('monthWindow', () => {
@@ -122,5 +123,20 @@ describe('buildDays', () => {
     expect(days).toEqual([
       { date: '2026-09-10', incomeMinor: 0n, expenseMinor: 0n, dot: 'overdue' },
     ]);
+  });
+});
+
+describe('settlementOf', () => {
+  it('folds the facts into the latest date and the paid sum', () => {
+    expect(
+      settlementOf([
+        { id: 'a', date: '2026-10-20', amountMinor: 400_000n },
+        { id: 'b', date: '2026-10-24', amountMinor: 600_000n },
+      ]),
+    ).toEqual({ factOn: '2026-10-24', factMinor: 1_000_000n, transactionIds: ['a', 'b'] });
+  });
+
+  it('is null without a confirmed fact', () => {
+    expect(settlementOf([])).toBeNull();
   });
 });

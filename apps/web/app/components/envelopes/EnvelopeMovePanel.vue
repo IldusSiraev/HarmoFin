@@ -332,7 +332,13 @@ async function confirm(): Promise<void> {
   if (needsDestination.value && isPeriodEnvelope(destination.value)) {
     destinationPeriodId = periodsOf(destination.value).find((item) => item.current)?.periodId;
     if (destinationPeriodId === undefined) {
-      destinationError.value = `У конверта «${destination.value?.name ?? ''}» нет текущего периода. Сначала распределите в него деньги кнопкой «Распределить» на главной.`;
+      const name = destination.value?.name ?? '';
+      const overspent = periodsOf(destination.value).some((item) =>
+        item.balanceMinor.startsWith('-'),
+      );
+      destinationError.value = overspent
+        ? `Конверт «${name}» относится к другой половине периода, сейчас переложить в него нельзя. Его перерасход покройте ссылкой «Покрыть превышение» в блоке «Решение по периоду».`
+        : `Конверт «${name}» относится к другой половине периода, сейчас переложить в него нельзя.`;
       focusRecipient();
       return;
     }

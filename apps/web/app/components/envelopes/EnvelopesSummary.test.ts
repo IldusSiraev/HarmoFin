@@ -47,7 +47,7 @@ describe('EnvelopesSummary', () => {
     expect(text).toMatch(/307\s485,31/);
   });
 
-  it('строки внимания: «Не распределено» эмитит distribute, «Не хватает» ведёт по actionPath', async () => {
+  it('строки внимания: «Не распределено» эмитит distribute, «Не хватает» эмитит cover-mandatory', async () => {
     const wrapper = mount(EnvelopesSummary, {
       props: { dashboard: dashboard() as never },
       global: { stubs },
@@ -61,7 +61,8 @@ describe('EnvelopesSummary', () => {
     expect(gap.classes()).toContain('ui-attention-row--warning');
     expect(gap.text()).toMatch(/Не хватает на обязательные · 10\s364,69/);
     expect(gap.text()).toContain('Два платежа до 20 октября');
-    expect(gap.find('a').attributes('href')).toBe('/app/envelopes?cover=mandatory');
+    await gap.find('button').trigger('click');
+    expect(wrapper.emitted('cover-mandatory')).toHaveLength(1);
   });
 
   it('MANDATORY_GAP с level INFO — тон info', () => {
@@ -76,7 +77,7 @@ describe('EnvelopesSummary', () => {
     });
     const gap = wrapper.find('[data-testid="summary-gap"]');
     expect(gap.classes()).toContain('ui-attention-row--info');
-    expect(gap.find('a').attributes('href')).toBe('/app/envelopes?cover=mandatory');
+    expect(gap.find('button').text()).toContain('Покрыть');
   });
 
   it('нулевые суммы скрывают строки, NEEDS_PERIOD_SETUP показывает настройку', () => {
@@ -98,7 +99,7 @@ describe('EnvelopesSummary', () => {
     expect(wrapper.text()).toContain('Всё распределено');
   });
 
-  it('CASH_SHORTFALL — красная строка', () => {
+  it('CASH_SHORTFALL — красная строка, «Разобраться» эмитит shortfall', async () => {
     const wrapper = mount(EnvelopesSummary, {
       props: {
         dashboard: dashboard({
@@ -122,7 +123,8 @@ describe('EnvelopesSummary', () => {
     const shortfall = wrapper.find('[data-testid="summary-shortfall"]');
     expect(shortfall.classes()).toContain('ui-attention-row--danger');
     expect(shortfall.text()).toMatch(/Не хватает денег на счетах · 5\s000,00/);
-    expect(shortfall.find('a').attributes('href')).toBe('/app/envelopes');
+    await shortfall.find('button').trigger('click');
+    expect(wrapper.emitted('shortfall')).toHaveLength(1);
   });
 
   it('hides the "Распределить" action when the viewer cannot manage assignments', () => {
@@ -132,5 +134,6 @@ describe('EnvelopesSummary', () => {
     });
     const free = wrapper.find('[data-testid="summary-free"]');
     expect(free.find('button').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="summary-gap"] button').exists()).toBe(false);
   });
 });

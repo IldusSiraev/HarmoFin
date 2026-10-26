@@ -488,7 +488,7 @@ describe('envelopes page, plan model v2', () => {
     );
   });
 
-  it('shows an explanation for action-path queries and ignores unknown ones', async () => {
+  it('explains a leftover query, ignores unknown ones and opens no panel', async () => {
     mocks.route.query = { leftoverPeriod: 'period-old' };
     const first = mountPage();
     await flushPromises();
@@ -496,20 +496,213 @@ describe('envelopes page, plan model v2', () => {
     expect(mocks.v2.move).not.toHaveBeenCalled();
     first.unmount();
 
-    mocks.route.query = { cover: 'mandatory' };
+    mocks.route.query = { somethingNew: 'x' };
     const second = mountPage();
     await flushPromises();
-    expect(second.get('[data-testid="envelope-row-env-mand"]').attributes('data-highlighted')).toBe(
-      'true',
-    );
-    second.unmount();
-
-    mocks.route.query = { somethingNew: 'x' };
-    const third = mountPage();
-    await flushPromises();
-    expect(third.find('[data-testid="envelopes-action-note"]').exists()).toBe(false);
-    expect(third.text()).toContain('Ремонт');
+    expect(second.find('[data-testid="envelopes-action-note"]').exists()).toBe(false);
+    expect(document.querySelector('[data-testid="cover-panel"]')).toBeNull();
+    expect(mocks.navigateTo).not.toHaveBeenCalled();
+    expect(second.text()).toContain('Ремонт');
   });
+
+  describe('cover panel', () => {
+    const gap = {
+      kind: 'COVERAGE',
+      code: 'MANDATORY_GAP',
+      level: 'ALERT',
+      message: 'Не хватает на обязательные платежи',
+      amountMinor: '1036469',
+      envelopeId: null,
+      periodId: null,
+      balanceMinor: null,
+      actionPath: '/app/envelopes?cover=mandatory',
+    };
+    const deficit = {
+      kind: 'PERIOD',
+      code: 'PERIOD_DEFICIT',
+      message: 'Перерасход прошлого периода 124,83 ₽',
+      amountMinor: '12483',
+      envelopeId: 'env-first',
+      periodId: 'p-old',
+      balanceMinor: '-12483',
+      actionPath: '/app/envelopes?coverPeriod=p-old',
+    };
+    const shortfall = {
+      kind: 'COVERAGE',
+      code: 'CASH_SHORTFALL',
+      message: 'Не хватает денег на счетах',
+      amountMinor: '12483',
+      envelopeId: null,
+      periodId: null,
+      balanceMinor: null,
+      actionPath: '/app/envelopes?shortfall=1',
+    };
+    // The first-half envelope has only its past, overspent bucket; the
+    // second-half one holds the current period.
+    const first = plan({
+      id: 'env-first',
+      name: 'Первый период',
+      envelopeType: 'CURRENT_EXPENSES',
+      periodSlot: 'FIRST',
+      balanceMinor: '-12483',
+      periods: [
+        {
+          periodId: 'p-old',
+          startsOn: '2026-10-10',
+          endsOn: '2026-10-24',
+          fundedMinor: '6500000',
+          spentMinor: '6512483',
+          balanceMinor: '-12483',
+          current: false,
+        },
+      ],
+    });
+    const second = plan({
+      id: 'env-second',
+      name: 'Второй период',
+      envelopeType: 'CURRENT_EXPENSES',
+      periodSlot: 'SECOND',
+      balanceMinor: '4517198',
+      periods: [
+        {
+          periodId: 'p-cur',
+          startsOn: '2026-10-25',
+          endsOn: '2026-11-09',
+          fundedMinor: '5227198',
+          spentMinor: '710000',
+          balanceMinor: '4517198',
+          current: true,
+        },
+      ],
+    });
+    const panel = () => document.querySelector('[data-testid="cover-panel"]');
+    const click = async (selector: string) => {
+      (document.querySelector(selector) as HTMLElement).click();
+      await flushPromises();
+    };
+
+    it('opens for ?cover=mandatory, drops the query and assigns free money', async () => {
+      mocks.route.query = { cover: 'mandatory' };
+      mocks.v2.getDashboard.mockResolvedValue(
+        dashboard({ warnings: [gap], freeToAssignMinor: '2000000' }),
+      );
+      mocks.v2.assignFree.mockResolvedValue({
+        assignmentId: 'a1',
+        amountMinor: '1036469',
+        fundedMinor: '1036469',
+        spentMinor: '0',
+        balanceMinor: '1036469',
+        freeToAssignMinor: '963531',
+      });
+      mountPage();
+      await flushPromises();
+
+      expect(panel()).not.toBeNull();
+      expect(document.body.textContent).toContain('Пополнить обязательные');
+      expect(mocks.navigateTo).toHaveBeenCalledWith(
+        { path: '/app/envelopes', query: {} },
+        { replace: true },
+      );
+      const amount = document.querySelector('[data-testid="cover-amount"]') as HTMLInputElement;
+      expect(amount.value).toBe('10364.69');
+      await click('[data-testid="cover-confirm"]');
+
+      expect(mocks.v2.assignFree).toHaveBeenCalledTimes(1);
+      expect(mocks.v2.assignFree.mock.calls[0]![1]).toEqual({
+        envelopeId: 'env-mand',
+        amount: '10364.69',
+      });
+      expect(panel()).toBeNull();
+    });
+
+    it('covers a past-period overspend from another envelope into that very period', async () => {
+      mocks.route.query = { coverPeriod: 'p-old' };
+      mocks.v2.listEnvelopes.mockResolvedValue({ items: [first, second, savings] });
+      mocks.v2.getDashboard.mockResolvedValue(dashboard({ warnings: [deficit] }));
+      mountPage();
+      await flushPromises();
+
+      expect(panel()).not.toBeNull();
+      expect(document.body.textContent).toContain('Покрыть перерасход');
+      // No free money: the free source is disabled, another envelope is the default.
+      const free = document.querySelector('[data-testid="cover-source-free"]') as HTMLInputElement;
+      expect(free.disabled).toBe(true);
+      expect(document.querySelector('[data-testid="cover-donor-env-first"]')).toBeNull();
+      await click('[data-testid="cover-donor-env-second"]');
+      await click('[data-testid="cover-confirm"]');
+
+      expect(mocks.v2.move.mock.calls[0]![1]).toEqual({
+        sourceEnvelopeId: 'env-second',
+        sourcePeriodId: 'p-cur',
+        destinationEnvelopeId: 'env-first',
+        destinationPeriodId: 'p-old',
+        amount: '124.83',
+      });
+    });
+
+    it('asks for a source envelope before sending', async () => {
+      mocks.route.query = { coverPeriod: 'p-old' };
+      mocks.v2.listEnvelopes.mockResolvedValue({ items: [first, second, savings] });
+      mocks.v2.getDashboard.mockResolvedValue(dashboard({ warnings: [deficit] }));
+      mountPage();
+      await flushPromises();
+
+      await click('[data-testid="cover-confirm"]');
+      expect(mocks.v2.move).not.toHaveBeenCalled();
+      expect(document.querySelector('[data-testid="cover-donor-error"]')!.textContent).toContain(
+        'Выберите конверт',
+      );
+    });
+
+    it('explains a cash shortfall and opens the cover panel for its overspend', async () => {
+      mocks.route.query = { shortfall: '1' };
+      mocks.v2.listEnvelopes.mockResolvedValue({ items: [first, second] });
+      mocks.v2.getDashboard.mockResolvedValue(dashboard({ warnings: [deficit, shortfall] }));
+      mountPage();
+      await flushPromises();
+
+      const dialog = document.querySelector('[data-testid="shortfall-dialog"]')!;
+      expect(dialog.textContent).toContain('отложено больше, чем есть на всех счетах');
+      expect(dialog.textContent).toContain('Перерасход «Первый период»');
+      await click('[data-testid="shortfall-cover"]');
+
+      expect(document.querySelector('[data-testid="shortfall-dialog"]')).toBeNull();
+      expect(panel()).not.toBeNull();
+      expect(document.body.textContent).toContain('Покрыть перерасход');
+    });
+
+    it('opens from the summary buttons on this page', async () => {
+      mocks.v2.listEnvelopes.mockResolvedValue({ items: [repair, mandatory] });
+      mocks.v2.getDashboard.mockResolvedValue(
+        dashboard({ warnings: [gap, shortfall], freeToAssignMinor: '2000000' }),
+      );
+      const wrapper = mountPage();
+      await flushPromises();
+
+      await wrapper.get('[data-testid="summary-gap"] button').trigger('click');
+      await flushPromises();
+      expect(panel()).not.toBeNull();
+      expect(document.body.textContent).toContain('Пополнить обязательные');
+      await click('[data-testid="cover-cancel"]');
+
+      await wrapper.get('[data-testid="summary-shortfall"] button').trigger('click');
+      await flushPromises();
+      expect(document.querySelector('[data-testid="shortfall-dialog"]')).not.toBeNull();
+    });
+
+    it('does not open for a member who cannot manage envelopes', async () => {
+      const data = mocks.auth.currentData.value as { workspaces: Array<{ role: string }> };
+      data.workspaces[0]!.role = 'EDITOR';
+      mocks.route.query = { cover: 'mandatory' };
+      mocks.v2.getDashboard.mockResolvedValue(dashboard({ warnings: [gap] }));
+      const wrapper = mountPage();
+      await flushPromises();
+
+      expect(panel()).toBeNull();
+      expect(wrapper.text()).toContain('может владелец бюджета');
+    });
+  });
+
   // Review fixes
 
   const keyOf = (mock: { mock: { calls: unknown[][] } }, call: number): unknown =>
@@ -757,7 +950,8 @@ describe('envelopes page, plan model v2', () => {
 
       expect(mocks.v2.move).not.toHaveBeenCalled();
       const error = document.querySelector('#move-destination-error');
-      expect(error!.textContent).toContain('нет текущего периода');
+      expect(error!.textContent).toContain('относится к другой половине периода');
+      expect(error!.textContent).not.toContain('на главной');
 
       // Picking another envelope clears the stale error.
       await pickRecipient('env-save');
@@ -1000,19 +1194,6 @@ describe('envelopes page, plan model v2', () => {
     await wrapper.get('[data-confirm="archive-envelope"]').trigger('click');
     await flushPromises();
     expect(wrapper.get('[data-testid="envelopes-status-region"]').text()).toContain('в архив');
-  });
-
-  it('marks a highlighted row with text, not only a style', async () => {
-    mocks.route.query = { cover: 'mandatory' };
-    const wrapper = mountPage();
-    await flushPromises();
-
-    expect(wrapper.get('[data-testid="envelope-row-env-mand"]').text()).toContain(
-      'Нужно пополнить',
-    );
-    expect(wrapper.get('[data-testid="envelope-row-env-repair"]').text()).not.toContain(
-      'Нужно пополнить',
-    );
   });
 
   it('shows the envelope goal in rubles from the decimal server value', async () => {
