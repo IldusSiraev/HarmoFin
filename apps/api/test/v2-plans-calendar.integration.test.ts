@@ -61,7 +61,11 @@ type CalendarBody = {
     scheduledOn: string;
     status: string;
     expectedMinor: string;
+    paidMinor: string;
     overdue: boolean;
+    factOn: string | null;
+    factMinor: string | null;
+    factTransactionIds: string[];
   }>;
   overdue: Array<{ occurrenceId: string; scheduledOn: string }>;
   overdueCount: number;
@@ -145,6 +149,63 @@ describe('v2 plans calendar (GET /api/v2/budgets/:id/plans/calendar)', () => {
       activePlanCount: 5,
     });
     expect(body.items).toHaveLength(5);
+  });
+
+  it('выполненный план показывается один раз — в день операции, которая его закрыла', async () => {
+    const w = await world(10_000_000n);
+    // Paid a day early, a day late, and in the previous month for a plan of this month.
+    const early = await occurrence(w, 1_000_000n, '2026-09-25', { status: 'COMPLETED' });
+    const earlyTx = await expense(w, w.mandatoryEnvelopeId, 1_000_000n, '2026-09-24');
+    await payment(w, early, earlyTx);
+    const late = await occurrence(w, 600_000n, '2026-09-24', { status: 'COMPLETED' });
+    const lateA = await expense(w, w.mandatoryEnvelopeId, 200_000n, '2026-09-24');
+    const lateB = await expense(w, w.mandatoryEnvelopeId, 400_000n, '2026-09-25');
+    await payment(w, late, lateA);
+    await payment(w, late, lateB);
+    const cancelledTx = await expense(w, w.mandatoryEnvelopeId, 1n, '2026-09-26', 'CANCELLED');
+    await payment(w, late, cancelledTx);
+    const incomeTx = await income(w, 9_000_000n, '2026-09-10');
+    const received = await occurrence(w, 10_000_000n, '2026-09-11', {
+      planType: 'INCOME',
+      status: 'COMPLETED',
+      transactionId: incomeTx,
+    });
+    const nextMonth = await occurrence(w, 300_000n, '2026-10-01', { status: 'COMPLETED' });
+    const nextMonthTx = await expense(w, w.mandatoryEnvelopeId, 300_000n, '2026-09-30');
+    await payment(w, nextMonth, nextMonthTx);
+    const bare = await occurrence(w, 100_000n, '2026-09-12', { status: 'COMPLETED' });
+
+    const body = (await getCalendar(w)).json<CalendarBody>();
+    const byId = Object.fromEntries(body.items.map((item) => [item.occurrenceId, item]));
+    expect(byId[early]).toMatchObject({
+      scheduledOn: '2026-09-25',
+      factOn: '2026-09-24',
+      factMinor: '1000000',
+      factTransactionIds: [earlyTx],
+    });
+    expect(byId[late]).toMatchObject({ factOn: '2026-09-25', factMinor: '600000' });
+    expect([...byId[late]!.factTransactionIds].sort()).toEqual([lateA, lateB].sort());
+    expect(byId[received]).toMatchObject({
+      kind: 'INCOME_PLAN',
+      factOn: '2026-09-10',
+      factMinor: '9000000',
+      factTransactionIds: [incomeTx],
+    });
+    expect(byId[nextMonth]).toMatchObject({
+      scheduledOn: '2026-10-01',
+      status: 'COMPLETED',
+      factOn: '2026-09-30',
+      paidMinor: '300000',
+      factTransactionIds: [nextMonthTx],
+    });
+    expect(byId[bare]).toMatchObject({ factOn: null, factMinor: null, factTransactionIds: [] });
+    // Totals keep the plans scheduled in this month only; day sums are facts only.
+    expect(body.totals.plannedExpenseMinor).toBe('1700000');
+    expect(dayOf(body, '2026-09-24')!.expenseMinor).toBe('1200000');
+
+    const october = (await getCalendar(w, '?month=2026-10')).json<CalendarBody>();
+    expect(october.items.map((item) => item.occurrenceId)).toEqual([nextMonth]);
+    expect(october.items[0]).toMatchObject({ factOn: '2026-09-30' });
   });
 
   it('просрочка: открытый платёж прошлого месяца виден независимо от месяца запроса', async () => {
@@ -420,6 +481,7 @@ async function occurrence(
     planType?: 'EXPENSE' | 'INCOME';
     status?: 'PENDING' | 'DUE' | 'SKIPPED' | 'COMPLETED' | 'CANCELLED';
     planName?: string;
+    transactionId?: string;
   } = {},
 ): Promise<string> {
   const planType = options.planType ?? 'EXPENSE';
@@ -456,6 +518,7 @@ async function occurrence(
       amountMinor,
       envelopeId,
       status: options.status ?? 'DUE',
+      transactionId: options.transactionId ?? null,
       ...(options.status === 'SKIPPED' ? { skippedAt: new Date() } : {}),
       ...(options.status === 'COMPLETED' ? { completedAt: new Date() } : {}),
       ...(options.status === 'CANCELLED'
@@ -464,6 +527,12 @@ async function occurrence(
     },
   });
   return row.id;
+}
+
+async function payment(w: World, occurrenceId: string, transactionId: string): Promise<void> {
+  await prisma.planPayment.create({
+    data: { id: randomUUID(), budgetId: w.budgetId, occurrenceId, transactionId },
+  });
 }
 
 async function addMember(

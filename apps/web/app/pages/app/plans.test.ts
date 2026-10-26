@@ -67,6 +67,9 @@ const toCalendarItem = (
     unpaidMinor?: string;
     overdue?: boolean;
     transactionId?: string | null;
+    factOn?: string | null;
+    factMinor?: string | null;
+    factTransactionIds?: string[];
   } = {},
 ) => ({
   kind,
@@ -81,6 +84,9 @@ const toCalendarItem = (
   categoryId: item.categoryId,
   overdue: extra.overdue ?? false,
   transactionId: extra.transactionId ?? null,
+  factOn: extra.factOn ?? null,
+  factMinor: extra.factMinor ?? null,
+  factTransactionIds: extra.factTransactionIds ?? [],
 });
 
 function calendarOf(
@@ -390,6 +396,41 @@ describe('plans page', () => {
       limit: 50,
     });
     expect(wrapper.get('[data-testid="day-fact-tx-fact"]').text()).toContain('Садик');
+  });
+
+  it('shows a completed plan on the day of the operation that settled it', async () => {
+    const paidEarly = toCalendarItem({ ...rent, status: 'COMPLETED' }, 'OBLIGATION', {
+      paidMinor: '4000000',
+      unpaidMinor: '0',
+      factOn: '2026-09-10',
+      factMinor: '4000000',
+      factTransactionIds: ['tx-rent'],
+    });
+    const fromNextMonth = toCalendarItem(
+      { ...rent, id: 'occ-next', scheduledOn: '2026-10-01', status: 'COMPLETED' },
+      'OBLIGATION',
+      { unpaidMinor: '0', factOn: '2026-09-10', factMinor: '1', factTransactionIds: ['tx-next'] },
+    );
+    v2.getPlansCalendar.mockResolvedValue(calendarOf([paidEarly, fromNextMonth]));
+    wrapper = mountV2();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="calendar-day-2026-09-10"]').trigger('click');
+    await flushPromises();
+    const panel = wrapper.get('[data-testid="day-panel"]');
+    expect(panel.find('[data-testid="day-item-occ-rent"]').exists()).toBe(true);
+    expect(panel.find('[data-testid="day-item-occ-next"]').exists()).toBe(true);
+
+    await wrapper.get('[data-testid="calendar-day-2026-09-30"]').trigger('click');
+    await flushPromises();
+    expect(
+      wrapper.get('[data-testid="day-panel"]').find('[data-testid="day-item-occ-rent"]').exists(),
+    ).toBe(false);
+    // The month list keeps the plans scheduled in this month only.
+    await wrapper.get('[data-testid="list-mode-all"]').trigger('click');
+    const list = wrapper.get('[data-testid="plans-list"]');
+    expect(list.find('[data-testid="obligation-row-occ-rent"]').exists()).toBe(true);
+    expect(list.find('[data-testid="obligation-row-occ-next"]').exists()).toBe(false);
   });
 
   it('opens the plan dialog with the date of the selected day', async () => {

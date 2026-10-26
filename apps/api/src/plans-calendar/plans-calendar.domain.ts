@@ -74,6 +74,34 @@ export function plannedTotals(items: readonly PlannedItem[]): {
   };
 }
 
+export interface SettlementFact {
+  id: string;
+  date: string;
+  amountMinor: bigint;
+}
+
+export interface Settlement {
+  factOn: string;
+  factMinor: bigint;
+  transactionIds: string[];
+}
+
+/**
+ * The confirmed facts that settled a COMPLETED occurrence, folded into one entry: the plan
+ * is shown once, on the date of its latest fact, with the sum actually paid or received.
+ * Null when no confirmed fact is linked (completed without a recorded operation).
+ */
+export function settlementOf(facts: readonly SettlementFact[]): Settlement | null {
+  if (facts.length === 0) return null;
+  let factOn = facts[0]!.date;
+  let factMinor = 0n;
+  for (const fact of facts) {
+    if (fact.date > factOn) factOn = fact.date;
+    factMinor += fact.amountMinor;
+  }
+  return { factOn, factMinor, transactionIds: facts.map((fact) => fact.id) };
+}
+
 /** One entry per day that has facts or an open item, ordered by date. */
 export function buildDays(
   facts: readonly FactRow[],

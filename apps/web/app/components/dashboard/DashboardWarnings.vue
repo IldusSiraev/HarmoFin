@@ -48,7 +48,7 @@ const rows = computed<Row[]>(() => {
         tone: 'danger',
         title: 'Не хватает денег на счетах',
         description: warning.message,
-        actionLabel: 'Проверить счета',
+        actionLabel: 'Разобраться',
         actionTo: warning.actionPath,
       });
     }

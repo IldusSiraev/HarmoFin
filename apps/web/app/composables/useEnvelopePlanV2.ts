@@ -689,6 +689,11 @@ export interface PlansCalendarItem {
   categoryId: string | null;
   overdue: boolean;
   transactionId: string | null;
+  // COMPLETED with a confirmed operation: the plan is shown once, on the date of that
+  // operation (factOn), with the sum actually paid or received (factMinor).
+  factOn: string | null;
+  factMinor: string | null;
+  factTransactionIds: string[];
 }
 
 export interface PlansCalendarTotals {

@@ -17,6 +17,9 @@ const base: PlansCalendarItem = {
   categoryId: null,
   overdue: false,
   transactionId: null,
+  factOn: null,
+  factMinor: null,
+  factTransactionIds: [],
 };
 const daycare: PlansCalendarItem = {
   ...base,

@@ -73,6 +73,31 @@ export class PlansCalendarItemResponse {
     description: 'Операция записанного планового дохода.',
   })
   transactionId!: string | null;
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    nullable: true,
+    description:
+      'Для COMPLETED с подтверждённой операцией: дата последней такой операции. План показывается в этот день один раз, а не в день по плану. Иначе null.',
+  })
+  factOn!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: '4000000',
+    description: 'Сумма подтверждённых операций, закрывших план, minor units; null без них.',
+  })
+  factMinor!: string | null;
+
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    description:
+      'Подтверждённые операции, закрывшие план (оплаты платежа или запись дохода). Пустой массив без них.',
+  })
+  factTransactionIds!: string[];
 }
 
 export class PlansCalendarTotalsResponse {
@@ -107,7 +132,11 @@ export class PlansCalendarResponse {
   @ApiProperty({ type: [PlansCalendarDayResponse] })
   days!: PlansCalendarDayResponse[];
 
-  @ApiProperty({ type: [PlansCalendarItemResponse] })
+  @ApiProperty({
+    type: [PlansCalendarItemResponse],
+    description:
+      'Планы с датой в этом месяце, а также COMPLETED-планы другого месяца, закрытые операцией в этом месяце (factOn в месяце). totals и days считают только планы с датой в месяце.',
+  })
   items!: PlansCalendarItemResponse[];
 
   @ApiProperty({
