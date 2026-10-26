@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.7.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.6.1...v1.7.0) (2026-10-26)
+
+
+### Новое
+
+* **api:** автор операции в журнале и фильтр по автору ([741a895](https://github.com/IldusSiraev/HarmoFin/commit/741a8957335ff7e7f845215e936c486ce081e628))
+* **api:** доменные правила приглашений в семью ([b6f97cc](https://github.com/IldusSiraev/HarmoFin/commit/b6f97ccf512ee13abc2777db693507633aa2865f))
+* **api:** приглашения в семью с письмом и ссылкой ([52fe779](https://github.com/IldusSiraev/HarmoFin/commit/52fe77926d5a769480ee910999b535dc3dc691e4))
+* **api:** принятие приглашения и регистрация по ссылке ([3b303c2](https://github.com/IldusSiraev/HarmoFin/commit/3b303c255d73ad201cf4e867165d5ff8dec4b222))
+* **api:** репозиторий семьи и личное пространство ([5c560a3](https://github.com/IldusSiraev/HarmoFin/commit/5c560a30e0642d39a927ecdbb9dbc0086222edd3))
+* **api:** удаление аккаунта участника уведомляет создателя семьи ([571abc2](https://github.com/IldusSiraev/HarmoFin/commit/571abc253051702b60cfedc11c1875c444fad088))
+* **api:** участники семьи, выход и выбор пространства ([ae3d5c2](https://github.com/IldusSiraev/HarmoFin/commit/ae3d5c2fac36fcd4fcd06a6e67d03794abc24021))
+* **db:** приглашения в семью и выбор пространства ([3c6aa78](https://github.com/IldusSiraev/HarmoFin/commit/3c6aa78f4b8b3739a1a007d0452c9951bb75dc25))
+* **web:** автор операции в журнале и фильтр по автору ([3fb9e6a](https://github.com/IldusSiraev/HarmoFin/commit/3fb9e6a1ed655b1760645e818f6a6baad1a3fb83))
+* **web:** активное пространство и переключатель семьи ([4d8c091](https://github.com/IldusSiraev/HarmoFin/commit/4d8c091be8161db0d3e570845764f4366b5e13d5))
+* **web:** действия в интерфейсе по роли участника ([95204f3](https://github.com/IldusSiraev/HarmoFin/commit/95204f3096b131f8ae97f05235499c24b51dbee4))
+* **web:** принятие приглашения по ссылке ([ea261c2](https://github.com/IldusSiraev/HarmoFin/commit/ea261c2da2e45bcdbb5507ea8e6c0c07ff79d8a5))
+* **web:** страница «Семья» и приглашение участников ([6ef672e](https://github.com/IldusSiraev/HarmoFin/commit/6ef672ec7f2e446a647cdcd0bdb0b62be89fc37c))
+* **worker:** плановые уведомления всем участникам семьи ([de02fb7](https://github.com/IldusSiraev/HarmoFin/commit/de02fb7ceb1e901a2df4042d1ed66244ebc18955))
+* семейный доступ (этап A) ([4385348](https://github.com/IldusSiraev/HarmoFin/commit/43853484ed361e8812f965ce859cfb0bc4b73018))
+
+
+### Исправления
+
+* **ci:** починка integration и e2e для доступа семьи ([584efb0](https://github.com/IldusSiraev/HarmoFin/commit/584efb0e784665d98253596d259f66bdfe657c75))
+* **worker:** очистка аккаунта учитывает приглашения в семью ([4cc0312](https://github.com/IldusSiraev/HarmoFin/commit/4cc031278eee43dbefa8e1750385752d50a665d8))
+* восстановление аккаунта без пространств, аудит и мелкие правки семьи ([5b910d8](https://github.com/IldusSiraev/HarmoFin/commit/5b910d898d0f644ae7281ea880e0bc653f5ef272))
+
 ## [1.6.1](https://github.com/IldusSiraev/HarmoFin/compare/v1.6.0...v1.6.1) (2026-10-24)
 
 
