@@ -3,6 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { findPersonRefs, personRefOf } from '../common/people/person-ref.repository.js';
+import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import { TransactionRepository } from '../transactions/transaction.repository.js';
 import {
@@ -33,6 +34,8 @@ const positionOf = (item: JournalItem): FeedPosition => ({
 /** Read-only feed of v2 transactions and direct transfers in one order. */
 @Injectable()
 export class JournalApplicationService {
+  private readonly access = new BudgetAccessPolicy();
+
   constructor(
     private readonly transactions: TransactionRepository,
     private readonly feed: JournalRepository,
@@ -44,8 +47,11 @@ export class JournalApplicationService {
     await this.planModelPolicy.requireModel(userId, budgetId, 2);
     const budget = await this.transactions.findAccessibleWithRole(userId, budgetId);
     if (!budget) throw resourceNotFound();
-    if (input.status === 'DELETED' && budget.workspace.memberships[0]?.role !== 'OWNER') {
-      throw forbidden();
+    if (input.status === 'DELETED') {
+      const role = budget.workspace.memberships[0]?.role;
+      if (!role || !this.access.canViewDeleted({ userId, role, isCreator: false })) {
+        throw forbidden();
+      }
     }
     const referencesExist = await this.transactions.validateJournalReferences(budgetId, input);
     if (!referencesExist) throw resourceNotFound();

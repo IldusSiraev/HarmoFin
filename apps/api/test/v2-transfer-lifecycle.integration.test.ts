@@ -53,6 +53,8 @@ let b: string;
 let c: string;
 let archived: string;
 let foreign: string;
+let editorAccountA: string;
+let editorAccountB: string;
 
 describe('v2 жизненный цикл прямого перевода (изменение, удаление, восстановление)', () => {
   beforeAll(async () => {
@@ -110,6 +112,13 @@ describe('v2 жизненный цикл прямого перевода (изм
     archived = await createRawAccount(ctx.owner!.budgetId, ctx.owner!.userId, 'RUB', 0n);
     await prisma.account.update({ where: { id: archived }, data: { archivedAt: new Date() } });
     foreign = await createRawAccount(ctx.outsider!.budgetId, ctx.outsider!.userId, 'RUB', 0n);
+    editorAccountA = await createRawAccount(
+      ctx.owner!.budgetId,
+      ctx.editor!.userId,
+      'RUB',
+      1_000_000n,
+    );
+    editorAccountB = await createRawAccount(ctx.owner!.budgetId, ctx.editor!.userId, 'RUB', 0n);
 
     service = new DirectTransferApplicationService(
       new PrismaService(databaseUrl),
@@ -409,7 +418,7 @@ describe('v2 жизненный цикл прямого перевода (изм
     ).toEqual({ status: 409, code: 'REFERENCE_INVALID' });
   });
 
-  it('роли: viewer — 403 на всё; editor изменяет и удаляет, но не восстанавливает; чужой бюджет — 404', async () => {
+  it('роли: viewer — 403 на всё; только автор изменяет/удаляет/восстанавливает; чужой бюджет — 404', async () => {
     const created = await newTransfer(a, b, '1.00');
     expect(
       await expectError(
@@ -419,17 +428,25 @@ describe('v2 жизненный цикл прямого перевода (изм
     expect(
       await expectError(service.remove(ctx.viewer!.userId, budgetId(), created.id, randomUUID())),
     ).toEqual({ status: 403, code: 'FORBIDDEN' });
+    // EDITOR is a writer but not this transfer's author (owner is): NOT_OPERATION_AUTHOR.
+    expect(
+      await expectError(
+        service.update(ctx.editor!.userId, budgetId(), created.id, { comment: 'e' }, randomUUID()),
+      ),
+    ).toEqual({ status: 403, code: 'NOT_OPERATION_AUTHOR' });
+    expect(
+      await expectError(service.remove(ctx.editor!.userId, budgetId(), created.id, randomUUID())),
+    ).toEqual({ status: 403, code: 'NOT_OPERATION_AUTHOR' });
+
     await service.update(
-      ctx.editor!.userId,
+      ctx.owner!.userId,
       budgetId(),
       created.id,
       { comment: 'e' },
       randomUUID(),
     );
-    await service.remove(ctx.editor!.userId, budgetId(), created.id, randomUUID());
-    expect(
-      await expectError(service.restore(ctx.editor!.userId, budgetId(), created.id, randomUUID())),
-    ).toEqual({ status: 403, code: 'FORBIDDEN' });
+    await service.remove(ctx.owner!.userId, budgetId(), created.id, randomUUID());
+    await service.restore(ctx.owner!.userId, budgetId(), created.id, randomUUID());
     expect(
       (
         await expectError(
@@ -442,6 +459,28 @@ describe('v2 жизненный цикл прямого перевода (изм
         service.remove(ctx.owner!.userId, ctx.outsider!.budgetId, created.id, randomUUID()),
       ),
     ).toEqual({ status: 404, code: 'RESOURCE_NOT_FOUND' });
+
+    // The author (EDITOR) edits, deletes and restores their own transfer.
+    const editorTransfer = await service.create(
+      ctx.editor!.userId,
+      budgetId(),
+      {
+        sourceAccountId: editorAccountA,
+        destinationAccountId: editorAccountB,
+        amount: '1.00',
+        occurredOn: today,
+      },
+      randomUUID(),
+    );
+    await service.update(
+      ctx.editor!.userId,
+      budgetId(),
+      editorTransfer.id,
+      { comment: 'own' },
+      randomUUID(),
+    );
+    await service.remove(ctx.editor!.userId, budgetId(), editorTransfer.id, randomUUID());
+    await service.restore(ctx.editor!.userId, budgetId(), editorTransfer.id, randomUUID());
   });
 
   it('idempotency: тот же ключ и тело — тот же ответ без второго аудита; другое тело — 409', async () => {

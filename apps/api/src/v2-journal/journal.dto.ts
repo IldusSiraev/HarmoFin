@@ -14,7 +14,7 @@ export class TransactionFeedItemResponse extends TransactionJournalV2ItemDto {
   kind!: 'TRANSACTION';
 
   @ApiProperty({ type: AuthorRefResponse })
-  createdBy!: AuthorRefResponse;
+  declare createdBy: AuthorRefResponse;
 }
 
 /** Transfer journal item extended with the author; the shared `TransferJournalItemResponse`

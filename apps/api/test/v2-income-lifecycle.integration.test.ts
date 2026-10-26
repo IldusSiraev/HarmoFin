@@ -50,6 +50,7 @@ let outsiderIncomeId: string;
 let tightAccountId: string;
 let tightIncomeCategoryId: string;
 let tightEnvelopeId: string;
+let editorAccountId: string;
 
 const today = todayInTimezone(new Date(), 'UTC');
 const yesterday = todayInTimezone(new Date(Date.now() - dayMs), 'UTC');
@@ -195,6 +196,7 @@ describe('v2 доход: изменение, удаление и восстан�
     otherIncomeCategoryId = await createCategory(b, 'INCOME');
     envelopeAId = await createEnvelope(b, owner().userId);
     envelopeBId = await createEnvelope(b, owner().userId);
+    editorAccountId = await createAccount(b, ctx.editor!.userId, 0n);
     tightAccountId = await createAccount(tight().budgetId, tight().userId, 0n);
     tightIncomeCategoryId = await createCategory(tight().budgetId, 'INCOME');
     tightEnvelopeId = await createEnvelope(tight().budgetId, tight().userId);
@@ -377,7 +379,7 @@ describe('v2 доход: изменение, удаление и восстан�
     expect((await dbTx(id)).status).toBe('DELETED');
   });
 
-  it('роли и изоляция: EDITOR может, VIEWER 403, посторонний и чужой доход 404', async () => {
+  it('роли и изоляция: только автор правит; VIEWER 403; посторонний и чужой доход 404', async () => {
     const id = await income('10.00');
     expect((await patch(id, 'rl-v1', { comment: 'x' }, ctx.viewer!)).statusCode).toBe(403);
     expect((await del(id, 'rl-v2', ctx.viewer!)).statusCode).toBe(403);
@@ -397,9 +399,35 @@ describe('v2 доход: изменение, удаление и восстан�
     expect((await dbTx(outsiderIncomeId)).status).toBe('CONFIRMED');
     expect((await call('DELETE', owner(), `/transactions/${id}`, undefined)).statusCode).toBe(400);
 
-    const byEditor = await del(id, 'rl-e1', ctx.editor!);
-    expect(byEditor.statusCode).toBe(200);
-    expect((await restore(id, 'rl-e2', ctx.editor!)).statusCode).toBe(200);
+    // EDITOR is a writer but not this income's author: NOT_OPERATION_AUTHOR, not NOT_FOUND.
+    const byForeignEditor = await del(id, 'rl-e1', ctx.editor!);
+    expect(byForeignEditor.statusCode).toBe(403);
+    expect(byForeignEditor.json()).toMatchObject({ code: 'NOT_OPERATION_AUTHOR' });
+
+    const byOwner = await del(id, 'rl-e1b');
+    expect(byOwner.statusCode).toBe(200);
+    expect((await restore(id, 'rl-e3')).statusCode).toBe(200);
+
+    // The author (EDITOR) edits, deletes and restores their own income (same shared budget).
+    const createdByEditor = await call(
+      'POST',
+      ctx.editor!,
+      '/transactions',
+      `mk-${randomUUID()}`,
+      {
+        transactionType: 'INCOME',
+        status: 'CONFIRMED',
+        amount: '10.00',
+        occurredOn: today,
+        accountId: editorAccountId,
+        categoryId: incomeCategoryId,
+      },
+      owner(),
+    );
+    expect(createdByEditor.statusCode).toBe(201);
+    const editorIncomeId = createdByEditor.json<{ id: string }>().id;
+    expect((await del(editorIncomeId, 'rl-e4', ctx.editor!)).statusCode).toBe(200);
+    expect((await restore(editorIncomeId, 'rl-e5', ctx.editor!)).statusCode).toBe(200);
   });
 
   it('OpenAPI описывает SOURCE_EXHAUSTED и assignmentIds в ошибке 409', async () => {

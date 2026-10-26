@@ -14,6 +14,7 @@ export type DirectAccountRecord = {
   currency: string;
   scale: number;
   archivedAt: Date | null;
+  ownerUserId: string;
 };
 
 export type DirectTransferCreateParams = {
@@ -123,6 +124,7 @@ export class DirectTransferRepository {
         currency: true,
         scale: true,
         archivedAt: true,
+        ownerUserId: true,
       },
     });
     return account as DirectAccountRecord | null;

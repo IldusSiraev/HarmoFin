@@ -6,8 +6,10 @@ import type { Prisma } from '@prisma/client';
 import { FinancialBalanceRepository } from '../common/finance/financial-balance.repository.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
+import { findPersonRefs, personRefOf, type PersonRef } from '../common/people/person-ref.repository.js';
+import { requireAccessActor } from '../common/policies/access-actor.repository.js';
+import { BudgetAccessPolicy, type AccessActor } from '../common/policies/budget-access.policy.js';
 import {
-  forbidden,
   invalidReference,
   resourceNotFound,
 } from '../common/reference-data/reference-data.errors.js';
@@ -118,6 +120,7 @@ export type DirectTransferViewListItem = {
   occurredOn: string;
   sourceAccountId: string | null;
   destinationAccountId: string | null;
+  createdBy?: PersonRef;
 };
 
 export type DirectTransferListView = {
@@ -176,6 +179,7 @@ function effectOf(row: TransferRow): TransferEffect {
 export class DirectTransferApplicationService {
   private readonly repository = new DirectTransferRepository();
   private readonly balances = new FinancialBalanceRepository();
+  private readonly access = new BudgetAccessPolicy();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -218,17 +222,8 @@ export class DirectTransferApplicationService {
           requestHash,
         },
         async () => {
-          const membership = await tx.workspaceMembership.findFirst({
-            where: {
-              workspaceId: model.workspaceId,
-              userId,
-              isActive: true,
-            },
-            select: { role: true },
-          });
-          if (!membership || (membership.role !== 'OWNER' && membership.role !== 'EDITOR')) {
-            throw forbidden();
-          }
+          const actor = await requireAccessActor(tx, model.workspaceId, userId);
+          this.access.requireWriter(actor);
 
           if (input.sourceAccountId === input.destinationAccountId) {
             throw accountsMustDiffer();
@@ -249,6 +244,7 @@ export class DirectTransferApplicationService {
           if (!source || !destination) {
             throw resourceNotFound();
           }
+          this.access.requireAccountOwner(actor, source);
           await this.repository.lockAccounts(tx, budgetId, [source.id, destination.id]);
 
           if (
@@ -374,12 +370,18 @@ export class DirectTransferApplicationService {
         occurredOn: true,
         sourceAccountId: true,
         destinationAccountId: true,
+        createdByUserId: true,
+        budget: { select: { workspaceId: true } },
       },
     });
 
     if (!transfer) {
       throw resourceNotFound();
     }
+
+    const people = await findPersonRefs(this.prisma, transfer.budget.workspaceId, [
+      transfer.createdByUserId,
+    ]);
 
     return {
       id: transfer.id,
@@ -391,6 +393,7 @@ export class DirectTransferApplicationService {
       occurredOn: transfer.occurredOn.toISOString().slice(0, 10),
       sourceAccountId: transfer.sourceAccountId,
       destinationAccountId: transfer.destinationAccountId,
+      createdBy: personRefOf(people, transfer.createdByUserId),
     };
   }
 
@@ -418,7 +421,6 @@ export class DirectTransferApplicationService {
       transferId,
       input,
       idempotencyKey,
-      ['OWNER', 'EDITOR'],
       async (tx, current, ctx) => {
         if (current.status !== 'CONFIRMED') throw notEditable();
         const next = {
@@ -449,6 +451,11 @@ export class DirectTransferApplicationService {
             next.destinationAccountId,
           ]);
         }
+        if (next.sourceAccountId !== current.sourceAccountId) {
+          const newSource = await this.repository.findAccount(tx, budgetId, next.sourceAccountId);
+          if (!newSource) throw resourceNotFound();
+          this.access.requireAccountOwner(ctx.actor, newSource);
+        }
         await this.lockAndCheck(tx, budgetId, ctx.allowNegativeBalance, current, {
           confirmed: true,
           sourceAccountId: next.sourceAccountId,
@@ -478,7 +485,6 @@ export class DirectTransferApplicationService {
       transferId,
       {},
       idempotencyKey,
-      ['OWNER', 'EDITOR'],
       async (tx, current, ctx) => {
         if (current.status === 'DELETED') throw alreadyDeleted();
         await this.lockAndCheck(tx, budgetId, ctx.allowNegativeBalance, current, {
@@ -508,7 +514,6 @@ export class DirectTransferApplicationService {
       transferId,
       {},
       idempotencyKey,
-      ['OWNER'],
       async (tx, current, ctx) => {
         if (current.status !== 'DELETED') throw notDeleted();
         const accounts = await Promise.all([
@@ -536,11 +541,10 @@ export class DirectTransferApplicationService {
     transferId: string,
     hashInput: Record<string, unknown>,
     idempotencyKey: string,
-    roles: ReadonlyArray<'OWNER' | 'EDITOR'>,
     body: (
       tx: Prisma.TransactionClient,
       current: TransferRow,
-      ctx: { workspaceId: string; allowNegativeBalance: boolean; today: string },
+      ctx: { actor: AccessActor; workspaceId: string; allowNegativeBalance: boolean; today: string },
     ) => Promise<TransferRow>,
   ): Promise<TransferJournalItem> {
     const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
@@ -559,17 +563,14 @@ export class DirectTransferApplicationService {
           requestHash,
         },
         async () => {
-          const membership = await tx.workspaceMembership.findFirst({
-            where: { workspaceId: model.workspaceId, userId, isActive: true },
-            select: { role: true },
-          });
-          if (!membership || !(roles as ReadonlyArray<string>).includes(membership.role)) {
-            throw forbidden();
-          }
+          const actor = await requireAccessActor(tx, model.workspaceId, userId);
+          this.access.requireWriter(actor);
           const budget = await this.repository.requireBudget(tx, budgetId);
           const current = await this.repository.findForMutation(tx, budgetId, transferId);
           if (!current) throw resourceNotFound();
+          this.access.requireOperationAuthor(actor, current);
           const row = await body(tx, current, {
+            actor,
             workspaceId: model.workspaceId,
             allowNegativeBalance: budget.allowNegativeBalance,
             today: todayInTimezone(new Date(), budget.timezone),

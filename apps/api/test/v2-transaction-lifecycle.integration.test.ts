@@ -44,6 +44,7 @@ const assignmentBalances = new AssignmentBalanceRepository();
 let accountId: string;
 let smallAccountId: string;
 let otherAccountId: string;
+let editorAccountId: string;
 let expenseCategoryId: string;
 let incomeCategoryId: string;
 let mandatoryEnvelopeId: string;
@@ -222,6 +223,7 @@ describe('v2 расход: изменение, удаление и восста�
     accountId = await createAccount(b, owner().userId, 100_000_000n);
     smallAccountId = await createAccount(b, owner().userId, 10_000n);
     otherAccountId = await createAccount(b, owner().userId, 100_000_000n);
+    editorAccountId = await createAccount(b, ctx.editor!.userId, 100_000_000n);
     expenseCategoryId = await createCategory(b, 'EXPENSE');
     incomeCategoryId = await createCategory(b, 'INCOME');
     mandatoryEnvelopeId = await createEnvelope(b, owner().userId, 'MANDATORY_EXPENSES');
@@ -512,10 +514,34 @@ describe('v2 расход: изменение, удаление и восста�
     expect((await dbTx(outsiderTransactionId)).status).toBe('CONFIRMED');
     const noKey = await call('DELETE', owner(), `/transactions/${created.id}`, undefined);
     expect(noKey.statusCode).toBe(400);
-    const byEditor = await del(created.id, 'rl-e1', ctx.editor!);
-    expect(byEditor.statusCode).toBe(200);
-    expect((await restore(created.id, 'rl-e2', ctx.editor!)).statusCode).toBe(200);
+
+    // EDITOR is a writer but not this expense's author (owner is): NOT_OPERATION_AUTHOR.
+    const byForeignEditor = await del(created.id, 'rl-e1', ctx.editor!);
+    expect(byForeignEditor.statusCode).toBe(403);
+    expect(byForeignEditor.json()).toMatchObject({ code: 'NOT_OPERATION_AUTHOR' });
     expect((await dbTx(created.id)).status).toBe('CONFIRMED');
+
+    // The author (EDITOR) edits, deletes and restores their own expense.
+    const ownExpense = await call(
+      'POST',
+      ctx.editor!,
+      '/transactions',
+      `mk-${randomUUID()}`,
+      {
+        transactionType: 'EXPENSE',
+        status: 'CONFIRMED',
+        amount: '10.00',
+        occurredOn: today,
+        accountId: editorAccountId,
+        categoryId: expenseCategoryId,
+        envelopeId: null,
+      },
+    );
+    expect(ownExpense.statusCode).toBe(201);
+    const ownId = ownExpense.json<{ id: string }>().id;
+    expect((await del(ownId, 'rl-e2', ctx.editor!)).statusCode).toBe(200);
+    expect((await restore(ownId, 'rl-e3', ctx.editor!)).statusCode).toBe(200);
+    expect((await dbTx(ownId)).status).toBe('CONFIRMED');
   });
 
   it('OpenAPI описывает PATCH, DELETE и restore: коды, Idempotency-Key, cookie', async () => {

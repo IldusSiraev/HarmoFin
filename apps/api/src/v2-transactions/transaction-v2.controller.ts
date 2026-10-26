@@ -100,7 +100,8 @@ export class TransactionV2Controller {
     name: 'status',
     required: false,
     enum: ['DRAFT', 'CONFIRMED', 'CANCELLED', 'DELETED'],
-    description: 'DELETED доступен только владельцу (иначе 403); по умолчанию удалённые скрыты.',
+    description:
+      'DELETED виден создателю и участникам с правом записи; наблюдателю — 403; по умолчанию удалённые скрыты.',
   })
   @ApiQuery({ name: 'from', required: false, schema: { type: 'string', format: 'date' } })
   @ApiQuery({ name: 'to', required: false, schema: { type: 'string', format: 'date' } })
@@ -110,7 +111,7 @@ export class TransactionV2Controller {
   @ApiOkResponse({ type: TransactionJournalV2Response })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse, description: 'FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR.' })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   list(
@@ -125,7 +126,7 @@ export class TransactionV2Controller {
   @ApiOkResponse({ type: TransactionJournalV2Item })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse, description: 'FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR.' })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   get(
@@ -144,7 +145,7 @@ export class TransactionV2Controller {
   @ApiCreatedResponse({ type: TransactionV2Response })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse, description: 'FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR.' })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
@@ -179,7 +180,7 @@ export class TransactionV2Controller {
   @ApiOkResponse({ type: TransactionV2LifecycleResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse, description: 'FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR.' })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({
     status: 409,
@@ -213,7 +214,7 @@ export class TransactionV2Controller {
   @ApiOkResponse({ type: TransactionV2LifecycleResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse, description: 'FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR.' })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({
     status: 409,
@@ -244,7 +245,7 @@ export class TransactionV2Controller {
   @ApiOkResponse({ type: TransactionV2LifecycleResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse, description: 'FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR.' })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   restore(

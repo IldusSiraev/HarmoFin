@@ -28,6 +28,7 @@ type Session = {
 const emails = {
   owner: `v2-journal-feed-owner-${randomUUID()}@harmofin.test`,
   editor: `v2-journal-feed-editor-${randomUUID()}@harmofin.test`,
+  viewer: `v2-journal-feed-viewer-${randomUUID()}@harmofin.test`,
   outsider: `v2-journal-feed-outsider-${randomUUID()}@harmofin.test`,
 };
 const ctx: Partial<Record<keyof typeof emails, Session>> = {};
@@ -37,6 +38,7 @@ let server: FastifyInstance;
 
 let a: string;
 let b: string;
+let editorAccount: string;
 let food: string;
 let salary: string;
 let env: string;
@@ -81,6 +83,14 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
         role: 'EDITOR',
       },
     });
+    await prisma.workspaceMembership.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: ctx.owner!.workspaceId,
+        userId: ctx.viewer!.userId,
+        role: 'VIEWER',
+      },
+    });
     await prisma.user.update({
       where: { id: ctx.editor!.userId },
       data: { displayName: 'Алия' },
@@ -88,6 +98,7 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
 
     a = await createRawAccount(ctx.owner!.budgetId, ctx.owner!.userId, 'RUB', 1_000_000n);
     b = await createRawAccount(ctx.owner!.budgetId, ctx.owner!.userId, 'RUB', 0n);
+    editorAccount = await createRawAccount(ctx.owner!.budgetId, ctx.editor!.userId, 'RUB', 1_000_000n);
     food = await createCategory(ctx.owner!.budgetId, 'EXPENSE');
     salary = await createCategory(ctx.owner!.budgetId, 'INCOME');
     env = await createEnvelope(ctx.owner!.budgetId, ctx.owner!.userId, 'P');
@@ -100,6 +111,12 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
         where: { userId: editor.userId, workspaceId: { not: editor.workspaceId } },
       });
     }
+    const viewer = ctx.viewer;
+    if (viewer) {
+      await prisma.workspaceMembership.deleteMany({
+        where: { userId: viewer.userId, workspaceId: { not: viewer.workspaceId } },
+      });
+    }
     for (const key of Object.keys(emails) as Array<keyof typeof emails>) {
       await cleanupUser(ctx[key]?.userId ?? '');
     }
@@ -109,6 +126,7 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
 
   const owner = () => ctx.owner!;
   const editor = () => ctx.editor!;
+  const viewer = () => ctx.viewer!;
   const outsider = () => ctx.outsider!;
 
   function authCookieHeaders(user: Session | undefined): Record<string, string> {
@@ -177,7 +195,11 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
     });
   }
 
-  async function createExpense(user: Session, occurredOn: string): Promise<string> {
+  async function createExpense(
+    user: Session,
+    occurredOn: string,
+    accountId: string = a,
+  ): Promise<string> {
     const response = await server.inject({
       method: 'POST',
       url: `/api/v2/budgets/${owner().budgetId}/transactions`,
@@ -191,7 +213,7 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
         status: 'CONFIRMED',
         amount: '1.00',
         occurredOn,
-        accountId: a,
+        accountId,
         categoryId: food,
       },
     });
@@ -328,7 +350,7 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
     expect(await all(owner(), { envelopeId: env })).toEqual([e.id]);
   });
 
-  it('статусы: по умолчанию без удалённых; DRAFT исключает переводы; DELETED — только владелец', async () => {
+  it('статусы: по умолчанию без удалённых; DRAFT исключает переводы; DELETED — любой писатель, не VIEWER', async () => {
     await reset();
     const live = await transfer('2026-10-10', '2026-10-10T10:00:00.000Z');
     const gone = await transfer('2026-10-09', '2026-10-09T10:00:00.000Z', { status: 'DELETED' });
@@ -338,7 +360,8 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
     expect(await all(owner(), {})).toEqual([live.id, draft.id]);
     expect(await all(owner(), { status: 'DRAFT' })).toEqual([draft.id]);
     expect(await all(owner(), { status: 'DELETED' })).toEqual([gone.id]);
-    expect((await page(editor(), { status: 'DELETED' })).statusCode).toBe(403);
+    expect(await all(editor(), { status: 'DELETED' })).toEqual([gone.id]);
+    expect((await page(viewer(), { status: 'DELETED' })).statusCode).toBe(403);
   });
 
   it('from/to по дате операции', async () => {
@@ -385,7 +408,7 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
   it('у каждой записи журнала есть автор; фильтр по автору отбирает только его записи', async () => {
     await reset();
     const ownerExpenseId = await createExpense(owner(), '2026-10-10');
-    const editorExpenseId = await createExpense(editor(), '2026-10-11');
+    const editorExpenseId = await createExpense(editor(), '2026-10-11', editorAccount);
 
     const allBody = (await page(owner(), {})).json<{
       items: Array<{
@@ -416,7 +439,7 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
 
   it('автор исключённого участника помечается как неактивный', async () => {
     await reset();
-    await createExpense(editor(), '2026-10-10');
+    await createExpense(editor(), '2026-10-10', editorAccount);
     await prisma.workspaceMembership.updateMany({
       where: { workspaceId: owner().workspaceId, userId: editor().userId },
       data: { isActive: false, removedAt: new Date() },

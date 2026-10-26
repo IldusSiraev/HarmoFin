@@ -226,17 +226,19 @@ describe('reference data API', () => {
       currentBalanceMinor: '100',
     });
 
-    const editorRole = await prisma.workspaceMembership.updateMany({
+    // Stage B: EDITOR may create accounts (owner.application.service.ts task 3); only a
+    // non-writer (VIEWER) is rejected.
+    const viewerRole = await prisma.workspaceMembership.updateMany({
       where: { userId: ownerId, workspaceId: ownerWorkspaceId },
-      data: { role: 'EDITOR' },
+      data: { role: 'VIEWER' },
     });
-    expect(editorRole.count).toBe(1);
-    const editorResponse = await createAccount({ name: 'Недоступный счёт' });
+    expect(viewerRole.count).toBe(1);
+    const viewerResponse = await createAccount({ name: 'Недоступный счёт' });
     await prisma.workspaceMembership.updateMany({
       where: { userId: ownerId, workspaceId: ownerWorkspaceId },
       data: { role: 'OWNER' },
     });
-    expect(editorResponse.statusCode).toBe(403);
+    expect(viewerResponse.statusCode).toBe(403);
 
     const other = await login(otherEmail);
     const foreign = await server.inject({

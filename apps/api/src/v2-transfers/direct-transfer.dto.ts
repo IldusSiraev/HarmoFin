@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+import { PersonRefResponse } from '../common/people/person-ref.dto.js';
+
 export class DirectTransferResponse {
   @ApiProperty({ type: String, example: '0195f3c3-aaaa-bbbb-cccc-000000000001' })
   id!: string;
@@ -37,6 +39,9 @@ export class DirectTransferResponse {
     example: '0195f3c3-aaaa-bbbb-cccc-000000000004',
   })
   destinationAccountId!: string | null;
+
+  @ApiProperty({ type: PersonRefResponse, required: false })
+  createdBy?: PersonRefResponse;
 }
 
 export class CreateDirectTransferInput {

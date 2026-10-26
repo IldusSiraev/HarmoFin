@@ -41,6 +41,7 @@ const owner = () => ctx.owner!;
 let app: NestFastifyApplication;
 let server: FastifyInstance;
 let accountId: string;
+let editorAccountId: string;
 let incomeCategoryId: string;
 let otherIncomeCategoryId: string;
 let expenseCategoryId: string;
@@ -170,6 +171,21 @@ describe('v2 планы доходов: прогноз без фиктивных
           budgetId: b,
           ownerUserId: owner().userId,
           name: 'Счёт',
+          accountType: 'BANK_ACCOUNT',
+          currency: 'RUB',
+          scale: 2,
+          startingBalanceMinor: 100_000_000n,
+          accountingStartDate: d(-90),
+        },
+      })
+    ).id;
+    editorAccountId = (
+      await prisma.account.create({
+        data: {
+          id: randomUUID(),
+          budgetId: b,
+          ownerUserId: ctx.editor!.userId,
+          name: 'Счёт участника',
           accountType: 'BANK_ACCOUNT',
           currency: 'RUB',
           scale: 2,
@@ -510,9 +526,16 @@ describe('v2 планы доходов: прогноз без фиктивных
       403,
     );
     expect(await incomeCount()).toBe(before);
-    expect((await record(on(ctx.editor!), created.occurrenceId!, recordBody())).statusCode).toBe(
-      201,
-    );
+    // The recording account must belong to the EDITOR (stage B: own account only).
+    expect(
+      (
+        await record(
+          on(ctx.editor!),
+          created.occurrenceId!,
+          recordBody({ accountId: editorAccountId }),
+        )
+      ).statusCode,
+    ).toBe(201);
   });
 
   it('401, 400 UUID, CSRF, ключ и изоляция бюджетов', async () => {

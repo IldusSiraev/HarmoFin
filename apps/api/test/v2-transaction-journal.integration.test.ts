@@ -20,6 +20,7 @@ type User = { userId: string; workspaceId: string; budgetId: string; cookie: str
 const emails = {
   owner: `v2-journal-owner-${randomUUID()}@harmofin.test`,
   editor: `v2-journal-editor-${randomUUID()}@harmofin.test`,
+  viewer: `v2-journal-viewer-${randomUUID()}@harmofin.test`,
   outsider: `v2-journal-outsider-${randomUUID()}@harmofin.test`,
 };
 const ctx: Partial<Record<keyof typeof emails, User>> = {};
@@ -91,6 +92,14 @@ describe('v2 журнал операций (GET /api/v2/budgets/:budgetId/transa
         workspaceId: ctx.owner!.workspaceId,
         userId: ctx.editor!.userId,
         role: 'EDITOR',
+      },
+    });
+    await prisma.workspaceMembership.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: ctx.owner!.workspaceId,
+        userId: ctx.viewer!.userId,
+        role: 'VIEWER',
       },
     });
     // The editor's own default workspace must not interfere: they read the owner budget.
@@ -215,6 +224,12 @@ describe('v2 журнал операций (GET /api/v2/budgets/:budgetId/transa
         where: { userId: editor.userId, workspaceId: { not: editor.workspaceId } },
       });
     }
+    const viewer = ctx.viewer;
+    if (viewer) {
+      await prisma.workspaceMembership.deleteMany({
+        where: { userId: viewer.userId, workspaceId: { not: viewer.workspaceId } },
+      });
+    }
     for (const key of Object.keys(emails) as Array<keyof typeof emails>) {
       await cleanupUser(ctx[key]?.userId ?? '');
     }
@@ -303,7 +318,7 @@ describe('v2 журнал операций (GET /api/v2/budgets/:budgetId/transa
     expect((await get(ctx.owner, '?from=2026-09-21&to=2026-09-20')).statusCode).toBe(400);
   });
 
-  it('DELETED виден только OWNER, остальным 403; по умолчанию скрыт', async () => {
+  it('DELETED виден writer (OWNER/EDITOR), VIEWER 403; по умолчанию скрыт', async () => {
     expect((await get(ctx.owner, '')).json<Page>().items.map((r) => r.id)).not.toContain(
       ids.deleted,
     );
@@ -311,8 +326,12 @@ describe('v2 журнал операций (GET /api/v2/budgets/:budgetId/transa
     expect(ownerDeleted.statusCode).toBe(200);
     expect(ownerDeleted.json<Page>().items.map((r) => r.id)).toEqual([ids.deleted]);
     const editorDeleted = await get(ctx.editor, '?status=DELETED', ctx.owner!.budgetId);
-    expect(editorDeleted.statusCode).toBe(403);
-    expect((await get(ctx.editor, `/${ids.deleted}`, ctx.owner!.budgetId)).statusCode).toBe(403);
+    expect(editorDeleted.statusCode).toBe(200);
+    expect(editorDeleted.json<Page>().items.map((r) => r.id)).toEqual([ids.deleted]);
+    expect((await get(ctx.editor, `/${ids.deleted}`, ctx.owner!.budgetId)).statusCode).toBe(200);
+    const viewerDeleted = await get(ctx.viewer, '?status=DELETED', ctx.owner!.budgetId);
+    expect(viewerDeleted.statusCode).toBe(403);
+    expect((await get(ctx.viewer, `/${ids.deleted}`, ctx.owner!.budgetId)).statusCode).toBe(403);
     expect((await get(ctx.owner, `/${ids.deleted}`)).statusCode).toBe(200);
   });
 
