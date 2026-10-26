@@ -10,6 +10,46 @@
 
 **Spec:** [docs/superpowers/specs/2026-10-25-family-access-design.md](../specs/2026-10-25-family-access-design.md) — разделы «Этап B», «Матрица (этап B)», «BudgetAccessPolicy», «Выход и удаление участника», «Уведомления», «UI → Этап B», «Тесты → Этап B». Этап A уже в `main` ([план этапа A](2026-10-25-family-access-stage-a.md)).
 
+## Статус выполнения (26.10.2026)
+
+Ветка `feat/family-access-stage-b`. Задачи выполнялись через subagent-driven development: один writer на задачу, review по таблице в конце плана, коммит после каждой задачи.
+
+| Задача | Статус | Коммит | Review |
+|---|---|---|---|
+| План | закоммичен | `b4fd09f` | — |
+| 1. Схема, миграция, владельцы и авторы | готово | `cddf0ef` | backend, financial, security, QA, final — APPROVE |
+| 2. `BudgetAccessPolicy`, участник в транзакции, `PersonRef`, `FamilyTestApp` | готово | `e92816b` | security, API, QA, final — APPROVE |
+| 3. Счета по владельцу | готово | `8cd80c9` | API, security, financial, QA, final — APPROVE |
+| 4. Конверты, цели, правила наполнения | готово | `760a62b` | security, API, financial, QA, final — APPROVE |
+| 5. Распределения, перемещения, наполнение по правилам | готово | `140cef9` | financial, security, API, QA, final — APPROVE (1 раунд исправлений) |
+| 6. Операции и переводы | готово | `30b9869` | financial, security, API, QA, final — APPROVE (1 раунд исправлений) |
+| 7–17 | не начаты | — | — |
+
+Проверки на момент остановки: `pnpm test:integration` (корневой скрипт) — 60 файлов, 655 тестов, все проходят; typecheck и lint чистые.
+
+Следующий шаг — **задача 7** (планы по владельцу).
+
+### Решения, принятые при выполнении
+
+- Writer только индексирует изменения (`git add <пути>`), коммит делает координирующая сессия после review — правило владельца.
+- Задача 1: тест схемы проверяет отказ вставки без владельца по `meta.code: '23502'`, а не по тексту ошибки (Prisma отдаёт DETAIL, а не MESSAGE для raw-запросов).
+- Задача 4: `changedRuleEnvelopeIds` не ищет «удалённые» правила — `PUT funding-rules` никогда не трогает правила конвертов, которых нет в теле запроса (подтвердили security и financial review).
+- Задача 5: проверка владельца для `OPENING` в `assignFree` оставлена как защита в глубину, хотя через `POST /assignments` недостижима (схема принимает только `FREE | INCOME`); из описания 403 этого эндпоинта упоминание `OPENING` убрано. Проверки `OPENING` и `confirmPeriodTargets` для чужих конвертов покрыты тестами на отдельной семье.
+- Задача 6: тест `reference-data.integration.test.ts` про роли счетов переписан с `EDITOR` на `VIEWER` — это следствие задачи 3 (участник теперь создаёт свои счета). `api-process.integration.test.ts` требует запуска через `pnpm test:integration` (одноразовая БД `harmofin_v22_test`); прямой `vitest run` этого файла падает по окружению.
+
+### Отложенные мелкие замечания (для финального review ветки)
+
+- Задача 2: `JournalApplicationService` получает `PrismaClient` напрямую ради `findPersonRefs`; лучше обернуть в `JournalRepository`.
+- Задача 3: `AccountApplicationService.restore` делает лишнюю проверку владельца до транзакции (ради порядка 403 перед 409, с `role!`); основная проверка — внутри транзакции.
+- Задача 5: в `funding-confirm.application.service.ts` два чтения владельцев (`tx.envelopePeriod.findMany`, `tx.envelope.findMany`) стоят в сервисе, а не в репозитории.
+
+### Заметки для исполнителя следующих задач
+
+- Полный набор интеграционных тестов запускать только через корневой `pnpm test:integration`; отдельные файлы — через `pnpm --filter <api> exec vitest run --config vitest.integration.config.ts <файл>`.
+- `pnpm db:generate` может падать с EPERM, пока у владельца запущены dev-процессы (Windows блокирует движок Prisma). Процессы не трогать.
+- Тесты этапа A, которые ожидали 403 для `EDITOR`, переписываются на `VIEWER` с сохранением смысла.
+- `RolePolicy` ещё используется в модулях, не затронутых задачами 3–6; удаляется в задаче 8.
+
 ## Global Constraints
 
 - Роли: `OWNER` («Создатель», ровно один, `Workspace.ownerId`), `EDITOR` («Участник»), `VIEWER` («Наблюдатель»). Writer — `OWNER` или `EDITOR`.
