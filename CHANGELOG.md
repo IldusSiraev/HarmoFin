@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.1](https://github.com/IldusSiraev/HarmoFin/compare/v1.7.0...v1.7.1) (2026-10-26)
+
+
+### Исправления
+
+* окно покрытия перерасхода и оплаченные планы в календаре ([411ff31](https://github.com/IldusSiraev/HarmoFin/commit/411ff315a9c10416f461022666e0438d9242354b))
+* окно покрытия перерасхода и оплаченные планы в календаре ([f628658](https://github.com/IldusSiraev/HarmoFin/commit/f62865854972935ecf8c392b63bacae8569c0f0e))
+
 ## [1.7.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.6.1...v1.7.0) (2026-10-26)
 
 
