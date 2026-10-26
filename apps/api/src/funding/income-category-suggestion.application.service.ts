@@ -9,9 +9,10 @@ import {
 } from '@nestjs/common';
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
+import { requireAccessActor } from '../common/policies/access-actor.repository.js';
+import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
-import { RolePolicy } from '../common/policies/role-policy.js';
-import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
+import { resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import { PrismaService } from '../database/prisma.service.js';
 import {
   type IncomeCategorySuggestionRecord,
@@ -91,7 +92,7 @@ export async function assertSuggestionReferences(
 @Injectable()
 export class IncomeCategorySuggestionApplicationService {
   private readonly repository = new IncomeCategorySuggestionRepository();
-  private readonly rolePolicy = new RolePolicy();
+  private readonly access = new BudgetAccessPolicy();
 
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
@@ -135,11 +136,9 @@ export class IncomeCategorySuggestionApplicationService {
           requestHash,
         },
         async () => {
-          const membership = await tx.workspaceMembership.findFirst({
-            where: { workspaceId: model.workspaceId, userId, isActive: true },
-            select: { role: true },
-          });
-          if (!membership || !this.rolePolicy.canManage(membership.role)) throw forbidden();
+          this.access.requireBudgetSettings(
+            await requireAccessActor(tx, model.workspaceId, userId),
+          );
 
           await assertSuggestionReferences(tx, this.repository, budgetId, input);
 

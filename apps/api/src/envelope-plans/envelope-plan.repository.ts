@@ -6,6 +6,7 @@ import { resourceNotFound } from '../common/reference-data/reference-data.errors
 export type EnvelopePlanRecord = {
   id: string;
   budgetId: string;
+  ownerUserId: string;
   name: string;
   envelopeType: EnvelopeType;
   targetAmountMinor: bigint | null;
@@ -65,6 +66,7 @@ export type EnvelopeHistoryCursor = {
 const ENVELOPE_SELECT = {
   id: true,
   budgetId: true,
+  ownerUserId: true,
   name: true,
   envelopeType: true,
   targetAmountMinor: true,
@@ -77,6 +79,7 @@ const ENVELOPE_SELECT = {
 
 function auditValues(record: EnvelopePlanRecord): Prisma.InputJsonValue {
   return {
+    ownerUserId: record.ownerUserId,
     name: record.name,
     envelopeType: record.envelopeType,
     targetAmountMinor: record.targetAmountMinor?.toString() ?? null,
@@ -116,9 +119,13 @@ export class EnvelopePlanRepository {
     });
   }
 
-  async listActive(tx: Prisma.TransactionClient, budgetId: string): Promise<EnvelopePlanRecord[]> {
+  async listActive(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    ownerUserId?: string,
+  ): Promise<EnvelopePlanRecord[]> {
     return tx.envelope.findMany({
-      where: { budgetId, archivedAt: null },
+      where: { budgetId, archivedAt: null, ...(ownerUserId ? { ownerUserId } : {}) },
       select: ENVELOPE_SELECT,
       orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
     });

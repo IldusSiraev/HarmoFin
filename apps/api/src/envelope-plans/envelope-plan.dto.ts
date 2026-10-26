@@ -1,5 +1,7 @@
 import { ApiProperty, ApiSchema } from '@nestjs/swagger';
 
+import { PersonRefResponse } from '../common/people/person-ref.dto.js';
+
 export class EnvelopePeriodBalanceResponse {
   @ApiProperty({
     type: String,
@@ -73,6 +75,16 @@ export class EnvelopePlanResponse {
       'по возрастанию даты начала. Для конвертов без периодов — пустой список.',
   })
   periods!: EnvelopePeriodBalanceResponse[];
+
+  @ApiProperty({ type: PersonRefResponse })
+  owner!: PersonRefResponse;
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'Подсказка для интерфейса: текущий пользователь может изменять конверт. Право проверяет сервер.',
+  })
+  canEdit!: boolean;
 }
 
 export class AssignmentResultResponse {

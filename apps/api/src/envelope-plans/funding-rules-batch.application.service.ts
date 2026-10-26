@@ -10,9 +10,10 @@ import {
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { parseDecimalToMinorUnits } from '../common/money/minor-units.js';
+import { requireAccessActor } from '../common/policies/access-actor.repository.js';
+import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
-import { RolePolicy } from '../common/policies/role-policy.js';
-import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
+import { resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { assertSuggestionReferences } from '../funding/income-category-suggestion.application.service.js';
 import {
@@ -21,6 +22,7 @@ import {
 } from '../funding/income-category-suggestion.repository.js';
 import { EnvelopePlanRepository } from './envelope-plan.repository.js';
 import type { PutFundingRulesBatchInput } from './envelope-plan.schemas.js';
+import { changedRuleEnvelopeIds } from './funding-rules-diff.js';
 import {
   type FundingRuleBody,
   FundingRuleRepository,
@@ -103,7 +105,7 @@ export class FundingRulesBatchApplicationService {
   private readonly rules = new FundingRuleRepository();
   private readonly envelopes = new EnvelopePlanRepository();
   private readonly suggestions = new IncomeCategorySuggestionRepository();
-  private readonly rolePolicy = new RolePolicy();
+  private readonly access = new BudgetAccessPolicy();
 
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
@@ -186,7 +188,8 @@ export class FundingRulesBatchApplicationService {
           requestHash,
         },
         async () => {
-          await this.requireManageRole(tx, model.workspaceId, userId);
+          const actor = await requireAccessActor(tx, model.workspaceId, userId);
+          this.access.requireWriter(actor);
           await this.assertEnvelopes(tx, budgetId, desired);
           await assertSuggestionReferences(
             tx,
@@ -196,9 +199,24 @@ export class FundingRulesBatchApplicationService {
             'incomeSuggestion',
           );
 
-          const existing = new Map(
-            (await this.rules.listRules(tx, budgetId)).map((rule) => [rule.envelopeId, rule]),
-          );
+          const existingRules = await this.rules.listRules(tx, budgetId);
+          const changed = changedRuleEnvelopeIds(existingRules, desired);
+          if (changed.length > 0) {
+            const owners = await tx.envelope.findMany({
+              where: { budgetId, id: { in: changed } },
+              select: { ownerUserId: true },
+            });
+            for (const envelope of owners) this.access.requireObjectOwner(actor, envelope);
+          }
+
+          const current = await this.suggestions.find(tx, budgetId, model.workspaceId);
+          const unchanged =
+            current.enabled === suggestion.enabled &&
+            current.sourceCategoryId === suggestion.sourceCategoryId &&
+            current.targetEnvelopeId === suggestion.targetEnvelopeId;
+          if (!unchanged) this.access.requireBudgetSettings(actor);
+
+          const existing = new Map(existingRules.map((rule) => [rule.envelopeId, rule]));
           for (const rule of desired) {
             if (FundingRuleRepository.same(existing.get(rule.envelopeId), rule)) continue;
             await this.rules.saveRule(tx, {
@@ -214,11 +232,6 @@ export class FundingRulesBatchApplicationService {
             });
           }
 
-          const current = await this.suggestions.find(tx, budgetId, model.workspaceId);
-          const unchanged =
-            current.enabled === suggestion.enabled &&
-            current.sourceCategoryId === suggestion.sourceCategoryId &&
-            current.targetEnvelopeId === suggestion.targetEnvelopeId;
           const savedSuggestion = unchanged
             ? current
             : await this.suggestions.save(tx, {
@@ -269,15 +282,4 @@ export class FundingRulesBatchApplicationService {
     }
   }
 
-  private async requireManageRole(
-    tx: Prisma.TransactionClient,
-    workspaceId: string,
-    userId: string,
-  ): Promise<void> {
-    const membership = await tx.workspaceMembership.findFirst({
-      where: { workspaceId, userId, isActive: true },
-      select: { role: true },
-    });
-    if (!membership || !this.rolePolicy.canManage(membership.role)) throw forbidden();
-  }
 }

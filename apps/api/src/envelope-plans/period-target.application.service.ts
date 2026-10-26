@@ -11,9 +11,10 @@ import {
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
+import { requireAccessActor } from '../common/policies/access-actor.repository.js';
+import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
-import { RolePolicy } from '../common/policies/role-policy.js';
-import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
+import { resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import { addIsoDays, cycleAndPeriodFor } from '../cycles/cycle-period.domain.js';
 import { CycleRevisionRepository } from '../cycles/cycle-revision.repository.js';
 import { PrismaService } from '../database/prisma.service.js';
@@ -72,7 +73,7 @@ export class PeriodTargetApplicationService {
   private readonly envelopes = new EnvelopePlanRepository();
   private readonly rules = new FundingRuleRepository();
   private readonly revisions = new CycleRevisionRepository();
-  private readonly rolePolicy = new RolePolicy();
+  private readonly access = new BudgetAccessPolicy();
 
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
@@ -119,7 +120,10 @@ export class PeriodTargetApplicationService {
           requestHash,
         },
         async () => {
-          await this.requireManageRole(tx, model.workspaceId, userId);
+          this.access.requireObjectOwner(
+            await requireAccessActor(tx, model.workspaceId, userId),
+            envelope,
+          );
           if (envelope.archivedAt) {
             throw unprocessable('ENVELOPE_ARCHIVED', 'Конверт архивирован.');
           }
@@ -180,7 +184,10 @@ export class PeriodTargetApplicationService {
           requestHash,
         },
         async () => {
-          await this.requireManageRole(tx, model.workspaceId, userId);
+          this.access.requireObjectOwner(
+            await requireAccessActor(tx, model.workspaceId, userId),
+            envelope,
+          );
           if (envelope.archivedAt) {
             throw unprocessable('ENVELOPE_ARCHIVED', 'Конверт архивирован.');
           }
@@ -267,9 +274,13 @@ export class PeriodTargetApplicationService {
           requestHash,
         },
         async () => {
-          await this.requireManageRole(tx, model.workspaceId, userId);
           const period = await this.rules.lockPeriod(tx, budgetId, periodId);
           if (!period) throw resourceNotFound();
+          const envelope = await this.envelopes.findEnvelope(tx, budgetId, period.envelopeId);
+          this.access.requireObjectOwner(
+            await requireAccessActor(tx, model.workspaceId, userId),
+            envelope,
+          );
           let result = period;
           if (decision === 'CONFIRM') {
             if (period.targetStatus === 'UNSET') {
@@ -335,17 +346,6 @@ export class PeriodTargetApplicationService {
     return period;
   }
 
-  private async requireManageRole(
-    tx: Prisma.TransactionClient,
-    workspaceId: string,
-    userId: string,
-  ): Promise<void> {
-    const membership = await tx.workspaceMembership.findFirst({
-      where: { workspaceId, userId, isActive: true },
-      select: { role: true },
-    });
-    if (!membership || !this.rolePolicy.canManage(membership.role)) throw forbidden();
-  }
 }
 
 function periodTargetBody(period: EnvelopePeriodRecord): PeriodTargetBody {

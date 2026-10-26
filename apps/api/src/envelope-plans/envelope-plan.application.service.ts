@@ -5,12 +5,15 @@ import { BadRequestException, ConflictException, Inject, Injectable } from '@nes
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
-import { RolePolicy } from '../common/policies/role-policy.js';
-import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import {
-  forbidden,
-  periodSlotAlreadyAssigned,
-} from '../common/reference-data/reference-data.errors.js';
+  findPersonRefs,
+  personRefOf,
+  type PersonRef,
+} from '../common/people/person-ref.repository.js';
+import { findAccessActor, requireAccessActor } from '../common/policies/access-actor.repository.js';
+import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
+import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
+import { periodSlotAlreadyAssigned } from '../common/reference-data/reference-data.errors.js';
 import { todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { AssignmentBalanceRepository } from './assignment-balance.repository.js';
@@ -18,6 +21,7 @@ import {
   EnvelopePlanRepository,
   type EnvelopeHistoryCursor,
   type EnvelopeHistoryItemRecord,
+  type EnvelopePlanRecord,
 } from './envelope-plan.repository.js';
 import type {
   CreateEnvelopeInput,
@@ -42,6 +46,8 @@ type EnvelopePlanBody = {
   balanceMinor: string;
   archivedAt: string | null;
   periods: EnvelopePeriodBody[];
+  owner: PersonRef;
+  canEdit: boolean;
 };
 
 type EnvelopePeriodBody = {
@@ -127,7 +133,7 @@ function decodeHistoryCursor(cursor: string): EnvelopeHistoryCursor {
 export class EnvelopePlanApplicationService {
   private readonly repository = new EnvelopePlanRepository();
   private readonly balances = new AssignmentBalanceRepository();
-  private readonly rolePolicy = new RolePolicy();
+  private readonly access = new BudgetAccessPolicy();
 
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
@@ -138,10 +144,11 @@ export class EnvelopePlanApplicationService {
   async list(
     userId: string,
     budgetId: string,
+    ownerUserId?: string,
   ): Promise<{ status: number; body: { items: EnvelopePlanBody[] } }> {
-    await this.planModelPolicy.requireModel(userId, budgetId, 2);
+    const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
     return this.prisma.$transaction(async (tx) => {
-      const envelopes = await this.repository.listActive(tx, budgetId);
+      const envelopes = await this.repository.listActive(tx, budgetId, ownerUserId);
       const rowBalances = await this.balances.allBalances(tx, budgetId, new Date());
       const totals = this.totalsByEnvelope(rowBalances);
       const periods = await this.periodsByEnvelope(
@@ -150,7 +157,7 @@ export class EnvelopePlanApplicationService {
         envelopes.map((envelope) => envelope.id),
         rowBalances,
       );
-      const items = envelopes.map((envelope) => this.toBody(envelope, totals, periods));
+      const items = await this.bodies(tx, model.workspaceId, userId, envelopes, totals, periods);
       return { status: 200, body: { items } };
     });
   }
@@ -160,13 +167,14 @@ export class EnvelopePlanApplicationService {
     budgetId: string,
     envelopeId: string,
   ): Promise<{ status: number; body: EnvelopePlanBody }> {
-    await this.planModelPolicy.requireModel(userId, budgetId, 2);
+    const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
     return this.prisma.$transaction(async (tx) => {
       const envelope = await this.repository.findEnvelope(tx, budgetId, envelopeId);
       const allRows = await this.balances.allBalances(tx, budgetId, new Date());
       const totals = this.totalsByEnvelope(allRows);
       const periods = await this.periodsByEnvelope(tx, budgetId, [envelope.id], allRows);
-      return { status: 200, body: this.toBody(envelope, totals, periods) };
+      const [body] = await this.bodies(tx, model.workspaceId, userId, [envelope], totals, periods);
+      return { status: 200, body: body! };
     });
   }
 
@@ -226,7 +234,7 @@ export class EnvelopePlanApplicationService {
           requestHash,
         },
         async () => {
-          await this.requireManageRole(tx, model.workspaceId, userId);
+          this.access.requireWriter(await requireAccessActor(tx, model.workspaceId, userId));
 
           const envelope = await this.repository.createEnvelope(tx, {
             budgetId,
@@ -244,7 +252,15 @@ export class EnvelopePlanApplicationService {
           const rowBalances = await this.balances.allBalances(tx, budgetId, new Date());
           const totals = this.totalsByEnvelope(rowBalances);
           const periods = await this.periodsByEnvelope(tx, budgetId, [envelope.id], rowBalances);
-          return { status: 201, body: this.toBody(envelope, totals, periods) };
+          const [body] = await this.bodies(
+            tx,
+            model.workspaceId,
+            userId,
+            [envelope],
+            totals,
+            periods,
+          );
+          return { status: 201, body: body! };
         },
       );
     });
@@ -288,7 +304,10 @@ export class EnvelopePlanApplicationService {
           requestHash,
         },
         async () => {
-          await this.requireManageRole(tx, model.workspaceId, userId);
+          this.access.requireObjectOwner(
+            await requireAccessActor(tx, model.workspaceId, userId),
+            current,
+          );
 
           if (input.periodSlot !== undefined) {
             if (current.envelopeType !== 'CURRENT_EXPENSES') {
@@ -323,7 +342,15 @@ export class EnvelopePlanApplicationService {
           const rowBalances = await this.balances.allBalances(tx, budgetId, new Date());
           const totals = this.totalsByEnvelope(rowBalances);
           const periods = await this.periodsByEnvelope(tx, budgetId, [updated.id], rowBalances);
-          return { status: 200, body: this.toBody(updated, totals, periods) };
+          const [body] = await this.bodies(
+            tx,
+            model.workspaceId,
+            userId,
+            [updated],
+            totals,
+            periods,
+          );
+          return { status: 200, body: body! };
         },
       );
     });
@@ -354,7 +381,10 @@ export class EnvelopePlanApplicationService {
           requestHash,
         },
         async () => {
-          await this.requireManageRole(tx, model.workspaceId, userId);
+          this.access.requireObjectOwner(
+            await requireAccessActor(tx, model.workspaceId, userId),
+            current,
+          );
 
           if (current.archivedAt) {
             throw validationFailed('Конверт уже архивирован.');
@@ -380,9 +410,17 @@ export class EnvelopePlanApplicationService {
           });
 
           const periods = await this.periodsByEnvelope(tx, budgetId, [updated.id], rowBalances);
+          const [body] = await this.bodies(
+            tx,
+            model.workspaceId,
+            userId,
+            [updated],
+            this.totalsByEnvelope(rowBalances),
+            periods,
+          );
           return {
             status: 200,
-            body: this.toBody(updated, this.totalsByEnvelope(rowBalances), periods),
+            body: body!,
           };
         },
       );
@@ -424,18 +462,28 @@ export class EnvelopePlanApplicationService {
     });
   }
 
-  private async requireManageRole(
+  /** Envelope bodies with `owner` and `canEdit`, read together inside the caller's transaction. */
+  private async bodies(
     tx: Prisma.TransactionClient,
     workspaceId: string,
     userId: string,
-  ): Promise<void> {
-    const membership = await tx.workspaceMembership.findFirst({
-      where: { workspaceId, userId, isActive: true },
-      select: { role: true },
-    });
-    if (!membership || !this.rolePolicy.canManage(membership.role)) {
-      throw forbidden();
-    }
+    envelopes: EnvelopePlanRecord[],
+    totals: Map<string, { funded: bigint; spent: bigint; balance: bigint }>,
+    periods: Map<string, EnvelopePeriodBody[]>,
+  ): Promise<EnvelopePlanBody[]> {
+    const [people, actor] = await Promise.all([
+      findPersonRefs(
+        tx,
+        workspaceId,
+        envelopes.map((envelope) => envelope.ownerUserId),
+      ),
+      findAccessActor(tx, workspaceId, userId),
+    ]);
+    return envelopes.map((envelope) => ({
+      ...this.toBody(envelope, totals, periods),
+      owner: personRefOf(people, envelope.ownerUserId),
+      canEdit: actor !== null && this.access.canEditObject(actor, envelope),
+    }));
   }
 
   // Periods with money movement plus the current one, per envelope. The period
@@ -500,7 +548,7 @@ export class EnvelopePlanApplicationService {
     envelope: Awaited<ReturnType<EnvelopePlanRepository['findEnvelope']>>,
     totals: Map<string, { funded: bigint; spent: bigint; balance: bigint }>,
     periods: Map<string, EnvelopePeriodBody[]>,
-  ): EnvelopePlanBody {
+  ): Omit<EnvelopePlanBody, 'owner' | 'canEdit'> {
     const t = totals.get(envelope.id) ?? { funded: 0n, spent: 0n, balance: 0n };
     return {
       id: envelope.id,
