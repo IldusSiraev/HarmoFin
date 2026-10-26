@@ -176,10 +176,11 @@ async function confirm(): Promise<void> {
         />
       </p>
       <p v-if="deleted"><UiStatus label="Удалён" tone="danger" /></p>
-      <p v-if="transfer.createdBy" class="transfer-dialog__author">
-        Автор: {{ authorLabel(transfer.createdBy) }}
-      </p>
       <dl class="transfer-dialog__rows">
+        <div v-if="transfer.createdBy">
+          <dt>Автор</dt>
+          <dd>{{ authorLabel(transfer.createdBy) }}</dd>
+        </div>
         <div>
           <dt>Дата</dt>
           <dd>{{ formatPlainDate(transfer.occurredOn) }}</dd>
@@ -293,11 +294,5 @@ async function confirm(): Promise<void> {
 .transfer-dialog__error {
   margin: 0 0 var(--hf-space-4);
   color: var(--hf-color-text-danger);
-}
-
-.transfer-dialog__author {
-  margin: 0;
-  color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-small);
 }
 </style>

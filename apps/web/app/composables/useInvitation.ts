@@ -19,7 +19,6 @@ export const INVITATION_TERMINAL_ERROR_CODES: ReadonlySet<string> = new Set([
   'INVITATION_ALREADY_ACCEPTED',
   'INVITATION_NOT_FOUND',
   'ALREADY_MEMBER',
-  'MEMBER_LIMIT_REACHED',
 ]);
 
 // Charset only, no length bound: the server schema (16-128 chars) is the

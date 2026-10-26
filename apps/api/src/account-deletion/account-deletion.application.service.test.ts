@@ -40,6 +40,7 @@ function setup(overrides: { passwordOk?: boolean; otherMembers?: number; claimed
     revokeCredentials: vi.fn().mockResolvedValue(undefined),
     createDeletion: vi.fn().mockResolvedValue(undefined),
     audit: vi.fn().mockResolvedValue(undefined),
+    auditMembership: vi.fn().mockResolvedValue(undefined),
     lockOpenDeletionByTokenHash: vi.fn().mockResolvedValue({
       id: 'd1',
       userId: 'u1',
@@ -121,6 +122,14 @@ describe('AccountDeletionApplicationService.requestDeletion', () => {
         }),
       }),
     );
+    expect(repository.auditMembership).toHaveBeenCalledWith(expect.anything(), {
+      userId: 'u1',
+      workspaceId: 'w-foreign',
+      budgetId: 'b-foreign',
+      membershipId: 'm9',
+      action: 'LEFT',
+      requestId: undefined,
+    });
   });
 
   it('rejects a wrong password with a field error and changes nothing', async () => {
@@ -176,7 +185,10 @@ describe('AccountDeletionApplicationService.cancelDeletion', () => {
     expect(repository.reactivateUser).toHaveBeenCalledWith(expect.anything(), 'u1');
     expect(repository.restoreScope).toHaveBeenCalledWith(
       expect.anything(),
+      'u1',
+      NOW,
       expect.objectContaining({ archivedWorkspaceIds: ['w1'], archivedBudgetIds: ['b1'] }),
+      undefined,
     );
     expect(repository.markRestored).toHaveBeenCalledWith(expect.anything(), 'd1', NOW);
     expect(repository.audit).toHaveBeenCalledWith(

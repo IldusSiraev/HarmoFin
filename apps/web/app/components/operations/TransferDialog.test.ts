@@ -92,14 +92,16 @@ describe('TransferDialog', () => {
     expect(wrapper.text()).toContain('Отпуск');
   });
 
-  it('shows the author of the transfer', () => {
+  it('shows the author of the transfer as a row in the details list', () => {
     const wrapper = mountDialog({
       transfer: {
         ...transfer,
         createdBy: { userId: 'u1', displayName: 'Алия', isActiveMember: true },
       },
     });
-    expect(wrapper.text()).toContain('Автор: Алия');
+    const rows = wrapper.findAll('.transfer-dialog__rows > div');
+    const authorRow = rows.find((row) => row.get('dt').text() === 'Автор');
+    expect(authorRow?.get('dd').text()).toBe('Алия');
   });
 
   it('shows no author line when the journal did not send one', () => {

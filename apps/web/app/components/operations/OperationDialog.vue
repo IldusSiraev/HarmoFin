@@ -97,11 +97,11 @@ watch(
         <UiStatus :label="statusLabel" tone="neutral" />
         <UiStatus v-if="planPayment" label="По плану" tone="info" />
       </p>
-      <p v-if="transaction.createdBy" class="operation-dialog__author">
-        Автор: {{ authorLabel(transaction.createdBy) }}
-      </p>
-
       <dl class="operation-dialog__rows">
+        <div v-if="transaction.createdBy">
+          <dt>Автор</dt>
+          <dd>{{ authorLabel(transaction.createdBy) }}</dd>
+        </div>
         <div>
           <dt>Дата</dt>
           <dd>{{ formatPlainDate(transaction.occurredOn) }}</dd>
@@ -261,11 +261,5 @@ watch(
 .operation-dialog__error {
   margin: 0;
   color: var(--hf-color-text-danger);
-}
-
-.operation-dialog__author {
-  margin: 0;
-  color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-small);
 }
 </style>

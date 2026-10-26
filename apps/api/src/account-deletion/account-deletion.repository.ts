@@ -4,6 +4,7 @@ import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { lockActiveWorkspace } from '../family/family.repository.js';
 import { MEMBER_LIMIT } from '../family/invitation.domain.js';
+import { createPersonalWorkspace } from '../family/personal-workspace.js';
 
 export type Tx = Prisma.TransactionClient;
 
@@ -79,7 +80,9 @@ export class AccountDeletionRepository {
   }
 
   /** Deactivates the user's memberships in workspaces they do not own; returns each one's id,
-   * workspace and owner, so the caller can notify the owner and resolve the member's notifications. */
+   * workspace and owner, so the caller can notify the owner and resolve the member's notifications.
+   * Locks each foreign workspace before deactivating its membership row, same lock order as
+   * elsewhere (workspace before membership rows). */
   async deactivateForeignMemberships(
     tx: Tx,
     userId: string,
@@ -90,17 +93,21 @@ export class AccountDeletionRepository {
       where: { userId, isActive: true, workspaceId: { notIn: ownedWorkspaceIds } },
       select: { id: true, workspaceId: true, workspace: { select: { ownerId: true } } },
     });
-    const ids = memberships.map((membership) => membership.id);
-    if (ids.length > 0)
-      await tx.workspaceMembership.updateMany({
-        where: { id: { in: ids } },
+    const deactivated: DeactivatedMembership[] = [];
+    for (const membership of memberships) {
+      await lockActiveWorkspace(tx, membership.workspaceId);
+      const result = await tx.workspaceMembership.updateMany({
+        where: { id: membership.id, isActive: true },
         data: { isActive: false, removedAt: now },
       });
-    return memberships.map((membership) => ({
-      id: membership.id,
-      workspaceId: membership.workspaceId,
-      ownerId: membership.workspace.ownerId,
-    }));
+      if (result.count !== 1) continue;
+      deactivated.push({
+        id: membership.id,
+        workspaceId: membership.workspaceId,
+        ownerId: membership.workspace.ownerId,
+      });
+    }
+    return deactivated;
   }
 
   /** The active budget of a workspace, if any — used to target the MEMBER_LEFT notification. */
@@ -173,14 +180,20 @@ export class AccountDeletionRepository {
     return result.count === 1;
   }
 
-  /** Restores only what the request archived; anything archived earlier stays archived. */
+  /** Restores only what the request archived; anything archived earlier stays archived. Also
+   * ensures the user ends up with at least one active workspace: if every owned workspace stays
+   * archived (full/archived elsewhere) and no foreign membership was reactivated, a fresh personal
+   * workspace is created in the same transaction so restore never leaves the user without one. */
   async restoreScope(
     tx: Tx,
+    userId: string,
+    now: Date,
     scope: {
       archivedWorkspaceIds: string[];
       archivedBudgetIds: string[];
       deactivatedMembershipIds: string[];
     },
+    requestId?: string,
   ): Promise<void> {
     if (scope.archivedWorkspaceIds.length > 0)
       await tx.workspace.updateMany({
@@ -211,8 +224,49 @@ export class AccountDeletionRepository {
           where: { id: membership.id },
           data: { isActive: true, removedAt: null },
         });
+        const budgetId = await this.findActiveBudgetId(tx, membership.workspaceId);
+        await this.auditMembership(tx, {
+          userId,
+          workspaceId: membership.workspaceId,
+          budgetId,
+          membershipId: membership.id,
+          action: 'REACTIVATED',
+          requestId,
+        });
       }
     }
+    const activeMemberships = await tx.workspaceMembership.count({
+      where: { userId, isActive: true, workspace: { status: 'ACTIVE' } },
+    });
+    if (activeMemberships === 0) {
+      await createPersonalWorkspace(tx, userId, now, requestId);
+    }
+  }
+
+  async auditMembership(
+    tx: Tx,
+    input: {
+      userId: string;
+      workspaceId: string;
+      budgetId: string | null;
+      membershipId: string;
+      action: 'LEFT' | 'REACTIVATED';
+      requestId?: string | undefined;
+    },
+  ): Promise<void> {
+    await tx.auditEvent.create({
+      data: {
+        id: createUuidV7(),
+        actorUserId: input.userId,
+        workspaceId: input.workspaceId,
+        budgetId: input.budgetId,
+        entityType: 'workspace_membership',
+        entityId: input.membershipId,
+        action: input.action,
+        source: 'API',
+        requestId: input.requestId ?? null,
+      },
+    });
   }
 
   async markRestored(tx: Tx, deletionId: string, now: Date): Promise<void> {

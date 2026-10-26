@@ -308,6 +308,125 @@ describe('account deletion', () => {
     });
   });
 
+  async function registerViaInvitation(
+    workspaceId: string,
+    invitedByUserId: string,
+  ): Promise<{
+    fixture: Fixture;
+    invitationId: string;
+  }> {
+    const email = `del-zero-member-${randomUUID()}@harmofin.test`;
+    const rawInviteToken = `invite-zero-${randomUUID()}`;
+    const invitation = await prisma.workspaceInvitation.create({
+      data: {
+        id: randomUUID(),
+        workspaceId,
+        email,
+        role: 'EDITOR',
+        tokenHash: digest(rawInviteToken),
+        expiresAt: new Date(Date.now() + 86_400_000),
+        invitedByUserId,
+      },
+    });
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/auth/register',
+      headers: { origin },
+      payload: { email, password, invitationToken: rawInviteToken },
+    });
+    expect(response.statusCode).toBe(201);
+    const body = response.json<{
+      user: { id: string };
+      workspace: { id: string };
+      budget: { id: string };
+      csrfToken: string;
+    }>();
+    const setCookieRaw = response.headers['set-cookie'];
+    const setCookie = Array.isArray(setCookieRaw) ? setCookieRaw.join('; ') : (setCookieRaw ?? '');
+    const cookie = decodeURIComponent(/harmofin_session=([^;]+)/.exec(setCookie)?.[1] ?? '');
+    createdUserIds.push(body.user.id);
+    return {
+      fixture: {
+        email,
+        userId: body.user.id,
+        workspaceId: body.workspace.id,
+        budgetId: body.budget.id,
+        cookie,
+        csrfToken: body.csrfToken,
+      },
+      invitationId: invitation.id,
+    };
+  }
+
+  it('restoring an invited member without an owned workspace never leaves them with zero workspaces, and audits the membership change', async () => {
+    const creator = await register('del-zero-creator');
+    const { fixture: member } = await registerViaInvitation(creator.workspaceId, creator.userId);
+
+    const rawToken = `restore-zero-${randomUUID()}`;
+    await deleteWithKnownToken(member, rawToken);
+    const leftAudit = await prisma.auditEvent.findFirstOrThrow({
+      where: {
+        entityType: 'workspace_membership',
+        action: 'LEFT',
+        workspaceId: creator.workspaceId,
+        actorUserId: member.userId,
+      },
+    });
+    expect(leftAudit.budgetId).toBe(creator.budgetId);
+    expect(JSON.stringify(leftAudit)).not.toContain(member.email);
+
+    // Fill the family to the member limit while the member is gone, so restore cannot
+    // reactivate the foreign membership and must fall back to a fresh personal workspace.
+    const fillerIds: string[] = [];
+    for (let i = 0; i < 9; i += 1) {
+      const filler = await register(`del-restore-zero-filler-${i}`);
+      fillerIds.push(filler.userId);
+      await prisma.workspaceMembership.create({
+        data: {
+          id: randomUUID(),
+          workspaceId: creator.workspaceId,
+          userId: filler.userId,
+          role: 'EDITOR',
+        },
+      });
+    }
+
+    expect((await cancel(rawToken)).statusCode).toBe(204);
+    expect(
+      await prisma.auditEvent.count({
+        where: {
+          entityType: 'workspace_membership',
+          action: 'REACTIVATED',
+          actorUserId: member.userId,
+        },
+      }),
+    ).toBe(0);
+
+    const loginResponse = await login(member);
+    expect(loginResponse.statusCode).toBe(201);
+    const loginSetCookieRaw = loginResponse.headers['set-cookie'];
+    const loginSetCookie = Array.isArray(loginSetCookieRaw)
+      ? loginSetCookieRaw.join('; ')
+      : (loginSetCookieRaw ?? '');
+    const loginCookie = decodeURIComponent(
+      /harmofin_session=([^;]+)/.exec(loginSetCookie)?.[1] ?? '',
+    );
+
+    const me = await server.inject({
+      method: 'GET',
+      url: '/api/v1/me',
+      headers: { cookie: `harmofin_session=${encodeURIComponent(loginCookie)}` },
+    });
+    expect(me.statusCode).toBe(200);
+    const meBody = me.json<{ workspaces: Array<{ id: string; isCreator: boolean }> }>();
+    expect(meBody.workspaces).toHaveLength(1);
+    expect(meBody.workspaces[0]).toMatchObject({ isCreator: true });
+
+    await prisma.workspaceMembership.deleteMany({
+      where: { workspaceId: creator.workspaceId, userId: { in: fillerIds } },
+    });
+  });
+
   it('closes access at once and schedules the purge in 30 days', async () => {
     const fixture = await register('del-ok');
     const before = Date.now();

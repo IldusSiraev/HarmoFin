@@ -77,13 +77,15 @@ describe('OperationDialog', () => {
     wrapper.unmount();
   });
 
-  it('shows the author of the operation', async () => {
+  it('shows the author of the operation as a row in the details list', async () => {
     const wrapper = mountDialog({
       createdBy: { userId: 'u1', displayName: 'Алия', isActiveMember: true },
     });
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Автор: Алия');
+    const rows = wrapper.findAll('.operation-dialog__rows > div');
+    const authorRow = rows.find((row) => row.get('dt').text() === 'Автор');
+    expect(authorRow?.get('dd').text()).toBe('Алия');
     wrapper.unmount();
   });
 

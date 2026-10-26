@@ -295,6 +295,22 @@ describe('invite page', () => {
       expect(sessionStorage.getItem('harmofin-invite-token')).toBe('a-valid-invite-token-value');
     });
 
+    it('shows the member-limit message and keeps the token so /invite can be retried later', async () => {
+      mocks.currentUser.value = { id: 'u1', email: 'a@b.test', displayName: 'Анна' };
+      mocks.loadMe.mockResolvedValue({});
+      mocks.preview.mockResolvedValue(invitationPreview);
+      mocks.accept.mockRejectedValue(
+        new ApiRequestError(409, { code: 'MEMBER_LIMIT_REACHED', detail: 'Семья заполнена.' }),
+      );
+      const wrapper = mountPage();
+      await flushPromises();
+      await wrapper.get('button').trigger('click');
+      await flushPromises();
+
+      expect(wrapper.text()).toContain('Семья заполнена.');
+      expect(sessionStorage.getItem('harmofin-invite-token')).toBe('a-valid-invite-token-value');
+    });
+
     it('shows the already-a-member message with a link to the app', async () => {
       mocks.currentUser.value = { id: 'u1', email: 'a@b.test', displayName: 'Анна' };
       mocks.loadMe.mockResolvedValue({});

@@ -64,6 +64,14 @@ export class AccountDeletionApplicationService {
           tx,
           membership.workspaceId,
         );
+        await this.repository.auditMembership(tx, {
+          userId,
+          workspaceId: membership.workspaceId,
+          budgetId: foreignBudgetId,
+          membershipId: membership.id,
+          action: 'LEFT',
+          requestId: meta.requestId,
+        });
         if (foreignBudgetId) {
           await createAccessNotification(tx, {
             workspaceId: membership.workspaceId,
@@ -125,7 +133,7 @@ export class AccountDeletionApplicationService {
       );
       if (!deletion) throw invalidRestoreToken();
       if (!(await this.repository.reactivateUser(tx, deletion.userId))) throw invalidRestoreToken();
-      await this.repository.restoreScope(tx, deletion);
+      await this.repository.restoreScope(tx, deletion.userId, now, deletion, meta.requestId);
       await this.repository.markRestored(tx, deletion.id, now);
       await this.repository.audit(tx, {
         userId: deletion.userId,
