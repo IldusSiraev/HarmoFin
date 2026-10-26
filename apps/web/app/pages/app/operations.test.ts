@@ -54,6 +54,10 @@ const reference = {
   envelopes: ref([{ value: 'envelope-id', label: 'Текущие' }]),
   load: vi.fn(),
 };
+const family = {
+  members: ref<Array<{ userId: string; displayName: string | null; email: string }>>([]),
+  load: vi.fn(),
+};
 
 const { routeQuery } = vi.hoisted(() => ({ routeQuery: {} as Record<string, string> }));
 
@@ -74,6 +78,7 @@ vi.mock('../../composables/useEnvelopePlanV2.js', async (importOriginal) => ({
 vi.mock('../../composables/useOperationReferenceData.js', () => ({
   useOperationReferenceData: () => reference,
 }));
+vi.mock('../../composables/useFamily.js', () => ({ useFamily: () => family }));
 
 import { ApiRequestError } from '../../composables/useApiClient.js';
 import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
@@ -179,6 +184,8 @@ describe('operations page (v2 journal)', () => {
     v2.getTransaction.mockResolvedValue(expense);
     v1.listTransactionAudit.mockResolvedValue([]);
     reference.load.mockResolvedValue(undefined);
+    family.members.value = [];
+    family.load.mockResolvedValue(undefined);
     useToast().clear();
   });
 
@@ -569,6 +576,36 @@ describe('operations page (v2 journal)', () => {
     expect(wrapper!.find('[data-testid="transfer-row-edit"]').exists()).toBe(false);
     expect(wrapper!.find('[data-testid="transfer-row-delete"]').exists()).toBe(false);
     expect(wrapper!.find('[data-testid="transfer-row-restore"]').exists()).toBe(true);
+  });
+
+  it('hides the author filter and row label for a single-member family', async () => {
+    family.members.value = [{ userId: 'owner-id', displayName: 'Иван', email: 'owner@harmofin.test' }];
+    withItems(expense);
+    mountPage();
+    await flushPromises();
+
+    expect(wrapper!.find('[data-testid="chip-createdByUserId"]').exists()).toBe(false);
+    expect(wrapper!.text()).not.toContain('Иван');
+  });
+
+  it('offers an author filter once the family has more than one member, and sends the pick to the journal', async () => {
+    family.members.value = [
+      { userId: 'owner-id', displayName: 'Иван', email: 'owner@harmofin.test' },
+      { userId: 'editor-id', displayName: 'Алия', email: 'editor@harmofin.test' },
+    ];
+    withItems({ ...expense, createdBy: { userId: 'editor-id', displayName: 'Алия', isActiveMember: true } });
+    mountPage();
+    await flushPromises();
+
+    expect(wrapper!.text()).toContain('Алия');
+    await wrapper!.get('[data-testid="chip-createdByUserId"]').trigger('click');
+    await wrapper!.get('[data-testid="chip-option-createdByUserId-editor-id"]').trigger('click');
+    await flushPromises();
+
+    expect(v2.listJournal).toHaveBeenLastCalledWith(
+      'budget-id',
+      expect.objectContaining({ createdByUserId: 'editor-id' }),
+    );
   });
 
   it('passes the transfer type filter to the feed', async () => {

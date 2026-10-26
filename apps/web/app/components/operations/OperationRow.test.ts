@@ -26,7 +26,10 @@ const expense: TransactionJournalV2Item = {
   createdAt: '2026-09-14T10:00:00.000Z',
 };
 
-const mountRow = (overrides: Partial<TransactionJournalV2Item> = {}) =>
+const mountRow = (
+  overrides: Partial<TransactionJournalV2Item> = {},
+  showAuthor = false,
+) =>
   mount(OperationRow, {
     props: {
       transaction: { ...expense, ...overrides },
@@ -34,6 +37,7 @@ const mountRow = (overrides: Partial<TransactionJournalV2Item> = {}) =>
       categoryIcon: 'shopping-cart',
       accountName: 'Основная карта',
       envelopeName: 'Текущие',
+      showAuthor,
     },
   });
 
@@ -88,6 +92,13 @@ describe('OperationRow', () => {
 
   it('shows no allocation leftovers of the old model', () => {
     expect(mountRow({ transactionType: 'INCOME' }).text()).not.toContain('Не распределено');
+  });
+
+  it('shows the author only when the page asks for it', () => {
+    const createdBy = { userId: 'u1', displayName: 'Алия', isActiveMember: true };
+
+    expect(mountRow({ createdBy }, true).text()).toContain('Алия');
+    expect(mountRow({ createdBy }, false).text()).not.toContain('Алия');
   });
 
   it('selects the operation when the row is pressed', async () => {

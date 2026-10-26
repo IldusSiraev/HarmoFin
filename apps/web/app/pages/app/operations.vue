@@ -23,6 +23,7 @@ import UiSkeleton from '../../components/ui/Skeleton.vue';
 import { ApiRequestError } from '../../composables/useApiClient.js';
 import { useActiveWorkspace } from '../../composables/useActiveWorkspace.js';
 import { useAuth } from '../../composables/useAuth.js';
+import { useFamily } from '../../composables/useFamily.js';
 import {
   useEnvelopePlanV2,
   type JournalItem,
@@ -85,7 +86,7 @@ const confirmation = ref<null | {
 }>(null);
 let requestVersion = 0;
 
-const { role, budget } = useActiveWorkspace();
+const { role, budget, workspace } = useActiveWorkspace();
 const isOwner = computed(() => role.value === 'OWNER');
 // Recording, editing, deleting and restoring operations and transfers need
 // OWNER or EDITOR on the server; a viewer only reads the journal.
@@ -93,6 +94,19 @@ const { canWrite } = usePermissions();
 // Accounts, categories and envelopes come from the shared cache the global add
 // dialogs already use, so opening the journal does not re-read them every time.
 const { accounts, categories, envelopes, load: loadReferenceData } = useOperationReferenceData();
+// The author column and filter only earn their place once there is more than
+// one person who could have recorded a row.
+const workspaceId = computed(() => workspace.value?.id);
+const family = useFamily(workspaceId);
+const showAuthor = computed(() => family.members.value.length > 1);
+const authorOptions = computed(() =>
+  showAuthor.value
+    ? family.members.value.map((member) => ({
+        value: member.userId,
+        label: member.displayName ?? member.email,
+      }))
+    : [],
+);
 
 const categoryOptions = computed(() =>
   categories.value.map((category) => ({ value: category.id, label: category.name })),
@@ -161,6 +175,9 @@ const confirmationCopy = computed(() => {
 onMounted(() => {
   hydrated.value = true;
   void load();
+  // The author filter is a nice-to-have: a failure here must not block the
+  // journal itself, so it is never awaited into the journal's own try/catch.
+  void family.load().catch(() => {});
 });
 
 // The quick-add and transfer dialogs live in the layout now, so the journal
@@ -437,6 +454,7 @@ async function downloadCsv() {
           :categories="categoryOptions"
           :envelopes="envelopes"
           :can-view-deleted="isOwner"
+          :authors="authorOptions"
           @change="onFilterChange"
           @reset="onReset"
         />
@@ -472,6 +490,7 @@ async function downloadCsv() {
                 v-if="isTransfer(item)"
                 :transfer="item"
                 v-bind="transferRoute(item)"
+                :show-author="showAuthor"
                 @select="openTransfer(item, 'view')"
               >
                 <template v-if="hasTransferActions(item)" #actions>
@@ -513,6 +532,7 @@ async function downloadCsv() {
                 :category-icon="categoryIcon(item)"
                 :account-name="accountName(item)"
                 :envelope-name="envelopeName(item)"
+                :show-author="showAuthor"
                 @select="detailed = item"
               >
                 <template v-if="hasRowActions(item)" #actions>

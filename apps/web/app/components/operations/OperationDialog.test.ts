@@ -77,6 +77,24 @@ describe('OperationDialog', () => {
     wrapper.unmount();
   });
 
+  it('shows the author of the operation', async () => {
+    const wrapper = mountDialog({
+      createdBy: { userId: 'u1', displayName: 'Алия', isActiveMember: true },
+    });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Автор: Алия');
+    wrapper.unmount();
+  });
+
+  it('shows no author line when the journal did not send one', async () => {
+    const wrapper = mountDialog();
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain('Автор');
+    wrapper.unmount();
+  });
+
   it('loads only the audit history when it opens, no allocations', async () => {
     const wrapper = mountDialog();
     await flushPromises();

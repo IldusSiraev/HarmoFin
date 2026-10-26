@@ -12,6 +12,7 @@ const filters: OperationFilters = {
   accountId: '',
   categoryId: '',
   envelopeId: '',
+  createdByUserId: '',
 };
 
 const options = [
@@ -19,7 +20,11 @@ const options = [
   { value: 'second-account-id', label: 'Наличные' },
 ];
 
-const mountToolbar = (overrides: Partial<OperationFilters> = {}, canViewDeleted = true) =>
+const mountToolbar = (
+  overrides: Partial<OperationFilters> = {},
+  canViewDeleted = true,
+  authors: Array<{ value: string; label: string }> = [],
+) =>
   mount(OperationsToolbar, {
     attachTo: document.body,
     props: {
@@ -28,6 +33,7 @@ const mountToolbar = (overrides: Partial<OperationFilters> = {}, canViewDeleted 
       categories: [{ value: 'category-id', label: 'Продукты' }],
       envelopes: [{ value: 'envelope-id', label: 'Текущие' }],
       canViewDeleted,
+      authors,
     },
   });
 
@@ -174,6 +180,24 @@ describe('OperationsToolbar', () => {
     await wrapper.get('[data-testid="chip-clear"]').trigger('click');
 
     expect(wrapper.emitted('change')).toEqual([['categoryId', '']]);
+  });
+
+  it('hides the author chip in a single-member family', () => {
+    expect(mountToolbar().find('[data-testid="chip-createdByUserId"]').exists()).toBe(false);
+  });
+
+  it('offers an author chip once the family has more than one member', async () => {
+    const authors = [
+      { value: 'u1', label: 'Алия' },
+      { value: 'u2', label: 'Марат' },
+    ];
+    const wrapper = mountToolbar({}, true, authors);
+
+    expect(wrapper.find('[data-testid="chip-createdByUserId"]').exists()).toBe(true);
+    await wrapper.get('[data-testid="chip-createdByUserId"]').trigger('click');
+    await wrapper.get('[data-testid="chip-option-createdByUserId-u1"]').trigger('click');
+
+    expect(wrapper.emitted('change')).toEqual([['createdByUserId', 'u1']]);
   });
 
   it('offers a reset only while some filter is set', async () => {

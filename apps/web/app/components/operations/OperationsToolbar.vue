@@ -10,14 +10,20 @@ defineOptions({ name: 'OperationsToolbar' });
 
 type Option = { value: string; label: string };
 
-const props = defineProps<{
-  filters: OperationFilters;
-  accounts: ReadonlyArray<Option>;
-  categories: ReadonlyArray<Option>;
-  envelopes: ReadonlyArray<Option>;
-  // Deleted operations are visible to the owner only: the API answers 403 otherwise.
-  canViewDeleted: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    filters: OperationFilters;
+    accounts: ReadonlyArray<Option>;
+    categories: ReadonlyArray<Option>;
+    envelopes: ReadonlyArray<Option>;
+    // Deleted operations are visible to the owner only: the API answers 403 otherwise.
+    canViewDeleted: boolean;
+    // Empty in a single-member family: the page then hides the chip rather
+    // than offering a filter with only one possible value.
+    authors?: ReadonlyArray<Option>;
+  }>(),
+  { authors: () => [] },
+);
 
 const emit = defineEmits<{
   change: [key: keyof OperationFilters, value: string];
@@ -45,6 +51,7 @@ const chips = computed<FilterBarChip[]>(() => [
   { key: 'categoryId', label: 'Категория', options: props.categories },
   { key: 'envelopeId', label: 'Конверт', options: props.envelopes },
   { key: 'status', label: 'Статус', options: statusOptions.value },
+  { key: 'createdByUserId', label: 'Автор', options: props.authors },
 ]);
 
 const chipValues = computed<Record<string, string>>(() => ({
@@ -52,6 +59,7 @@ const chipValues = computed<Record<string, string>>(() => ({
   categoryId: props.filters.categoryId,
   envelopeId: props.filters.envelopeId,
   status: props.filters.status,
+  createdByUserId: props.filters.createdByUserId,
 }));
 
 const canReset = computed(() => Object.values(props.filters).some((value) => value !== ''));

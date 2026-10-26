@@ -92,6 +92,18 @@ describe('TransferDialog', () => {
     expect(wrapper.text()).toContain('Отпуск');
   });
 
+  it('shows the author of the transfer', () => {
+    const wrapper = mountDialog({
+      transfer: { ...transfer, createdBy: { userId: 'u1', displayName: 'Алия', isActiveMember: true } },
+    });
+    expect(wrapper.text()).toContain('Автор: Алия');
+  });
+
+  it('shows no author line when the journal did not send one', () => {
+    const wrapper = mountDialog();
+    expect(wrapper.text()).not.toContain('Автор');
+  });
+
   it('edits: submits only changed fields and emits changed', async () => {
     mutations.update.mockResolvedValueOnce({ ...transfer, comment: 'Новое' });
     const wrapper = mountDialog();

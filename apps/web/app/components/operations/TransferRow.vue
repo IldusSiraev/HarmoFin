@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { ArrowLeftRight } from '@lucide/vue';
 
+import { authorLabel } from './author-label.js';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiListRow from '../ui/ListRow.vue';
 import UiStatus from '../ui/Status.vue';
@@ -10,11 +11,17 @@ import { formatPlainDate } from '../obligations/format-plain-date.js';
 
 defineOptions({ name: 'TransferRow' });
 
-const props = defineProps<{
-  transfer: TransferJournalItem;
-  sourceName: string;
-  destinationName: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    transfer: TransferJournalItem;
+    sourceName: string;
+    destinationName: string;
+    // Hidden by the page while the family has only one member: a single-author
+    // filter chip and label would be pure noise then.
+    showAuthor?: boolean;
+  }>(),
+  { showAuthor: false },
+);
 
 defineEmits<{ select: [] }>();
 
@@ -47,6 +54,9 @@ const rowLabel = computed(
         :scale="SCALE"
       />
       <span class="transfer-row__subtitle transfer-row__placement">{{ route }}</span>
+      <span v-if="showAuthor && transfer.createdBy" class="transfer-row__author">
+        {{ authorLabel(transfer.createdBy) }}
+      </span>
     </template>
 
     <template v-if="$slots.actions" #actions><slot name="actions" /></template>
@@ -80,6 +90,16 @@ const rowLabel = computed(
 .transfer-row__amount {
   color: var(--hf-color-text);
   font-weight: var(--hf-font-weight-semibold);
+  white-space: nowrap;
+}
+
+.transfer-row__author {
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-caption);
+  line-height: var(--hf-line-height-caption);
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 </style>

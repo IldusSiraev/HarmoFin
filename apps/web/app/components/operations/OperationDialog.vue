@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 
 import { auditActionLabel, auditActorName, formatAuditMoment } from './audit-event.js';
+import { authorLabel } from './author-label.js';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiButton from '../ui/Button.vue';
 import UiModal from '../ui/Modal.vue';
@@ -95,6 +96,9 @@ watch(
       <p class="operation-dialog__badges">
         <UiStatus :label="statusLabel" tone="neutral" />
         <UiStatus v-if="planPayment" label="По плану" tone="info" />
+      </p>
+      <p v-if="transaction.createdBy" class="operation-dialog__author">
+        Автор: {{ authorLabel(transaction.createdBy) }}
       </p>
 
       <dl class="operation-dialog__rows">
@@ -257,5 +261,11 @@ watch(
 .operation-dialog__error {
   margin: 0;
   color: var(--hf-color-text-danger);
+}
+
+.operation-dialog__author {
+  margin: 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
 }
 </style>

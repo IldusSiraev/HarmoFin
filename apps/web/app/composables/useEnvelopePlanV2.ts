@@ -379,6 +379,15 @@ export interface TransactionV2Response {
 
 export type TransactionV2Status = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED';
 
+// The journal feed names who recorded each row; other reads of a transaction
+// (a single fetch, a lifecycle response) do not carry it, so the field stays
+// optional on the shared item type instead of forking it into a journal-only type.
+export interface AuthorRef {
+  userId: string;
+  displayName: string | null;
+  isActiveMember: boolean;
+}
+
 // One journal row.
 export interface TransactionJournalV2Item {
   id: string;
@@ -400,6 +409,7 @@ export interface TransactionJournalV2Item {
   cancelledAt: string | null;
   deletedAt: string | null;
   createdAt: string;
+  createdBy?: AuthorRef;
 }
 
 export interface TransactionJournalV2Response {
@@ -419,6 +429,7 @@ export interface TransactionJournalV2Query {
   accountId?: string;
   categoryId?: string;
   envelopeId?: string;
+  createdByUserId?: string;
 }
 
 // Shared journal feed: v2 transactions and direct transfers in one order.
@@ -435,6 +446,9 @@ export interface TransferJournalItem {
   comment: string | null;
   createdAt: string;
   deletedAt: string | null;
+  // Present on journal rows only, like `TransactionJournalV2Item.createdBy`;
+  // a transfer mutation response does not carry it.
+  createdBy?: AuthorRef;
 }
 
 export type TransactionFeedItem = { kind: 'TRANSACTION' } & TransactionJournalV2Item;
