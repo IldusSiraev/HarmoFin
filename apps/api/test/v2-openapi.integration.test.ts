@@ -741,8 +741,10 @@ describe('v2 OpenAPI contract (P06)', () => {
   it('v1 и v2 не делят DTO с конфликтующим смыслом', () => {
     const v1Names = reachable(v1Ops);
     const v2Names = reachable(v2Ops);
-    // Общими могут быть только нейтральные контракты ошибок.
-    const allowed = new Set(['ProblemDetailsResponse', 'FieldErrorResponse']);
+    // Общими могут быть только нейтральные контракты ошибок и ссылка на участника семьи
+    // (`PersonRefResponse`/`AuthorRefResponse`), которая намеренно живёт в `common/people`
+    // и переиспользуется v1 и v2 контроллерами (family access, этап B).
+    const allowed = new Set(['ProblemDetailsResponse', 'FieldErrorResponse', 'AuthorRefResponse']);
     const shared = [...v2Names].filter((name) => v1Names.has(name) && !allowed.has(name));
     expect(shared).toEqual([]);
   });

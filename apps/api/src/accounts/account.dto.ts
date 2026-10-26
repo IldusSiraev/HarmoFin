@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+import { PersonRefResponse } from '../common/people/person-ref.dto.js';
+
 export class CreateAccountRequest {
   @ApiProperty({ type: String, minLength: 1, maxLength: 120 })
   name!: string;
@@ -88,6 +90,16 @@ export class AccountResponse {
 
   @ApiProperty({ type: String, nullable: true, format: 'date-time' })
   archivedAt!: string | null;
+
+  @ApiProperty({ type: PersonRefResponse })
+  owner!: PersonRefResponse;
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'Подсказка для интерфейса: текущий пользователь может изменять счёт. Право проверяет сервер.',
+  })
+  canEdit!: boolean;
 }
 
 export class AccountSummaryResponse {

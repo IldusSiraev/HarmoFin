@@ -33,11 +33,17 @@ export const updateAccountSchema = z
   });
 
 export const listAccountsSchema = z
-  .object({ status: z.enum(['active', 'archived', 'all']).default('active') })
+  .object({
+    status: z.enum(['active', 'archived', 'all']).default('active'),
+    ownerUserId: z.string().uuid().optional(),
+  })
   .strict();
 
 export const accountSummarySchema = z
-  .object({ status: z.enum(['active', 'archived', 'all']).default('active') })
+  .object({
+    status: z.enum(['active', 'archived', 'all']).default('active'),
+    ownerUserId: z.string().uuid().optional(),
+  })
   .strict();
 
 export type CreateAccountInput = z.output<typeof createAccountSchema>;

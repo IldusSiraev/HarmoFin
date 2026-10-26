@@ -1,7 +1,6 @@
 import { AccountType } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
-import { RolePolicy } from '../common/policies/role-policy.js';
 import { AccountApplicationService } from './account.application.service.js';
 import type { AccountRecord, AccountRepository } from './account.repository.js';
 import type { CreateAccountInput } from './account.schemas.js';
@@ -9,6 +8,7 @@ import type { CreateAccountInput } from './account.schemas.js';
 describe('AccountApplicationService', () => {
   const ownerId = '00000000-0000-4000-8000-000000000001';
   const budgetId = '00000000-0000-4000-8000-000000000002';
+  const workspaceId = '00000000-0000-4000-8000-000000000003';
 
   it('uses signed starting balance only when settings allow it', async () => {
     const repository = repositoryDouble();
@@ -33,7 +33,21 @@ describe('AccountApplicationService', () => {
       expect.objectContaining({ budgetId, startingBalanceMinor: -100n }),
       undefined,
       undefined, // v1 budget (planModelVersion !== 2): no unbacked-money guard
+      expect.any(Function), // ownership/writer authorize callback
     );
+  });
+
+  it('runs the ownership authorize callback before writing an update', async () => {
+    const repository = repositoryDouble();
+    const service = createService(repository);
+    repository.findAccessibleWithRole.mockResolvedValue(ownerBudget());
+    repository.update.mockResolvedValue(account());
+
+    await service.update(ownerId, budgetId, 'account-id', { name: 'Переименован' });
+
+    expect(repository.update).toHaveBeenCalledTimes(1);
+    const authorize = repository.update.mock.calls[0]![6];
+    expect(authorize).toBeTypeOf('function');
   });
 
   it('maps invalid starting balance to a field error', async () => {
@@ -84,7 +98,7 @@ describe('AccountApplicationService', () => {
       totalMinor: '100000',
       count: 2,
     });
-    expect(repository.list).toHaveBeenCalledWith(ownerId, budgetId, 'active');
+    expect(repository.list).toHaveBeenCalledWith(ownerId, budgetId, 'active', undefined);
   });
 
   it('reports zero for a budget without accounts', async () => {
@@ -113,25 +127,28 @@ describe('AccountApplicationService', () => {
   });
 
   function createService(repository: ReturnType<typeof repositoryDouble>) {
-    return new AccountApplicationService(
-      repository as unknown as AccountRepository,
-      new RolePolicy(),
-    );
+    return new AccountApplicationService(repository as unknown as AccountRepository);
   }
 
   function repositoryDouble() {
     return {
       findAccessibleWithRole: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
+      archive: vi.fn(),
+      restore: vi.fn(),
+      find: vi.fn(),
       list: vi.fn(),
+      personRefs: vi.fn().mockResolvedValue(new Map()),
     };
   }
 
   function ownerBudget(overrides: Partial<{ allowNegativeBalance: boolean }> = {}) {
     return {
       id: budgetId,
-      workspaceId: '00000000-0000-4000-8000-000000000003',
+      workspaceId,
       allowNegativeBalance: false,
+      planModelVersion: 1,
       workspace: { memberships: [{ role: 'OWNER' }] },
       ...overrides,
     };
@@ -155,6 +172,7 @@ describe('AccountApplicationService', () => {
     return {
       id: '00000000-0000-4000-8000-000000000004',
       budgetId,
+      ownerUserId: ownerId,
       name: '�������� ����',
       accountType: AccountType.BANK_ACCOUNT,
       bankName: '����',
