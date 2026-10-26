@@ -89,37 +89,53 @@ describe('v2 envelope assignments: assignFree', () => {
       },
     });
 
-    await createAccount(ctx.owner?.budgetId, 10_000_000n);
-    ownerEnvelopeA = await createEnvelope(ctx.owner?.budgetId, 'A');
-    ownerEnvelopeB = await createEnvelope(ctx.owner?.budgetId, 'B');
-    ownerEnvelopeC = await createEnvelope(ctx.owner?.budgetId, 'C');
+    await createAccount(ctx.owner?.budgetId, ctx.owner?.userId, 10_000_000n);
+    ownerEnvelopeA = await createEnvelope(ctx.owner?.budgetId, ctx.owner?.userId, 'A');
+    ownerEnvelopeB = await createEnvelope(ctx.owner?.budgetId, ctx.owner?.userId, 'B');
+    ownerEnvelopeC = await createEnvelope(ctx.owner?.budgetId, ctx.owner?.userId, 'C');
 
     const outsiderBudgetId = ctx.outsider?.budgetId;
-    outsiderAccountId = await createAccount(outsiderBudgetId, 10_000_000n);
+    outsiderAccountId = await createAccount(outsiderBudgetId, ctx.outsider?.userId, 10_000_000n);
     outsiderCategoryId = await createCategory(outsiderBudgetId, 'Расходы', 'EXPENSE');
-    outsiderEnvelopeH = await createEnvelope(outsiderBudgetId, 'H');
-    outsiderEnvelopeG = await createEnvelope(outsiderBudgetId, 'G');
+    outsiderEnvelopeH = await createEnvelope(outsiderBudgetId, ctx.outsider?.userId, 'H');
+    outsiderEnvelopeG = await createEnvelope(outsiderBudgetId, ctx.outsider?.userId, 'G');
 
     const openingAfterBudgetId = ctx.openingAfter?.budgetId;
-    openingAfterAccountId = await createAccount(openingAfterBudgetId, 10_000_000n);
+    openingAfterAccountId = await createAccount(
+      openingAfterBudgetId,
+      ctx.openingAfter?.userId,
+      10_000_000n,
+    );
     openingAfterCategoryId = await createCategory(openingAfterBudgetId, 'Расходы', 'EXPENSE');
-    openingAfterEnvelopeK = await createEnvelope(openingAfterBudgetId, 'K');
-    openingAfterEnvelopeL = await createEnvelope(openingAfterBudgetId, 'L');
+    openingAfterEnvelopeK = await createEnvelope(
+      openingAfterBudgetId,
+      ctx.openingAfter?.userId,
+      'K',
+    );
+    openingAfterEnvelopeL = await createEnvelope(
+      openingAfterBudgetId,
+      ctx.openingAfter?.userId,
+      'L',
+    );
 
     const coverageBudgetId = ctx.coverage?.budgetId;
-    coverageAccountId = await createAccount(coverageBudgetId, 10_000_000n);
+    coverageAccountId = await createAccount(coverageBudgetId, ctx.coverage?.userId, 10_000_000n);
     coverageCategoryId = await createCategory(coverageBudgetId, 'Расходы', 'EXPENSE');
-    coverageEnvelopeD = await createEnvelope(coverageBudgetId, 'D');
+    coverageEnvelopeD = await createEnvelope(coverageBudgetId, ctx.coverage?.userId, 'D');
 
     const spendAfterBudgetId = ctx.spendAfter?.budgetId;
-    spendAfterAccountId = await createAccount(spendAfterBudgetId, 10_000_000n);
+    spendAfterAccountId = await createAccount(
+      spendAfterBudgetId,
+      ctx.spendAfter?.userId,
+      10_000_000n,
+    );
     spendAfterCategoryId = await createCategory(spendAfterBudgetId, 'Расходы', 'EXPENSE');
-    spendAfterEnvelopeJ = await createEnvelope(spendAfterBudgetId, 'J');
+    spendAfterEnvelopeJ = await createEnvelope(spendAfterBudgetId, ctx.spendAfter?.userId, 'J');
 
     const decimalsBudgetId = ctx.decimals?.budgetId;
-    await createAccount(decimalsBudgetId, 10_000_000n);
+    await createAccount(decimalsBudgetId, ctx.decimals?.userId, 10_000_000n);
     await createCategory(decimalsBudgetId, 'Расходы', 'EXPENSE');
-    decimalsEnvelopeP = await createEnvelope(decimalsBudgetId, 'P');
+    decimalsEnvelopeP = await createEnvelope(decimalsBudgetId, ctx.decimals?.userId, 'P');
 
     service = new AssignmentApplicationService(
       new PrismaService(databaseUrl),
@@ -262,6 +278,7 @@ describe('v2 envelope assignments: assignFree', () => {
         type: 'OPENING',
         amountMinor: 1_000_000n,
         effectiveOn: d(-10),
+        createdByUserId: ctx.coverage!.userId,
       },
     });
     await createExpense(
@@ -378,10 +395,10 @@ describe('v2 envelope assignments: assignFree', () => {
 describe('v2 envelope assignments: assignIncome', () => {
   beforeAll(async () => {
     const incomeBudgetId = ctx.income?.budgetId;
-    incomeAccountId = await createAccount(incomeBudgetId, 0n);
+    incomeAccountId = await createAccount(incomeBudgetId, ctx.income?.userId, 0n);
     incomeCategoryId = await createCategory(incomeBudgetId, 'Доход', 'INCOME');
-    incomeEnvelopeM1 = await createEnvelope(incomeBudgetId, 'M1');
-    incomeEnvelopeM2 = await createEnvelope(incomeBudgetId, 'M2');
+    incomeEnvelopeM1 = await createEnvelope(incomeBudgetId, ctx.income?.userId, 'M1');
+    incomeEnvelopeM2 = await createEnvelope(incomeBudgetId, ctx.income?.userId, 'M2');
     incomeTxId = await createIncome(
       incomeBudgetId,
       incomeAccountId!,
@@ -406,9 +423,17 @@ describe('v2 envelope assignments: assignIncome', () => {
     });
 
     const concurrentBudgetId = ctx.incomeConcurrent?.budgetId;
-    concurrencyAccountId = await createAccount(concurrentBudgetId, 0n);
+    concurrencyAccountId = await createAccount(
+      concurrentBudgetId,
+      ctx.incomeConcurrent?.userId,
+      0n,
+    );
     concurrencyCategoryId = await createCategory(concurrentBudgetId, 'Доход', 'INCOME');
-    concurrencyEnvelopeM3 = await createEnvelope(concurrentBudgetId, 'M3');
+    concurrencyEnvelopeM3 = await createEnvelope(
+      concurrentBudgetId,
+      ctx.incomeConcurrent?.userId,
+      'M3',
+    );
     concurrencyIncomeId = await createIncome(
       concurrentBudgetId,
       concurrencyAccountId!,
@@ -419,10 +444,10 @@ describe('v2 envelope assignments: assignIncome', () => {
     );
 
     const accessBudgetId = ctx.incomeAccess?.budgetId;
-    accessAccountId = await createAccount(accessBudgetId, 0n);
+    accessAccountId = await createAccount(accessBudgetId, ctx.incomeAccess?.userId, 0n);
     accessIncomeCategory = await createCategory(accessBudgetId, 'Доход', 'INCOME');
     accessExpenseCategory = await createCategory(accessBudgetId, 'Расходы', 'EXPENSE');
-    accessEnvelopeM4 = await createEnvelope(accessBudgetId, 'M4');
+    accessEnvelopeM4 = await createEnvelope(accessBudgetId, ctx.incomeAccess?.userId, 'M4');
     draftIncomeId = await createIncome(
       accessBudgetId,
       accessAccountId!,
@@ -645,10 +670,10 @@ describe('v2 envelope assignments: assignIncome', () => {
 describe('v2 envelope assignments: revise/cancel', () => {
   beforeAll(async () => {
     const reviseBudgetId = ctx.revise?.budgetId;
-    reviseAccountId = await createAccount(reviseBudgetId, 0n);
+    reviseAccountId = await createAccount(reviseBudgetId, ctx.revise?.userId, 0n);
     reviseCategoryId = await createCategory(reviseBudgetId, 'Доход', 'INCOME');
-    reviseEnvelopeN1 = await createEnvelope(reviseBudgetId, 'N1');
-    reviseEnvelopeN2 = await createEnvelope(reviseBudgetId, 'N2');
+    reviseEnvelopeN1 = await createEnvelope(reviseBudgetId, ctx.revise?.userId, 'N1');
+    reviseEnvelopeN2 = await createEnvelope(reviseBudgetId, ctx.revise?.userId, 'N2');
     reviseIncomeId = await createIncome(
       reviseBudgetId,
       reviseAccountId!,
@@ -659,9 +684,9 @@ describe('v2 envelope assignments: revise/cancel', () => {
     );
 
     const depsBudgetId = ctx.deps?.budgetId;
-    depsAccountId = await createAccount(depsBudgetId, 0n);
+    depsAccountId = await createAccount(depsBudgetId, ctx.deps?.userId, 0n);
     depsCategoryId = await createCategory(depsBudgetId, 'Доход', 'INCOME');
-    depsEnvelopeN3 = await createEnvelope(depsBudgetId, 'N3');
+    depsEnvelopeN3 = await createEnvelope(depsBudgetId, ctx.deps?.userId, 'N3');
     depsIncomeId = await createIncome(
       depsBudgetId,
       depsAccountId!,
@@ -808,6 +833,7 @@ describe('v2 envelope assignments: revise/cancel', () => {
         amountMinor: 500_000n,
         effectiveOn: d(0),
         status: 'CONFIRMED',
+        createdByUserId: user.userId,
       },
     });
 
@@ -977,12 +1003,18 @@ async function register(email: string): Promise<RegisteredUser> {
   };
 }
 
-async function createAccount(budgetId: string | undefined, startingMinor: bigint): Promise<string> {
+async function createAccount(
+  budgetId: string | undefined,
+  ownerUserId: string | undefined,
+  startingMinor: bigint,
+): Promise<string> {
   if (!budgetId) throw new Error('Budget missing');
+  if (!ownerUserId) throw new Error('Owner missing');
   const account = await prisma.account.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: 'Основной счёт',
       accountType: 'BANK_ACCOUNT',
       startingBalanceMinor: startingMinor,
@@ -1004,12 +1036,18 @@ async function createCategory(
   return category.id;
 }
 
-async function createEnvelope(budgetId: string | undefined, suffix: string): Promise<string> {
+async function createEnvelope(
+  budgetId: string | undefined,
+  ownerUserId: string | undefined,
+  suffix: string,
+): Promise<string> {
   if (!budgetId) throw new Error('Budget missing');
+  if (!ownerUserId) throw new Error('Owner missing');
   const envelope = await prisma.envelope.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Конверт ${suffix}`,
       envelopeType: 'CUSTOM',
       startingBalanceMinor: 0n,

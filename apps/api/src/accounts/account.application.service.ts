@@ -94,7 +94,7 @@ export class AccountApplicationService {
     const budget = await this.requireOwnerBudget(userId, budgetId);
     const account = await this.repository.create(
       userId,
-      this.createData(budgetId, input, budget.allowNegativeBalance),
+      this.createData(budgetId, userId, input, budget.allowNegativeBalance),
       requestId,
       this.unbackedGuard(budget),
     );
@@ -244,11 +244,13 @@ export class AccountApplicationService {
 
   private createData(
     budgetId: string,
+    ownerUserId: string,
     input: CreateAccountInput,
     allowNegativeBalance: boolean,
   ): AccountCreateData {
     return {
       budgetId,
+      ownerUserId,
       name: input.name,
       accountType: input.accountType,
       bankName: input.bankName ?? null,

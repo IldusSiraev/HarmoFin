@@ -202,6 +202,7 @@ export class IncomePlanApplicationService {
             comment: input.comment ?? null,
             isActive: true,
             disabledAt: null,
+            ownerUserId: userId,
             createdByUserId: userId,
             updatedByUserId: userId,
           },

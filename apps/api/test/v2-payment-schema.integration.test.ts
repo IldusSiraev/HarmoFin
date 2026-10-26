@@ -74,13 +74,17 @@ describe('v2 payment schema: direct transfer and plan payments', () => {
       },
     });
 
-    ownerAccountAId = await createAccount(ownerBudgetId, 'F04 счёт A');
-    ownerAccountBId = await createAccount(ownerBudgetId, 'F04 счёт B');
-    foreignAccountId = await createAccount(otherBudgetId, 'F04 чужой счёт');
-    ownerEnvelopeAId = await createEnvelope(ownerBudgetId, 'F04 конверт A');
-    ownerEnvelopeBId = await createEnvelope(ownerBudgetId, 'F04 конверт B');
-    ownerExpenseEnvelopeId = await createEnvelope(ownerBudgetId, 'F04 конверт расхода');
-    otherExpenseEnvelopeId = await createEnvelope(otherBudgetId, 'F04 чужой конверт расхода');
+    ownerAccountAId = await createAccount(ownerBudgetId, ownerId, 'F04 счёт A');
+    ownerAccountBId = await createAccount(ownerBudgetId, ownerId, 'F04 счёт B');
+    foreignAccountId = await createAccount(otherBudgetId, otherId, 'F04 чужой счёт');
+    ownerEnvelopeAId = await createEnvelope(ownerBudgetId, ownerId, 'F04 конверт A');
+    ownerEnvelopeBId = await createEnvelope(ownerBudgetId, ownerId, 'F04 конверт B');
+    ownerExpenseEnvelopeId = await createEnvelope(ownerBudgetId, ownerId, 'F04 конверт расхода');
+    otherExpenseEnvelopeId = await createEnvelope(
+      otherBudgetId,
+      otherId,
+      'F04 чужой конверт расхода',
+    );
     ownerExpenseCategoryId = await createCategory(ownerBudgetId, 'F04 расход', 'EXPENSE');
     otherExpenseCategoryId = await createCategory(otherBudgetId, 'F04 чужой расход', 'EXPENSE');
 
@@ -318,11 +322,12 @@ describe('v2 payment schema: direct transfer and plan payments', () => {
   });
 });
 
-async function createAccount(budgetId: string, name: string): Promise<string> {
+async function createAccount(budgetId: string, ownerUserId: string, name: string): Promise<string> {
   const account = await prisma.account.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name,
       accountType: 'BANK_ACCOUNT',
       startingBalanceMinor: 0n,
@@ -349,11 +354,16 @@ async function createCategory(
   return category.id;
 }
 
-async function createEnvelope(budgetId: string, name: string): Promise<string> {
+async function createEnvelope(
+  budgetId: string,
+  ownerUserId: string,
+  name: string,
+): Promise<string> {
   const envelope = await prisma.envelope.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name,
       envelopeType: 'CUSTOM',
       startingBalanceMinor: 0n,
@@ -401,6 +411,7 @@ async function createRegularPlan(budgetId: string, userId: string): Promise<stri
       id: randomUUID(),
       workspaceId,
       budgetId,
+      ownerUserId: userId,
       name: `План F04 ${randomUUID()}`,
       planType: 'EXPENSE',
       amountMinor: 50000n,

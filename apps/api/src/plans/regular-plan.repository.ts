@@ -64,6 +64,7 @@ export type RegularPlanCreateData = Omit<
   RegularPlanRecord,
   'id' | 'currency' | 'scale' | 'deletedAt' | 'createdAt' | 'updatedAt'
 > & {
+  ownerUserId: string;
   createdByUserId: string;
   updatedByUserId: string;
 };

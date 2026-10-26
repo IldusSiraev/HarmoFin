@@ -141,14 +141,19 @@ describe('v2 доход и обычный расход (POST /api/v2/budgets/:bu
     });
 
     const b = ctx.owner!.budgetId;
-    accountId = await createAccount(b, 100_000_000n);
-    smallAccountId = await createAccount(b, 10_000n);
+    accountId = await createAccount(b, ctx.owner!.userId, 100_000_000n);
+    smallAccountId = await createAccount(b, ctx.owner!.userId, 10_000n);
     incomeCategoryId = await createCategory(b, 'INCOME');
     expenseCategoryId = await createCategory(b, 'EXPENSE');
-    periodEnvelopeId = await createEnvelope(b, 'CURRENT_EXPENSES', 'FIRST');
-    periodEnvelopeNoPeriodId = await createEnvelope(b, 'CURRENT_EXPENSES', 'SECOND');
-    customEnvelopeId = await createEnvelope(b, 'CUSTOM', null);
-    mandatoryEnvelopeId = await createEnvelope(b, 'MANDATORY_EXPENSES', null);
+    periodEnvelopeId = await createEnvelope(b, ctx.owner!.userId, 'CURRENT_EXPENSES', 'FIRST');
+    periodEnvelopeNoPeriodId = await createEnvelope(
+      b,
+      ctx.owner!.userId,
+      'CURRENT_EXPENSES',
+      'SECOND',
+    );
+    customEnvelopeId = await createEnvelope(b, ctx.owner!.userId, 'CUSTOM', null);
+    mandatoryEnvelopeId = await createEnvelope(b, ctx.owner!.userId, 'MANDATORY_EXPENSES', null);
 
     // Concrete period covering today with a confirmed assignment of 10 000.00.
     periodId = randomUUID();
@@ -172,11 +177,21 @@ describe('v2 доход и обычный расход (POST /api/v2/budgets/:bu
         effectiveOn: d(-5),
         periodId,
         status: 'CONFIRMED',
+        createdByUserId: ctx.owner!.userId,
       },
     });
 
-    outsiderAccountId = await createAccount(ctx.outsider!.budgetId, 100_000_000n);
-    outsiderEnvelopeId = await createEnvelope(ctx.outsider!.budgetId, 'CUSTOM', null);
+    outsiderAccountId = await createAccount(
+      ctx.outsider!.budgetId,
+      ctx.outsider!.userId,
+      100_000_000n,
+    );
+    outsiderEnvelopeId = await createEnvelope(
+      ctx.outsider!.budgetId,
+      ctx.outsider!.userId,
+      'CUSTOM',
+      null,
+    );
     outsiderCategoryId = await createCategory(ctx.outsider!.budgetId, 'EXPENSE');
   });
 
@@ -475,11 +490,16 @@ async function register(email: string): Promise<User> {
   };
 }
 
-async function createAccount(budgetId: string, startingBalanceMinor: bigint): Promise<string> {
+async function createAccount(
+  budgetId: string,
+  ownerUserId: string,
+  startingBalanceMinor: bigint,
+): Promise<string> {
   const account = await prisma.account.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Счёт ${randomUUID().slice(0, 8)}`,
       accountType: 'BANK_ACCOUNT',
       currency: 'RUB',
@@ -506,6 +526,7 @@ async function createCategory(budgetId: string, categoryType: 'INCOME' | 'EXPENS
 
 async function createEnvelope(
   budgetId: string,
+  ownerUserId: string,
   envelopeType: 'CURRENT_EXPENSES' | 'MANDATORY_EXPENSES' | 'CUSTOM',
   periodSlot: 'FIRST' | 'SECOND' | null,
 ): Promise<string> {
@@ -513,6 +534,7 @@ async function createEnvelope(
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Envelope ${randomUUID().slice(0, 8)}`,
       envelopeType,
       periodSlot,

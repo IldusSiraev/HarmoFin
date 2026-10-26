@@ -357,6 +357,7 @@ async function world(
     data: {
       id: randomUUID(),
       budgetId: registered.budgetId,
+      ownerUserId: registered.userId,
       name: 'Основной счёт',
       accountType: 'BANK_ACCOUNT',
       startingBalanceMinor,
@@ -404,6 +405,7 @@ async function envelope(
     data: {
       id: randomUUID(),
       budgetId: w.budgetId,
+      ownerUserId: w.userId,
       name,
       envelopeType,
       startingBalanceMinor: 0n,
@@ -492,6 +494,7 @@ async function occurrence(
       id: planId,
       workspaceId: w.workspaceId,
       budgetId: w.budgetId,
+      ownerUserId: w.userId,
       name: options.planName ?? `План ${planId.slice(0, 6)}`,
       planType,
       amountMinor,

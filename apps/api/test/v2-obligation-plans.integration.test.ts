@@ -168,6 +168,7 @@ describe('v2 обязательства: управление планами', (
         data: {
           id: randomUUID(),
           budgetId: b,
+          ownerUserId: owner().userId,
           name: 'Счёт',
           accountType: 'BANK_ACCOUNT',
           currency: 'RUB',
@@ -184,6 +185,7 @@ describe('v2 обязательства: управление планами', (
         data: {
           id: randomUUID(),
           budgetId: b,
+          ownerUserId: owner().userId,
           name: 'Обязательные',
           envelopeType: 'MANDATORY_EXPENSES',
           startingBalanceMinor: 0n,
@@ -657,6 +659,7 @@ describe('v2 обязательства: управление планами', (
           data: {
             id: randomUUID(),
             budgetId: ctx.outsider!.budgetId,
+            ownerUserId: ctx.outsider!.userId,
             name: 'Чужой',
             accountType: 'BANK_ACCOUNT',
             currency: 'RUB',
@@ -684,6 +687,7 @@ describe('v2 обязательства: управление планами', (
           data: {
             id: randomUUID(),
             budgetId: owner().budgetId,
+            ownerUserId: owner().userId,
             name: 'Бедный',
             accountType: 'CASH',
             currency: 'RUB',
@@ -706,6 +710,7 @@ describe('v2 обязательства: управление планами', (
           data: {
             id: randomUUID(),
             budgetId: ctx.outsider!.budgetId,
+            ownerUserId: ctx.outsider!.userId,
             name: 'Свой',
             accountType: 'BANK_ACCOUNT',
             currency: 'RUB',

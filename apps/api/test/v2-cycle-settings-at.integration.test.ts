@@ -141,6 +141,7 @@ describe('v2: границы периода по версионной настр
           data: {
             id: randomUUID(),
             budgetId: spend.budgetId,
+            ownerUserId: spend.userId,
             name: 'Основной',
             accountType: 'BANK_CARD',
             startingBalanceMinor: 100_000_000n,
@@ -188,6 +189,7 @@ describe('v2: границы периода по версионной настр
       data: {
         id: randomUUID(),
         budgetId: plans.budgetId,
+        ownerUserId: plans.userId,
         name: 'Обязательные',
         envelopeType: 'MANDATORY_EXPENSES',
         startingBalanceMinor: 0n,
@@ -215,7 +217,11 @@ describe('v2: границы периода по версионной настр
       const expected = settings === OLD ? { ...full, end: addIsoDays(effectiveOn, -1) } : full;
       const other = cycleAndPeriodFor(settings === OLD ? SPEND_NEW : OLD, occurredOn).period;
       expect(expected.start, 'границы старых и новых настроек различаются').not.toBe(other.start);
-      const envelopeId = await createSlotEnvelope(user(name).budgetId, expected.id);
+      const envelopeId = await createSlotEnvelope(
+        user(name).budgetId,
+        user(name).userId,
+        expected.id,
+      );
       const response = await server.inject({
         method: 'POST',
         url: `/api/v2/budgets/${user(name).budgetId}/transactions`,
@@ -250,7 +256,11 @@ describe('v2: границы периода по версионной настр
     const newFirst = cycleAndPeriodFor(SPEND_NEW, effectiveOn).period;
     expect(oldFull.id).toBe('FIRST');
     expect(newFirst.id).toBe('FIRST');
-    const envelopeId = await createSlotEnvelope(user('bound').budgetId, 'FIRST');
+    const envelopeId = await createSlotEnvelope(
+      user('bound').budgetId,
+      user('bound').userId,
+      'FIRST',
+    );
     const periods: Array<{ start: string; end: string }> = [];
     for (const occurredOn of [before, effectiveOn]) {
       const response = await server.inject({
@@ -308,7 +318,11 @@ describe('v2: границы периода по версионной настр
       expect(await cycleAt(name, date), name).toEqual(expected);
     }
     const period = expected.period;
-    const envelopeId = await createSlotEnvelope(user('plain').budgetId, period.id);
+    const envelopeId = await createSlotEnvelope(
+      user('plain').budgetId,
+      user('plain').userId,
+      period.id,
+    );
     const response = await server.inject({
       method: 'POST',
       url: `/api/v2/budgets/${user('plain').budgetId}/transactions`,
@@ -339,6 +353,7 @@ describe('v2: границы периода по версионной настр
       data: {
         id: randomUUID(),
         budgetId: plain.budgetId,
+        ownerUserId: plain.userId,
         name: 'Обязательные',
         envelopeType: 'MANDATORY_EXPENSES',
         startingBalanceMinor: 0n,
@@ -454,11 +469,16 @@ function headers(name: Name, key?: string): Record<string, string> {
   };
 }
 
-async function createSlotEnvelope(budgetId: string, slot: 'FIRST' | 'SECOND') {
+async function createSlotEnvelope(
+  budgetId: string,
+  ownerUserId: string,
+  slot: 'FIRST' | 'SECOND',
+) {
   const envelope = await prisma.envelope.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Слот ${slot} ${randomUUID().slice(0, 6)}`,
       envelopeType: 'CURRENT_EXPENSES',
       startingBalanceMinor: 0n,

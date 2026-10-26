@@ -189,17 +189,17 @@ describe('v2 доход: изменение, удаление и восстан�
       });
     }
     const b = owner().budgetId;
-    accountId = await createAccount(b, 0n);
+    accountId = await createAccount(b, owner().userId, 0n);
     expenseCategoryId = await createCategory(b, 'EXPENSE');
     incomeCategoryId = await createCategory(b, 'INCOME');
     otherIncomeCategoryId = await createCategory(b, 'INCOME');
-    envelopeAId = await createEnvelope(b);
-    envelopeBId = await createEnvelope(b);
-    tightAccountId = await createAccount(tight().budgetId, 0n);
+    envelopeAId = await createEnvelope(b, owner().userId);
+    envelopeBId = await createEnvelope(b, owner().userId);
+    tightAccountId = await createAccount(tight().budgetId, tight().userId, 0n);
     tightIncomeCategoryId = await createCategory(tight().budgetId, 'INCOME');
-    tightEnvelopeId = await createEnvelope(tight().budgetId);
+    tightEnvelopeId = await createEnvelope(tight().budgetId, tight().userId);
 
-    const outsiderAccount = await createAccount(ctx.outsider!.budgetId, 0n);
+    const outsiderAccount = await createAccount(ctx.outsider!.budgetId, ctx.outsider!.userId, 0n);
     const outsiderCategory = await createCategory(ctx.outsider!.budgetId, 'INCOME');
     const foreign = await prisma.transaction.create({
       data: {
@@ -297,8 +297,8 @@ describe('v2 доход: изменение, удаление и восстан�
   });
 
   it('строгий счёт: уменьшение, перенос и удаление дохода, лишающие счёт покрытия расхода, дают INSUFFICIENT_BALANCE', async () => {
-    const strict = await createAccount(owner().budgetId, 0n);
-    const second = await createAccount(owner().budgetId, 0n);
+    const strict = await createAccount(owner().budgetId, owner().userId, 0n);
+    const second = await createAccount(owner().budgetId, owner().userId, 0n);
     const id = await income('500.00', { accountId: strict });
     const spend = await call('POST', owner(), '/transactions', 'strict-exp', {
       transactionType: 'EXPENSE',
@@ -368,7 +368,7 @@ describe('v2 доход: изменение, удаление и восстан�
   });
 
   it('restore заново проверяет ссылки и дату: архивный счёт даёт ошибку, запись остаётся DELETED', async () => {
-    const acc = await createAccount(owner().budgetId, 0n);
+    const acc = await createAccount(owner().budgetId, owner().userId, 0n);
     const id = await income('50.00', { accountId: acc });
     expect((await del(id, 'rr-1')).statusCode).toBe(200);
     await prisma.account.update({ where: { id: acc }, data: { archivedAt: new Date() } });
@@ -446,11 +446,16 @@ async function register(email: string): Promise<User> {
   };
 }
 
-async function createAccount(budgetId: string, startingBalanceMinor: bigint): Promise<string> {
+async function createAccount(
+  budgetId: string,
+  ownerUserId: string,
+  startingBalanceMinor: bigint,
+): Promise<string> {
   const account = await prisma.account.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Счёт ${randomUUID().slice(0, 8)}`,
       accountType: 'BANK_ACCOUNT',
       currency: 'RUB',
@@ -475,11 +480,12 @@ async function createCategory(budgetId: string, categoryType: 'INCOME' | 'EXPENS
   return category.id;
 }
 
-async function createEnvelope(budgetId: string): Promise<string> {
+async function createEnvelope(budgetId: string, ownerUserId: string): Promise<string> {
   const envelope = await prisma.envelope.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Envelope ${randomUUID().slice(0, 8)}`,
       envelopeType: 'CUSTOM',
       periodSlot: null,

@@ -86,11 +86,11 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
       data: { displayName: 'Алия' },
     });
 
-    a = await createRawAccount(ctx.owner!.budgetId, 'RUB', 1_000_000n);
-    b = await createRawAccount(ctx.owner!.budgetId, 'RUB', 0n);
+    a = await createRawAccount(ctx.owner!.budgetId, ctx.owner!.userId, 'RUB', 1_000_000n);
+    b = await createRawAccount(ctx.owner!.budgetId, ctx.owner!.userId, 'RUB', 0n);
     food = await createCategory(ctx.owner!.budgetId, 'EXPENSE');
     salary = await createCategory(ctx.owner!.budgetId, 'INCOME');
-    env = await createEnvelope(ctx.owner!.budgetId, 'P');
+    env = await createEnvelope(ctx.owner!.budgetId, ctx.owner!.userId, 'P');
   });
 
   afterAll(async () => {
@@ -307,7 +307,7 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
 
   it('accountId находит перевод по источнику и по назначению', async () => {
     await reset();
-    const c = await createRawAccount(owner().budgetId, 'RUB', 0n);
+    const c = await createRawAccount(owner().budgetId, owner().userId, 'RUB', 0n);
     const out = await transfer('2026-10-10', '2026-10-10T10:00:00.000Z', {
       source: c,
       destination: b,
@@ -351,7 +351,12 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
 
   it('изоляция: чужой бюджет — 404, чужие ссылки в фильтре — 404, чужие строки не попадают', async () => {
     await reset();
-    const foreignAccount = await createRawAccount(outsider().budgetId, 'RUB', 0n);
+    const foreignAccount = await createRawAccount(
+      outsider().budgetId,
+      outsider().userId,
+      'RUB',
+      0n,
+    );
     expect((await page(outsider(), {})).statusCode).toBe(404);
     expect((await page(owner(), { accountId: foreignAccount })).statusCode).toBe(404);
     await prisma.transfer.create({
@@ -363,7 +368,12 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
         totalMinor: 1n,
         occurredOn: new Date('2026-10-10T00:00:00Z'),
         sourceAccountId: foreignAccount,
-        destinationAccountId: await createRawAccount(outsider().budgetId, 'RUB', 0n),
+        destinationAccountId: await createRawAccount(
+          outsider().budgetId,
+          outsider().userId,
+          'RUB',
+          0n,
+        ),
         createdByUserId: outsider().userId,
         updatedByUserId: outsider().userId,
         confirmedAt: new Date('2026-10-10T00:00:00Z'),
@@ -463,6 +473,7 @@ async function register(email: string): Promise<Session> {
 
 async function createRawAccount(
   budgetId: string,
+  ownerUserId: string,
   currency: string,
   startingBalanceMinor: bigint,
 ): Promise<string> {
@@ -470,6 +481,7 @@ async function createRawAccount(
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Счёт ${randomUUID().slice(0, 8)}`,
       accountType: 'BANK_ACCOUNT',
       currency,
@@ -497,11 +509,16 @@ async function createCategory(
   return category.id;
 }
 
-async function createEnvelope(budgetId: string, code: string): Promise<string> {
+async function createEnvelope(
+  budgetId: string,
+  ownerUserId: string,
+  code: string,
+): Promise<string> {
   const envelope = await prisma.envelope.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Envelope ${code}`,
       envelopeType: 'MANDATORY_EXPENSES',
       startingBalanceMinor: 0n,

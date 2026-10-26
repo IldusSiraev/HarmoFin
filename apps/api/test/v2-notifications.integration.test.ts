@@ -376,6 +376,7 @@ describe('v2 notifications', () => {
       data: {
         id: session.accountId,
         budgetId: session.budgetId,
+        ownerUserId: session.userId,
         name: 'Минусовый счёт',
         accountType: 'CASH',
         startingBalanceMinor: -1_000n,
@@ -386,6 +387,7 @@ describe('v2 notifications', () => {
       data: {
         id: session.envelopeId,
         budgetId: session.budgetId,
+        ownerUserId: session.userId,
         name: 'Обязательные',
         envelopeType: 'MANDATORY_EXPENSES',
         startingBalanceMinor: -50n,
@@ -430,6 +432,7 @@ describe('v2 notifications', () => {
         id: session.planId,
         workspaceId: session.workspaceId,
         budgetId: session.budgetId,
+        ownerUserId: session.userId,
         name: 'Аренда',
         planType: 'EXPENSE',
         amountMinor: 100n,

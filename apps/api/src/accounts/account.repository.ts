@@ -24,6 +24,7 @@ export interface AccountRecord {
 
 export interface AccountCreateData {
   budgetId: string;
+  ownerUserId: string;
   name: string;
   accountType: AccountType;
   bankName: string | null;

@@ -63,6 +63,7 @@ describe('worker job concurrency', () => {
       data: {
         id: envelopeId,
         budgetId,
+        ownerUserId: userId,
         name: 'Обязательные concurrency',
         envelopeType: 'MANDATORY_EXPENSES',
         startingBalanceMinor: 0n,
@@ -74,6 +75,7 @@ describe('worker job concurrency', () => {
         id: planId,
         workspaceId,
         budgetId,
+        ownerUserId: userId,
         name: 'Одно возникновение',
         planType: 'EXPENSE',
         amountMinor: 10_000n,

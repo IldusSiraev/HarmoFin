@@ -390,6 +390,7 @@ async function world(options: { facts?: boolean } = {}): Promise<World> {
     data: {
       id: randomUUID(),
       budgetId: b,
+      ownerUserId: user.userId,
       name: 'Основной счёт',
       accountType: 'BANK_ACCOUNT',
       startingBalanceMinor: 600_000n,
@@ -411,6 +412,7 @@ async function world(options: { facts?: boolean } = {}): Promise<World> {
       data: {
         id: randomUUID(),
         budgetId: b,
+        ownerUserId: user.userId,
         name,
         envelopeType,
         startingBalanceMinor,
@@ -462,6 +464,7 @@ async function world(options: { facts?: boolean } = {}): Promise<World> {
       effectiveOn: day(PERIOD.start),
       periodId: period.id,
       status: 'CONFIRMED',
+      createdByUserId: user.userId,
     },
   });
   const movement = (status: 'CONFIRMED' | 'DELETED', amountMinor: bigint) =>
@@ -475,6 +478,7 @@ async function world(options: { facts?: boolean } = {}): Promise<World> {
         amountMinor,
         effectiveOn: day('2026-03-03'),
         status,
+        createdByUserId: user.userId,
       },
     });
   await prisma.envelopeAssignment.create({
@@ -487,6 +491,7 @@ async function world(options: { facts?: boolean } = {}): Promise<World> {
       effectiveOn: day(PERIOD.start),
       periodId: period.id,
       status: 'DELETED',
+      createdByUserId: user.userId,
     },
   });
   const confirmedMovement = await movement('CONFIRMED', 20_000n);

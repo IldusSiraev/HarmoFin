@@ -97,9 +97,16 @@ describe('v2 budget settings (T02b)', () => {
 
     // owner: what a single dashboard view leaves behind (UNSET + DRAFT periods) and cash.
     const ownerBudget = user('owner').budgetId;
-    state.accountId = (await prisma.account.create({ data: accountData(ownerBudget, 123456n) })).id;
+    state.accountId = (
+      await prisma.account.create({
+        data: accountData(ownerBudget, user('owner').userId, 123456n),
+      })
+    ).id;
     const envelope = await prisma.envelope.create({
-      data: { ...envelopeData(ownerBudget, 'Первый', 'FIRST'), startingBalanceMinor: -5000n },
+      data: {
+        ...envelopeData(ownerBudget, user('owner').userId, 'Первый', 'FIRST'),
+        startingBalanceMinor: -5000n,
+      },
     });
     state.envelopeId = envelope.id;
     for (const [index, status] of (['UNSET', 'DRAFT'] as const).entries()) {
@@ -119,7 +126,9 @@ describe('v2 budget settings (T02b)', () => {
 
     // fact: a CONFIRMED transaction fixes the calendar.
     const factBudget = user('fact').budgetId;
-    const factAccount = await prisma.account.create({ data: accountData(factBudget, 0n) });
+    const factAccount = await prisma.account.create({
+      data: accountData(factBudget, user('fact').userId, 0n),
+    });
     const category = await prisma.category.create({
       data: {
         id: randomUUID(),
@@ -130,7 +139,7 @@ describe('v2 budget settings (T02b)', () => {
       },
     });
     const factEnvelope = await prisma.envelope.create({
-      data: envelopeData(factBudget, 'Первый', 'FIRST'),
+      data: envelopeData(factBudget, user('fact').userId, 'Первый', 'FIRST'),
     });
     await prisma.transaction.create({
       data: {
@@ -152,7 +161,7 @@ describe('v2 budget settings (T02b)', () => {
     // target: a CONFIRMED period target fixes the calendar; an UNSET row must survive too.
     const targetBudget = user('target').budgetId;
     const targetEnvelope = await prisma.envelope.create({
-      data: envelopeData(targetBudget, 'Первый', 'FIRST'),
+      data: envelopeData(targetBudget, user('target').userId, 'Первый', 'FIRST'),
     });
     await prisma.envelopePeriod.create({
       data: {
@@ -369,10 +378,11 @@ function patch(
   });
 }
 
-function accountData(budgetId: string, startingBalanceMinor: bigint) {
+function accountData(budgetId: string, ownerUserId: string, startingBalanceMinor: bigint) {
   return {
     id: randomUUID(),
     budgetId,
+    ownerUserId,
     name: 'Основной',
     accountType: 'BANK_CARD' as const,
     startingBalanceMinor,
@@ -380,10 +390,16 @@ function accountData(budgetId: string, startingBalanceMinor: bigint) {
   };
 }
 
-function envelopeData(budgetId: string, name: string, periodSlot: 'FIRST' | 'SECOND') {
+function envelopeData(
+  budgetId: string,
+  ownerUserId: string,
+  name: string,
+  periodSlot: 'FIRST' | 'SECOND',
+) {
   return {
     id: randomUUID(),
     budgetId,
+    ownerUserId,
     name,
     envelopeType: 'CURRENT_EXPENSES' as const,
     startingBalanceMinor: 0n,

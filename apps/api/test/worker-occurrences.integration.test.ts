@@ -49,6 +49,7 @@ describe('plan occurrence worker handler', () => {
       data: {
         id: accountId,
         budgetId,
+        ownerUserId: userId,
         name: 'Счёт worker',
         accountType: 'CASH',
         startingBalanceMinor: 0n,
@@ -68,6 +69,7 @@ describe('plan occurrence worker handler', () => {
       data: {
         id: envelopeId,
         budgetId,
+        ownerUserId: userId,
         name: 'Обязательные worker',
         envelopeType: 'MANDATORY_EXPENSES',
         startingBalanceMinor: 0n,
@@ -79,6 +81,7 @@ describe('plan occurrence worker handler', () => {
         id: planId,
         workspaceId,
         budgetId,
+        ownerUserId: userId,
         name: 'Аренда',
         planType: 'EXPENSE',
         amountMinor: 100_000n,

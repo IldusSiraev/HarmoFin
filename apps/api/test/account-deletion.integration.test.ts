@@ -612,6 +612,7 @@ describe('account deletion', () => {
       data: {
         id: randomUUID(),
         budgetId: fixture.budgetId,
+        ownerUserId: fixture.userId,
         name: 'Карта',
         accountType: 'BANK_ACCOUNT',
         currency: 'RUB',
@@ -624,6 +625,7 @@ describe('account deletion', () => {
       data: {
         id: randomUUID(),
         budgetId: fixture.budgetId,
+        ownerUserId: fixture.userId,
         name: 'Наличные',
         accountType: 'CASH',
         currency: 'RUB',
@@ -664,6 +666,7 @@ describe('account deletion', () => {
       data: {
         id: randomUUID(),
         budgetId: fixture.budgetId,
+        ownerUserId: fixture.userId,
         name: 'Текущие расходы',
         envelopeType: 'CURRENT_EXPENSES',
         periodSlot: 'FIRST',
@@ -675,6 +678,7 @@ describe('account deletion', () => {
       data: {
         id: randomUUID(),
         budgetId: fixture.budgetId,
+        ownerUserId: fixture.userId,
         name: 'Свободный конверт',
         envelopeType: 'CUSTOM',
         startingBalanceMinor: 0n,
@@ -736,6 +740,7 @@ describe('account deletion', () => {
         effectiveOn: new Date(),
         periodId: period.id,
         status: 'CONFIRMED',
+        createdByUserId: fixture.userId,
       },
     });
     await prisma.envelopeMovement.create({
@@ -748,6 +753,7 @@ describe('account deletion', () => {
         amountMinor: 1_000n,
         effectiveOn: new Date(),
         status: 'CONFIRMED',
+        createdByUserId: fixture.userId,
       },
     });
     await prisma.envelopeFundingRule.create({
@@ -789,6 +795,7 @@ describe('account deletion', () => {
         id: randomUUID(),
         workspaceId: fixture.workspaceId,
         budgetId: fixture.budgetId,
+        ownerUserId: fixture.userId,
         name: 'Подписка',
         planType: 'EXPENSE',
         amountMinor: 10_000n,

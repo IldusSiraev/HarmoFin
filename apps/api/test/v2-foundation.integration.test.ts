@@ -54,8 +54,8 @@ describe('v2 foundation: URI versioning and budget model version', () => {
     otherId = other.user.id;
     otherBudgetId = other.budget.id;
     ownBudgetId = owner.budget.id;
-    ownerEnvelopeId = await createTestEnvelope(ownBudgetId, 'F02 owner envelope');
-    foreignEnvelopeId = await createTestEnvelope(otherBudgetId, 'F02 foreign envelope');
+    ownerEnvelopeId = await createTestEnvelope(ownBudgetId, ownerId, 'F02 owner envelope');
+    foreignEnvelopeId = await createTestEnvelope(otherBudgetId, otherId, 'F02 foreign envelope');
   });
 
   afterAll(async () => {
@@ -227,11 +227,16 @@ type OpenApiDocument = {
   };
 };
 
-async function createTestEnvelope(budgetId: string, name: string): Promise<string> {
+async function createTestEnvelope(
+  budgetId: string,
+  ownerUserId: string,
+  name: string,
+): Promise<string> {
   const envelope = await prisma.envelope.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name,
       envelopeType: 'CUSTOM',
       startingBalanceMinor: 0n,

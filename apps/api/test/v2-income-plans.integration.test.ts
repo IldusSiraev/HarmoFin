@@ -168,6 +168,7 @@ describe('v2 планы доходов: прогноз без фиктивных
         data: {
           id: randomUUID(),
           budgetId: b,
+          ownerUserId: owner().userId,
           name: 'Счёт',
           accountType: 'BANK_ACCOUNT',
           currency: 'RUB',
@@ -416,6 +417,7 @@ describe('v2 планы доходов: прогноз без фиктивных
         id: savings,
         workspaceId: owner().workspaceId,
         budgetId: owner().budgetId,
+        ownerUserId: owner().userId,
         name: 'Накопления',
         planType: 'SAVINGS',
         amountMinor: 100_000n,
@@ -472,6 +474,7 @@ describe('v2 планы доходов: прогноз без фиктивных
         id: expensePlan,
         workspaceId: owner().workspaceId,
         budgetId: owner().budgetId,
+        ownerUserId: owner().userId,
         name: 'Расход',
         planType: 'EXPENSE',
         amountMinor: 100n,
@@ -554,6 +557,7 @@ describe('v2 планы доходов: прогноз без фиктивных
         data: {
           id: randomUUID(),
           budgetId: ctx.outsider!.budgetId,
+          ownerUserId: ctx.outsider!.userId,
           name: 'Свой',
           accountType: 'BANK_ACCOUNT',
           currency: 'RUB',

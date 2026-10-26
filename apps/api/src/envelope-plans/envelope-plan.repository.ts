@@ -213,6 +213,7 @@ export class EnvelopePlanRepository {
       data: {
         id: createUuidV7(),
         budgetId: params.budgetId,
+        ownerUserId: params.actorUserId,
         name: params.name,
         envelopeType: params.envelopeType,
         startingBalanceMinor: 0n,

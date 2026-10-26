@@ -139,16 +139,27 @@ describe('v2 funding confirm (R04)', () => {
     }
 
     const budgetId = owner().budgetId;
-    accountId = await createAccount(budgetId, 30_000_000n);
-    const outsiderAccount = await createAccount(ctx.outsider!.budgetId, 1_000_000n);
+    accountId = await createAccount(budgetId, owner().userId, 30_000_000n);
+    const outsiderAccount = await createAccount(
+      ctx.outsider!.budgetId,
+      ctx.outsider!.userId,
+      1_000_000n,
+    );
     salaryCategory = await createCategory(budgetId, 'Зарплата', 'INCOME');
     expenseCategory = await createCategory(budgetId, 'Еда', 'EXPENSE');
     const outsiderCategory = await createCategory(ctx.outsider!.budgetId, 'Доход', 'INCOME');
-    currentEnvelope = await createEnvelope(budgetId, 'CURRENT_EXPENSES', 'Текущий', current.id);
-    savingsEnvelope = await createEnvelope(budgetId, 'SAVINGS_GOAL', 'Накопление');
-    repairEnvelope = await createEnvelope(budgetId, 'SAVINGS_GOAL', 'Ремонт');
+    currentEnvelope = await createEnvelope(
+      budgetId,
+      owner().userId,
+      'CURRENT_EXPENSES',
+      'Текущий',
+      current.id,
+    );
+    savingsEnvelope = await createEnvelope(budgetId, owner().userId, 'SAVINGS_GOAL', 'Накопление');
+    repairEnvelope = await createEnvelope(budgetId, owner().userId, 'SAVINGS_GOAL', 'Ремонт');
     outsiderEnvelope = await createEnvelope(
       ctx.outsider!.budgetId,
+      ctx.outsider!.userId,
       'CURRENT_EXPENSES',
       'Чужой',
       current.id,
@@ -637,7 +648,12 @@ describe('v2 funding confirm (R04)', () => {
         })
       ).statusCode,
     ).toBe(400);
-    const archived = await createEnvelope(owner().budgetId, 'SAVINGS_GOAL', 'Архив');
+    const archived = await createEnvelope(
+      owner().budgetId,
+      owner().userId,
+      'SAVINGS_GOAL',
+      'Архив',
+    );
     await prisma.envelope.update({ where: { id: archived }, data: { archivedAt: new Date() } });
     const archivedResponse = await confirm({
       ...base,
@@ -704,7 +720,13 @@ describe('v2 funding confirm (R04)', () => {
 
   it('распределение в период следующей половины сразу отложено: свободных меньше, повтор отклонён', async () => {
     const otherSlot = current.id === 'FIRST' ? 'SECOND' : 'FIRST';
-    const next = await createEnvelope(owner().budgetId, 'CURRENT_EXPENSES', 'Следующий', otherSlot);
+    const next = await createEnvelope(
+      owner().budgetId,
+      owner().userId,
+      'CURRENT_EXPENSES',
+      'Следующий',
+      otherSlot,
+    );
     const before = await preview({ sourceKind: 'FREE' });
     const nextLine = before.lines.find((line) => line.envelopeId === next)!;
     expect(nextLine.periodId).not.toBeNull();
@@ -899,11 +921,16 @@ function confirm(
   });
 }
 
-async function createAccount(budgetId: string, startingBalanceMinor: bigint): Promise<string> {
+async function createAccount(
+  budgetId: string,
+  ownerUserId: string,
+  startingBalanceMinor: bigint,
+): Promise<string> {
   const account = await prisma.account.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: 'Основной счёт',
       accountType: 'BANK_ACCOUNT',
       startingBalanceMinor,
@@ -926,6 +953,7 @@ async function createCategory(
 
 async function createEnvelope(
   budgetId: string,
+  ownerUserId: string,
   envelopeType: 'CURRENT_EXPENSES' | 'MANDATORY_EXPENSES' | 'SAVINGS_GOAL',
   name: string,
   periodSlot?: 'FIRST' | 'SECOND',
@@ -934,6 +962,7 @@ async function createEnvelope(
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name,
       envelopeType,
       startingBalanceMinor: 0n,

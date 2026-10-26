@@ -250,6 +250,7 @@ export class AssignmentRepository {
         periodId: params.periodId,
         sourceIncomeTransactionId: params.sourceIncomeTransactionId,
         status: 'CONFIRMED',
+        createdByUserId: params.actorUserId,
       },
       select: { id: true },
     });

@@ -237,7 +237,7 @@ export class TemplateApplyApplicationService {
             let envelopeId: string;
             if (entry.mode === 'CREATE') {
               envelopeId = entry.id;
-              await this.repository.createEnvelope(tx, budgetId, {
+              await this.repository.createEnvelope(tx, budgetId, userId, {
                 id: entry.id,
                 templateKey: entry.templateKey,
                 name: entry.name,

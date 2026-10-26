@@ -76,6 +76,7 @@ async function occurrence(
       id: planId,
       workspaceId: user.workspaceId,
       budgetId: user.budgetId,
+      ownerUserId: user.userId,
       name: `План ${planId.slice(0, 6)}`,
       planType: over.planType ?? 'EXPENSE',
       amountMinor,
@@ -179,6 +180,7 @@ describe('v2 потребность обязательных (R02)', () => {
         data: {
           id: randomUUID(),
           budgetId: owner().budgetId,
+          ownerUserId: owner().userId,
           name: 'Счёт',
           accountType: 'BANK_ACCOUNT',
           currency: 'RUB',
@@ -199,12 +201,17 @@ describe('v2 потребность обязательных (R02)', () => {
         },
       })
     ).id;
-    const envelope = (budgetId: string, envelopeType: 'MANDATORY_EXPENSES' | 'CUSTOM') =>
+    const envelope = (
+      budgetId: string,
+      ownerUserId: string,
+      envelopeType: 'MANDATORY_EXPENSES' | 'CUSTOM',
+    ) =>
       prisma.envelope
         .create({
           data: {
             id: randomUUID(),
             budgetId,
+            ownerUserId,
             name: `Envelope ${randomUUID().slice(0, 8)}`,
             envelopeType,
             startingBalanceMinor: 0n,
@@ -212,9 +219,9 @@ describe('v2 потребность обязательных (R02)', () => {
           },
         })
         .then((row) => row.id);
-    mandatoryEnvelopeId = await envelope(owner().budgetId, 'MANDATORY_EXPENSES');
-    customEnvelopeId = await envelope(owner().budgetId, 'CUSTOM');
-    otherEnvelopeId = await envelope(ctx.other!.budgetId, 'MANDATORY_EXPENSES');
+    mandatoryEnvelopeId = await envelope(owner().budgetId, owner().userId, 'MANDATORY_EXPENSES');
+    customEnvelopeId = await envelope(owner().budgetId, owner().userId, 'CUSTOM');
+    otherEnvelopeId = await envelope(ctx.other!.budgetId, ctx.other!.userId, 'MANDATORY_EXPENSES');
   });
 
   beforeEach(async () => {
@@ -258,6 +265,7 @@ describe('v2 потребность обязательных (R02)', () => {
         amountMinor: 300_000n,
         effectiveOn: d(-5),
         status: 'CONFIRMED',
+        createdByUserId: owner().userId,
       },
     });
     const id = await occurrence('2026-09-20', 300_000n);
@@ -315,6 +323,7 @@ describe('v2 потребность обязательных (R02)', () => {
         id: planId,
         workspaceId: owner().workspaceId,
         budgetId: owner().budgetId,
+        ownerUserId: owner().userId,
         name: 'Ежемесячный',
         planType: 'EXPENSE',
         amountMinor: 4_000_000n,

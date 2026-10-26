@@ -125,6 +125,7 @@ export class MovementRepository {
         amountMinor: params.amountMinor,
         effectiveOn: params.effectiveOn,
         status: 'CONFIRMED',
+        createdByUserId: params.actorUserId,
       },
       select: { id: true },
     });

@@ -204,10 +204,24 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
   it('переименованный ключевой конверт остаётся как есть; совместимый по имени принимается без ключа', async () => {
     const budgetId = user('renamed').budgetId;
     const first = await prisma.envelope.create({
-      data: envelopeData(budgetId, 'Утренний', 'CURRENT_EXPENSES', 'FIRST', 'v2-period-first'),
+      data: envelopeData(
+        budgetId,
+        user('renamed').userId,
+        'Утренний',
+        'CURRENT_EXPENSES',
+        'FIRST',
+        'v2-period-first',
+      ),
     });
     const mandatory = await prisma.envelope.create({
-      data: envelopeData(budgetId, 'обязательные', 'MANDATORY_EXPENSES', null, null),
+      data: envelopeData(
+        budgetId,
+        user('renamed').userId,
+        'обязательные',
+        'MANDATORY_EXPENSES',
+        null,
+        null,
+      ),
     });
     await prisma.category.create({
       data: {
@@ -250,7 +264,14 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
     const budgetId = user('archived').budgetId;
     const archived = await prisma.envelope.create({
       data: {
-        ...envelopeData(budgetId, 'Обязательные', 'MANDATORY_EXPENSES', null, 'v2-mandatory'),
+        ...envelopeData(
+          budgetId,
+          user('archived').userId,
+          'Обязательные',
+          'MANDATORY_EXPENSES',
+          null,
+          'v2-mandatory',
+        ),
         archivedAt: new Date(),
       },
     });
@@ -270,7 +291,14 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
   it('то же имя с несовместимым типом: COLLISION, не молчаливое принятие', async () => {
     const budgetId = user('collision').budgetId;
     const clash = await prisma.envelope.create({
-      data: envelopeData(budgetId, 'Первый период', 'SAVINGS_GOAL', null, null),
+      data: envelopeData(
+        budgetId,
+        user('collision').userId,
+        'Первый период',
+        'SAVINGS_GOAL',
+        null,
+        null,
+      ),
     });
     await prisma.category.create({
       data: {
@@ -311,7 +339,7 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
     expect(renamed).not.toBe(withCategory);
 
     const envelope = await prisma.envelope.create({
-      data: envelopeData(budgetId, 'Мой', 'CUSTOM', null, null),
+      data: envelopeData(budgetId, user('empty').userId, 'Мой', 'CUSTOM', null, null),
     });
     const withEnvelope = await hash();
     expect(withEnvelope).not.toBe(renamed);
@@ -341,6 +369,7 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
     await prisma.envelope.create({
       data: envelopeData(
         user('outsider').budgetId,
+        user('outsider').userId,
         'Первый период',
         'CURRENT_EXPENSES',
         'FIRST',
@@ -471,7 +500,14 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
     const who = 'applyOther';
     const budgetId = user(who).budgetId;
     const first = await prisma.envelope.create({
-      data: envelopeData(budgetId, 'Утренний', 'CURRENT_EXPENSES', 'FIRST', 'v2-period-first'),
+      data: envelopeData(
+        budgetId,
+        user(who).userId,
+        'Утренний',
+        'CURRENT_EXPENSES',
+        'FIRST',
+        'v2-period-first',
+      ),
     });
     await prisma.envelopeFundingRule.create({
       data: {
@@ -496,7 +532,14 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
       },
     });
     const mandatory = await prisma.envelope.create({
-      data: envelopeData(budgetId, 'Обязательные', 'MANDATORY_EXPENSES', null, null),
+      data: envelopeData(
+        budgetId,
+        user(who).userId,
+        'Обязательные',
+        'MANDATORY_EXPENSES',
+        null,
+        null,
+      ),
     });
     const body = await previewOf(who);
     const response = await apply(who, {
@@ -546,7 +589,7 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
     const who = 'applySkip';
     const budgetId = user(who).budgetId;
     const clash = await prisma.envelope.create({
-      data: envelopeData(budgetId, 'Первый период', 'SAVINGS_GOAL', null, null),
+      data: envelopeData(budgetId, user(who).userId, 'Первый период', 'SAVINGS_GOAL', null, null),
     });
     const body = await previewOf(who);
     const base = defaultApply(body);
@@ -585,7 +628,14 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
     const who = 'slotOtherName';
     const budgetId = user(who).budgetId;
     const holder = await prisma.envelope.create({
-      data: envelopeData(budgetId, 'Текущие 10-24', 'CURRENT_EXPENSES', 'FIRST', null),
+      data: envelopeData(
+        budgetId,
+        user(who).userId,
+        'Текущие 10-24',
+        'CURRENT_EXPENSES',
+        'FIRST',
+        null,
+      ),
     });
     const body = await previewOf(who);
     expect(body.envelopes.find((item) => item.role === 'FIRST')).toMatchObject({
@@ -623,7 +673,14 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
     const who = 'slotSameName';
     const budgetId = user(who).budgetId;
     const holder = await prisma.envelope.create({
-      data: envelopeData(budgetId, 'Первый период', 'CURRENT_EXPENSES', 'FIRST', null),
+      data: envelopeData(
+        budgetId,
+        user(who).userId,
+        'Первый период',
+        'CURRENT_EXPENSES',
+        'FIRST',
+        null,
+      ),
     });
     const body = await previewOf(who);
     expect(body.envelopes.find((item) => item.role === 'FIRST')).toMatchObject({
@@ -644,7 +701,7 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
     const who = 'applyWrongType';
     const budgetId = user(who).budgetId;
     await prisma.envelope.create({
-      data: envelopeData(budgetId, 'Первый период', 'SAVINGS_GOAL', null, null),
+      data: envelopeData(budgetId, user(who).userId, 'Первый период', 'SAVINGS_GOAL', null, null),
     });
     const body = await previewOf(who);
     const response = await apply(who, {
@@ -666,7 +723,14 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
     const budgetId = user(who).budgetId;
     const archived = await prisma.envelope.create({
       data: {
-        ...envelopeData(budgetId, 'Обязательные', 'MANDATORY_EXPENSES', null, 'v2-mandatory'),
+        ...envelopeData(
+          budgetId,
+          user(who).userId,
+          'Обязательные',
+          'MANDATORY_EXPENSES',
+          null,
+          'v2-mandatory',
+        ),
         archivedAt: new Date(),
       },
     });
@@ -708,11 +772,19 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
     const budgetId = user(who).budgetId;
     const actor = user(who).userId;
     const first = await prisma.envelope.create({
-      data: envelopeData(budgetId, 'Первый период', 'CURRENT_EXPENSES', 'FIRST', 'v2-period-first'),
+      data: envelopeData(
+        budgetId,
+        actor,
+        'Первый период',
+        'CURRENT_EXPENSES',
+        'FIRST',
+        'v2-period-first',
+      ),
     });
     const second = await prisma.envelope.create({
       data: envelopeData(
         budgetId,
+        actor,
         'Второй период',
         'CURRENT_EXPENSES',
         'SECOND',
@@ -766,7 +838,7 @@ describe('v2 reference-template preview and apply (R05, R06)', () => {
     const history = 'applyHistory';
     const historyBudget = user(history).budgetId;
     const envelope = await prisma.envelope.create({
-      data: envelopeData(historyBudget, 'Мой', 'CUSTOM', null, null),
+      data: envelopeData(historyBudget, user(history).userId, 'Мой', 'CUSTOM', null, null),
     });
     await prisma.envelopePeriod.create({
       data: {
@@ -953,6 +1025,7 @@ function preview(name: Name, as: RegisteredUser | undefined = ctx[name]) {
 
 function envelopeData(
   budgetId: string,
+  ownerUserId: string,
   name: string,
   envelopeType: 'CURRENT_EXPENSES' | 'MANDATORY_EXPENSES' | 'SAVINGS_GOAL' | 'CUSTOM',
   periodSlot: 'FIRST' | 'SECOND' | null,
@@ -961,6 +1034,7 @@ function envelopeData(
   return {
     id: randomUUID(),
     budgetId,
+    ownerUserId,
     name,
     envelopeType,
     startingBalanceMinor: 0n,

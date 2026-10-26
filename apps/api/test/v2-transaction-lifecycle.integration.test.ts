@@ -119,6 +119,7 @@ async function occurrence(amountMinor: bigint): Promise<string> {
       id: planId,
       workspaceId: owner().workspaceId,
       budgetId: owner().budgetId,
+      ownerUserId: owner().userId,
       name: `План ${planId.slice(0, 6)}`,
       planType: 'EXPENSE',
       amountMinor,
@@ -218,13 +219,13 @@ describe('v2 расход: изменение, удаление и восста�
       });
     }
     const b = owner().budgetId;
-    accountId = await createAccount(b, 100_000_000n);
-    smallAccountId = await createAccount(b, 10_000n);
-    otherAccountId = await createAccount(b, 100_000_000n);
+    accountId = await createAccount(b, owner().userId, 100_000_000n);
+    smallAccountId = await createAccount(b, owner().userId, 10_000n);
+    otherAccountId = await createAccount(b, owner().userId, 100_000_000n);
     expenseCategoryId = await createCategory(b, 'EXPENSE');
     incomeCategoryId = await createCategory(b, 'INCOME');
-    mandatoryEnvelopeId = await createEnvelope(b, 'MANDATORY_EXPENSES');
-    customEnvelopeId = await createEnvelope(b, 'CUSTOM');
+    mandatoryEnvelopeId = await createEnvelope(b, owner().userId, 'MANDATORY_EXPENSES');
+    customEnvelopeId = await createEnvelope(b, owner().userId, 'CUSTOM');
     await prisma.envelopeAssignment.create({
       data: {
         id: randomUUID(),
@@ -234,9 +235,14 @@ describe('v2 расход: изменение, удаление и восста�
         amountMinor: 50_000_000n,
         effectiveOn: d(-30),
         status: 'CONFIRMED',
+        createdByUserId: owner().userId,
       },
     });
-    const outsiderAccount = await createAccount(ctx.outsider!.budgetId, 100_000_000n);
+    const outsiderAccount = await createAccount(
+      ctx.outsider!.budgetId,
+      ctx.outsider!.userId,
+      100_000_000n,
+    );
     const outsiderCategory = await createCategory(ctx.outsider!.budgetId, 'EXPENSE');
     const foreign = await prisma.transaction.create({
       data: {
@@ -570,11 +576,16 @@ async function register(email: string): Promise<User> {
   };
 }
 
-async function createAccount(budgetId: string, startingBalanceMinor: bigint): Promise<string> {
+async function createAccount(
+  budgetId: string,
+  ownerUserId: string,
+  startingBalanceMinor: bigint,
+): Promise<string> {
   const account = await prisma.account.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Счёт ${randomUUID().slice(0, 8)}`,
       accountType: 'BANK_ACCOUNT',
       currency: 'RUB',
@@ -601,12 +612,14 @@ async function createCategory(budgetId: string, categoryType: 'INCOME' | 'EXPENS
 
 async function createEnvelope(
   budgetId: string,
+  ownerUserId: string,
   envelopeType: 'CURRENT_EXPENSES' | 'MANDATORY_EXPENSES' | 'CUSTOM',
 ): Promise<string> {
   const envelope = await prisma.envelope.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Envelope ${randomUUID().slice(0, 8)}`,
       envelopeType,
       periodSlot: null,

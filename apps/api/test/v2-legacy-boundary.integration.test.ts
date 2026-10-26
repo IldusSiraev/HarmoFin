@@ -257,6 +257,7 @@ async function world(): Promise<World> {
       data: {
         id: randomUUID(),
         budgetId,
+        ownerUserId: userId,
         name,
         accountType: 'BANK_ACCOUNT',
         startingBalanceMinor,
@@ -278,6 +279,7 @@ async function world(): Promise<World> {
       data: {
         id: randomUUID(),
         budgetId,
+        ownerUserId: userId,
         name,
         envelopeType,
         startingBalanceMinor,

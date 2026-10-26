@@ -88,11 +88,16 @@ describe('v2: доступность счетов (asOf-балансы, lockBudg
       },
     });
 
-    cashAccountId = await createRawAccount(ctx.owner!.budgetId, 'Рублевый', 100_000n);
-    zeroAccountId = await createRawAccount(ctx.owner!.budgetId, 'Нулевой', 0n);
+    cashAccountId = await createRawAccount(
+      ctx.owner!.budgetId,
+      ctx.owner!.userId,
+      'Рублевый',
+      100_000n,
+    );
+    zeroAccountId = await createRawAccount(ctx.owner!.budgetId, ctx.owner!.userId, 'Нулевой', 0n);
 
     // Конверт с FREE-назначением, создающим положительный остаток (20k RUB)
-    envelopeId = await createEnvelope(ctx.owner!.budgetId, 'DEFICIT');
+    envelopeId = await createEnvelope(ctx.owner!.budgetId, ctx.owner!.userId, 'DEFICIT');
     await prisma.envelopeAssignment.create({
       data: {
         id: randomUUID(),
@@ -101,6 +106,7 @@ describe('v2: доступность счетов (asOf-балансы, lockBudg
         type: 'FREE',
         amountMinor: 2_000_000n,
         effectiveOn: d(-1),
+        createdByUserId: ctx.owner!.userId,
       },
     });
 
@@ -317,7 +323,7 @@ describe('v2: доступность счетов (asOf-балансы, lockBudg
 
   it('v2: архивный счёт с остатком восстанавливается без zero-check', async () => {
     const ownerBudgetId = budgetOf('owner');
-    const fundsAccountId = await createRawAccount(ownerBudgetId, 'Фанды', 0n);
+    const fundsAccountId = await createRawAccount(ownerBudgetId, ctx.owner!.userId, 'Фанды', 0n);
 
     const archiveFunds = await server.inject({
       method: 'POST',
@@ -427,6 +433,7 @@ async function registerFixture(email: string): Promise<FixtureUser> {
 
 async function createRawAccount(
   budgetId: string,
+  ownerUserId: string,
   name: string,
   startingBalanceMinor: bigint,
 ): Promise<string> {
@@ -434,6 +441,7 @@ async function createRawAccount(
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name,
       accountType: 'BANK_ACCOUNT',
       currency: 'RUB',
@@ -445,11 +453,16 @@ async function createRawAccount(
   return account.id;
 }
 
-async function createEnvelope(budgetId: string, code: string): Promise<string> {
+async function createEnvelope(
+  budgetId: string,
+  ownerUserId: string,
+  code: string,
+): Promise<string> {
   const envelope = await prisma.envelope.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Envelope ${code}`,
       envelopeType: 'MANDATORY_EXPENSES',
       startingBalanceMinor: 0n,

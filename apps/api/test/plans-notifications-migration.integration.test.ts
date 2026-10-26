@@ -18,12 +18,12 @@ const occurrenceDate = new Date('2026-09-10T00:00:00.000Z');
 async function createPlan() {
   await prisma.$executeRaw`
     INSERT INTO "regular_plans" (
-      "id", "workspace_id", "budget_id", "name", "plan_type", "amount_minor",
+      "id", "workspace_id", "budget_id", "owner_user_id", "name", "plan_type", "amount_minor",
       "currency", "scale", "anchor_on", "start_on", "recurrence", "category_id",
       "is_active", "created_by_user_id", "updated_by_user_id", "updated_at"
     )
     VALUES (
-      ${planId}::uuid, ${workspaceId}::uuid, ${budgetId}::uuid, 'Зарплата', 'INCOME', 100000,
+      ${planId}::uuid, ${workspaceId}::uuid, ${budgetId}::uuid, ${userId}::uuid, 'Зарплата', 'INCOME', 100000,
       'RUB', 2, ${occurrenceDate}::date, ${occurrenceDate}::date, 'ONE_TIME', ${categoryId}::uuid,
       TRUE, ${userId}::uuid, ${userId}::uuid, CURRENT_TIMESTAMP
     )

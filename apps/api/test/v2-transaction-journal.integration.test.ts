@@ -95,14 +95,14 @@ describe('v2 журнал операций (GET /api/v2/budgets/:budgetId/transa
     });
     // The editor's own default workspace must not interfere: they read the owner budget.
     const b = ctx.owner!.budgetId;
-    accountId = await createAccount(b);
-    otherAccountId = await createAccount(b);
+    accountId = await createAccount(b, ctx.owner!.userId);
+    otherAccountId = await createAccount(b, ctx.owner!.userId);
     incomeCategoryId = await createCategory(b, 'INCOME');
     expenseCategoryId = await createCategory(b, 'EXPENSE');
-    envelopeId = await createEnvelope(b);
+    envelopeId = await createEnvelope(b, ctx.owner!.userId);
     const ob = ctx.outsider!.budgetId;
-    outsiderEnvelopeId = await createEnvelope(ob);
-    const outsiderAccountId = await createAccount(ob);
+    outsiderEnvelopeId = await createEnvelope(ob, ctx.outsider!.userId);
+    const outsiderAccountId = await createAccount(ob, ctx.outsider!.userId);
     const outsiderCategoryId = await createCategory(ob, 'EXPENSE');
 
     const plan = await createPlan(b, ctx.owner!);
@@ -415,11 +415,12 @@ async function register(email: string): Promise<User> {
   };
 }
 
-async function createAccount(budgetId: string): Promise<string> {
+async function createAccount(budgetId: string, ownerUserId: string): Promise<string> {
   const account = await prisma.account.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Счёт ${randomUUID().slice(0, 8)}`,
       accountType: 'BANK_ACCOUNT',
       currency: 'RUB',
@@ -444,11 +445,12 @@ async function createCategory(budgetId: string, categoryType: 'INCOME' | 'EXPENS
   return category.id;
 }
 
-async function createEnvelope(budgetId: string): Promise<string> {
+async function createEnvelope(budgetId: string, ownerUserId: string): Promise<string> {
   const envelope = await prisma.envelope.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Envelope ${randomUUID().slice(0, 8)}`,
       envelopeType: 'CUSTOM',
       startingBalanceMinor: 0n,
@@ -464,6 +466,7 @@ async function createPlan(budgetId: string, user: User): Promise<string> {
       id: randomUUID(),
       workspaceId: user.workspaceId,
       budgetId,
+      ownerUserId: user.userId,
       name: `План ${randomUUID().slice(0, 8)}`,
       planType: 'EXPENSE',
       amountMinor: 150_000n,

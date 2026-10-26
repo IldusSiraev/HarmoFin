@@ -104,12 +104,12 @@ describe('v2 жизненный цикл прямого перевода (изм
       },
     });
 
-    a = await createRawAccount(ctx.owner!.budgetId, 'RUB', 1_000_000n);
-    b = await createRawAccount(ctx.owner!.budgetId, 'RUB', 0n);
-    c = await createRawAccount(ctx.owner!.budgetId, 'RUB', 0n);
-    archived = await createRawAccount(ctx.owner!.budgetId, 'RUB', 0n);
+    a = await createRawAccount(ctx.owner!.budgetId, ctx.owner!.userId, 'RUB', 1_000_000n);
+    b = await createRawAccount(ctx.owner!.budgetId, ctx.owner!.userId, 'RUB', 0n);
+    c = await createRawAccount(ctx.owner!.budgetId, ctx.owner!.userId, 'RUB', 0n);
+    archived = await createRawAccount(ctx.owner!.budgetId, ctx.owner!.userId, 'RUB', 0n);
     await prisma.account.update({ where: { id: archived }, data: { archivedAt: new Date() } });
-    foreign = await createRawAccount(ctx.outsider!.budgetId, 'RUB', 0n);
+    foreign = await createRawAccount(ctx.outsider!.budgetId, ctx.outsider!.userId, 'RUB', 0n);
 
     service = new DirectTransferApplicationService(
       new PrismaService(databaseUrl),
@@ -220,7 +220,7 @@ describe('v2 жизненный цикл прямого перевода (изм
     await strict(true);
     // Dedicated account: `c` carries a residual balance from the first test (its destination
     // was moved there), so it is not safe to assume `c` starts at zero here.
-    const target = await createRawAccount(budgetId(), 'RUB', 0n);
+    const target = await createRawAccount(budgetId(), ctx.owner!.userId, 'RUB', 0n);
     const created = await newTransfer(a, target, '100.00');
     // target тратит полученное: переводим всё обратно на a
     await newTransfer(target, a, '100.00');
@@ -265,7 +265,7 @@ describe('v2 жизненный цикл прямого перевода (изм
 
   it('строгий бюджет: смена источника на пустой счёт — 409 INSUFFICIENT_BALANCE без изменений', async () => {
     await strict(true);
-    const emptySource = await createRawAccount(budgetId(), 'RUB', 0n);
+    const emptySource = await createRawAccount(budgetId(), ctx.owner!.userId, 'RUB', 0n);
     const created = await newTransfer(a, b, '100.00');
     const aBefore = await balance(a);
     const bBefore = await balance(b);
@@ -296,8 +296,8 @@ describe('v2 жизненный цикл прямого перевода (изм
 
   it('строгий бюджет: разворот направления, когда старое назначение не покрывает двойную сумму — 409 INSUFFICIENT_BALANCE без изменений', async () => {
     await strict(true);
-    const src2 = await createRawAccount(budgetId(), 'RUB', 10_000n);
-    const dst2 = await createRawAccount(budgetId(), 'RUB', 0n);
+    const src2 = await createRawAccount(budgetId(), ctx.owner!.userId, 'RUB', 10_000n);
+    const dst2 = await createRawAccount(budgetId(), ctx.owner!.userId, 'RUB', 0n);
     const created = await newTransfer(src2, dst2, '50.00'); // dst2 = 50.00, src2 = 50.00
     const src2Before = await balance(src2);
     const dst2Before = await balance(dst2);
@@ -400,7 +400,7 @@ describe('v2 жизненный цикл прямого перевода (изм
   });
 
   it('восстановление с архивным счётом — 409 REFERENCE_INVALID', async () => {
-    const temp = await createRawAccount(budgetId(), 'RUB', 0n);
+    const temp = await createRawAccount(budgetId(), ctx.owner!.userId, 'RUB', 0n);
     const created = await newTransfer(a, temp, '1.00');
     await service.remove(ctx.owner!.userId, budgetId(), created.id, randomUUID());
     await prisma.account.update({ where: { id: temp }, data: { archivedAt: new Date() } });
@@ -559,8 +559,13 @@ describe('HTTP-контракт мутаций перевода', () => {
       where: { id: fCtx.owner!.budgetId },
       data: { planModelVersion: 2, planModelActivatedOn: d(-60), timezone: 'UTC' },
     });
-    httpSrcAccount = await createRawAccount(fCtx.owner!.budgetId, 'RUB', 10_000_000n);
-    httpDestAccount = await createRawAccount(fCtx.owner!.budgetId, 'RUB', 0n);
+    httpSrcAccount = await createRawAccount(
+      fCtx.owner!.budgetId,
+      fCtx.owner!.userId,
+      'RUB',
+      10_000_000n,
+    );
+    httpDestAccount = await createRawAccount(fCtx.owner!.budgetId, fCtx.owner!.userId, 'RUB', 0n);
   });
 
   afterAll(async () => {
@@ -677,6 +682,7 @@ async function register(email: string): Promise<RegisteredUser> {
 
 async function createRawAccount(
   budgetId: string,
+  ownerUserId: string,
   currency: string,
   startingBalanceMinor: bigint,
 ): Promise<string> {
@@ -684,6 +690,7 @@ async function createRawAccount(
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Счёт ${randomUUID().slice(0, 8)}`,
       accountType: 'BANK_ACCOUNT',
       currency,

@@ -112,10 +112,10 @@ describe('v2 cycle change preview and confirm (T02)', () => {
     // and a confirmed transaction that must keep its date.
     const budgetId = user('owner').budgetId;
     const first = await prisma.envelope.create({
-      data: envelopeData(budgetId, 'Первый', 'FIRST'),
+      data: envelopeData(budgetId, user('owner').userId, 'Первый', 'FIRST'),
     });
     const second = await prisma.envelope.create({
-      data: envelopeData(budgetId, 'Второй', 'SECOND'),
+      data: envelopeData(budgetId, user('owner').userId, 'Второй', 'SECOND'),
     });
     state.envelopeFirst = first.id;
     state.envelopeSecond = second.id;
@@ -150,6 +150,7 @@ describe('v2 cycle change preview and confirm (T02)', () => {
       data: {
         id: randomUUID(),
         budgetId,
+        ownerUserId: user('owner').userId,
         name: 'Основной',
         accountType: 'BANK_CARD',
         startingBalanceMinor: 0n,
@@ -337,7 +338,7 @@ describe('v2 cycle change preview and confirm (T02)', () => {
     const budgetId = user('stale').budgetId;
     const previewBody = (await preview('stale', NEW_INPUT)).json<PreviewBody>();
     const envelope = await prisma.envelope.create({
-      data: envelopeData(budgetId, 'Первый', 'FIRST'),
+      data: envelopeData(budgetId, user('stale').userId, 'Первый', 'FIRST'),
     });
     const past = cycleAndPeriodFor(OLD, addIsoDays(today, -40)).period;
     await prisma.envelopePeriod.create({
@@ -507,10 +508,16 @@ function confirm(
   });
 }
 
-function envelopeData(budgetId: string, name: string, periodSlot: 'FIRST' | 'SECOND') {
+function envelopeData(
+  budgetId: string,
+  ownerUserId: string,
+  name: string,
+  periodSlot: 'FIRST' | 'SECOND',
+) {
   return {
     id: randomUUID(),
     budgetId,
+    ownerUserId,
     name,
     envelopeType: 'CURRENT_EXPENSES' as const,
     startingBalanceMinor: 0n,
