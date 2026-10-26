@@ -26,10 +26,7 @@ const expense: TransactionJournalV2Item = {
   createdAt: '2026-09-14T10:00:00.000Z',
 };
 
-const mountRow = (
-  overrides: Partial<TransactionJournalV2Item> = {},
-  showAuthor = false,
-) =>
+const mountRow = (overrides: Partial<TransactionJournalV2Item> = {}, showAuthor = false) =>
   mount(OperationRow, {
     props: {
       transaction: { ...expense, ...overrides },

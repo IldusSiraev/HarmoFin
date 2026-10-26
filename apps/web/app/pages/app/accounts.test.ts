@@ -140,7 +140,9 @@ describe('accounts page', () => {
     useFundingEntry().dismiss();
     const budget = (
       mocks.auth.currentData.value as { workspaces: Array<{ budgets: object[] }> }
-    ).workspaces.at(0)!.budgets.at(0) as Record<string, unknown>;
+    ).workspaces
+      .at(0)!
+      .budgets.at(0) as Record<string, unknown>;
     budget.planModelVersion = 2;
 
     await createWithBalance('1000');
@@ -153,7 +155,9 @@ describe('accounts page', () => {
     useFundingEntry().dismiss();
     const budget = (
       mocks.auth.currentData.value as { workspaces: Array<{ budgets: object[] }> }
-    ).workspaces.at(0)!.budgets.at(0) as Record<string, unknown>;
+    ).workspaces
+      .at(0)!
+      .budgets.at(0) as Record<string, unknown>;
     budget.planModelVersion = 2;
     await createWithBalance('0');
     expect(useFundingEntry().request.value).toBeNull();

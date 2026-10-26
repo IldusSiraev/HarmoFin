@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { createAccessNotification, resolveUserNotifications } from '../src/family/family-notifications.js';
+import {
+  createAccessNotification,
+  resolveUserNotifications,
+} from '../src/family/family-notifications.js';
 import { FamilyRepository } from '../src/family/family.repository.js';
 import { createPersonalWorkspace } from '../src/family/personal-workspace.js';
 import { PrismaService } from '../src/database/prisma.service.js';
@@ -70,7 +73,9 @@ describe('FamilyRepository, access notifications and personal workspace', () => 
     const memberId = await createUser(`member-${randomUUID()}@harmofin.test`);
     const now = new Date();
 
-    const { workspace } = await prisma.$transaction((tx) => createPersonalWorkspace(tx, ownerId, now));
+    const { workspace } = await prisma.$transaction((tx) =>
+      createPersonalWorkspace(tx, ownerId, now),
+    );
     createdWorkspaceIds.push(workspace.id);
 
     await prisma.workspaceMembership.create({
@@ -173,7 +178,9 @@ describe('FamilyRepository, access notifications and personal workspace', () => 
 
     await prisma.$transaction((tx) => resolveUserNotifications(tx, workspace.id, userId, now));
 
-    const resolved = await prisma.notification.findFirst({ where: { workspaceId: workspace.id, userId } });
+    const resolved = await prisma.notification.findFirst({
+      where: { workspaceId: workspace.id, userId },
+    });
     const untouched = await prisma.notification.findFirst({
       where: { workspaceId: workspace.id, userId: otherId },
     });

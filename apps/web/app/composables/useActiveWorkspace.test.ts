@@ -6,15 +6,32 @@ vi.mock('./useAuth.js', () => ({ useAuth: () => ({ currentData }) }));
 
 import { useActiveWorkspace } from './useActiveWorkspace.js';
 
-const budget = (id: string) => ({ id, name: id, primaryCurrency: 'RUB', planModelVersion: 2 as const });
+const budget = (id: string) => ({
+  id,
+  name: id,
+  primaryCurrency: 'RUB',
+  planModelVersion: 2 as const,
+});
 
 describe('useActiveWorkspace', () => {
   it('picks the workspace named by activeWorkspaceId, not the first one', () => {
     currentData.value = {
       activeWorkspaceId: 'family',
       workspaces: [
-        { id: 'personal', name: 'Мой бюджет', role: 'OWNER', isCreator: true, budgets: [budget('b1')] },
-        { id: 'family', name: 'Сираевы', role: 'EDITOR', isCreator: false, budgets: [budget('b2')] },
+        {
+          id: 'personal',
+          name: 'Мой бюджет',
+          role: 'OWNER',
+          isCreator: true,
+          budgets: [budget('b1')],
+        },
+        {
+          id: 'family',
+          name: 'Сираевы',
+          role: 'EDITOR',
+          isCreator: false,
+          budgets: [budget('b2')],
+        },
       ],
     };
     const active = useActiveWorkspace();
@@ -27,7 +44,15 @@ describe('useActiveWorkspace', () => {
   it('falls back to the first workspace when the active id is unknown', () => {
     currentData.value = {
       activeWorkspaceId: null,
-      workspaces: [{ id: 'personal', name: 'Мой бюджет', role: 'OWNER', isCreator: true, budgets: [budget('b1')] }],
+      workspaces: [
+        {
+          id: 'personal',
+          name: 'Мой бюджет',
+          role: 'OWNER',
+          isCreator: true,
+          budgets: [budget('b1')],
+        },
+      ],
     };
     expect(useActiveWorkspace().budgetId.value).toBe('b1');
   });

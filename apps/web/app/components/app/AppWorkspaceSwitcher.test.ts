@@ -13,7 +13,8 @@ vi.mock('../../composables/useActiveWorkspace.js', () => ({
   useActiveWorkspace: () => ({
     workspaces: computed(() => workspaces.value),
     workspace: computed(
-      () => workspaces.value.find((item) => item.id === activeId.value) ?? workspaces.value[0] ?? null,
+      () =>
+        workspaces.value.find((item) => item.id === activeId.value) ?? workspaces.value[0] ?? null,
     ),
   }),
 }));
@@ -24,7 +25,13 @@ vi.mock('../../composables/useAuth.js', () => ({
 
 import AppWorkspaceSwitcher from './AppWorkspaceSwitcher.vue';
 
-const own = (id: string, name: string): Workspace => ({ id, name, role: 'OWNER', isCreator: true, budgets: [] });
+const own = (id: string, name: string): Workspace => ({
+  id,
+  name,
+  role: 'OWNER',
+  isCreator: true,
+  budgets: [],
+});
 const member = (id: string, name: string): Workspace => ({
   id,
   name,

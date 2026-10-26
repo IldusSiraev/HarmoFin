@@ -28,7 +28,11 @@ export class JournalController {
   ) {}
 
   @Get()
-  @ApiQuery({ name: 'createdByUserId', required: false, schema: { type: 'string', format: 'uuid' } })
+  @ApiQuery({
+    name: 'createdByUserId',
+    required: false,
+    schema: { type: 'string', format: 'uuid' },
+  })
   @ApiOkResponse({ type: JournalPageResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })

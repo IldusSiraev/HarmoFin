@@ -75,7 +75,9 @@ describe('family invitation acceptance API', () => {
     });
     const userIds = users.map((user) => user.id);
     const workspaces = await prisma.workspace.findMany({
-      where: { OR: [{ ownerId: { in: userIds } }, { memberships: { some: { userId: { in: userIds } } } }] },
+      where: {
+        OR: [{ ownerId: { in: userIds } }, { memberships: { some: { userId: { in: userIds } } } }],
+      },
       select: { id: true },
     });
     const workspaceIds = workspaces.map((workspace) => workspace.id);
@@ -181,7 +183,9 @@ describe('family invitation acceptance API', () => {
   it('accepts for a signed-in user, requires a name and notifies the creator', async () => {
     bob = await register(mail('bob-accept'));
     const { id, rawToken } = await createInvitation(owner, bob.user.email, 'VIEWER');
-    const withoutName = await inject('POST', '/api/v1/invitations/accept', bob, { token: rawToken });
+    const withoutName = await inject('POST', '/api/v1/invitations/accept', bob, {
+      token: rawToken,
+    });
     expect(withoutName.statusCode).toBe(422);
     expect(withoutName.json()).toMatchObject({ code: 'DISPLAY_NAME_REQUIRED' });
 
@@ -255,7 +259,11 @@ describe('family invitation acceptance API', () => {
     expect(lateAccept.json()).toMatchObject({ code: 'INVITATION_EXPIRED' });
 
     const revoked = await createInvitation(owner, mail('late-revoked'), 'EDITOR');
-    await inject('DELETE', `/api/v1/workspaces/${ownerWorkspaceId}/invitations/${revoked.id}`, owner);
+    await inject(
+      'DELETE',
+      `/api/v1/workspaces/${ownerWorkspaceId}/invitations/${revoked.id}`,
+      owner,
+    );
     const preview = await server.inject({
       method: 'POST',
       url: '/api/v1/invitations/preview',
@@ -327,8 +335,18 @@ describe('family invitation acceptance API', () => {
     await setDisplayName(first, 'Первый');
     const second = await register(mail('limit-second'));
     await setDisplayName(second, 'Второй');
-    const firstInvite = await createInvitation(creator, first.user.email, 'EDITOR', creator.workspaceId);
-    const secondInvite = await createInvitation(creator, second.user.email, 'EDITOR', creator.workspaceId);
+    const firstInvite = await createInvitation(
+      creator,
+      first.user.email,
+      'EDITOR',
+      creator.workspaceId,
+    );
+    const secondInvite = await createInvitation(
+      creator,
+      second.user.email,
+      'EDITOR',
+      creator.workspaceId,
+    );
 
     const results = await Promise.all([
       inject('POST', '/api/v1/invitations/accept', first, { token: firstInvite.rawToken }),

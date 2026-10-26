@@ -32,7 +32,8 @@ type AuthenticatedRequest = FastifyRequest & { authContext?: RequestContext };
 @Controller('invitations')
 export class InvitationPreviewController {
   constructor(
-    @Inject(InvitationsApplicationService) private readonly invitations: InvitationsApplicationService,
+    @Inject(InvitationsApplicationService)
+    private readonly invitations: InvitationsApplicationService,
   ) {}
 
   @Post('preview')
@@ -57,7 +58,8 @@ export class InvitationPreviewController {
 @ApiCookieAuth('session')
 export class InvitationAcceptController {
   constructor(
-    @Inject(InvitationsApplicationService) private readonly invitations: InvitationsApplicationService,
+    @Inject(InvitationsApplicationService)
+    private readonly invitations: InvitationsApplicationService,
   ) {}
 
   @Post('accept')

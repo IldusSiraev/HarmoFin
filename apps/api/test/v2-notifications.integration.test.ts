@@ -225,7 +225,11 @@ describe('v2 notifications', () => {
     await prisma.user.createMany({
       data: [
         { id: demotedId, email: `demoted-${randomUUID()}@harmofin.test`, passwordHash: 'x' },
-        { id: deactivatedId, email: `deactivated-${randomUUID()}@harmofin.test`, passwordHash: 'x' },
+        {
+          id: deactivatedId,
+          email: `deactivated-${randomUUID()}@harmofin.test`,
+          passwordHash: 'x',
+        },
       ],
     });
     const demotedMembershipId = randomUUID();

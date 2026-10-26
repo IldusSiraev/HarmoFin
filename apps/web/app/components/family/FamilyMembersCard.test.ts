@@ -59,10 +59,7 @@ describe('FamilyMembersCard', () => {
 
     await wrapper.get('[aria-label="Действия: Алия"]').trigger('click');
     const items = wrapper.findAll('[role="menuitem"]');
-    expect(items.map((item) => item.text())).toEqual([
-      'Сделать наблюдателем',
-      'Удалить из семьи',
-    ]);
+    expect(items.map((item) => item.text())).toEqual(['Сделать наблюдателем', 'Удалить из семьи']);
 
     await items[0]!.trigger('click');
     expect(wrapper.emitted('changeRole')).toEqual([['m-editor', 'VIEWER']]);

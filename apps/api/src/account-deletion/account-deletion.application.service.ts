@@ -9,7 +9,10 @@ import type { PasswordService } from '../auth/password.service.js';
 import type { TokenService } from '../auth/token.service.js';
 import type { EmailSender } from '../auth/email-sender.js';
 import type { ApiConfig } from '../config/env.js';
-import { createAccessNotification, resolveUserNotifications } from '../family/family-notifications.js';
+import {
+  createAccessNotification,
+  resolveUserNotifications,
+} from '../family/family-notifications.js';
 import type { CancelDeletionInput, RequestDeletionInput } from './account-deletion.schemas.js';
 import type { AccountDeletionRepository } from './account-deletion.repository.js';
 

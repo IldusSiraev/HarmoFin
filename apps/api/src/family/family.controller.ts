@@ -1,5 +1,24 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
-import { ApiBody, ApiCookieAuth, ApiNoContentResponse, ApiOkResponse, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBody,
+  ApiCookieAuth,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 
 import { AuthRateLimitGuard } from '../auth/auth-rate-limit.guard.js';
@@ -36,7 +55,8 @@ type AuthenticatedRequest = FastifyRequest & { authContext?: RequestContext };
 export class FamilyController {
   constructor(
     @Inject(MembersApplicationService) private readonly members: MembersApplicationService,
-    @Inject(InvitationsApplicationService) private readonly invitations: InvitationsApplicationService,
+    @Inject(InvitationsApplicationService)
+    private readonly invitations: InvitationsApplicationService,
   ) {}
 
   @Get('members')
@@ -169,7 +189,12 @@ export class FamilyController {
     @Param('invitationId', UuidParam()) invitationId: string,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.invitations.resend(contextOf(request).userId, workspaceId, invitationId, request.id);
+    return this.invitations.resend(
+      contextOf(request).userId,
+      workspaceId,
+      invitationId,
+      request.id,
+    );
   }
 
   @Delete('invitations/:invitationId')
@@ -185,7 +210,12 @@ export class FamilyController {
     @Param('invitationId', UuidParam()) invitationId: string,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.invitations.revoke(contextOf(request).userId, workspaceId, invitationId, request.id);
+    return this.invitations.revoke(
+      contextOf(request).userId,
+      workspaceId,
+      invitationId,
+      request.id,
+    );
   }
 }
 

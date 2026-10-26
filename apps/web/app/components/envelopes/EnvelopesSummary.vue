@@ -12,10 +12,9 @@ defineOptions({ name: 'EnvelopesSummary' });
 
 // Money summary of the envelopes page. Every amount is a server minor-units
 // string shown as is: nothing is added, subtracted or compared numerically here.
-const props = withDefaults(
-  defineProps<{ dashboard: DashboardV2Response; canManage?: boolean }>(),
-  { canManage: true },
-);
+const props = withDefaults(defineProps<{ dashboard: DashboardV2Response; canManage?: boolean }>(), {
+  canManage: true,
+});
 const emit = defineEmits<{ distribute: [] }>();
 
 type Warning = DashboardV2Response['warnings'][number];

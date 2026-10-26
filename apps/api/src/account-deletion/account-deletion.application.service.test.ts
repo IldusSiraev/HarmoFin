@@ -76,7 +76,7 @@ function setup(overrides: { passwordOk?: boolean; otherMembers?: number; claimed
 
 describe('AccountDeletionApplicationService.requestDeletion', () => {
   it('schedules the purge 30 days ahead, archives owned scope and mails the restore link', async () => {
-    const { service, repository, emailSender, tx } = setup();
+    const { service, repository, emailSender } = setup();
 
     const result = await service.requestDeletion('u1', { password: 'correct-password' }, {});
 

@@ -116,7 +116,10 @@ export class InvitationsApplicationService {
       if (existingMember) throw alreadyMember();
       if ((await this.repository.countActiveMembers(tx, workspaceId)) >= MEMBER_LIMIT)
         throw memberLimitReached();
-      if ((await this.repository.countPendingInvitations(tx, workspaceId, now)) >= PENDING_INVITATION_LIMIT)
+      if (
+        (await this.repository.countPendingInvitations(tx, workspaceId, now)) >=
+        PENDING_INVITATION_LIMIT
+      )
         throw invitationLimitReached();
       let row: InvitationRow;
       try {
@@ -194,7 +197,10 @@ export class InvitationsApplicationService {
         if (existingMember) throw alreadyMember();
         if ((await this.repository.countActiveMembers(tx, workspaceId)) >= MEMBER_LIMIT)
           throw memberLimitReached();
-        if ((await this.repository.countPendingInvitations(tx, workspaceId, now)) >= PENDING_INVITATION_LIMIT)
+        if (
+          (await this.repository.countPendingInvitations(tx, workspaceId, now)) >=
+          PENDING_INVITATION_LIMIT
+        )
           throw invitationLimitReached();
       }
       let row: InvitationRow;

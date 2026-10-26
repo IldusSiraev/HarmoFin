@@ -108,10 +108,15 @@ describe('family invitations API', () => {
   });
 
   it('creates an invitation, mails a fragment link and stores only the digest', async () => {
-    const response = await inject('POST', `/api/v1/workspaces/${ownerWorkspaceId}/invitations`, owner, {
-      email: '  Alia@Harmofin.TEST ',
-      role: 'EDITOR',
-    });
+    const response = await inject(
+      'POST',
+      `/api/v1/workspaces/${ownerWorkspaceId}/invitations`,
+      owner,
+      {
+        email: '  Alia@Harmofin.TEST ',
+        role: 'EDITOR',
+      },
+    );
     expect(response.statusCode).toBe(201);
     const body = response.json<{ id: string; email: string; inviteUrl: string; status: string }>();
     expect(body).toMatchObject({ email: 'alia@harmofin.test', status: 'PENDING' });
@@ -131,33 +136,47 @@ describe('family invitations API', () => {
   });
 
   it('rejects a second pending invitation for the same email', async () => {
-    const response = await inject('POST', `/api/v1/workspaces/${ownerWorkspaceId}/invitations`, owner, {
-      email: 'alia@harmofin.test',
-      role: 'VIEWER',
-    });
+    const response = await inject(
+      'POST',
+      `/api/v1/workspaces/${ownerWorkspaceId}/invitations`,
+      owner,
+      {
+        email: 'alia@harmofin.test',
+        role: 'VIEWER',
+      },
+    );
     expect(response.statusCode).toBe(409);
     expect(response.json()).toMatchObject({ code: 'INVITATION_ALREADY_PENDING' });
   });
 
   it('rejects an invitation for an existing member', async () => {
-    const response = await inject('POST', `/api/v1/workspaces/${ownerWorkspaceId}/invitations`, owner, {
-      email: ownerEmail,
-      role: 'EDITOR',
-    });
+    const response = await inject(
+      'POST',
+      `/api/v1/workspaces/${ownerWorkspaceId}/invitations`,
+      owner,
+      {
+        email: ownerEmail,
+        role: 'EDITOR',
+      },
+    );
     expect(response.statusCode).toBe(409);
     expect(response.json()).toMatchObject({ code: 'ALREADY_MEMBER' });
   });
 
   it('resend rotates the token so the old link stops working', async () => {
     const [invitation] = await listInvitations(owner);
-    const before = await prisma.workspaceInvitation.findUniqueOrThrow({ where: { id: invitation!.id } });
+    const before = await prisma.workspaceInvitation.findUniqueOrThrow({
+      where: { id: invitation!.id },
+    });
     const resent = await inject(
       'POST',
       `/api/v1/workspaces/${ownerWorkspaceId}/invitations/${invitation!.id}/resend`,
       owner,
     );
     expect(resent.statusCode).toBe(200);
-    const after = await prisma.workspaceInvitation.findUniqueOrThrow({ where: { id: invitation!.id } });
+    const after = await prisma.workspaceInvitation.findUniqueOrThrow({
+      where: { id: invitation!.id },
+    });
     expect(after.tokenHash).not.toBe(before.tokenHash);
     expect(after.expiresAt.getTime()).toBeGreaterThan(before.expiresAt.getTime());
   });
@@ -167,7 +186,11 @@ describe('family invitations API', () => {
     expect(list.statusCode).toBe(200);
     expect(JSON.stringify(list.json())).not.toMatch(/token|inviteUrl/i);
     await addMember(ownerWorkspaceId, editor.user.id, 'EDITOR');
-    const byEditor = await inject('GET', `/api/v1/workspaces/${ownerWorkspaceId}/invitations`, editor);
+    const byEditor = await inject(
+      'GET',
+      `/api/v1/workspaces/${ownerWorkspaceId}/invitations`,
+      editor,
+    );
     expect(byEditor.statusCode).toBe(403);
   });
 
@@ -179,7 +202,9 @@ describe('family invitations API', () => {
       stranger,
     );
     expect(response.statusCode).toBe(404);
-    const still = await prisma.workspaceInvitation.findUniqueOrThrow({ where: { id: invitation!.id } });
+    const still = await prisma.workspaceInvitation.findUniqueOrThrow({
+      where: { id: invitation!.id },
+    });
     expect(still.status).toBe('PENDING');
   });
 
@@ -194,10 +219,15 @@ describe('family invitations API', () => {
 
   it('enforces the pending invitation limit', async () => {
     await seedPendingInvitations(ownerWorkspaceId, owner.user.id, 20);
-    const response = await inject('POST', `/api/v1/workspaces/${ownerWorkspaceId}/invitations`, owner, {
-      email: 'one-more@harmofin.test',
-      role: 'EDITOR',
-    });
+    const response = await inject(
+      'POST',
+      `/api/v1/workspaces/${ownerWorkspaceId}/invitations`,
+      owner,
+      {
+        email: 'one-more@harmofin.test',
+        role: 'EDITOR',
+      },
+    );
     expect(response.statusCode).toBe(409);
     expect(response.json()).toMatchObject({ code: 'INVITATION_LIMIT_REACHED' });
   });
@@ -205,7 +235,11 @@ describe('family invitations API', () => {
   it('re-checks the pending limit when resending an expired invitation back into the pool', async () => {
     const actor = await register();
     await setDisplayName(actor, 'Иван');
-    const expiredId = await seedExpiredInvitation(actor.workspaceId, actor.user.id, 'expired@harmofin.test');
+    const expiredId = await seedExpiredInvitation(
+      actor.workspaceId,
+      actor.user.id,
+      'expired@harmofin.test',
+    );
     await seedPendingInvitations(actor.workspaceId, actor.user.id, 20);
 
     const response = await inject(
@@ -224,10 +258,15 @@ describe('family invitations API', () => {
     await setDisplayName(actor, 'Иван');
     const email = 'dup@harmofin.test';
     const expiredId = await seedExpiredInvitation(actor.workspaceId, actor.user.id, email);
-    const created = await inject('POST', `/api/v1/workspaces/${actor.workspaceId}/invitations`, actor, {
-      email,
-      role: 'EDITOR',
-    });
+    const created = await inject(
+      'POST',
+      `/api/v1/workspaces/${actor.workspaceId}/invitations`,
+      actor,
+      {
+        email,
+        role: 'EDITOR',
+      },
+    );
     expect(created.statusCode).toBe(201);
 
     const response = await inject(
@@ -237,7 +276,9 @@ describe('family invitations API', () => {
     );
     expect(response.statusCode).toBe(409);
     expect(response.json()).toMatchObject({ code: 'INVITATION_ALREADY_PENDING' });
-    const stillExpired = await prisma.workspaceInvitation.findUniqueOrThrow({ where: { id: expiredId } });
+    const stillExpired = await prisma.workspaceInvitation.findUniqueOrThrow({
+      where: { id: expiredId },
+    });
     expect(stillExpired.status).toBe('EXPIRED');
   });
 
@@ -247,10 +288,15 @@ describe('family invitations API', () => {
     const extraUserIds = await seedUsers(9);
     for (const userId of extraUserIds) await addMember(actor.workspaceId, userId, 'EDITOR');
 
-    const response = await inject('POST', `/api/v1/workspaces/${actor.workspaceId}/invitations`, actor, {
-      email: 'no-room@harmofin.test',
-      role: 'EDITOR',
-    });
+    const response = await inject(
+      'POST',
+      `/api/v1/workspaces/${actor.workspaceId}/invitations`,
+      actor,
+      {
+        email: 'no-room@harmofin.test',
+        role: 'EDITOR',
+      },
+    );
     expect(response.statusCode).toBe(409);
     expect(response.json()).toMatchObject({ code: 'MEMBER_LIMIT_REACHED' });
   });
@@ -286,7 +332,11 @@ async function setDisplayName(actor: Actor, displayName: string): Promise<void> 
   await prisma.user.update({ where: { id: actor.user.id }, data: { displayName } });
 }
 
-async function addMember(workspaceId: string, userId: string, role: 'EDITOR' | 'VIEWER'): Promise<void> {
+async function addMember(
+  workspaceId: string,
+  userId: string,
+  role: 'EDITOR' | 'VIEWER',
+): Promise<void> {
   await prisma.workspaceMembership.create({
     data: { id: createUuidV7(), workspaceId, userId, role },
   });
@@ -297,7 +347,11 @@ async function listInvitations(actor: Actor): Promise<Array<{ id: string }>> {
   return response.json<Array<{ id: string }>>();
 }
 
-async function seedPendingInvitations(workspaceId: string, invitedByUserId: string, count: number): Promise<void> {
+async function seedPendingInvitations(
+  workspaceId: string,
+  invitedByUserId: string,
+  count: number,
+): Promise<void> {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   for (let index = 0; index < count; index += 1) {
@@ -374,8 +428,7 @@ async function inject(
   const options: InjectOptions = {
     method,
     url,
-    headers:
-      method === 'GET' ? { origin } : { origin, 'x-csrf-token': actor.csrfToken },
+    headers: method === 'GET' ? { origin } : { origin, 'x-csrf-token': actor.csrfToken },
     cookies: { harmofin_session: actor.cookie },
   };
   if (payload !== undefined) options.payload = payload;

@@ -191,6 +191,7 @@ export class MembersApplicationService {
     const remaining = await tx.workspaceMembership.count({
       where: { userId: input.memberUserId, isActive: true, workspace: { status: 'ACTIVE' } },
     });
-    if (remaining === 0) await createPersonalWorkspace(tx, input.memberUserId, now, input.requestId);
+    if (remaining === 0)
+      await createPersonalWorkspace(tx, input.memberUserId, now, input.requestId);
   }
 }

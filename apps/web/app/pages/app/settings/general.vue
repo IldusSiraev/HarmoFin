@@ -416,11 +416,7 @@ onMounted(() => {
             required
           />
           <label class="general-settings-form__checkbox">
-            <input
-              v-model="form.allowNegativeBalance"
-              type="checkbox"
-              :disabled="!canManage"
-            >
+            <input v-model="form.allowNegativeBalance" type="checkbox" :disabled="!canManage" />
             <span>Разрешить уходить в минус</span>
             <UiInfoTooltip
               text="Если выключено, HarmoFin не даст сохранить операцию, которая уведёт счёт или конверт в минус."

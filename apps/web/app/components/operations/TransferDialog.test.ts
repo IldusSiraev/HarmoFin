@@ -94,7 +94,10 @@ describe('TransferDialog', () => {
 
   it('shows the author of the transfer', () => {
     const wrapper = mountDialog({
-      transfer: { ...transfer, createdBy: { userId: 'u1', displayName: 'Алия', isActiveMember: true } },
+      transfer: {
+        ...transfer,
+        createdBy: { userId: 'u1', displayName: 'Алия', isActiveMember: true },
+      },
     });
     expect(wrapper.text()).toContain('Автор: Алия');
   });

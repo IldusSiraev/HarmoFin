@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { computed, ref } from 'vue';
 
 const role = ref<'OWNER' | 'EDITOR' | 'VIEWER' | null>(null);
-vi.mock('./useActiveWorkspace.js', () => ({ useActiveWorkspace: () => ({ role: computed(() => role.value) }) }));
+vi.mock('./useActiveWorkspace.js', () => ({
+  useActiveWorkspace: () => ({ role: computed(() => role.value) }),
+}));
 
 import { usePermissions } from './usePermissions.js';
 

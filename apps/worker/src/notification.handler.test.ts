@@ -208,17 +208,15 @@ describe('NotificationRuleHandler', () => {
       workspace: { memberships: [{ userId: 'owner-1' }, { userId: 'editor-1' }] },
     };
     tx.planOccurrence.findMany.mockResolvedValue([occurrence('occ-late', '2026-09-09', 100n)]);
-    tx.notification.findMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          id: 'n-ex-viewer',
-          userId: 'viewer-1',
-          notificationType: 'PLAN_OVERDUE',
-          occurrenceId: 'occ-late',
-          actionPath: '/app/plans?occurrence=occ-late',
-        },
-      ]);
+    tx.notification.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: 'n-ex-viewer',
+        userId: 'viewer-1',
+        notificationType: 'PLAN_OVERDUE',
+        occurrenceId: 'occ-late',
+        actionPath: '/app/plans?occurrence=occ-late',
+      },
+    ]);
 
     await new NotificationRuleHandler(makePrisma([multiMember], tx) as never).execute(now);
 

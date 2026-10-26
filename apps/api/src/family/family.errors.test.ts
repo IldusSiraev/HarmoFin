@@ -105,13 +105,7 @@ describe('family errors', () => {
     },
   ])(
     '$name',
-    ({
-      factory,
-      expectedClass,
-      expectedStatus,
-      expectedCode,
-      expectedDetailContains,
-    }) => {
+    ({ factory, expectedClass, expectedStatus, expectedCode, expectedDetailContains }) => {
       const exception = factory();
 
       // Check instance type
@@ -136,7 +130,7 @@ describe('family errors', () => {
 
       // If a specific detail value is expected, check it's present
       if (expectedDetailContains) {
-        expect((detail as string)).toContain(expectedDetailContains);
+        expect(detail as string).toContain(expectedDetailContains);
       }
     },
   );

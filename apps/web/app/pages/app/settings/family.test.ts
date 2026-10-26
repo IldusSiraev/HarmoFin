@@ -160,9 +160,9 @@ describe('settings family page', () => {
     await flushPromises();
 
     expect(q('[data-action="leave-family"]')).not.toBeNull();
-    expect(qa<HTMLButtonElement>('button').some((b) => b.textContent?.trim() === 'Пригласить')).toBe(
-      false,
-    );
+    expect(
+      qa<HTMLButtonElement>('button').some((b) => b.textContent?.trim() === 'Пригласить'),
+    ).toBe(false);
     expect(text()).not.toContain('Приглашений нет');
 
     q<HTMLButtonElement>('[data-action="leave-family"]')?.click();
@@ -222,7 +222,9 @@ describe('settings family page', () => {
       emailInput!.value = 'friend@example.test';
       emailInput!.dispatchEvent(new Event('input', { bubbles: true }));
       await flushPromises();
-      q<HTMLFormElement>('[role="dialog"] form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      q<HTMLFormElement>('[role="dialog"] form')?.dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
       await flushPromises();
 
       expect(text()).toContain(`detail-${code}`);

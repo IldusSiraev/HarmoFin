@@ -99,7 +99,13 @@ async function evaluateBudget(
       notificationType: { in: ['PLAN_TODAY', 'PLAN_OVERDUE'] },
       occurrenceId: { not: null },
     },
-    select: { id: true, userId: true, notificationType: true, occurrenceId: true, actionPath: true },
+    select: {
+      id: true,
+      userId: true,
+      notificationType: true,
+      occurrenceId: true,
+      actionPath: true,
+    },
   });
   for (const notification of unresolved) {
     const stillActive =
@@ -116,7 +122,13 @@ async function evaluateBudget(
       notificationType: { in: ['PLAN_TODAY', 'PLAN_OVERDUE'] },
       userId: { notIn: recipientIds },
     },
-    select: { id: true, userId: true, notificationType: true, occurrenceId: true, actionPath: true },
+    select: {
+      id: true,
+      userId: true,
+      notificationType: true,
+      occurrenceId: true,
+      actionPath: true,
+    },
   });
   for (const notification of forExRecipients) {
     await resolveNotification(tx, budget, notification);

@@ -52,7 +52,10 @@ export class AuthRateLimitGuard implements CanActivate {
     if (url.startsWith('/api/v1/auth/deletion/cancel')) return this.config.rateLimit.recoveryMax;
     if (url.startsWith('/api/v1/invitations/preview')) return this.config.rateLimit.recoveryMax;
     if (url.startsWith('/api/v1/invitations/accept')) return this.config.rateLimit.recoveryMax;
-    if (/^\/api\/v1\/workspaces\/[^/]+\/invitations(\/[^/]+\/resend)?$/.test(url) && method === 'POST')
+    if (
+      /^\/api\/v1\/workspaces\/[^/]+\/invitations(\/[^/]+\/resend)?$/.test(url) &&
+      method === 'POST'
+    )
       return this.config.rateLimit.loginMax;
     return null;
   }

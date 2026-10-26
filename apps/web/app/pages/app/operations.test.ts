@@ -579,7 +579,9 @@ describe('operations page (v2 journal)', () => {
   });
 
   it('hides the author filter and row label for a single-member family', async () => {
-    family.members.value = [{ userId: 'owner-id', displayName: 'Иван', email: 'owner@harmofin.test' }];
+    family.members.value = [
+      { userId: 'owner-id', displayName: 'Иван', email: 'owner@harmofin.test' },
+    ];
     withItems(expense);
     mountPage();
     await flushPromises();
@@ -593,7 +595,10 @@ describe('operations page (v2 journal)', () => {
       { userId: 'owner-id', displayName: 'Иван', email: 'owner@harmofin.test' },
       { userId: 'editor-id', displayName: 'Алия', email: 'editor@harmofin.test' },
     ];
-    withItems({ ...expense, createdBy: { userId: 'editor-id', displayName: 'Алия', isActiveMember: true } });
+    withItems({
+      ...expense,
+      createdBy: { userId: 'editor-id', displayName: 'Алия', isActiveMember: true },
+    });
     mountPage();
     await flushPromises();
 

@@ -261,7 +261,9 @@ describe('auth API', () => {
     }>();
     expect(body.user.displayName).toBe('Ильдар Заметный');
     expect(body.activeWorkspaceId).toBe(workspace.id);
-    expect(body.workspaces).toEqual([expect.objectContaining({ id: workspace.id, isCreator: true })]);
+    expect(body.workspaces).toEqual([
+      expect.objectContaining({ id: workspace.id, isCreator: true }),
+    ]);
   });
 
   it('requires CSRF for logout and revokes session after valid logout', async () => {

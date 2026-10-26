@@ -423,7 +423,9 @@ describe('settings general page', () => {
       );
       expect(wrapper.get('input[name="name"]').attributes('disabled')).toBeDefined();
       expect(wrapper.get('input[name="cycleStartDay"]').attributes('disabled')).toBeDefined();
-      expect(wrapper.get('input[name="periodBoundaryOffset"]').attributes('disabled')).toBeDefined();
+      expect(
+        wrapper.get('input[name="periodBoundaryOffset"]').attributes('disabled'),
+      ).toBeDefined();
       expect(wrapper.find('[data-action="submit-general"]').exists()).toBe(false);
     });
 

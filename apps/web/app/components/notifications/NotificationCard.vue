@@ -2,7 +2,10 @@
 import { UserMinus, UserPlus, UserX } from '@lucide/vue';
 import type { Component } from 'vue';
 
-import type { NotificationDto, NotificationType } from '../../composables/useBudgetReferenceData.js';
+import type {
+  NotificationDto,
+  NotificationType,
+} from '../../composables/useBudgetReferenceData.js';
 
 const props = defineProps<{ notification: NotificationDto }>();
 defineEmits<{ open: [event: MouseEvent] }>();
@@ -31,7 +34,12 @@ function memberEventIcon(): Component | null {
       <time :datetime="notification.createdAt">{{ notification.createdAt.slice(0, 10) }}</time>
     </div>
     <h2 class="notification-card__title">
-      <component :is="memberEventIcon()" v-if="memberEventIcon()" class="notification-card__icon" aria-hidden="true" />
+      <component
+        :is="memberEventIcon()"
+        v-if="memberEventIcon()"
+        class="notification-card__icon"
+        aria-hidden="true"
+      />
       {{ notification.title }}
     </h2>
     <p>{{ notification.body }}</p>

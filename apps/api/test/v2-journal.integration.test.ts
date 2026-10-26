@@ -378,7 +378,10 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
     const editorExpenseId = await createExpense(editor(), '2026-10-11');
 
     const allBody = (await page(owner(), {})).json<{
-      items: Array<{ id: string; createdBy: { userId: string; displayName: string | null; isActiveMember: boolean } }>;
+      items: Array<{
+        id: string;
+        createdBy: { userId: string; displayName: string | null; isActiveMember: boolean };
+      }>;
     }>();
     expect(allBody.items.map((item) => item.createdBy.userId)).toEqual(
       expect.arrayContaining([owner().userId, editor().userId]),
@@ -392,9 +395,9 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
       owner().userId,
     );
 
-    const filteredBody = (
-      await page(owner(), { createdByUserId: editor().userId })
-    ).json<{ items: Array<{ createdBy: { userId: string } }> }>();
+    const filteredBody = (await page(owner(), { createdByUserId: editor().userId })).json<{
+      items: Array<{ createdBy: { userId: string } }>;
+    }>();
     expect(filteredBody.items.length).toBeGreaterThan(0);
     expect(filteredBody.items.every((item) => item.createdBy.userId === editor().userId)).toBe(
       true,

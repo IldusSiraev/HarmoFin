@@ -50,7 +50,12 @@ describe('useFamily', () => {
 
   it('invite posts email and role, returns the invitation with its inviteUrl, and reloads', async () => {
     isCreator.value = true;
-    const created = { id: 'i1', email: 'a@b.test', role: 'EDITOR', inviteUrl: 'https://x/invite/1' };
+    const created = {
+      id: 'i1',
+      email: 'a@b.test',
+      role: 'EDITOR',
+      inviteUrl: 'https://x/invite/1',
+    };
     api.request.mockResolvedValueOnce(created);
     api.request.mockResolvedValueOnce([]);
     api.request.mockResolvedValueOnce([]);
@@ -108,11 +113,10 @@ describe('useFamily', () => {
     const { changeRole } = useFamily(workspaceId);
     await changeRole('m1', 'VIEWER');
 
-    expect(api.request).toHaveBeenNthCalledWith(
-      1,
-      '/api/v1/workspaces/workspace-id/members/m1',
-      { method: 'PATCH', body: JSON.stringify({ role: 'VIEWER' }) },
-    );
+    expect(api.request).toHaveBeenNthCalledWith(1, '/api/v1/workspaces/workspace-id/members/m1', {
+      method: 'PATCH',
+      body: JSON.stringify({ role: 'VIEWER' }),
+    });
   });
 
   it('removeMember deletes the membership', async () => {
@@ -124,11 +128,9 @@ describe('useFamily', () => {
     const { removeMember } = useFamily(workspaceId);
     await removeMember('m1');
 
-    expect(api.request).toHaveBeenNthCalledWith(
-      1,
-      '/api/v1/workspaces/workspace-id/members/m1',
-      { method: 'DELETE' },
-    );
+    expect(api.request).toHaveBeenNthCalledWith(1, '/api/v1/workspaces/workspace-id/members/m1', {
+      method: 'DELETE',
+    });
   });
 
   it('leave posts to /leave, refreshes the session and fully reloads to /app', async () => {

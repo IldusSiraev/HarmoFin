@@ -195,7 +195,11 @@ describe('family members API', () => {
     ).toBe(1);
     expect(
       await prisma.auditEvent.count({
-        where: { workspaceId: ownerWorkspaceId, entityType: 'workspace_membership', action: 'REMOVED' },
+        where: {
+          workspaceId: ownerWorkspaceId,
+          entityType: 'workspace_membership',
+          action: 'REMOVED',
+        },
       }),
     ).toBe(1);
   });
@@ -265,7 +269,11 @@ async function registerWithoutWorkspace(): Promise<RegisteredActor> {
   return actor;
 }
 
-async function addMember(workspaceId: string, userId: string, role: 'EDITOR' | 'VIEWER'): Promise<void> {
+async function addMember(
+  workspaceId: string,
+  userId: string,
+  role: 'EDITOR' | 'VIEWER',
+): Promise<void> {
   await prisma.workspaceMembership.create({
     data: { id: createUuidV7(), workspaceId, userId, role },
   });
@@ -279,7 +287,11 @@ async function membershipOf(workspaceId: string, userId: string): Promise<string
   return membership.id;
 }
 
-async function seedNotification(workspaceId: string, budgetId: string, userId: string): Promise<void> {
+async function seedNotification(
+  workspaceId: string,
+  budgetId: string,
+  userId: string,
+): Promise<void> {
   await prisma.notification.create({
     data: {
       id: createUuidV7(),
@@ -303,8 +315,7 @@ async function inject(
   const options: InjectOptions = {
     method,
     url,
-    headers:
-      method === 'GET' ? { origin } : { origin, 'x-csrf-token': actor.csrfToken },
+    headers: method === 'GET' ? { origin } : { origin, 'x-csrf-token': actor.csrfToken },
     cookies: { harmofin_session: actor.cookie },
   };
   if (payload !== undefined) options.payload = payload;

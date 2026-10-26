@@ -291,9 +291,9 @@ describe('account deletion', () => {
 
     expect((await cancel(rawToken)).statusCode).toBe(204);
 
-    expect(
-      (await prisma.user.findUniqueOrThrow({ where: { id: member.userId } })).status,
-    ).toBe('ACTIVE');
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: member.userId } })).status).toBe(
+      'ACTIVE',
+    );
     expect(
       (await prisma.workspace.findUniqueOrThrow({ where: { id: member.workspaceId } })).status,
     ).toBe('ACTIVE');
