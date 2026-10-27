@@ -331,6 +331,18 @@ export class EnvelopeHistoryItemResponse {
 
   @ApiProperty({ type: String, format: 'date', example: '2026-09-30' })
   effectiveOn!: string;
+
+  @ApiProperty({ type: String, enum: ['IN', 'OUT'], example: 'OUT' })
+  direction!: string;
+
+  @ApiProperty({ type: PersonRefResponse })
+  createdBy!: PersonRefResponse;
+
+  @ApiProperty({ type: String, nullable: true, example: 'Отпуск' })
+  counterpartName!: string | null;
+
+  @ApiProperty({ type: String, nullable: true, enum: ['INCOME', 'OPENING', 'FREE'], example: 'INCOME' })
+  assignmentType!: string | null;
 }
 
 export class EnvelopeHistoryListResponse {

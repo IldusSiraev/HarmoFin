@@ -434,9 +434,12 @@ export class EnvelopePlanApplicationService {
     query: EnvelopeHistoryQuery,
   ): Promise<{
     status: number;
-    body: { items: EnvelopeHistoryItemRecord[]; nextCursor: string | null };
+    body: {
+      items: Array<Omit<EnvelopeHistoryItemRecord, 'createdByUserId'> & { createdBy: PersonRef }>;
+      nextCursor: string | null;
+    };
   }> {
-    await this.planModelPolicy.requireModel(userId, budgetId, 2);
+    const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
     const limit = Math.min(Math.max(query.limit ?? HISTORY_PAGE_LIMIT, 1), HISTORY_PAGE_LIMIT_MAX);
     const status = query.status ?? 'CONFIRMED';
     const cursor = query.cursor ? decodeHistoryCursor(query.cursor) : null;
@@ -453,12 +456,17 @@ export class EnvelopePlanApplicationService {
       );
       const hasMore = rows.length > limit;
       const page = rows.slice(0, limit);
+      const people = await findPersonRefs(tx, model.workspaceId, page.map((row) => row.createdByUserId));
+      const items = page.map(({ createdByUserId, ...row }) => ({
+        ...row,
+        createdBy: personRefOf(people, createdByUserId),
+      }));
       const last = page[limit - 1];
       const nextCursor =
         hasMore && last !== undefined
           ? encodeHistoryCursor({ date: last.effectiveOn, id: last.id })
           : null;
-      return { status: 200, body: { items: page, nextCursor } };
+      return { status: 200, body: { items, nextCursor } };
     });
   }
 
