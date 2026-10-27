@@ -382,11 +382,15 @@ export type TransactionV2Status = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED
 // The journal feed names who recorded each row; other reads of a transaction
 // (a single fetch, a lifecycle response) do not carry it, so the field stays
 // optional on the shared item type instead of forking it into a journal-only type.
-export interface AuthorRef {
+export interface PersonRef {
   userId: string;
   displayName: string | null;
   isActiveMember: boolean;
 }
+
+// Compatibility alias: the same reference now names an owner, not only an
+// operation author. Import PersonRef in new code.
+export type AuthorRef = PersonRef;
 
 // One journal row.
 export interface TransactionJournalV2Item {

@@ -6,6 +6,10 @@ const state = vi.hoisted(() => ({ role: 'OWNER' as 'OWNER' | 'EDITOR' | 'VIEWER'
 vi.mock('../../composables/useActiveWorkspace.js', () => ({
   useActiveWorkspace: () => ({ role: computed(() => state.role) }),
 }));
+// usePermissions now reads the user from useAuth; the menu only cares about the role.
+vi.mock('../../composables/useAuth.js', () => ({
+  useAuth: () => ({ currentUser: computed(() => null) }),
+}));
 
 import AppAddMenu from './AppAddMenu.vue';
 import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
