@@ -4,6 +4,7 @@ import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
 
 const planSelect = {
   id: true,
+  ownerUserId: true,
   name: true,
   amountMinor: true,
   recurrence: true,
@@ -26,6 +27,7 @@ export const mandatoryPlanFilter = (budgetId: string) =>
 
 export type OccurrenceListFilter = {
   planId?: string | undefined;
+  ownerUserId?: string | undefined;
   status?: PlanOccurrenceStatus | undefined;
   statuses?: PlanOccurrenceStatus[] | undefined;
   from?: Date | undefined;
@@ -43,15 +45,34 @@ export class ObligationPlanRepository {
     });
   }
 
-  listPlans(db: Prisma.TransactionClient, budgetId: string, status: 'active' | 'archived' | 'all') {
+  listPlans(
+    db: Prisma.TransactionClient,
+    budgetId: string,
+    status: 'active' | 'archived' | 'all',
+    ownerUserId?: string,
+  ) {
     return db.regularPlan.findMany({
       where: {
         ...mandatoryPlanFilter(budgetId),
         ...(status === 'all' ? {} : { isActive: status === 'active' }),
+        ...(ownerUserId ? { ownerUserId } : {}),
       },
       select: planSelect,
       orderBy: [{ isActive: 'desc' }, { createdAt: 'asc' }, { id: 'asc' }],
     });
+  }
+
+  /** Owner id of a plan within the budget (mandatory-envelope EXPENSE scope), or null. */
+  async findPlanOwnerUserId(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    planId: string,
+  ): Promise<string | null> {
+    const row = await tx.regularPlan.findFirst({
+      where: { id: planId, ...mandatoryPlanFilter(budgetId) },
+      select: { ownerUserId: true },
+    });
+    return row?.ownerUserId ?? null;
   }
 
   async listOccurrences(
@@ -63,7 +84,12 @@ export class ObligationPlanRepository {
       where: {
         budgetId,
         planType: 'EXPENSE',
-        plan: { is: mandatoryPlanFilter(budgetId) },
+        plan: {
+          is: {
+            ...mandatoryPlanFilter(budgetId),
+            ...(query.ownerUserId ? { ownerUserId: query.ownerUserId } : {}),
+          },
+        },
         ...(query.planId ? { planId: query.planId } : {}),
         ...(query.status ? { status: query.status } : {}),
         ...(query.statuses ? { status: { in: query.statuses } } : {}),

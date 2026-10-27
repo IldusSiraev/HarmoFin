@@ -4,12 +4,10 @@ import { BadRequestException, ConflictException, Injectable } from '@nestjs/comm
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
+import { requireAccessActor } from '../common/policies/access-actor.repository.js';
+import { BudgetAccessPolicy, type AccessActor } from '../common/policies/budget-access.policy.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
-import {
-  forbidden,
-  invalidReference,
-  resourceNotFound,
-} from '../common/reference-data/reference-data.errors.js';
+import { invalidReference, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import { todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { AssignmentBalanceRepository } from '../envelope-plans/assignment-balance.repository.js';
@@ -125,6 +123,7 @@ export class ObligationApplicationService {
   private readonly transactions: TransactionRepository;
   private readonly obligations = new ObligationRepository();
   private readonly assignmentBalances = new AssignmentBalanceRepository();
+  private readonly access = new BudgetAccessPolicy();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -161,9 +160,10 @@ export class ObligationApplicationService {
       'obligation.pay',
       requestHash,
       model.workspaceId,
-      (tx) =>
+      (tx, access) =>
         this.payInTransaction(
           tx,
+          access,
           userId,
           budgetId,
           model.workspaceId,
@@ -172,6 +172,7 @@ export class ObligationApplicationService {
           occurredOn,
           requestId,
         ),
+      (access) => this.access.requireWriter(access),
     );
   }
 
@@ -181,6 +182,7 @@ export class ObligationApplicationService {
    */
   async payInTransaction(
     tx: Parameters<Parameters<PrismaService['$transaction']>[0]>[0],
+    access: AccessActor,
     userId: string,
     budgetId: string,
     workspaceId: string,
@@ -198,6 +200,18 @@ export class ObligationApplicationService {
       throw resourceNotFound();
     }
     const occurrence = await this.requireOccurrence(tx, budgetId, occurrenceId);
+    const [envelopeLoaded, account, category] = await Promise.all([
+      occurrence.envelopeId === null
+        ? Promise.resolve(null)
+        : this.obligations.findEnvelope(tx, budgetId, occurrence.envelopeId),
+      this.obligations.findAccount(tx, budgetId, input.accountId),
+      this.obligations.findExpenseCategory(tx, budgetId, input.categoryId),
+    ]);
+    if (!account || !category) {
+      throw resourceNotFound();
+    }
+    this.access.requireObjectOwner(access, { ownerUserId: occurrence.plan.ownerUserId });
+    this.access.requireAccountOwner(access, { ownerUserId: account.ownerUserId });
     this.assertOpen(occurrence);
     if (
       occurrence.planType !== 'EXPENSE' ||
@@ -207,15 +221,7 @@ export class ObligationApplicationService {
     ) {
       throw notPayable();
     }
-
-    const [envelope, account, category] = await Promise.all([
-      this.obligations.findEnvelope(tx, budgetId, occurrence.envelopeId),
-      this.obligations.findAccount(tx, budgetId, input.accountId),
-      this.obligations.findExpenseCategory(tx, budgetId, input.categoryId),
-    ]);
-    if (!account || !category) {
-      throw resourceNotFound();
-    }
+    const envelope = envelopeLoaded;
     if (!envelope || envelope.envelopeType !== 'MANDATORY_EXPENSES') {
       throw notPayable();
     }
@@ -430,8 +436,9 @@ export class ObligationApplicationService {
       `obligation.${action}`,
       this.hash({ budgetId, occurrenceId, action }),
       model.workspaceId,
-      async (tx) => {
+      async (tx, access) => {
         const occurrence = await this.requireOccurrence(tx, budgetId, occurrenceId);
+        this.access.requireObjectOwner(access, { ownerUserId: occurrence.plan.ownerUserId });
         this.assertOpen(occurrence);
         const paid = await this.obligations.confirmedPaidMinor(tx, budgetId, occurrence.id);
         if (action === 'skip' && paid.count > 0) {
@@ -455,6 +462,7 @@ export class ObligationApplicationService {
           warnings: [],
         };
       },
+      (access) => this.access.requireWriter(access),
     );
   }
 
@@ -467,7 +475,9 @@ export class ObligationApplicationService {
     workspaceId: string,
     body: (
       tx: Parameters<Parameters<PrismaService['$transaction']>[0]>[0],
+      access: AccessActor,
     ) => Promise<ObligationResult>,
+    authorize: (access: AccessActor) => void,
   ): Promise<ObligationResult> {
     const result = await this.prisma.$transaction(async (tx) => {
       await this.transactions.lockBudget(tx, budgetId);
@@ -475,11 +485,9 @@ export class ObligationApplicationService {
         tx,
         { budgetId, actorUserId: userId, key, operation, requestHash },
         async () => {
-          const role = await this.transactions.findActiveMemberRole(tx, workspaceId, userId);
-          if (role !== 'OWNER' && role !== 'EDITOR') {
-            throw forbidden();
-          }
-          return { status: 200, body: await body(tx) };
+          const access = await requireAccessActor(tx, workspaceId, userId);
+          authorize(access);
+          return { status: 200, body: await body(tx, access) };
         },
       );
     });

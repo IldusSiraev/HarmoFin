@@ -103,6 +103,12 @@ export class IncomePlanController {
       'Прогнозы доходов (RegularPlan INCOME). Прогноз не является деньгами. Доступно любому участнику.',
   })
   @ApiQuery({ name: 'status', required: false, enum: ['active', 'archived', 'all'] })
+  @ApiQuery({
+    name: 'ownerUserId',
+    required: false,
+    schema: { type: 'string', format: 'uuid' },
+    description: 'Только планы с этим владельцем.',
+  })
   @ApiOkResponse({ type: IncomePlanListResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
@@ -123,7 +129,7 @@ export class IncomePlanController {
   @UseGuards(CsrfGuard)
   @ApiOperation({
     summary: 'Создать план дохода (разовый или регулярный)',
-    description: `Создаёт прогноз дохода на активной категории дохода и материализует occurrences текущего и следующего периода без worker. Не создаёт операций и назначений, не входит в деньги и обязательные платежи. Только OWNER. ${conflictCodes}`,
+    description: `Создаёт прогноз дохода на активной категории дохода и материализует occurrences текущего и следующего периода без worker. Не создаёт операций и назначений, не входит в деньги и обязательные платежи. Создание — любой участник с правом записи; управление — только владелец плана. ${conflictCodes}`,
   })
   @ApiHeader(idempotencyHeader)
   @ApiBody({ type: IncomePlanCreateBody })
@@ -183,14 +189,14 @@ export class IncomePlanController {
   @UseGuards(CsrfGuard)
   @ApiOperation({
     summary: 'Записать фактический доход по прогнозу',
-    description: `Атомарно создаёт одну подтверждённую операцию INCOME (v2) и закрывает occurrence (COMPLETED, transactionId). Категория по умолчанию — категория плана. Будущая дата отклоняется. Назначение дохода конвертам остаётся отдельным явным действием. OWNER или EDITOR. Коды 409: OCCURRENCE_NOT_OPEN (повторная запись, даже с другим Idempotency-Key, либо план отключён), IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.`,
+    description: `Атомарно создаёт одну подтверждённую операцию INCOME (v2) и закрывает occurrence (COMPLETED, transactionId). Категория по умолчанию — категория плана. Будущая дата отклоняется. Назначение дохода конвертам остаётся отдельным явным действием. Запись — только владелец плана; создание плана доступно любому участнику с правом записи (OWNER, EDITOR). Коды 409: OCCURRENCE_NOT_OPEN (повторная запись, даже с другим Idempotency-Key, либо план отключён), IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.`,
   })
   @ApiHeader(idempotencyHeader)
   @ApiBody({ type: IncomeRecordBody })
   @ApiCreatedResponse({ type: IncomeRecordResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse, description: 'FORBIDDEN или NOT_OBJECT_OWNER.' })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
@@ -216,14 +222,14 @@ export class IncomePlanController {
   @UseGuards(CsrfGuard)
   @ApiOperation({
     summary: 'Изменить или архивировать план дохода',
-    description: `Имя и сумма применяются к будущим открытым occurrences; уже наступившие открытые меняются только при applyToCurrentOpen=true; закрытые не меняются. status=ARCHIVED отключает только будущие открытые. Только OWNER. ${conflictCodes}`,
+    description: `Имя и сумма применяются к будущим открытым occurrences; уже наступившие открытые меняются только при applyToCurrentOpen=true; закрытые не меняются. status=ARCHIVED отключает только будущие открытые. Управление — только владелец плана. ${conflictCodes}`,
   })
   @ApiHeader(idempotencyHeader)
   @ApiBody({ type: IncomePlanUpdateBody })
   @ApiOkResponse({ type: IncomePlanUpdateResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse, description: 'FORBIDDEN или NOT_OBJECT_OWNER.' })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })

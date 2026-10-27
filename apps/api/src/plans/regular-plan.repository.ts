@@ -13,6 +13,7 @@ export type RegularPlanRecord = {
   id: string;
   workspaceId: string;
   budgetId: string;
+  ownerUserId: string;
   name: string;
   planType: RegularPlanType;
   amountMinor: bigint;
@@ -119,13 +120,14 @@ export class RegularPlanRepository {
     });
   }
 
-  list(userId: string, budgetId: string, status: 'active' | 'inactive' | 'all') {
+  list(userId: string, budgetId: string, status: 'active' | 'inactive' | 'all', ownerUserId?: string) {
     return this.prisma.regularPlan.findMany({
       where: {
         budgetId,
         deletedAt: null,
         budget: activeBudgetWhere(userId, budgetId),
         ...(status === 'all' ? {} : { isActive: status === 'active' }),
+        ...(ownerUserId ? { ownerUserId } : {}),
       },
       select: regularPlanSelect,
       orderBy: [{ isActive: 'desc' }, { createdAt: 'asc' }],
@@ -361,7 +363,7 @@ export class RegularPlanRepository {
     if (rows.length === 0) return [];
     const now = new Date();
     await tx.planOccurrence.updateMany({
-      where: { id: { in: rows.map((row) => row.id) } },
+      where: { id: { in: rows.map((row) => row.id) }, budgetId },
       data: {
         status: 'CANCELLED',
         cancelledAt: now,
@@ -510,6 +512,7 @@ export const regularPlanSelect = {
   id: true,
   workspaceId: true,
   budgetId: true,
+  ownerUserId: true,
   name: true,
   planType: true,
   amountMinor: true,

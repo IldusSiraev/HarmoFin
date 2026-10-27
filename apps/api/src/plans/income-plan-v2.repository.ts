@@ -4,6 +4,7 @@ import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
 
 const planSelect = {
   id: true,
+  ownerUserId: true,
   name: true,
   amountMinor: true,
   recurrence: true,
@@ -24,6 +25,7 @@ export const incomePlanFilter = (budgetId: string) =>
 
 export type IncomeOccurrenceFilter = {
   planId?: string | undefined;
+  ownerUserId?: string | undefined;
   status?: PlanOccurrenceStatus | undefined;
   from?: Date | undefined;
   to?: Date | undefined;
@@ -31,23 +33,38 @@ export type IncomeOccurrenceFilter = {
 
 /** Data access for v2 income plans (forecasts). Every query filters budget_id. */
 export class IncomePlanRepository {
-  listPlans(db: Prisma.TransactionClient, budgetId: string, status: 'active' | 'archived' | 'all') {
+  listPlans(
+    db: Prisma.TransactionClient,
+    budgetId: string,
+    status: 'active' | 'archived' | 'all',
+    ownerUserId?: string,
+  ) {
     return db.regularPlan.findMany({
       where: {
         ...incomePlanFilter(budgetId),
         ...(status === 'all' ? {} : { isActive: status === 'active' }),
+        ...(ownerUserId ? { ownerUserId } : {}),
       },
       select: planSelect,
       orderBy: [{ isActive: 'desc' }, { createdAt: 'asc' }, { id: 'asc' }],
     });
   }
 
-  listOccurrences(db: Prisma.TransactionClient, budgetId: string, query: IncomeOccurrenceFilter) {
-    return db.planOccurrence.findMany({
+  async listOccurrences(
+    db: Prisma.TransactionClient,
+    budgetId: string,
+    query: IncomeOccurrenceFilter,
+  ) {
+    const rows = await db.planOccurrence.findMany({
       where: {
         budgetId,
         planType: 'INCOME',
-        plan: { is: incomePlanFilter(budgetId) },
+        plan: {
+          is: {
+            ...incomePlanFilter(budgetId),
+            ...(query.ownerUserId ? { ownerUserId: query.ownerUserId } : {}),
+          },
+        },
         ...(query.planId ? { planId: query.planId } : {}),
         ...(query.status ? { status: query.status } : {}),
         ...(query.from || query.to
@@ -68,9 +85,11 @@ export class IncomePlanRepository {
         amountMinor: true,
         categoryId: true,
         transactionId: true,
+        plan: { select: { ownerUserId: true } },
       },
       orderBy: [{ scheduledOn: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
     });
+    return rows.map((row) => ({ ...row, ownerUserId: row.plan.ownerUserId }));
   }
 
   /** Active (non-archived) category of the budget; the caller checks the category type. */
@@ -107,9 +126,22 @@ export class IncomePlanRepository {
         status: true,
         transactionId: true,
         cancellationReason: true,
-        plan: { select: { isActive: true, deletedAt: true } },
+        plan: { select: { isActive: true, deletedAt: true, ownerUserId: true } },
       },
     });
+  }
+
+  /** Owner (member) of the plan of this budget; null when the plan is absent. */
+  async findPlanOwnerUserId(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    planId: string,
+  ): Promise<string | null> {
+    const row = await tx.regularPlan.findFirst({
+      where: { ...incomePlanFilter(budgetId), id: planId },
+      select: { ownerUserId: true },
+    });
+    return row?.ownerUserId ?? null;
   }
 
   /**

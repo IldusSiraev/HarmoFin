@@ -28,6 +28,20 @@ export class PlansCalendarDayResponse {
   dot!: 'upcoming' | 'overdue' | null;
 }
 
+export class PlansCalendarOwnerResponse {
+  @ApiProperty({ type: String, format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ type: String, nullable: true, example: 'Алия' })
+  displayName!: string | null;
+
+  @ApiProperty({
+    type: Boolean,
+    description: 'False когда человек исключён из рабочего пространства или вышел из него.',
+  })
+  isActiveMember!: boolean;
+}
+
 export class PlansCalendarItemResponse {
   @ApiProperty({ type: String, enum: ['OBLIGATION', 'INCOME_PLAN'] })
   kind!: 'OBLIGATION' | 'INCOME_PLAN';
@@ -37,6 +51,15 @@ export class PlansCalendarItemResponse {
 
   @ApiProperty({ type: String, format: 'uuid' })
   planId!: string;
+
+  @ApiProperty({ type: PlansCalendarOwnerResponse })
+  owner!: PlansCalendarOwnerResponse;
+
+  @ApiProperty({
+    type: Boolean,
+    description: 'Может ли текущий участник управлять планом, к которому относится событие.',
+  })
+  canEdit!: boolean;
 
   @ApiProperty({ type: String })
   name!: string;

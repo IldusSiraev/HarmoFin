@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+import { PersonRefResponse } from '../common/people/person-ref.dto.js';
+
 const recurrenceValues = ['ONE_TIME', 'MONTHLY', 'EVERY_N_MONTHS', 'YEARLY'];
 const statusValues = ['PENDING', 'DUE', 'COMPLETED', 'SKIPPED', 'CANCELLED'];
 
@@ -124,6 +126,15 @@ export class IncomePlanResponse {
 
   @ApiProperty({ type: String, enum: ['ACTIVE', 'ARCHIVED'] })
   status!: string;
+
+  @ApiProperty({ type: PersonRefResponse })
+  owner!: PersonRefResponse;
+
+  @ApiProperty({
+    type: Boolean,
+    description: 'True у владельца плана: именно он может изменить этот план и записать по нему доход. Создание новых планов доступно любому участнику с правом записи.',
+  })
+  canEdit!: boolean;
 }
 
 export class IncomePlanCreateResponse extends IncomePlanResponse {

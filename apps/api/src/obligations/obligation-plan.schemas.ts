@@ -98,7 +98,10 @@ export const updateObligationPlanSchema = z
   });
 
 export const listObligationPlansSchema = z
-  .object({ status: z.enum(['active', 'archived', 'all']).default('active') })
+  .object({
+    status: z.enum(['active', 'archived', 'all']).default('active'),
+    ownerUserId: uuid.optional(),
+  })
   .strict();
 
 export const listObligationOccurrencesSchema = z

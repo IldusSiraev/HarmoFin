@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+import { PersonRefResponse } from '../common/people/person-ref.dto.js';
+
 const recurrenceValues = ['ONE_TIME', 'MONTHLY', 'EVERY_N_MONTHS', 'YEARLY'];
 
 export class ObligationPlanCreateBody {
@@ -209,6 +211,15 @@ export class ObligationPlanResponse {
 
   @ApiProperty({ type: String, enum: ['ACTIVE', 'ARCHIVED'] })
   status!: string;
+
+  @ApiProperty({ type: PersonRefResponse })
+  owner!: PersonRefResponse;
+
+  @ApiProperty({
+    type: Boolean,
+    description: 'True у владельца плана: именно он создаёт/изменяет этот план и оплачивает его вхождения. Создание новых планов доступно любому участнику с правом записи.',
+  })
+  canEdit!: boolean;
 }
 
 export class ObligationPlanCreateResponse extends ObligationPlanResponse {

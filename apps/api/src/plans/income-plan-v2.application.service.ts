@@ -6,10 +6,19 @@ import { IdempotencyService } from '../common/idempotency/idempotency.service.js
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import {
-  forbidden,
-  invalidReference,
-  resourceNotFound,
-} from '../common/reference-data/reference-data.errors.js';
+  findPersonRefs,
+  personRefOf,
+  type PersonRef,
+} from '../common/people/person-ref.repository.js';
+import {
+  findAccessActor,
+  requireAccessActor,
+} from '../common/policies/access-actor.repository.js';
+import {
+  BudgetAccessPolicy,
+  type AccessActor,
+} from '../common/policies/budget-access.policy.js';
+import { invalidReference, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import { todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { nextPeriodEndAt } from '../cycles/cycle-settings-at.js';
 import { PrismaService } from '../database/prisma.service.js';
@@ -47,6 +56,8 @@ export type IncomePlanView = {
   categoryId: string | null;
   comment: string | null;
   status: 'ACTIVE' | 'ARCHIVED';
+  owner: PersonRef;
+  canEdit: boolean;
 };
 
 export type IncomePlanCreateResult = IncomePlanView & {
@@ -93,7 +104,8 @@ function occurrenceNotOpen(): ConflictException {
  * v2 income plans: forecasts only. A planned income never creates a Transaction or an
  * EnvelopeAssignment and never counts in cash or mandatoryDue; only an explicit "record" creates
  * one confirmed v2 INCOME (O03 logic) and completes the occurrence atomically.
- * Plan management is OWNER-only, record is OWNER|EDITOR, every member may read.
+ * Creating a plan is open to any writer (OWNER or EDITOR); managing an existing plan (update)
+ * and recording its income require object ownership, like the obligation side; every member may read.
  * Lock order: budget row -> idempotency advisory lock -> plan/occurrence rows -> account.
  */
 @Injectable()
@@ -104,6 +116,7 @@ export class IncomePlanApplicationService {
   private readonly planHelpers = new ObligationPlanRepository();
   private readonly occurrences = new PlanOccurrenceRepository();
   private readonly materializer: V2OccurrenceMaterializer;
+  private readonly access = new BudgetAccessPolicy();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -121,9 +134,24 @@ export class IncomePlanApplicationService {
     budgetId: string,
     query: ListIncomePlansInput,
   ): Promise<{ items: IncomePlanView[] }> {
-    await this.planModelPolicy.requireModel(userId, budgetId, 2);
-    const rows = await this.planData.listPlans(this.prisma, budgetId, query.status);
-    return { items: rows.map((row) => this.planView(row)) };
+    const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
+    const rows = await this.planData.listPlans(this.prisma, budgetId, query.status, query.ownerUserId);
+    const access = await findAccessActor(this.prisma, model.workspaceId, userId);
+    const people = await findPersonRefs(
+      this.prisma,
+      model.workspaceId,
+      rows.map((row) => row.ownerUserId),
+    );
+    return {
+      items: rows.map(
+        (row) =>
+          this.planView(
+            row,
+            personRefOf(people, row.ownerUserId),
+            access !== null && this.access.canEditObject(access, row),
+          ),
+      ),
+    };
   }
 
   async listOccurrences(
@@ -169,7 +197,7 @@ export class IncomePlanApplicationService {
       hash,
       model.workspaceId,
       201,
-      async (tx) => {
+      async (tx, access) => {
         const amount = parseDecimalToMinorUnits(input.amount, RUB_SCALE, false);
         if (amount <= 0n) throw validationFailed('Сумма должна быть больше нуля.');
         const budget = await this.transactions.findBudgetSettings(tx, budgetId);
@@ -226,8 +254,18 @@ export class IncomePlanApplicationService {
           plan.id,
           start,
         );
-        return { ...this.planView(plan), occurrenceId, occurrencesCreated: created };
+        const people = await findPersonRefs(tx, model.workspaceId, [userId]);
+        return {
+          ...this.planView(
+            plan,
+            personRefOf(people, userId),
+            this.access.canEditObject(access, { ownerUserId: userId }),
+          ),
+          occurrenceId,
+          occurrencesCreated: created,
+        };
       },
+      (access) => this.access.requireWriter(access),
     );
   }
 
@@ -249,9 +287,12 @@ export class IncomePlanApplicationService {
       hash,
       model.workspaceId,
       200,
-      async (tx) => {
+      async (tx, access) => {
         const current = await this.plans.findPlanForMutation(tx, userId, budgetId, planId);
         if (!current || current.planType !== 'INCOME') throw resourceNotFound();
+        const ownerUserId = await this.planData.findPlanOwnerUserId(tx, budgetId, planId);
+        if (ownerUserId === null) throw resourceNotFound();
+        this.access.requireObjectOwner(access, { ownerUserId });
         const budget = await this.transactions.findBudgetSettings(tx, budgetId);
         if (!budget) throw resourceNotFound();
 
@@ -367,12 +408,18 @@ export class IncomePlanApplicationService {
             { actorUserId: userId },
           );
         }
+        const people = await findPersonRefs(tx, model.workspaceId, [ownerUserId]);
         return {
-          ...this.planView(plan),
+          ...this.planView(
+            plan,
+            personRefOf(people, ownerUserId),
+            this.access.canEditObject(access, { ownerUserId }),
+          ),
           updatedOccurrences: updated,
           cancelledOccurrences: cancelled,
         };
       },
+      (access) => this.access.requireWriter(access),
     );
   }
 
@@ -405,10 +452,11 @@ export class IncomePlanApplicationService {
       hash,
       model.workspaceId,
       201,
-      async (tx) => {
+      async (tx, access) => {
         await this.planData.lockOccurrence(tx, budgetId, occurrenceId);
         const occurrence = await this.planData.findOccurrence(tx, budgetId, occurrenceId);
         if (!occurrence) throw resourceNotFound();
+        this.access.requireObjectOwner(access, { ownerUserId: occurrence.plan.ownerUserId });
         if (
           (occurrence.status !== 'PENDING' && occurrence.status !== 'DUE') ||
           occurrence.transactionId !== null ||
@@ -462,7 +510,7 @@ export class IncomePlanApplicationService {
           },
         };
       },
-      true,
+      (access) => this.access.requireWriter(access),
     );
   }
 
@@ -474,8 +522,8 @@ export class IncomePlanApplicationService {
     requestHash: string,
     workspaceId: string,
     status: number,
-    body: (tx: Tx) => Promise<T>,
-    allowEditor = false,
+    body: (tx: Tx, access: AccessActor) => Promise<T>,
+    authorize: (access: AccessActor) => void,
   ): Promise<T> {
     const result = await this.prisma.$transaction(async (tx) => {
       await this.transactions.lockBudget(tx, budgetId);
@@ -483,27 +531,31 @@ export class IncomePlanApplicationService {
         tx,
         { budgetId, actorUserId: userId, key, operation, requestHash },
         async () => {
-          const role = await this.transactions.findActiveMemberRole(tx, workspaceId, userId);
-          if (role !== 'OWNER' && !(allowEditor && role === 'EDITOR')) throw forbidden();
-          return { status, body: await body(tx) };
+          const access = await requireAccessActor(tx, workspaceId, userId);
+          authorize(access);
+          return { status, body: await body(tx, access) };
         },
       );
     });
     return result.body;
   }
 
-  private planView(plan: {
-    id: string;
-    name: string;
-    amountMinor: bigint;
-    recurrence: string;
-    intervalMonths: number | null;
-    startOn: Date;
-    endOn: Date | null;
-    categoryId: string | null;
-    comment: string | null;
-    isActive: boolean;
-  }): IncomePlanView {
+  private planView(
+    plan: {
+      id: string;
+      name: string;
+      amountMinor: bigint;
+      recurrence: string;
+      intervalMonths: number | null;
+      startOn: Date;
+      endOn: Date | null;
+      categoryId: string | null;
+      comment: string | null;
+      isActive: boolean;
+    },
+    owner: PersonRef,
+    canEdit: boolean,
+  ): IncomePlanView {
     return {
       id: plan.id,
       planType: 'INCOME',
@@ -516,6 +568,8 @@ export class IncomePlanApplicationService {
       categoryId: plan.categoryId,
       comment: plan.comment,
       status: plan.isActive ? 'ACTIVE' : 'ARCHIVED',
+      owner,
+      canEdit,
     };
   }
 

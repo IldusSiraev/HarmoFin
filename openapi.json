@@ -10,7 +10,44 @@
             "type": "array"
           }
         },
-        "required": ["consents"],
+        "required": [
+          "consents"
+        ],
+        "type": "object"
+      },
+      "AcceptInvitationRequest": {
+        "properties": {
+          "displayName": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 128,
+            "minLength": 16,
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "type": "object"
+      },
+      "AcceptedInvitationResponse": {
+        "properties": {
+          "budgetId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workspaceId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspaceId",
+          "budgetId"
+        ],
         "type": "object"
       },
       "AccountDeletionScheduledResponse": {
@@ -21,13 +58,19 @@
             "type": "string"
           }
         },
-        "required": ["purgeAfter"],
+        "required": [
+          "purgeAfter"
+        ],
         "type": "object"
       },
       "AccountResponse": {
         "properties": {
           "accountType": {
-            "enum": ["BANK_ACCOUNT", "BANK_CARD", "CASH"],
+            "enum": [
+              "BANK_ACCOUNT",
+              "BANK_CARD",
+              "CASH"
+            ],
             "type": "string"
           },
           "accountingStartDate": {
@@ -47,12 +90,18 @@
             "format": "uuid",
             "type": "string"
           },
+          "canEdit": {
+            "description": "Подсказка для интерфейса: текущий пользователь может изменять счёт. Право проверяет сервер.",
+            "type": "boolean"
+          },
           "comment": {
             "nullable": true,
             "type": "string"
           },
           "currency": {
-            "enum": ["RUB"],
+            "enum": [
+              "RUB"
+            ],
             "type": "string"
           },
           "currentBalanceMinor": {
@@ -71,8 +120,13 @@
           "name": {
             "type": "string"
           },
+          "owner": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "scale": {
-            "enum": [2],
+            "enum": [
+              2
+            ],
             "type": "number"
           },
           "startingBalanceMinor": {
@@ -93,7 +147,9 @@
           "currentBalanceMinor",
           "accountingStartDate",
           "comment",
-          "archivedAt"
+          "archivedAt",
+          "owner",
+          "canEdit"
         ],
         "type": "object"
       },
@@ -103,11 +159,15 @@
             "type": "number"
           },
           "currency": {
-            "enum": ["RUB"],
+            "enum": [
+              "RUB"
+            ],
             "type": "string"
           },
           "scale": {
-            "enum": [2],
+            "enum": [
+              2
+            ],
             "type": "number"
           },
           "totalMinor": {
@@ -115,7 +175,12 @@
             "type": "string"
           }
         },
-        "required": ["currency", "scale", "totalMinor", "count"],
+        "required": [
+          "currency",
+          "scale",
+          "totalMinor",
+          "count"
+        ],
         "type": "object"
       },
       "AssignmentResultResponse": {
@@ -170,7 +235,11 @@
             "type": "string"
           }
         },
-        "required": ["id", "displayName", "email"],
+        "required": [
+          "id",
+          "displayName",
+          "email"
+        ],
         "type": "object"
       },
       "AuditEventListResponse": {
@@ -182,7 +251,9 @@
             "type": "array"
           }
         },
-        "required": ["items"],
+        "required": [
+          "items"
+        ],
         "type": "object"
       },
       "AuditEventResponse": {
@@ -258,7 +329,35 @@
             "$ref": "#/components/schemas/WorkspaceResponse"
           }
         },
-        "required": ["user", "workspace", "budget", "csrfToken"],
+        "required": [
+          "user",
+          "workspace",
+          "budget",
+          "csrfToken"
+        ],
+        "type": "object"
+      },
+      "AuthorRefResponse": {
+        "properties": {
+          "displayName": {
+            "example": "Алия",
+            "nullable": true,
+            "type": "string"
+          },
+          "isActiveMember": {
+            "description": "False когда человек исключён из рабочего пространства или вышел из него.",
+            "type": "boolean"
+          },
+          "userId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "displayName",
+          "isActiveMember"
+        ],
         "type": "object"
       },
       "BudgetDetailResponse": {
@@ -301,7 +400,10 @@
             "type": "string"
           },
           "status": {
-            "enum": ["ACTIVE", "ARCHIVED"],
+            "enum": [
+              "ACTIVE",
+              "ARCHIVED"
+            ],
             "type": "string"
           },
           "timezone": {
@@ -338,12 +440,18 @@
             "type": "string"
           },
           "planModelVersion": {
-            "enum": [1, 2],
+            "enum": [
+              1,
+              2
+            ],
             "example": 1,
             "type": "number"
           }
         },
-        "required": ["planModelVersion", "planModelActivatedOn"],
+        "required": [
+          "planModelVersion",
+          "planModelActivatedOn"
+        ],
         "type": "object"
       },
       "BudgetResponse": {
@@ -360,7 +468,11 @@
             "type": "string"
           }
         },
-        "required": ["id", "name", "primaryCurrency"],
+        "required": [
+          "id",
+          "name",
+          "primaryCurrency"
+        ],
         "type": "object"
       },
       "CancelAccountDeletionRequest": {
@@ -371,7 +483,9 @@
             "type": "string"
           }
         },
-        "required": ["token"],
+        "required": [
+          "token"
+        ],
         "type": "object"
       },
       "CategoryResponse": {
@@ -386,7 +500,10 @@
             "type": "string"
           },
           "categoryType": {
-            "enum": ["INCOME", "EXPENSE"],
+            "enum": [
+              "INCOME",
+              "EXPENSE"
+            ],
             "type": "string"
           },
           "comment": {
@@ -492,13 +609,35 @@
             "type": "string"
           }
         },
-        "required": ["currentPassword", "newPassword"],
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ],
+        "type": "object"
+      },
+      "ChangeRoleRequest": {
+        "properties": {
+          "role": {
+            "enum": [
+              "EDITOR",
+              "VIEWER"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
+        ],
         "type": "object"
       },
       "ConsentItem": {
         "properties": {
           "document": {
-            "enum": ["TERMS", "PRIVACY_POLICY", "PD_CONSENT"],
+            "enum": [
+              "TERMS",
+              "PRIVACY_POLICY",
+              "PD_CONSENT"
+            ],
             "type": "string"
           },
           "version": {
@@ -507,13 +646,20 @@
             "type": "string"
           }
         },
-        "required": ["document", "version"],
+        "required": [
+          "document",
+          "version"
+        ],
         "type": "object"
       },
       "CreateAccountRequest": {
         "properties": {
           "accountType": {
-            "enum": ["BANK_ACCOUNT", "BANK_CARD", "CASH"],
+            "enum": [
+              "BANK_ACCOUNT",
+              "BANK_CARD",
+              "CASH"
+            ],
             "type": "string"
           },
           "accountingStartDate": {
@@ -531,7 +677,9 @@
             "type": "string"
           },
           "currency": {
-            "enum": ["RUB"],
+            "enum": [
+              "RUB"
+            ],
             "type": "string"
           },
           "lastFourDigits": {
@@ -549,7 +697,13 @@
             "type": "string"
           }
         },
-        "required": ["name", "accountType", "currency", "startingBalance", "accountingStartDate"],
+        "required": [
+          "name",
+          "accountType",
+          "currency",
+          "startingBalance",
+          "accountingStartDate"
+        ],
         "type": "object"
       },
       "CreateAssignmentRequest": {
@@ -571,12 +725,19 @@
             "type": "string"
           },
           "sourceKind": {
-            "enum": ["OPENING", "FREE", "INCOME"],
+            "enum": [
+              "OPENING",
+              "FREE",
+              "INCOME"
+            ],
             "example": "FREE",
             "type": "string"
           }
         },
-        "required": ["envelopeId", "amount"],
+        "required": [
+          "envelopeId",
+          "amount"
+        ],
         "type": "object"
       },
       "CreateBudgetRequest": {
@@ -588,13 +749,18 @@
             "type": "string"
           }
         },
-        "required": ["name"],
+        "required": [
+          "name"
+        ],
         "type": "object"
       },
       "CreateCategoryRequest": {
         "properties": {
           "categoryType": {
-            "enum": ["INCOME", "EXPENSE"],
+            "enum": [
+              "INCOME",
+              "EXPENSE"
+            ],
             "type": "string"
           },
           "comment": {
@@ -669,7 +835,11 @@
             "type": "string"
           }
         },
-        "required": ["name", "categoryType", "displayOrder"],
+        "required": [
+          "name",
+          "categoryType",
+          "displayOrder"
+        ],
         "type": "object"
       },
       "CreateDirectTransferInput": {
@@ -695,7 +865,12 @@
             "type": "string"
           }
         },
-        "required": ["sourceAccountId", "destinationAccountId", "amount", "occurredOn"],
+        "required": [
+          "sourceAccountId",
+          "destinationAccountId",
+          "amount",
+          "occurredOn"
+        ],
         "type": "object"
       },
       "CreateEnvelopePlanRequest": {
@@ -705,7 +880,13 @@
             "type": "string"
           },
           "envelopeType": {
-            "enum": ["CURRENT_EXPENSES", "MANDATORY_EXPENSES", "SAVINGS_GOAL", "RESERVE", "CUSTOM"],
+            "enum": [
+              "CURRENT_EXPENSES",
+              "MANDATORY_EXPENSES",
+              "SAVINGS_GOAL",
+              "RESERVE",
+              "CUSTOM"
+            ],
             "example": "RESERVE",
             "type": "string"
           },
@@ -714,7 +895,10 @@
             "type": "string"
           },
           "periodSlot": {
-            "enum": ["FIRST", "SECOND"],
+            "enum": [
+              "FIRST",
+              "SECOND"
+            ],
             "type": "string"
           },
           "targetAmountMinor": {
@@ -722,7 +906,31 @@
             "type": "string"
           }
         },
-        "required": ["name", "envelopeType"],
+        "required": [
+          "name",
+          "envelopeType"
+        ],
+        "type": "object"
+      },
+      "CreateInvitationRequest": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "maxLength": 320,
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "EDITOR",
+              "VIEWER"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "role"
+        ],
         "type": "object"
       },
       "CreateTransactionV2Body": {
@@ -754,12 +962,18 @@
             "type": "string"
           },
           "status": {
-            "enum": ["DRAFT", "CONFIRMED"],
+            "enum": [
+              "DRAFT",
+              "CONFIRMED"
+            ],
             "example": "CONFIRMED",
             "type": "string"
           },
           "transactionType": {
-            "enum": ["INCOME", "EXPENSE"],
+            "enum": [
+              "INCOME",
+              "EXPENSE"
+            ],
             "example": "EXPENSE",
             "type": "string"
           }
@@ -789,7 +1003,58 @@
             "type": "string"
           }
         },
-        "required": ["workspaceName", "budgetName"],
+        "required": [
+          "workspaceName",
+          "budgetName"
+        ],
+        "type": "object"
+      },
+      "CreatedInvitationResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "inviteUrl": {
+            "description": "Одноразовая ссылка-приглашение.",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "EDITOR",
+              "VIEWER"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "EXPIRED"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "role",
+          "status",
+          "expiresAt",
+          "createdAt",
+          "inviteUrl"
+        ],
         "type": "object"
       },
       "CsrfTokenResponse": {
@@ -798,7 +1063,9 @@
             "type": "string"
           }
         },
-        "required": ["csrfToken"],
+        "required": [
+          "csrfToken"
+        ],
         "type": "object"
       },
       "CycleChangeConfirmRequest": {
@@ -829,7 +1096,12 @@
             "type": "array"
           }
         },
-        "required": ["cycleStartDay", "periodBoundaryOffset", "previewHash", "transitionTargets"],
+        "required": [
+          "cycleStartDay",
+          "periodBoundaryOffset",
+          "previewHash",
+          "transitionTargets"
+        ],
         "type": "object"
       },
       "CycleChangeConfirmResponse": {
@@ -853,7 +1125,12 @@
             "type": "array"
           }
         },
-        "required": ["effectiveOn", "baselineCreated", "transitionRanges", "createdPeriods"],
+        "required": [
+          "effectiveOn",
+          "baselineCreated",
+          "transitionRanges",
+          "createdPeriods"
+        ],
         "type": "object"
       },
       "CycleChangePreviewRequest": {
@@ -871,7 +1148,10 @@
             "type": "number"
           }
         },
-        "required": ["cycleStartDay", "periodBoundaryOffset"],
+        "required": [
+          "cycleStartDay",
+          "periodBoundaryOffset"
+        ],
         "type": "object"
       },
       "CycleChangePreviewResponse": {
@@ -894,7 +1174,11 @@
             "type": "array"
           }
         },
-        "required": ["effectiveOn", "transitionRanges", "previewHash"],
+        "required": [
+          "effectiveOn",
+          "transitionRanges",
+          "previewHash"
+        ],
         "type": "object"
       },
       "CycleRangeDto": {
@@ -910,7 +1194,10 @@
             "type": "string"
           }
         },
-        "required": ["start", "end"],
+        "required": [
+          "start",
+          "end"
+        ],
         "type": "object"
       },
       "CycleTransitionTargetDto": {
@@ -927,7 +1214,9 @@
             "type": "string"
           }
         },
-        "required": ["periodStart"],
+        "required": [
+          "periodStart"
+        ],
         "type": "object"
       },
       "DashboardV2AccountResponse": {
@@ -944,7 +1233,11 @@
             "type": "string"
           }
         },
-        "required": ["id", "name", "balanceMinor"],
+        "required": [
+          "id",
+          "name",
+          "balanceMinor"
+        ],
         "type": "object"
       },
       "DashboardV2CycleResponse": {
@@ -958,14 +1251,21 @@
             "type": "string"
           }
         },
-        "required": ["start", "end"],
+        "required": [
+          "start",
+          "end"
+        ],
         "type": "object"
       },
       "DashboardV2EnvelopeProgressResponse": {
         "properties": {
           "kind": {
             "description": "SPENT — потрачено из было доступно в текущем периоде; COVERED — отложено из к оплате до конца горизонта; GOAL — накоплено из цели.",
-            "enum": ["SPENT", "COVERED", "GOAL"],
+            "enum": [
+              "SPENT",
+              "COVERED",
+              "GOAL"
+            ],
             "type": "string"
           },
           "maxMinor": {
@@ -985,7 +1285,12 @@
             "type": "string"
           }
         },
-        "required": ["kind", "valueMinor", "maxMinor", "shortfallMinor"],
+        "required": [
+          "kind",
+          "valueMinor",
+          "maxMinor",
+          "shortfallMinor"
+        ],
         "type": "object"
       },
       "DashboardV2EnvelopeResponse": {
@@ -1014,7 +1319,10 @@
             "type": "string"
           },
           "periodSlot": {
-            "enum": ["FIRST", "SECOND"],
+            "enum": [
+              "FIRST",
+              "SECOND"
+            ],
             "nullable": true,
             "type": "string"
           },
@@ -1029,14 +1337,25 @@
             "type": "object"
           }
         },
-        "required": ["id", "name", "envelopeType", "periodSlot", "balanceMinor", "progress"],
+        "required": [
+          "id",
+          "name",
+          "envelopeType",
+          "periodSlot",
+          "balanceMinor",
+          "progress"
+        ],
         "type": "object"
       },
       "DashboardV2NearestObligationResponse": {
         "properties": {
           "coverage": {
             "description": "Покрытие платежа остатком его обязательного конверта: платежи распределяются по сроку, просроченные первыми.",
-            "enum": ["COVERED", "PARTIAL", "UNCOVERED"],
+            "enum": [
+              "COVERED",
+              "PARTIAL",
+              "UNCOVERED"
+            ],
             "type": "string"
           },
           "name": {
@@ -1121,7 +1440,11 @@
             "type": "string"
           }
         },
-        "required": ["start", "end", "periodId"],
+        "required": [
+          "start",
+          "end",
+          "periodId"
+        ],
         "type": "object"
       },
       "DashboardV2PeriodStatsResponse": {
@@ -1147,7 +1470,12 @@
             "type": "string"
           }
         },
-        "required": ["spentMinor", "availableMinor", "daysLeft", "averagePerDayMinor"],
+        "required": [
+          "spentMinor",
+          "availableMinor",
+          "daysLeft",
+          "averagePerDayMinor"
+        ],
         "type": "object"
       },
       "DashboardV2ProtectedAssignmentResponse": {
@@ -1180,7 +1508,13 @@
             "type": "string"
           }
         },
-        "required": ["envelopeId", "envelopeName", "envelopeType", "periodId", "balanceMinor"],
+        "required": [
+          "envelopeId",
+          "envelopeName",
+          "envelopeType",
+          "periodId",
+          "balanceMinor"
+        ],
         "type": "object"
       },
       "DashboardV2Response": {
@@ -1299,7 +1633,9 @@
             "type": "object"
           },
           "planModelVersion": {
-            "enum": [2],
+            "enum": [
+              2
+            ],
             "type": "number"
           },
           "protectedAssignments": {
@@ -1383,11 +1719,17 @@
           },
           "state": {
             "description": "NEEDS_PERIOD_SETUP: период ещё не настроен, суммы нет (не показывать 0).",
-            "enum": ["READY", "NEEDS_PERIOD_SETUP"],
+            "enum": [
+              "READY",
+              "NEEDS_PERIOD_SETUP"
+            ],
             "type": "string"
           }
         },
-        "required": ["state", "amountMinor"],
+        "required": [
+          "state",
+          "amountMinor"
+        ],
         "type": "object"
       },
       "DashboardV2UpcomingResponse": {
@@ -1405,7 +1747,11 @@
             "type": "string"
           }
         },
-        "required": ["occurrenceId", "scheduledOn", "unpaidMinor"],
+        "required": [
+          "occurrenceId",
+          "scheduledOn",
+          "unpaidMinor"
+        ],
         "type": "object"
       },
       "DashboardV2WarningResponse": {
@@ -1426,7 +1772,12 @@
             "type": "string"
           },
           "code": {
-            "enum": ["PERIOD_LEFTOVER", "PERIOD_DEFICIT", "MANDATORY_GAP", "CASH_SHORTFALL"],
+            "enum": [
+              "PERIOD_LEFTOVER",
+              "PERIOD_DEFICIT",
+              "MANDATORY_GAP",
+              "CASH_SHORTFALL"
+            ],
             "type": "string"
           },
           "envelopeId": {
@@ -1435,12 +1786,18 @@
             "type": "string"
           },
           "kind": {
-            "enum": ["PERIOD", "COVERAGE"],
+            "enum": [
+              "PERIOD",
+              "COVERAGE"
+            ],
             "type": "string"
           },
           "level": {
             "description": "Только для MANDATORY_GAP: ALERT, если деньги нужны на текущий период (включая просроченные); INFO, если только на следующий. Прочие предупреждения без этого поля.",
-            "enum": ["ALERT", "INFO"],
+            "enum": [
+              "ALERT",
+              "INFO"
+            ],
             "type": "string"
           },
           "message": {
@@ -1479,7 +1836,10 @@
             "type": "string"
           }
         },
-        "required": ["items", "nextCursor"],
+        "required": [
+          "items",
+          "nextCursor"
+        ],
         "type": "object"
       },
       "DirectTransferResponse": {
@@ -1492,6 +1852,9 @@
             "example": "Перевод на отпуск",
             "type": "string"
           },
+          "createdBy": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "destinationAccountId": {
             "description": "Только для ACCOUNT_ONLY",
             "example": "0195f3c3-aaaa-bbbb-cccc-000000000004",
@@ -1503,7 +1866,9 @@
             "type": "string"
           },
           "mode": {
-            "enum": ["ACCOUNT_ONLY"],
+            "enum": [
+              "ACCOUNT_ONLY"
+            ],
             "example": "ACCOUNT_ONLY",
             "type": "string"
           },
@@ -1550,12 +1915,20 @@
             "type": "string"
           },
           "kind": {
-            "enum": ["ASSIGNMENT", "MOVEMENT", "SPENDING"],
+            "enum": [
+              "ASSIGNMENT",
+              "MOVEMENT",
+              "SPENDING"
+            ],
             "example": "MOVEMENT",
             "type": "string"
           }
         },
-        "required": ["kind", "amountMinor", "effectiveOn"],
+        "required": [
+          "kind",
+          "amountMinor",
+          "effectiveOn"
+        ],
         "type": "object"
       },
       "EnvelopeHistoryListResponse": {
@@ -1572,7 +1945,10 @@
             "type": "string"
           }
         },
-        "required": ["items", "nextCursor"],
+        "required": [
+          "items",
+          "nextCursor"
+        ],
         "type": "object"
       },
       "EnvelopePeriodBalanceResponse": {
@@ -1630,7 +2006,9 @@
             "type": "array"
           }
         },
-        "required": ["items"],
+        "required": [
+          "items"
+        ],
         "type": "object"
       },
       "EnvelopePlanResponse": {
@@ -1644,13 +2022,23 @@
             "example": "10000",
             "type": "string"
           },
+          "canEdit": {
+            "description": "Подсказка для интерфейса: текущий пользователь может изменять конверт. Право проверяет сервер.",
+            "type": "boolean"
+          },
           "comment": {
             "example": "Семейный резерв",
             "nullable": true,
             "type": "string"
           },
           "envelopeType": {
-            "enum": ["CURRENT_EXPENSES", "MANDATORY_EXPENSES", "SAVINGS_GOAL", "RESERVE", "CUSTOM"],
+            "enum": [
+              "CURRENT_EXPENSES",
+              "MANDATORY_EXPENSES",
+              "SAVINGS_GOAL",
+              "RESERVE",
+              "CUSTOM"
+            ],
             "example": "RESERVE",
             "type": "string"
           },
@@ -1666,8 +2054,14 @@
             "example": "Резерв",
             "type": "string"
           },
+          "owner": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "periodSlot": {
-            "enum": ["FIRST", "SECOND"],
+            "enum": [
+              "FIRST",
+              "SECOND"
+            ],
             "example": null,
             "nullable": true,
             "type": "string"
@@ -1700,7 +2094,9 @@
           "spentMinor",
           "balanceMinor",
           "archivedAt",
-          "periods"
+          "periods",
+          "owner",
+          "canEdit"
         ],
         "type": "object"
       },
@@ -1719,7 +2115,11 @@
             "type": "string"
           }
         },
-        "required": ["field", "message", "code"],
+        "required": [
+          "field",
+          "message",
+          "code"
+        ],
         "type": "object"
       },
       "FundingConfirmAssignmentDto": {
@@ -1742,13 +2142,18 @@
             "type": "string"
           }
         },
-        "required": ["id", "envelopeId", "periodId", "amountMinor"],
+        "required": [
+          "id",
+          "envelopeId",
+          "periodId",
+          "amountMinor"
+        ],
         "type": "object"
       },
       "FundingConfirmLineDto": {
         "properties": {
           "amount": {
-            "description": "Положительная сумма в рублях: десятичная строка, до 2 знаков.",
+            "description": "Сумма в рублях ≥ 0: десятичная строка, до 2 знаков. Строка с 0 участвует в проверке previewHash, но назначения не создаёт.",
             "example": "7000.00",
             "type": "string"
           },
@@ -1770,7 +2175,10 @@
             "type": "string"
           }
         },
-        "required": ["envelopeId", "amount"],
+        "required": [
+          "envelopeId",
+          "amount"
+        ],
         "type": "object"
       },
       "FundingConfirmRequest": {
@@ -1805,12 +2213,21 @@
             "type": "string"
           },
           "sourceKind": {
-            "enum": ["INCOME", "OPENING", "FREE"],
+            "enum": [
+              "INCOME",
+              "OPENING",
+              "FREE"
+            ],
             "example": "INCOME",
             "type": "string"
           }
         },
-        "required": ["sourceKind", "previewHash", "confirmPeriodTargets", "lines"],
+        "required": [
+          "sourceKind",
+          "previewHash",
+          "confirmPeriodTargets",
+          "lines"
+        ],
         "type": "object"
       },
       "FundingConfirmResponse": {
@@ -1839,7 +2256,12 @@
             "type": "string"
           }
         },
-        "required": ["assignedMinor", "sourceRemainingMinor", "confirmedPeriodIds", "assignments"],
+        "required": [
+          "assignedMinor",
+          "sourceRemainingMinor",
+          "confirmedPeriodIds",
+          "assignments"
+        ],
         "type": "object"
       },
       "FundingPeriodTargetDraftDto": {
@@ -1858,7 +2280,11 @@
             "type": "string"
           }
         },
-        "required": ["periodId", "targetMinor", "selectedForConfirmation"],
+        "required": [
+          "periodId",
+          "targetMinor",
+          "selectedForConfirmation"
+        ],
         "type": "object"
       },
       "FundingPreviewErrorDto": {
@@ -1871,7 +2297,10 @@
             "type": "string"
           }
         },
-        "required": ["code", "detail"],
+        "required": [
+          "code",
+          "detail"
+        ],
         "type": "object"
       },
       "FundingPreviewLineDto": {
@@ -1888,17 +2317,43 @@
             "nullable": true,
             "type": "string"
           },
+          "periodEndsOn": {
+            "description": "Конец периода строки; null для конверта без периодов.",
+            "format": "date",
+            "nullable": true,
+            "type": "string"
+          },
           "periodId": {
             "format": "uuid",
             "nullable": true,
             "type": "string"
           },
+          "periodStartsOn": {
+            "description": "Начало периода строки; null для конверта без периодов.",
+            "format": "date",
+            "nullable": true,
+            "type": "string"
+          },
+          "queuePosition": {
+            "description": "Номер строки в очереди правил пополнения (с 1); null — у конверта нет правила в очереди.",
+            "example": 1,
+            "nullable": true,
+            "type": "number"
+          },
           "suggestedMinor": {
+            "description": "Предложенная или введённая сумма в копейках; \"0\" — конверт в списке без суммы.",
             "example": "4000000",
             "type": "string"
           }
         },
-        "required": ["envelopeId", "periodId", "suggestedMinor"],
+        "required": [
+          "envelopeId",
+          "periodId",
+          "suggestedMinor",
+          "queuePosition",
+          "periodStartsOn",
+          "periodEndsOn"
+        ],
         "type": "object"
       },
       "FundingPreviewOverrideDto": {
@@ -1926,7 +2381,10 @@
             "type": "string"
           }
         },
-        "required": ["envelopeId", "amount"],
+        "required": [
+          "envelopeId",
+          "amount"
+        ],
         "type": "object"
       },
       "FundingPreviewRequest": {
@@ -1955,12 +2413,18 @@
             "type": "array"
           },
           "sourceKind": {
-            "enum": ["INCOME", "OPENING", "FREE"],
+            "enum": [
+              "INCOME",
+              "OPENING",
+              "FREE"
+            ],
             "example": "INCOME",
             "type": "string"
           }
         },
-        "required": ["sourceKind"],
+        "required": [
+          "sourceKind"
+        ],
         "type": "object"
       },
       "FundingPreviewResponse": {
@@ -2014,7 +2478,11 @@
             "type": "string"
           },
           "sourceKind": {
-            "enum": ["INCOME", "OPENING", "FREE"],
+            "enum": [
+              "INCOME",
+              "OPENING",
+              "FREE"
+            ],
             "type": "string"
           }
         },
@@ -2041,7 +2509,9 @@
             "type": "array"
           }
         },
-        "required": ["items"],
+        "required": [
+          "items"
+        ],
         "type": "object"
       },
       "FundingRuleResponse": {
@@ -2097,12 +2567,17 @@
             "type": "string"
           },
           "type": {
-            "enum": ["MANUAL"],
+            "enum": [
+              "MANUAL"
+            ],
             "example": "MANUAL",
             "type": "string"
           }
         },
-        "required": ["envelopeId", "type"],
+        "required": [
+          "envelopeId",
+          "type"
+        ],
         "type": "object"
       },
       "FundingRulesBatchQueueItem": {
@@ -2124,12 +2599,20 @@
             "type": "number"
           },
           "type": {
-            "enum": ["SUM_OF_PLANS", "FIXED_PER_PERIOD", "SUGGESTED_FIXED", "PERCENT_OF_INCOME"],
+            "enum": [
+              "SUM_OF_PLANS",
+              "FIXED_PER_PERIOD",
+              "SUGGESTED_FIXED",
+              "PERCENT_OF_INCOME"
+            ],
             "example": "PERCENT_OF_INCOME",
             "type": "string"
           }
         },
-        "required": ["envelopeId", "type"],
+        "required": [
+          "envelopeId",
+          "type"
+        ],
         "type": "object"
       },
       "FundingRulesBatchResponse": {
@@ -2144,18 +2627,25 @@
             "type": "array"
           }
         },
-        "required": ["items", "incomeSuggestion"],
+        "required": [
+          "items",
+          "incomeSuggestion"
+        ],
         "type": "object"
       },
       "HealthDependenciesResponse": {
         "properties": {
           "database": {
-            "enum": ["ok"],
+            "enum": [
+              "ok"
+            ],
             "example": "ok",
             "type": "string"
           }
         },
-        "required": ["database"],
+        "required": [
+          "database"
+        ],
         "type": "object"
       },
       "IncomeCategorySuggestionRequest": {
@@ -2177,7 +2667,11 @@
             "type": "string"
           }
         },
-        "required": ["enabled", "sourceCategoryId", "targetEnvelopeId"],
+        "required": [
+          "enabled",
+          "sourceCategoryId",
+          "targetEnvelopeId"
+        ],
         "type": "object"
       },
       "IncomeCategorySuggestionResponse": {
@@ -2196,7 +2690,11 @@
             "type": "string"
           }
         },
-        "required": ["enabled", "sourceCategoryId", "targetEnvelopeId"],
+        "required": [
+          "enabled",
+          "sourceCategoryId",
+          "targetEnvelopeId"
+        ],
         "type": "object"
       },
       "IncomeOccurrenceItemResponse": {
@@ -2232,7 +2730,13 @@
             "type": "string"
           },
           "status": {
-            "enum": ["PENDING", "DUE", "COMPLETED", "SKIPPED", "CANCELLED"],
+            "enum": [
+              "PENDING",
+              "DUE",
+              "COMPLETED",
+              "SKIPPED",
+              "CANCELLED"
+            ],
             "type": "string"
           },
           "transactionId": {
@@ -2264,7 +2768,9 @@
             "type": "array"
           }
         },
-        "required": ["items"],
+        "required": [
+          "items"
+        ],
         "type": "object"
       },
       "IncomePlanCreateBody": {
@@ -2305,7 +2811,12 @@
             "type": "string"
           },
           "recurrence": {
-            "enum": ["ONE_TIME", "MONTHLY", "EVERY_N_MONTHS", "YEARLY"],
+            "enum": [
+              "ONE_TIME",
+              "MONTHLY",
+              "EVERY_N_MONTHS",
+              "YEARLY"
+            ],
             "example": "MONTHLY",
             "type": "string"
           },
@@ -2316,7 +2827,13 @@
             "type": "string"
           }
         },
-        "required": ["name", "amount", "scheduledOn", "categoryId", "recurrence"],
+        "required": [
+          "name",
+          "amount",
+          "scheduledOn",
+          "categoryId",
+          "recurrence"
+        ],
         "type": "object"
       },
       "IncomePlanCreateResponse": {
@@ -2325,6 +2842,10 @@
             "description": "Ожидаемая сумма (minor, строка).",
             "example": "10000000",
             "type": "string"
+          },
+          "canEdit": {
+            "description": "True у владельца плана: именно он может изменить этот план и записать по нему доход. Создание новых планов доступно любому участнику с правом записи.",
+            "type": "boolean"
           },
           "categoryId": {
             "format": "uuid",
@@ -2366,12 +2887,22 @@
             "example": 2,
             "type": "number"
           },
+          "owner": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "planType": {
-            "enum": ["INCOME"],
+            "enum": [
+              "INCOME"
+            ],
             "type": "string"
           },
           "recurrence": {
-            "enum": ["ONE_TIME", "MONTHLY", "EVERY_N_MONTHS", "YEARLY"],
+            "enum": [
+              "ONE_TIME",
+              "MONTHLY",
+              "EVERY_N_MONTHS",
+              "YEARLY"
+            ],
             "type": "string"
           },
           "scheduledOn": {
@@ -2380,7 +2911,10 @@
             "type": "string"
           },
           "status": {
-            "enum": ["ACTIVE", "ARCHIVED"],
+            "enum": [
+              "ACTIVE",
+              "ARCHIVED"
+            ],
             "type": "string"
           }
         },
@@ -2396,6 +2930,8 @@
           "categoryId",
           "comment",
           "status",
+          "owner",
+          "canEdit",
           "occurrenceId",
           "occurrencesCreated"
         ],
@@ -2410,7 +2946,9 @@
             "type": "array"
           }
         },
-        "required": ["items"],
+        "required": [
+          "items"
+        ],
         "type": "object"
       },
       "IncomePlanResponse": {
@@ -2419,6 +2957,10 @@
             "description": "Ожидаемая сумма (minor, строка).",
             "example": "10000000",
             "type": "string"
+          },
+          "canEdit": {
+            "description": "True у владельца плана: именно он может изменить этот план и записать по нему доход. Создание новых планов доступно любому участнику с правом записи.",
+            "type": "boolean"
           },
           "categoryId": {
             "format": "uuid",
@@ -2450,12 +2992,22 @@
             "example": "Зарплата",
             "type": "string"
           },
+          "owner": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "planType": {
-            "enum": ["INCOME"],
+            "enum": [
+              "INCOME"
+            ],
             "type": "string"
           },
           "recurrence": {
-            "enum": ["ONE_TIME", "MONTHLY", "EVERY_N_MONTHS", "YEARLY"],
+            "enum": [
+              "ONE_TIME",
+              "MONTHLY",
+              "EVERY_N_MONTHS",
+              "YEARLY"
+            ],
             "type": "string"
           },
           "scheduledOn": {
@@ -2464,7 +3016,10 @@
             "type": "string"
           },
           "status": {
-            "enum": ["ACTIVE", "ARCHIVED"],
+            "enum": [
+              "ACTIVE",
+              "ARCHIVED"
+            ],
             "type": "string"
           }
         },
@@ -2479,7 +3034,9 @@
           "endOn",
           "categoryId",
           "comment",
-          "status"
+          "status",
+          "owner",
+          "canEdit"
         ],
         "type": "object"
       },
@@ -2500,7 +3057,10 @@
             "type": "string"
           },
           "status": {
-            "enum": ["ACTIVE", "ARCHIVED"],
+            "enum": [
+              "ACTIVE",
+              "ARCHIVED"
+            ],
             "type": "string"
           }
         },
@@ -2512,6 +3072,10 @@
             "description": "Ожидаемая сумма (minor, строка).",
             "example": "10000000",
             "type": "string"
+          },
+          "canEdit": {
+            "description": "True у владельца плана: именно он может изменить этот план и записать по нему доход. Создание новых планов доступно любому участнику с правом записи.",
+            "type": "boolean"
           },
           "cancelledOccurrences": {
             "example": 0,
@@ -2547,12 +3111,22 @@
             "example": "Зарплата",
             "type": "string"
           },
+          "owner": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "planType": {
-            "enum": ["INCOME"],
+            "enum": [
+              "INCOME"
+            ],
             "type": "string"
           },
           "recurrence": {
-            "enum": ["ONE_TIME", "MONTHLY", "EVERY_N_MONTHS", "YEARLY"],
+            "enum": [
+              "ONE_TIME",
+              "MONTHLY",
+              "EVERY_N_MONTHS",
+              "YEARLY"
+            ],
             "type": "string"
           },
           "scheduledOn": {
@@ -2561,7 +3135,10 @@
             "type": "string"
           },
           "status": {
-            "enum": ["ACTIVE", "ARCHIVED"],
+            "enum": [
+              "ACTIVE",
+              "ARCHIVED"
+            ],
             "type": "string"
           },
           "updatedOccurrences": {
@@ -2581,6 +3158,8 @@
           "categoryId",
           "comment",
           "status",
+          "owner",
+          "canEdit",
           "updatedOccurrences",
           "cancelledOccurrences"
         ],
@@ -2617,7 +3196,11 @@
             "type": "string"
           }
         },
-        "required": ["accountId", "amount", "occurredOn"],
+        "required": [
+          "accountId",
+          "amount",
+          "occurredOn"
+        ],
         "type": "object"
       },
       "IncomeRecordOccurrence": {
@@ -2628,7 +3211,9 @@
             "type": "string"
           },
           "status": {
-            "enum": ["COMPLETED"],
+            "enum": [
+              "COMPLETED"
+            ],
             "type": "string"
           },
           "transactionId": {
@@ -2637,7 +3222,11 @@
             "type": "string"
           }
         },
-        "required": ["id", "status", "transactionId"],
+        "required": [
+          "id",
+          "status",
+          "transactionId"
+        ],
         "type": "object"
       },
       "IncomeRecordResponse": {
@@ -2649,7 +3238,10 @@
             "$ref": "#/components/schemas/IncomeRecordTransaction"
           }
         },
-        "required": ["occurrence", "transaction"],
+        "required": [
+          "occurrence",
+          "transaction"
+        ],
         "type": "object"
       },
       "IncomeRecordTransaction": {
@@ -2695,11 +3287,15 @@
             "type": "string"
           },
           "status": {
-            "enum": ["CONFIRMED"],
+            "enum": [
+              "CONFIRMED"
+            ],
             "type": "string"
           },
           "transactionType": {
-            "enum": ["INCOME"],
+            "enum": [
+              "INCOME"
+            ],
             "type": "string"
           }
         },
@@ -2734,7 +3330,100 @@
             "type": "string"
           }
         },
-        "required": ["enabled", "sourceCategoryId", "targetEnvelopeId"],
+        "required": [
+          "enabled",
+          "sourceCategoryId",
+          "targetEnvelopeId"
+        ],
+        "type": "object"
+      },
+      "InvitationPreviewResponse": {
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "inviterName": {
+            "type": "string"
+          },
+          "maskedEmail": {
+            "description": "Email с маской, например a***@mail.ru.",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "EDITOR",
+              "VIEWER"
+            ],
+            "type": "string"
+          },
+          "workspaceName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspaceName",
+          "inviterName",
+          "role",
+          "maskedEmail",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "InvitationResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "EDITOR",
+              "VIEWER"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "EXPIRED"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "role",
+          "status",
+          "expiresAt",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "InvitationTokenRequest": {
+        "properties": {
+          "token": {
+            "maxLength": 128,
+            "minLength": 16,
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
         "type": "object"
       },
       "JournalPageResponse": {
@@ -2744,7 +3433,7 @@
               "discriminator": {
                 "mapping": {
                   "TRANSACTION": "#/components/schemas/TransactionFeedItemResponse",
-                  "TRANSFER": "#/components/schemas/TransferJournalItemResponse"
+                  "TRANSFER": "#/components/schemas/JournalTransferItemResponse"
                 },
                 "propertyName": "kind"
               },
@@ -2753,7 +3442,7 @@
                   "$ref": "#/components/schemas/TransactionFeedItemResponse"
                 },
                 {
-                  "$ref": "#/components/schemas/TransferJournalItemResponse"
+                  "$ref": "#/components/schemas/JournalTransferItemResponse"
                 }
               ]
             },
@@ -2765,13 +3454,98 @@
             "type": "string"
           }
         },
-        "required": ["items", "nextCursor"],
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "JournalTransferItemResponse": {
+        "properties": {
+          "amountMinor": {
+            "example": "150000",
+            "type": "string"
+          },
+          "budgetId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "comment": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
+          "currency": {
+            "example": "RUB",
+            "type": "string"
+          },
+          "deletedAt": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "destinationAccountId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "TRANSFER"
+            ],
+            "example": "TRANSFER",
+            "type": "string"
+          },
+          "occurredOn": {
+            "example": "2026-10-20",
+            "type": "string"
+          },
+          "sourceAccountId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "CONFIRMED",
+              "DELETED"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "budgetId",
+          "status",
+          "amountMinor",
+          "currency",
+          "occurredOn",
+          "sourceAccountId",
+          "destinationAccountId",
+          "comment",
+          "createdAt",
+          "deletedAt",
+          "createdBy"
+        ],
         "type": "object"
       },
       "LegalDocumentResponse": {
         "properties": {
           "document": {
-            "enum": ["TERMS", "PRIVACY_POLICY", "PD_CONSENT"],
+            "enum": [
+              "TERMS",
+              "PRIVACY_POLICY",
+              "PD_CONSENT"
+            ],
             "type": "string"
           },
           "effectiveOn": {
@@ -2785,7 +3559,11 @@
             "type": "string"
           }
         },
-        "required": ["document", "version", "effectiveOn"],
+        "required": [
+          "document",
+          "version",
+          "effectiveOn"
+        ],
         "type": "object"
       },
       "LiveHealthResponse": {
@@ -2795,7 +3573,9 @@
             "type": "string"
           },
           "status": {
-            "enum": ["ok"],
+            "enum": [
+              "ok"
+            ],
             "example": "ok",
             "type": "string"
           },
@@ -2804,7 +3584,11 @@
             "type": "string"
           }
         },
-        "required": ["status", "version", "revision"],
+        "required": [
+          "status",
+          "version",
+          "revision"
+        ],
         "type": "object"
       },
       "LoginRequest": {
@@ -2819,7 +3603,10 @@
             "type": "string"
           }
         },
-        "required": ["email", "password"],
+        "required": [
+          "email",
+          "password"
+        ],
         "type": "object"
       },
       "MarkAllNotificationsReadResponse": {
@@ -2829,7 +3616,9 @@
             "type": "number"
           }
         },
-        "required": ["updatedCount"],
+        "required": [
+          "updatedCount"
+        ],
         "type": "object"
       },
       "MeBudgetResponse": {
@@ -2843,7 +3632,10 @@
           },
           "planModelVersion": {
             "description": "Модель плана бюджета: 1 — прежняя, 2 — Envelope Plan v2.2.",
-            "enum": [1, 2],
+            "enum": [
+              1,
+              2
+            ],
             "type": "number"
           },
           "primaryCurrency": {
@@ -2851,11 +3643,22 @@
             "type": "string"
           }
         },
-        "required": ["id", "name", "primaryCurrency", "planModelVersion"],
+        "required": [
+          "id",
+          "name",
+          "primaryCurrency",
+          "planModelVersion"
+        ],
         "type": "object"
       },
       "MeResponse": {
         "properties": {
+          "activeWorkspaceId": {
+            "description": "Пространство по умолчанию: последнее выбранное.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
           "pendingConsents": {
             "description": "Текущие документы, которые пользователь ещё не принял.",
             "items": {
@@ -2873,7 +3676,57 @@
             "type": "array"
           }
         },
-        "required": ["user", "workspaces", "pendingConsents"],
+        "required": [
+          "user",
+          "activeWorkspaceId",
+          "workspaces",
+          "pendingConsents"
+        ],
+        "type": "object"
+      },
+      "MemberResponse": {
+        "properties": {
+          "displayName": {
+            "nullable": true,
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "isCreator": {
+            "type": "boolean"
+          },
+          "joinedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "membershipId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "OWNER",
+              "EDITOR",
+              "VIEWER"
+            ],
+            "type": "string"
+          },
+          "userId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "membershipId",
+          "userId",
+          "email",
+          "displayName",
+          "role",
+          "isCreator",
+          "joinedAt"
+        ],
         "type": "object"
       },
       "MoveEnvelopeRequest": {
@@ -2899,7 +3752,10 @@
             "type": "string"
           }
         },
-        "required": ["sourceEnvelopeId", "amount"],
+        "required": [
+          "sourceEnvelopeId",
+          "amount"
+        ],
         "type": "object"
       },
       "MovementResultResponse": {
@@ -2948,7 +3804,10 @@
             "type": "string"
           }
         },
-        "required": ["items", "nextCursor"],
+        "required": [
+          "items",
+          "nextCursor"
+        ],
         "type": "object"
       },
       "NotificationResponse": {
@@ -3013,7 +3872,14 @@
             "type": "string"
           }
         },
-        "required": ["id", "budgetId", "notificationType", "title", "body", "createdAt"],
+        "required": [
+          "id",
+          "budgetId",
+          "notificationType",
+          "title",
+          "body",
+          "createdAt"
+        ],
         "type": "object"
       },
       "ObligationOccurrenceItemResponse": {
@@ -3060,7 +3926,13 @@
             "type": "string"
           },
           "status": {
-            "enum": ["PENDING", "DUE", "COMPLETED", "SKIPPED", "CANCELLED"],
+            "enum": [
+              "PENDING",
+              "DUE",
+              "COMPLETED",
+              "SKIPPED",
+              "CANCELLED"
+            ],
             "type": "string"
           },
           "unpaidMinor": {
@@ -3092,7 +3964,9 @@
             "type": "array"
           }
         },
-        "required": ["items"],
+        "required": [
+          "items"
+        ],
         "type": "object"
       },
       "ObligationOccurrenceResponse": {
@@ -3113,7 +3987,13 @@
             "type": "string"
           },
           "status": {
-            "enum": ["PENDING", "DUE", "COMPLETED", "SKIPPED", "CANCELLED"],
+            "enum": [
+              "PENDING",
+              "DUE",
+              "COMPLETED",
+              "SKIPPED",
+              "CANCELLED"
+            ],
             "example": "DUE",
             "type": "string"
           },
@@ -3123,7 +4003,13 @@
             "type": "string"
           }
         },
-        "required": ["id", "status", "expectedMinor", "paidMinor", "unpaidMinor"],
+        "required": [
+          "id",
+          "status",
+          "expectedMinor",
+          "paidMinor",
+          "unpaidMinor"
+        ],
         "type": "object"
       },
       "ObligationOneTimePayBody": {
@@ -3279,7 +4165,10 @@
             "type": "string"
           }
         },
-        "required": ["code", "detail"],
+        "required": [
+          "code",
+          "detail"
+        ],
         "type": "object"
       },
       "ObligationPayBody": {
@@ -3313,7 +4202,13 @@
             "type": "boolean"
           }
         },
-        "required": ["accountId", "categoryId", "amount", "occurredOn", "willPayMore"],
+        "required": [
+          "accountId",
+          "categoryId",
+          "amount",
+          "occurredOn",
+          "willPayMore"
+        ],
         "type": "object"
       },
       "ObligationPlanCreateBody": {
@@ -3353,7 +4248,12 @@
             "type": "string"
           },
           "recurrence": {
-            "enum": ["ONE_TIME", "MONTHLY", "EVERY_N_MONTHS", "YEARLY"],
+            "enum": [
+              "ONE_TIME",
+              "MONTHLY",
+              "EVERY_N_MONTHS",
+              "YEARLY"
+            ],
             "example": "ONE_TIME",
             "type": "string"
           },
@@ -3365,7 +4265,13 @@
             "type": "string"
           }
         },
-        "required": ["name", "amount", "scheduledOn", "categoryId", "recurrence"],
+        "required": [
+          "name",
+          "amount",
+          "scheduledOn",
+          "categoryId",
+          "recurrence"
+        ],
         "type": "object"
       },
       "ObligationPlanCreateResponse": {
@@ -3374,6 +4280,10 @@
             "description": "Ожидаемая сумма (minor, строка).",
             "example": "4000000",
             "type": "string"
+          },
+          "canEdit": {
+            "description": "True у владельца плана: именно он создаёт/изменяет этот план и оплачивает его вхождения. Создание новых планов доступно любому участнику с правом записи.",
+            "type": "boolean"
           },
           "categoryId": {
             "format": "uuid",
@@ -3423,12 +4333,22 @@
             "example": 2,
             "type": "number"
           },
+          "owner": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "planType": {
-            "enum": ["EXPENSE"],
+            "enum": [
+              "EXPENSE"
+            ],
             "type": "string"
           },
           "recurrence": {
-            "enum": ["ONE_TIME", "MONTHLY", "EVERY_N_MONTHS", "YEARLY"],
+            "enum": [
+              "ONE_TIME",
+              "MONTHLY",
+              "EVERY_N_MONTHS",
+              "YEARLY"
+            ],
             "type": "string"
           },
           "scheduledOn": {
@@ -3437,7 +4357,10 @@
             "type": "string"
           },
           "status": {
-            "enum": ["ACTIVE", "ARCHIVED"],
+            "enum": [
+              "ACTIVE",
+              "ARCHIVED"
+            ],
             "type": "string"
           }
         },
@@ -3454,6 +4377,8 @@
           "envelopeId",
           "comment",
           "status",
+          "owner",
+          "canEdit",
           "occurrenceId",
           "occurrencesCreated"
         ],
@@ -3468,7 +4393,9 @@
             "type": "array"
           }
         },
-        "required": ["items"],
+        "required": [
+          "items"
+        ],
         "type": "object"
       },
       "ObligationPlanResponse": {
@@ -3477,6 +4404,10 @@
             "description": "Ожидаемая сумма (minor, строка).",
             "example": "4000000",
             "type": "string"
+          },
+          "canEdit": {
+            "description": "True у владельца плана: именно он создаёт/изменяет этот план и оплачивает его вхождения. Создание новых планов доступно любому участнику с правом записи.",
+            "type": "boolean"
           },
           "categoryId": {
             "format": "uuid",
@@ -3514,12 +4445,22 @@
             "example": "Аренда",
             "type": "string"
           },
+          "owner": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "planType": {
-            "enum": ["EXPENSE"],
+            "enum": [
+              "EXPENSE"
+            ],
             "type": "string"
           },
           "recurrence": {
-            "enum": ["ONE_TIME", "MONTHLY", "EVERY_N_MONTHS", "YEARLY"],
+            "enum": [
+              "ONE_TIME",
+              "MONTHLY",
+              "EVERY_N_MONTHS",
+              "YEARLY"
+            ],
             "type": "string"
           },
           "scheduledOn": {
@@ -3528,7 +4469,10 @@
             "type": "string"
           },
           "status": {
-            "enum": ["ACTIVE", "ARCHIVED"],
+            "enum": [
+              "ACTIVE",
+              "ARCHIVED"
+            ],
             "type": "string"
           }
         },
@@ -3544,7 +4488,9 @@
           "categoryId",
           "envelopeId",
           "comment",
-          "status"
+          "status",
+          "owner",
+          "canEdit"
         ],
         "type": "object"
       },
@@ -3566,7 +4512,10 @@
           },
           "status": {
             "description": "ARCHIVED отключает только будущие неоплаченные occurrences; история и просроченные остаются.",
-            "enum": ["ACTIVE", "ARCHIVED"],
+            "enum": [
+              "ACTIVE",
+              "ARCHIVED"
+            ],
             "type": "string"
           }
         },
@@ -3578,6 +4527,10 @@
             "description": "Ожидаемая сумма (minor, строка).",
             "example": "4000000",
             "type": "string"
+          },
+          "canEdit": {
+            "description": "True у владельца плана: именно он создаёт/изменяет этот план и оплачивает его вхождения. Создание новых планов доступно любому участнику с правом записи.",
+            "type": "boolean"
           },
           "cancelledOccurrences": {
             "description": "Отключённые (CANCELLED) будущие неоплаченные.",
@@ -3620,12 +4573,22 @@
             "example": "Аренда",
             "type": "string"
           },
+          "owner": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "planType": {
-            "enum": ["EXPENSE"],
+            "enum": [
+              "EXPENSE"
+            ],
             "type": "string"
           },
           "recurrence": {
-            "enum": ["ONE_TIME", "MONTHLY", "EVERY_N_MONTHS", "YEARLY"],
+            "enum": [
+              "ONE_TIME",
+              "MONTHLY",
+              "EVERY_N_MONTHS",
+              "YEARLY"
+            ],
             "type": "string"
           },
           "scheduledOn": {
@@ -3634,7 +4597,10 @@
             "type": "string"
           },
           "status": {
-            "enum": ["ACTIVE", "ARCHIVED"],
+            "enum": [
+              "ACTIVE",
+              "ARCHIVED"
+            ],
             "type": "string"
           },
           "updatedOccurrences": {
@@ -3656,6 +4622,8 @@
           "envelopeId",
           "comment",
           "status",
+          "owner",
+          "canEdit",
           "updatedOccurrences",
           "cancelledOccurrences"
         ],
@@ -3683,7 +4651,11 @@
             "type": "array"
           }
         },
-        "required": ["transaction", "occurrence", "warnings"],
+        "required": [
+          "transaction",
+          "occurrence",
+          "warnings"
+        ],
         "type": "object"
       },
       "ObligationTransactionResponse": {
@@ -3747,7 +4719,10 @@
             "type": "string"
           }
         },
-        "required": ["code", "detail"],
+        "required": [
+          "code",
+          "detail"
+        ],
         "type": "object"
       },
       "PeriodTargetResponse": {
@@ -3792,7 +4767,11 @@
           },
           "targetStatus": {
             "description": "Только CONFIRMED считается действующей целью периода.",
-            "enum": ["UNSET", "DRAFT", "CONFIRMED"],
+            "enum": [
+              "UNSET",
+              "DRAFT",
+              "CONFIRMED"
+            ],
             "example": "CONFIRMED",
             "type": "string"
           }
@@ -3819,7 +4798,10 @@
           },
           "dot": {
             "description": "Есть открытый план на этот день; overdue — открытый платёж раньше сегодняшней даты.",
-            "enum": ["upcoming", "overdue"],
+            "enum": [
+              "upcoming",
+              "overdue"
+            ],
             "nullable": true,
             "type": "string"
           },
@@ -3834,11 +4816,20 @@
             "type": "string"
           }
         },
-        "required": ["date", "incomeMinor", "expenseMinor", "dot"],
+        "required": [
+          "date",
+          "incomeMinor",
+          "expenseMinor",
+          "dot"
+        ],
         "type": "object"
       },
       "PlansCalendarItemResponse": {
         "properties": {
+          "canEdit": {
+            "description": "Может ли текущий участник управлять планом, к которому относится событие.",
+            "type": "boolean"
+          },
           "categoryId": {
             "format": "uuid",
             "nullable": true,
@@ -3848,8 +4839,31 @@
             "example": "4000000",
             "type": "string"
           },
+          "factMinor": {
+            "description": "Сумма подтверждённых операций, закрывших план, minor units; null без них.",
+            "example": "4000000",
+            "nullable": true,
+            "type": "string"
+          },
+          "factOn": {
+            "description": "Для COMPLETED с подтверждённой операцией: дата последней такой операции. План показывается в этот день один раз, а не в день по плану. Иначе null.",
+            "format": "date",
+            "nullable": true,
+            "type": "string"
+          },
+          "factTransactionIds": {
+            "description": "Подтверждённые операции, закрывшие план (оплаты платежа или запись дохода). Пустой массив без них.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
           "kind": {
-            "enum": ["OBLIGATION", "INCOME_PLAN"],
+            "enum": [
+              "OBLIGATION",
+              "INCOME_PLAN"
+            ],
             "type": "string"
           },
           "name": {
@@ -3862,6 +4876,9 @@
           "overdue": {
             "description": "Открытый платёж раньше сегодняшней даты.",
             "type": "boolean"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/PlansCalendarOwnerResponse"
           },
           "paidMinor": {
             "description": "Для планового дохода всегда 0.",
@@ -3877,7 +4894,13 @@
             "type": "string"
           },
           "status": {
-            "enum": ["PENDING", "DUE", "SKIPPED", "COMPLETED", "CANCELLED"],
+            "enum": [
+              "PENDING",
+              "DUE",
+              "SKIPPED",
+              "COMPLETED",
+              "CANCELLED"
+            ],
             "type": "string"
           },
           "transactionId": {
@@ -3896,6 +4919,8 @@
           "kind",
           "occurrenceId",
           "planId",
+          "owner",
+          "canEdit",
           "name",
           "scheduledOn",
           "status",
@@ -3904,7 +4929,33 @@
           "unpaidMinor",
           "categoryId",
           "overdue",
-          "transactionId"
+          "transactionId",
+          "factOn",
+          "factMinor",
+          "factTransactionIds"
+        ],
+        "type": "object"
+      },
+      "PlansCalendarOwnerResponse": {
+        "properties": {
+          "displayName": {
+            "example": "Алия",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "isActiveMember": {
+            "description": "False когда человек исключён из рабочего пространства или вышел из него.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "isActiveMember"
         ],
         "type": "object"
       },
@@ -3917,6 +4968,7 @@
             "type": "array"
           },
           "items": {
+            "description": "Планы с датой в этом месяце, а также COMPLETED-планы другого месяца, закрытые операцией в этом месяце (factOn в месяце). totals и days считают только планы с датой в месяце.",
             "items": {
               "$ref": "#/components/schemas/PlansCalendarItemResponse"
             },
@@ -3945,7 +4997,15 @@
             "$ref": "#/components/schemas/PlansCalendarTotalsResponse"
           }
         },
-        "required": ["month", "today", "days", "items", "overdue", "overdueCount", "totals"],
+        "required": [
+          "month",
+          "today",
+          "days",
+          "items",
+          "overdue",
+          "overdueCount",
+          "totals"
+        ],
         "type": "object"
       },
       "PlansCalendarTotalsResponse": {
@@ -4028,7 +5088,25 @@
             "type": "string"
           }
         },
-        "required": ["type", "title", "status", "code", "detail", "requestId"],
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "detail",
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "ProfileResponse": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserResponse"
+          }
+        },
+        "required": [
+          "user"
+        ],
         "type": "object"
       },
       "PutFundingRuleRequest": {
@@ -4063,7 +5141,10 @@
             "type": "string"
           }
         },
-        "required": ["type", "priority"],
+        "required": [
+          "type",
+          "priority"
+        ],
         "type": "object"
       },
       "PutFundingRulesBatchRequest": {
@@ -4086,7 +5167,11 @@
             "type": "array"
           }
         },
-        "required": ["queue", "outside", "incomeSuggestion"],
+        "required": [
+          "queue",
+          "outside",
+          "incomeSuggestion"
+        ],
         "type": "object"
       },
       "PutPeriodTargetRequest": {
@@ -4098,7 +5183,9 @@
             "type": "string"
           }
         },
-        "required": ["target"],
+        "required": [
+          "target"
+        ],
         "type": "object"
       },
       "ReadyHealthResponse": {
@@ -4107,12 +5194,17 @@
             "$ref": "#/components/schemas/HealthDependenciesResponse"
           },
           "status": {
-            "enum": ["ok"],
+            "enum": [
+              "ok"
+            ],
             "example": "ok",
             "type": "string"
           }
         },
-        "required": ["status", "dependencies"],
+        "required": [
+          "status",
+          "dependencies"
+        ],
         "type": "object"
       },
       "RecoveryConfirmRequest": {
@@ -4128,7 +5220,10 @@
             "type": "string"
           }
         },
-        "required": ["token", "password"],
+        "required": [
+          "token",
+          "password"
+        ],
         "type": "object"
       },
       "RecoveryRequest": {
@@ -4139,7 +5234,9 @@
             "type": "string"
           }
         },
-        "required": ["email"],
+        "required": [
+          "email"
+        ],
         "type": "object"
       },
       "RegisterRequest": {
@@ -4161,6 +5258,12 @@
             "format": "email",
             "type": "string"
           },
+          "invitationToken": {
+            "description": "Токен приглашения: вместо личного пространства пользователь вступает в семью.",
+            "maxLength": 128,
+            "minLength": 16,
+            "type": "string"
+          },
           "password": {
             "format": "password",
             "maxLength": 128,
@@ -4173,7 +5276,10 @@
             "type": "string"
           }
         },
-        "required": ["email", "password"],
+        "required": [
+          "email",
+          "password"
+        ],
         "type": "object"
       },
       "ReportV2AccountBalanceRow": {
@@ -4195,13 +5301,20 @@
             "type": "string"
           }
         },
-        "required": ["accountId", "name", "balanceMinor", "asOf"],
+        "required": [
+          "accountId",
+          "name",
+          "balanceMinor",
+          "asOf"
+        ],
         "type": "object"
       },
       "ReportV2AccountBalancesResponse": {
         "properties": {
           "key": {
-            "enum": ["account-balances"],
+            "enum": [
+              "account-balances"
+            ],
             "type": "string"
           },
           "rows": {
@@ -4211,7 +5324,10 @@
             "type": "array"
           }
         },
-        "required": ["key", "rows"],
+        "required": [
+          "key",
+          "rows"
+        ],
         "type": "object"
       },
       "ReportV2AssignmentMovementRow": {
@@ -4221,7 +5337,11 @@
             "type": "string"
           },
           "assignmentType": {
-            "enum": ["INCOME", "OPENING", "FREE"],
+            "enum": [
+              "INCOME",
+              "OPENING",
+              "FREE"
+            ],
             "nullable": true,
             "type": "string"
           },
@@ -4253,7 +5373,10 @@
             "type": "string"
           },
           "kind": {
-            "enum": ["ASSIGNMENT", "MOVEMENT"],
+            "enum": [
+              "ASSIGNMENT",
+              "MOVEMENT"
+            ],
             "type": "string"
           },
           "periodId": {
@@ -4291,7 +5414,9 @@
       "ReportV2AssignmentMovementsResponse": {
         "properties": {
           "key": {
-            "enum": ["assignment-movements"],
+            "enum": [
+              "assignment-movements"
+            ],
             "type": "string"
           },
           "rows": {
@@ -4301,7 +5426,10 @@
             "type": "array"
           }
         },
-        "required": ["key", "rows"],
+        "required": [
+          "key",
+          "rows"
+        ],
         "type": "object"
       },
       "ReportV2EnvelopeLimitRow": {
@@ -4356,7 +5484,11 @@
             "type": "string"
           },
           "targetStatus": {
-            "enum": ["UNSET", "DRAFT", "CONFIRMED"],
+            "enum": [
+              "UNSET",
+              "DRAFT",
+              "CONFIRMED"
+            ],
             "type": "string"
           }
         },
@@ -4379,7 +5511,9 @@
       "ReportV2EnvelopeLimitsResponse": {
         "properties": {
           "key": {
-            "enum": ["envelope-limits"],
+            "enum": [
+              "envelope-limits"
+            ],
             "type": "string"
           },
           "rows": {
@@ -4389,7 +5523,10 @@
             "type": "array"
           }
         },
-        "required": ["key", "rows"],
+        "required": [
+          "key",
+          "rows"
+        ],
         "type": "object"
       },
       "ReportV2ExpenseByCategoryRow": {
@@ -4440,14 +5577,22 @@
             "$ref": "#/components/schemas/ReportV2JournalFiltersResponse"
           }
         },
-        "required": ["cycleStart", "cycleEnd", "expenseMinor", "journalFilters"],
+        "required": [
+          "cycleStart",
+          "cycleEnd",
+          "expenseMinor",
+          "journalFilters"
+        ],
         "type": "object"
       },
       "ReportV2ExpenseByPeriodRow": {
         "properties": {
           "boundarySource": {
             "description": "STORED: границы сохранённой строки периода конверта; SETTINGS_AT: даты без строки считаются по настройкам цикла, действовавшим в тот день (с учётом ревизий).",
-            "enum": ["STORED", "SETTINGS_AT"],
+            "enum": [
+              "STORED",
+              "SETTINGS_AT"
+            ],
             "type": "string"
           },
           "expenseMinor": {
@@ -4478,7 +5623,9 @@
       "ReportV2ExpensesByCategoryResponse": {
         "properties": {
           "key": {
-            "enum": ["expenses-by-category"],
+            "enum": [
+              "expenses-by-category"
+            ],
             "type": "string"
           },
           "rows": {
@@ -4488,13 +5635,18 @@
             "type": "array"
           }
         },
-        "required": ["key", "rows"],
+        "required": [
+          "key",
+          "rows"
+        ],
         "type": "object"
       },
       "ReportV2ExpensesByCycleResponse": {
         "properties": {
           "key": {
-            "enum": ["expenses-by-cycle"],
+            "enum": [
+              "expenses-by-cycle"
+            ],
             "type": "string"
           },
           "rows": {
@@ -4504,13 +5656,18 @@
             "type": "array"
           }
         },
-        "required": ["key", "rows"],
+        "required": [
+          "key",
+          "rows"
+        ],
         "type": "object"
       },
       "ReportV2ExpensesByPeriodResponse": {
         "properties": {
           "key": {
-            "enum": ["expenses-by-period"],
+            "enum": [
+              "expenses-by-period"
+            ],
             "type": "string"
           },
           "rows": {
@@ -4520,7 +5677,10 @@
             "type": "array"
           }
         },
-        "required": ["key", "rows"],
+        "required": [
+          "key",
+          "rows"
+        ],
         "type": "object"
       },
       "ReportV2IncomeByCycleRow": {
@@ -4541,13 +5701,20 @@
             "$ref": "#/components/schemas/ReportV2JournalFiltersResponse"
           }
         },
-        "required": ["cycleStart", "cycleEnd", "incomeMinor", "journalFilters"],
+        "required": [
+          "cycleStart",
+          "cycleEnd",
+          "incomeMinor",
+          "journalFilters"
+        ],
         "type": "object"
       },
       "ReportV2IncomesByCycleResponse": {
         "properties": {
           "key": {
-            "enum": ["incomes-by-cycle"],
+            "enum": [
+              "incomes-by-cycle"
+            ],
             "type": "string"
           },
           "rows": {
@@ -4557,7 +5724,10 @@
             "type": "array"
           }
         },
-        "required": ["key", "rows"],
+        "required": [
+          "key",
+          "rows"
+        ],
         "type": "object"
       },
       "ReportV2JournalFiltersResponse": {
@@ -4575,7 +5745,10 @@
             "type": "string"
           },
           "type": {
-            "enum": ["INCOME", "EXPENSE"],
+            "enum": [
+              "INCOME",
+              "EXPENSE"
+            ],
             "type": "string"
           }
         },
@@ -4584,7 +5757,9 @@
       "ReportV2NetCashFlowResponse": {
         "properties": {
           "key": {
-            "enum": ["net-cash-flow"],
+            "enum": [
+              "net-cash-flow"
+            ],
             "type": "string"
           },
           "rows": {
@@ -4594,7 +5769,10 @@
             "type": "array"
           }
         },
-        "required": ["key", "rows"],
+        "required": [
+          "key",
+          "rows"
+        ],
         "type": "object"
       },
       "ReportV2NetCashFlowRow": {
@@ -4636,7 +5814,9 @@
       "ReportV2PeriodComparisonResponse": {
         "properties": {
           "key": {
-            "enum": ["period-comparison"],
+            "enum": [
+              "period-comparison"
+            ],
             "type": "string"
           },
           "rows": {
@@ -4646,7 +5826,10 @@
             "type": "array"
           }
         },
-        "required": ["key", "rows"],
+        "required": [
+          "key",
+          "rows"
+        ],
         "type": "object"
       },
       "ReportV2PeriodComparisonRow": {
@@ -4726,7 +5909,9 @@
       "ReportV2PlanVsActualResponse": {
         "properties": {
           "key": {
-            "enum": ["plan-vs-actual"],
+            "enum": [
+              "plan-vs-actual"
+            ],
             "type": "string"
           },
           "rows": {
@@ -4736,7 +5921,10 @@
             "type": "array"
           }
         },
-        "required": ["key", "rows"],
+        "required": [
+          "key",
+          "rows"
+        ],
         "type": "object"
       },
       "ReportV2PlanVsActualRow": {
@@ -4758,7 +5946,10 @@
             "type": "string"
           },
           "planType": {
-            "enum": ["INCOME", "EXPENSE"],
+            "enum": [
+              "INCOME",
+              "EXPENSE"
+            ],
             "type": "string"
           },
           "plannedMinor": {
@@ -4866,7 +6057,9 @@
       "ReportV2SavingsGoalsResponse": {
         "properties": {
           "key": {
-            "enum": ["savings-goals"],
+            "enum": [
+              "savings-goals"
+            ],
             "type": "string"
           },
           "rows": {
@@ -4876,7 +6069,10 @@
             "type": "array"
           }
         },
-        "required": ["key", "rows"],
+        "required": [
+          "key",
+          "rows"
+        ],
         "type": "object"
       },
       "RequestAccountDeletionRequest": {
@@ -4888,7 +6084,9 @@
             "type": "string"
           }
         },
-        "required": ["password"],
+        "required": [
+          "password"
+        ],
         "type": "object"
       },
       "ReviseAssignmentRequest": {
@@ -4898,7 +6096,9 @@
             "type": "string"
           }
         },
-        "required": ["amount"],
+        "required": [
+          "amount"
+        ],
         "type": "object"
       },
       "SessionResponse": {
@@ -4928,7 +6128,13 @@
             "type": "string"
           }
         },
-        "required": ["id", "createdAt", "lastSeenAt", "idleExpiresAt", "absoluteExpiresAt"],
+        "required": [
+          "id",
+          "createdAt",
+          "lastSeenAt",
+          "idleExpiresAt",
+          "absoluteExpiresAt"
+        ],
         "type": "object"
       },
       "TemplateAdoptedEnvelopeDto": {
@@ -4941,7 +6147,12 @@
             "type": "string"
           },
           "role": {
-            "enum": ["FIRST", "SECOND", "MANDATORY", "SAVINGS"],
+            "enum": [
+              "FIRST",
+              "SECOND",
+              "MANDATORY",
+              "SAVINGS"
+            ],
             "type": "string"
           },
           "templateKey": {
@@ -4949,7 +6160,12 @@
             "type": "string"
           }
         },
-        "required": ["id", "role", "templateKey", "name"],
+        "required": [
+          "id",
+          "role",
+          "templateKey",
+          "name"
+        ],
         "type": "object"
       },
       "TemplateAppliedCategoryDto": {
@@ -4965,7 +6181,11 @@
             "type": "string"
           }
         },
-        "required": ["id", "templateKey", "name"],
+        "required": [
+          "id",
+          "templateKey",
+          "name"
+        ],
         "type": "object"
       },
       "TemplateAppliedCreatedDto": {
@@ -4983,7 +6203,10 @@
             "type": "array"
           }
         },
-        "required": ["categories", "envelopes"],
+        "required": [
+          "categories",
+          "envelopes"
+        ],
         "type": "object"
       },
       "TemplateAppliedCycleDto": {
@@ -5004,7 +6227,12 @@
             "type": "number"
           }
         },
-        "required": ["cycleStartDay", "periodBoundaryOffset", "changed", "resetPeriods"],
+        "required": [
+          "cycleStartDay",
+          "periodBoundaryOffset",
+          "changed",
+          "resetPeriods"
+        ],
         "type": "object"
       },
       "TemplateAppliedEnvelopeDto": {
@@ -5017,14 +6245,24 @@
             "type": "string"
           },
           "role": {
-            "enum": ["FIRST", "SECOND", "MANDATORY", "SAVINGS"],
+            "enum": [
+              "FIRST",
+              "SECOND",
+              "MANDATORY",
+              "SAVINGS"
+            ],
             "type": "string"
           },
           "templateKey": {
             "type": "string"
           }
         },
-        "required": ["id", "templateKey", "name", "role"],
+        "required": [
+          "id",
+          "templateKey",
+          "name",
+          "role"
+        ],
         "type": "object"
       },
       "TemplateAppliedRuleDto": {
@@ -5041,7 +6279,11 @@
             "type": "string"
           }
         },
-        "required": ["envelopeId", "type", "priority"],
+        "required": [
+          "envelopeId",
+          "type",
+          "priority"
+        ],
         "type": "object"
       },
       "TemplateApplyCycleDto": {
@@ -5059,31 +6301,47 @@
             "type": "number"
           }
         },
-        "required": ["startDay", "boundaryOffset"],
+        "required": [
+          "startDay",
+          "boundaryOffset"
+        ],
         "type": "object"
       },
       "TemplateApplyMandatoryDto": {
         "properties": {
           "action": {
-            "enum": ["CREATE", "ADOPT", "SKIP"],
+            "enum": [
+              "CREATE",
+              "ADOPT",
+              "SKIP"
+            ],
             "type": "string"
           },
           "name": {
             "type": "string"
           },
           "ruleChoice": {
-            "enum": ["SUGGESTED", "MANUAL"],
+            "enum": [
+              "SUGGESTED",
+              "MANUAL"
+            ],
             "type": "string"
           }
         },
-        "required": ["action"],
+        "required": [
+          "action"
+        ],
         "type": "object"
       },
       "TemplateApplyPeriodDto": {
         "properties": {
           "action": {
             "description": "ADOPT только для совместимого действующего элемента; архивный ключ заменяется только явным CREATE; при коллизии имени CREATE требует другое name, иначе SKIP.",
-            "enum": ["CREATE", "ADOPT", "SKIP"],
+            "enum": [
+              "CREATE",
+              "ADOPT",
+              "SKIP"
+            ],
             "type": "string"
           },
           "name": {
@@ -5091,12 +6349,18 @@
             "type": "string"
           },
           "role": {
-            "enum": ["FIRST", "SECOND"],
+            "enum": [
+              "FIRST",
+              "SECOND"
+            ],
             "type": "string"
           },
           "ruleChoice": {
             "description": "MANUAL: владелец отказался от предложенного правила.",
-            "enum": ["SUGGESTED", "MANUAL"],
+            "enum": [
+              "SUGGESTED",
+              "MANUAL"
+            ],
             "type": "string"
           },
           "target": {
@@ -5106,7 +6370,10 @@
             "type": "string"
           }
         },
-        "required": ["role", "action"],
+        "required": [
+          "role",
+          "action"
+        ],
         "type": "object"
       },
       "TemplateApplyRequest": {
@@ -5142,7 +6409,12 @@
             "type": "array"
           }
         },
-        "required": ["previewHash", "periods", "mandatory", "savings"],
+        "required": [
+          "previewHash",
+          "periods",
+          "mandatory",
+          "savings"
+        ],
         "type": "object"
       },
       "TemplateApplyResponse": {
@@ -5207,7 +6479,9 @@
             "type": "string"
           }
         },
-        "required": ["name"],
+        "required": [
+          "name"
+        ],
         "type": "object"
       },
       "TemplateCategoryPreviewDto": {
@@ -5218,7 +6492,10 @@
             "type": "string"
           },
           "categoryType": {
-            "enum": ["INCOME", "EXPENSE"],
+            "enum": [
+              "INCOME",
+              "EXPENSE"
+            ],
             "type": "string"
           },
           "collisionId": {
@@ -5238,7 +6515,10 @@
             "type": "string"
           },
           "matchedBy": {
-            "enum": ["KEY", "NAME"],
+            "enum": [
+              "KEY",
+              "NAME"
+            ],
             "nullable": true,
             "type": "string"
           },
@@ -5255,11 +6535,20 @@
             "type": "boolean"
           },
           "status": {
-            "enum": ["EXISTING", "MISSING", "ARCHIVED", "COLLISION"],
+            "enum": [
+              "EXISTING",
+              "MISSING",
+              "ARCHIVED",
+              "COLLISION"
+            ],
             "type": "string"
           },
           "suggestedAction": {
-            "enum": ["CREATE", "ADOPT", "SKIP"],
+            "enum": [
+              "CREATE",
+              "ADOPT",
+              "SKIP"
+            ],
             "type": "string"
           },
           "templateKey": {
@@ -5294,7 +6583,10 @@
             "type": "number"
           }
         },
-        "required": ["cycleStartDay", "periodBoundaryOffset"],
+        "required": [
+          "cycleStartDay",
+          "periodBoundaryOffset"
+        ],
         "type": "object"
       },
       "TemplateEnvelopePreviewDto": {
@@ -5326,7 +6618,10 @@
             "type": "string"
           },
           "matchedBy": {
-            "enum": ["KEY", "NAME"],
+            "enum": [
+              "KEY",
+              "NAME"
+            ],
             "nullable": true,
             "type": "string"
           },
@@ -5335,7 +6630,10 @@
             "type": "string"
           },
           "periodSlot": {
-            "enum": ["FIRST", "SECOND"],
+            "enum": [
+              "FIRST",
+              "SECOND"
+            ],
             "nullable": true,
             "type": "string"
           },
@@ -5350,7 +6648,12 @@
             "type": "boolean"
           },
           "role": {
-            "enum": ["FIRST", "SECOND", "MANDATORY", "SAVINGS"],
+            "enum": [
+              "FIRST",
+              "SECOND",
+              "MANDATORY",
+              "SAVINGS"
+            ],
             "type": "string"
           },
           "selectable": {
@@ -5358,11 +6661,20 @@
             "type": "boolean"
           },
           "status": {
-            "enum": ["EXISTING", "MISSING", "ARCHIVED", "COLLISION"],
+            "enum": [
+              "EXISTING",
+              "MISSING",
+              "ARCHIVED",
+              "COLLISION"
+            ],
             "type": "string"
           },
           "suggestedAction": {
-            "enum": ["CREATE", "ADOPT", "SKIP"],
+            "enum": [
+              "CREATE",
+              "ADOPT",
+              "SKIP"
+            ],
             "type": "string"
           },
           "suggestedRuleType": {
@@ -5433,22 +6745,41 @@
             "type": "string"
           }
         },
-        "required": ["cycle", "categories", "envelopes", "isComplete", "previewHash"],
+        "required": [
+          "cycle",
+          "categories",
+          "envelopes",
+          "isComplete",
+          "previewHash"
+        ],
         "type": "object"
       },
       "TemplateSkippedDto": {
         "properties": {
           "kind": {
-            "enum": ["CATEGORY", "ENVELOPE"],
+            "enum": [
+              "CATEGORY",
+              "ENVELOPE"
+            ],
             "type": "string"
           },
           "reason": {
             "description": "COLLISION/ARCHIVED оставляют шаг шаблона незавершённым.",
-            "enum": ["USER_SKIPPED", "COLLISION", "ARCHIVED", "NOT_AVAILABLE"],
+            "enum": [
+              "USER_SKIPPED",
+              "COLLISION",
+              "ARCHIVED",
+              "NOT_AVAILABLE"
+            ],
             "type": "string"
           },
           "role": {
-            "enum": ["FIRST", "SECOND", "MANDATORY", "SAVINGS"],
+            "enum": [
+              "FIRST",
+              "SECOND",
+              "MANDATORY",
+              "SAVINGS"
+            ],
             "nullable": true,
             "type": "string"
           },
@@ -5456,7 +6787,12 @@
             "type": "string"
           }
         },
-        "required": ["kind", "role", "templateKey", "reason"],
+        "required": [
+          "kind",
+          "role",
+          "templateKey",
+          "reason"
+        ],
         "type": "object"
       },
       "TransactionFeedItemResponse": {
@@ -5466,7 +6802,10 @@
           },
           "accountingModelVersion": {
             "description": "Учётная модель факта: 1 — старая, 2 — v2.",
-            "enum": [1, 2],
+            "enum": [
+              1,
+              2
+            ],
             "type": "number"
           },
           "amountMinor": {
@@ -5498,6 +6837,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "createdBy": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "currency": {
             "example": "RUB",
             "type": "string"
@@ -5515,7 +6857,9 @@
             "type": "string"
           },
           "kind": {
-            "enum": ["TRANSACTION"],
+            "enum": [
+              "TRANSACTION"
+            ],
             "example": "TRANSACTION",
             "type": "string"
           },
@@ -5539,11 +6883,19 @@
             "type": "string"
           },
           "status": {
-            "enum": ["DRAFT", "CONFIRMED", "CANCELLED", "DELETED"],
+            "enum": [
+              "DRAFT",
+              "CONFIRMED",
+              "CANCELLED",
+              "DELETED"
+            ],
             "type": "string"
           },
           "transactionType": {
-            "enum": ["INCOME", "EXPENSE"],
+            "enum": [
+              "INCOME",
+              "EXPENSE"
+            ],
             "type": "string"
           }
         },
@@ -5578,7 +6930,10 @@
           },
           "accountingModelVersion": {
             "description": "Учётная модель факта: 1 — старая, 2 — v2.",
-            "enum": [1, 2],
+            "enum": [
+              1,
+              2
+            ],
             "type": "number"
           },
           "amountMinor": {
@@ -5609,6 +6964,9 @@
           "createdAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
           },
           "currency": {
             "example": "RUB",
@@ -5646,11 +7004,19 @@
             "type": "string"
           },
           "status": {
-            "enum": ["DRAFT", "CONFIRMED", "CANCELLED", "DELETED"],
+            "enum": [
+              "DRAFT",
+              "CONFIRMED",
+              "CANCELLED",
+              "DELETED"
+            ],
             "type": "string"
           },
           "transactionType": {
-            "enum": ["INCOME", "EXPENSE"],
+            "enum": [
+              "INCOME",
+              "EXPENSE"
+            ],
             "type": "string"
           }
         },
@@ -5690,7 +7056,10 @@
             "type": "string"
           }
         },
-        "required": ["items", "nextCursor"],
+        "required": [
+          "items",
+          "nextCursor"
+        ],
         "type": "object"
       },
       "TransactionV2LifecycleResponse": {
@@ -5741,11 +7110,19 @@
             "type": "array"
           },
           "status": {
-            "enum": ["DRAFT", "CONFIRMED", "CANCELLED", "DELETED"],
+            "enum": [
+              "DRAFT",
+              "CONFIRMED",
+              "CANCELLED",
+              "DELETED"
+            ],
             "type": "string"
           },
           "transactionType": {
-            "enum": ["INCOME", "EXPENSE"],
+            "enum": [
+              "INCOME",
+              "EXPENSE"
+            ],
             "type": "string"
           },
           "warnings": {
@@ -5788,7 +7165,13 @@
             "type": "string"
           },
           "status": {
-            "enum": ["PENDING", "DUE", "SKIPPED", "COMPLETED", "CANCELLED"],
+            "enum": [
+              "PENDING",
+              "DUE",
+              "SKIPPED",
+              "COMPLETED",
+              "CANCELLED"
+            ],
             "type": "string"
           },
           "unpaidMinor": {
@@ -5796,7 +7179,13 @@
             "type": "string"
           }
         },
-        "required": ["id", "status", "expectedMinor", "paidMinor", "unpaidMinor"],
+        "required": [
+          "id",
+          "status",
+          "expectedMinor",
+          "paidMinor",
+          "unpaidMinor"
+        ],
         "type": "object"
       },
       "TransactionV2Response": {
@@ -5842,11 +7231,17 @@
             "type": "string"
           },
           "status": {
-            "enum": ["DRAFT", "CONFIRMED"],
+            "enum": [
+              "DRAFT",
+              "CONFIRMED"
+            ],
             "type": "string"
           },
           "transactionType": {
-            "enum": ["INCOME", "EXPENSE"],
+            "enum": [
+              "INCOME",
+              "EXPENSE"
+            ],
             "type": "string"
           },
           "warnings": {
@@ -5884,7 +7279,10 @@
             "type": "string"
           }
         },
-        "required": ["code", "detail"],
+        "required": [
+          "code",
+          "detail"
+        ],
         "type": "object"
       },
       "TransferJournalItemResponse": {
@@ -5923,7 +7321,9 @@
             "type": "string"
           },
           "kind": {
-            "enum": ["TRANSFER"],
+            "enum": [
+              "TRANSFER"
+            ],
             "example": "TRANSFER",
             "type": "string"
           },
@@ -5936,7 +7336,10 @@
             "type": "string"
           },
           "status": {
-            "enum": ["CONFIRMED", "DELETED"],
+            "enum": [
+              "CONFIRMED",
+              "DELETED"
+            ],
             "type": "string"
           }
         },
@@ -5959,7 +7362,11 @@
       "UpdateAccountRequest": {
         "properties": {
           "accountType": {
-            "enum": ["BANK_ACCOUNT", "BANK_CARD", "CASH"],
+            "enum": [
+              "BANK_ACCOUNT",
+              "BANK_CARD",
+              "CASH"
+            ],
             "type": "string"
           },
           "accountingStartDate": {
@@ -6103,10 +7510,26 @@
             "type": "string"
           },
           "periodSlot": {
-            "enum": ["FIRST", "SECOND"],
+            "enum": [
+              "FIRST",
+              "SECOND"
+            ],
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "UpdateProfileRequest": {
+        "properties": {
+          "displayName": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "displayName"
+        ],
         "type": "object"
       },
       "UpdateTransactionV2Body": {
@@ -6152,7 +7575,10 @@
             "type": "string"
           }
         },
-        "required": ["id", "email"],
+        "required": [
+          "id",
+          "email"
+        ],
         "type": "object"
       },
       "V2BudgetSettingsRequest": {
@@ -6233,7 +7659,11 @@
             "type": "string"
           }
         },
-        "required": ["id", "name", "primaryCurrency"],
+        "required": [
+          "id",
+          "name",
+          "primaryCurrency"
+        ],
         "type": "object"
       },
       "WorkspaceMembershipResponse": {
@@ -6248,15 +7678,29 @@
             "format": "uuid",
             "type": "string"
           },
+          "isCreator": {
+            "description": "Пользователь — создатель этого пространства.",
+            "type": "boolean"
+          },
           "name": {
             "type": "string"
           },
           "role": {
-            "enum": ["OWNER", "EDITOR", "VIEWER"],
+            "enum": [
+              "OWNER",
+              "EDITOR",
+              "VIEWER"
+            ],
             "type": "string"
           }
         },
-        "required": ["id", "name", "role", "budgets"],
+        "required": [
+          "id",
+          "name",
+          "role",
+          "isCreator",
+          "budgets"
+        ],
         "type": "object"
       },
       "WorkspaceResponse": {
@@ -6269,7 +7713,10 @@
             "type": "string"
           }
         },
-        "required": ["id", "name"],
+        "required": [
+          "id",
+          "name"
+        ],
         "type": "object"
       },
       "WorkspaceSummaryResponse": {
@@ -6282,7 +7729,11 @@
             "type": "string"
           },
           "role": {
-            "enum": ["OWNER", "EDITOR", "VIEWER"],
+            "enum": [
+              "OWNER",
+              "EDITOR",
+              "VIEWER"
+            ],
             "type": "string"
           },
           "timezone": {
@@ -6290,7 +7741,12 @@
             "type": "string"
           }
         },
-        "required": ["id", "name", "timezone", "role"],
+        "required": [
+          "id",
+          "name",
+          "timezone",
+          "role"
+        ],
         "type": "object"
       },
       "WorkspaceWithBudgetResponse": {
@@ -6306,7 +7762,11 @@
             "type": "string"
           },
           "role": {
-            "enum": ["OWNER", "EDITOR", "VIEWER"],
+            "enum": [
+              "OWNER",
+              "EDITOR",
+              "VIEWER"
+            ],
             "type": "string"
           },
           "timezone": {
@@ -6314,7 +7774,13 @@
             "type": "string"
           }
         },
-        "required": ["id", "name", "timezone", "role", "budget"],
+        "required": [
+          "id",
+          "name",
+          "timezone",
+          "role",
+          "budget"
+        ],
         "type": "object"
       }
     },
@@ -6365,7 +7831,9 @@
             "session": []
           }
         ],
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/api/v1/auth/deletion/cancel": {
@@ -6427,7 +7895,9 @@
             "description": ""
           }
         },
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/api/v1/auth/login": {
@@ -6496,7 +7966,9 @@
             "description": ""
           }
         },
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/api/v1/auth/logout": {
@@ -6523,7 +7995,9 @@
             "session": []
           }
         ],
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/api/v1/auth/password": {
@@ -6597,7 +8071,9 @@
             "session": []
           }
         ],
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/api/v1/auth/recovery/confirm": {
@@ -6656,7 +8132,9 @@
             "description": ""
           }
         },
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/api/v1/auth/recovery/request": {
@@ -6708,7 +8186,9 @@
             "description": ""
           }
         },
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/api/v1/auth/register": {
@@ -6756,7 +8236,37 @@
             },
             "description": ""
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
           "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
             "content": {
               "application/json": {
                 "schema": {
@@ -6767,7 +8277,9 @@
             "description": ""
           }
         },
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/api/v1/auth/sessions": {
@@ -6804,7 +8316,9 @@
             "session": []
           }
         ],
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       },
       "get": {
         "operationId": "AuthController_sessions_v1",
@@ -6839,7 +8353,9 @@
             "session": []
           }
         ],
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/api/v1/auth/sessions/{sessionId}": {
@@ -6876,7 +8392,9 @@
             "session": []
           }
         ],
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/api/v1/budgets/{budgetId}": {
@@ -6920,13 +8438,25 @@
             "session": []
           }
         ],
-        "tags": ["budgets"]
+        "tags": [
+          "budgets"
+        ]
       }
     },
     "/api/v1/budgets/{budgetId}/accounts": {
       "get": {
         "operationId": "AccountController_list_v1",
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "ownerUserId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -6936,6 +8466,16 @@
                     "$ref": "#/components/schemas/AccountResponse"
                   },
                   "type": "array"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
                 }
               }
             },
@@ -6967,7 +8507,9 @@
             "session": []
           }
         ],
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       },
       "post": {
         "operationId": "AccountController_create_v1",
@@ -7021,7 +8563,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи (нужна роль OWNER или EDITOR)."
           },
           "404": {
             "content": {
@@ -7049,19 +8591,41 @@
             "session": []
           }
         ],
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/budgets/{budgetId}/accounts/summary": {
       "get": {
         "operationId": "AccountController_summary_v1",
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "ownerUserId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AccountSummaryResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
                 }
               }
             },
@@ -7093,7 +8657,9 @@
             "session": []
           }
         ],
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/budgets/{budgetId}/accounts/{accountId}": {
@@ -7137,7 +8703,9 @@
             "session": []
           }
         ],
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       },
       "patch": {
         "operationId": "AccountController_update_v1",
@@ -7191,7 +8759,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — счёт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -7219,7 +8787,9 @@
             "session": []
           }
         ],
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/budgets/{budgetId}/accounts/{accountId}/archive": {
@@ -7255,7 +8825,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — счёт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -7283,7 +8853,9 @@
             "session": []
           }
         ],
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/budgets/{budgetId}/accounts/{accountId}/restore": {
@@ -7320,7 +8892,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — счёт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -7349,7 +8921,9 @@
           }
         ],
         "summary": "Восстановление архивированного счёта",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/budgets/{budgetId}/categories": {
@@ -7371,7 +8945,10 @@
             "name": "sort",
             "required": false,
             "schema": {
-              "enum": ["default", "popular"],
+              "enum": [
+                "default",
+                "popular"
+              ],
               "type": "string"
             }
           },
@@ -7380,7 +8957,11 @@
             "name": "status",
             "required": false,
             "schema": {
-              "enum": ["active", "archived", "all"],
+              "enum": [
+                "active",
+                "archived",
+                "all"
+              ],
               "type": "string"
             }
           },
@@ -7389,7 +8970,10 @@
             "name": "type",
             "required": false,
             "schema": {
-              "enum": ["INCOME", "EXPENSE"],
+              "enum": [
+                "INCOME",
+                "EXPENSE"
+              ],
               "type": "string"
             }
           }
@@ -7434,7 +9018,9 @@
             "session": []
           }
         ],
-        "tags": ["categories"]
+        "tags": [
+          "categories"
+        ]
       },
       "post": {
         "operationId": "CategoryController_create_v1",
@@ -7516,7 +9102,9 @@
             "session": []
           }
         ],
-        "tags": ["categories"]
+        "tags": [
+          "categories"
+        ]
       }
     },
     "/api/v1/budgets/{budgetId}/categories/{categoryId}": {
@@ -7560,7 +9148,9 @@
             "session": []
           }
         ],
-        "tags": ["categories"]
+        "tags": [
+          "categories"
+        ]
       },
       "patch": {
         "operationId": "CategoryController_update_v1",
@@ -7642,7 +9232,9 @@
             "session": []
           }
         ],
-        "tags": ["categories"]
+        "tags": [
+          "categories"
+        ]
       }
     },
     "/api/v1/budgets/{budgetId}/categories/{categoryId}/archive": {
@@ -7706,7 +9298,9 @@
             "session": []
           }
         ],
-        "tags": ["categories"]
+        "tags": [
+          "categories"
+        ]
       }
     },
     "/api/v1/budgets/{budgetId}/notifications": {
@@ -7737,7 +9331,11 @@
             "name": "state",
             "required": false,
             "schema": {
-              "enum": ["unread", "read", "all"],
+              "enum": [
+                "unread",
+                "read",
+                "all"
+              ],
               "type": "string"
             }
           }
@@ -7789,7 +9387,9 @@
             "session": []
           }
         ],
-        "tags": ["notifications"]
+        "tags": [
+          "notifications"
+        ]
       }
     },
     "/api/v1/budgets/{budgetId}/notifications/read-all": {
@@ -7874,7 +9474,9 @@
             "session": []
           }
         ],
-        "tags": ["notifications"]
+        "tags": [
+          "notifications"
+        ]
       }
     },
     "/api/v1/budgets/{budgetId}/notifications/{notificationId}/read": {
@@ -7959,7 +9561,9 @@
             "session": []
           }
         ],
-        "tags": ["notifications"]
+        "tags": [
+          "notifications"
+        ]
       }
     },
     "/api/v1/budgets/{budgetId}/transactions/{transactionId}/audit": {
@@ -8013,7 +9617,9 @@
             "session": []
           }
         ],
-        "tags": ["audit"]
+        "tags": [
+          "audit"
+        ]
       }
     },
     "/api/v1/health/live": {
@@ -8032,7 +9638,9 @@
             "description": ""
           }
         },
-        "tags": ["health"]
+        "tags": [
+          "health"
+        ]
       }
     },
     "/api/v1/health/ready": {
@@ -8061,7 +9669,216 @@
             "description": ""
           }
         },
-        "tags": ["health"]
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/v1/invitations/accept": {
+      "post": {
+        "operationId": "InvitationAcceptController_accept_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedInvitationResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "family"
+        ]
+      }
+    },
+    "/api/v1/invitations/preview": {
+      "post": {
+        "operationId": "InvitationPreviewController_preview_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationPreviewResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "family"
+        ]
       }
     },
     "/api/v1/legal/documents": {
@@ -8083,7 +9900,9 @@
             "description": ""
           }
         },
-        "tags": ["legal"]
+        "tags": [
+          "legal"
+        ]
       }
     },
     "/api/v1/me": {
@@ -8117,7 +9936,73 @@
             "session": []
           }
         ],
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
+      },
+      "patch": {
+        "operationId": "AuthController_updateProfile_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/api/v1/me/consents": {
@@ -8184,7 +10069,9 @@
             "session": []
           }
         ],
-        "tags": ["legal"]
+        "tags": [
+          "legal"
+        ]
       }
     },
     "/api/v1/me/deletion": {
@@ -8268,7 +10155,9 @@
             "session": []
           }
         ],
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/api/v1/workspaces": {
@@ -8305,7 +10194,9 @@
             "session": []
           }
         ],
-        "tags": ["workspaces"]
+        "tags": [
+          "workspaces"
+        ]
       },
       "post": {
         "operationId": "WorkspaceController_create_v1",
@@ -8367,7 +10258,9 @@
             "session": []
           }
         ],
-        "tags": ["workspaces"]
+        "tags": [
+          "workspaces"
+        ]
       }
     },
     "/api/v1/workspaces/{workspaceId}/budgets": {
@@ -8414,7 +10307,9 @@
             "session": []
           }
         ],
-        "tags": ["budgets"]
+        "tags": [
+          "budgets"
+        ]
       },
       "post": {
         "operationId": "BudgetController_create_v1",
@@ -8486,7 +10381,657 @@
             "session": []
           }
         ],
-        "tags": ["budgets"]
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/invitations": {
+      "get": {
+        "operationId": "FamilyController_listInvitations_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InvitationResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "family"
+        ]
+      },
+      "post": {
+        "operationId": "FamilyController_createInvitation_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedInvitationResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "family"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/invitations/{invitationId}": {
+      "delete": {
+        "operationId": "FamilyController_revokeInvitation_v1",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "family"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/invitations/{invitationId}/resend": {
+      "post": {
+        "operationId": "FamilyController_resendInvitation_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedInvitationResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "family"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/leave": {
+      "post": {
+        "operationId": "FamilyController_leave_v1",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "family"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/members": {
+      "get": {
+        "operationId": "FamilyController_list_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MemberResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "family"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/members/{membershipId}": {
+      "delete": {
+        "operationId": "FamilyController_remove_v1",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "family"
+        ]
+      },
+      "patch": {
+        "operationId": "FamilyController_changeRole_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "family"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/select": {
+      "post": {
+        "operationId": "FamilyController_select_v1",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "family"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/assignments": {
@@ -8553,7 +11098,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_INCOME_AUTHOR — доход принадлежит другому участнику (sourceKind=INCOME)."
           },
           "404": {
             "content": {
@@ -8591,7 +11136,9 @@
             "session": []
           }
         ],
-        "tags": ["envelope-plans (v2)"]
+        "tags": [
+          "envelope-plans (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/assignments/{assignmentId}": {
@@ -8648,7 +11195,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OPERATION_AUTHOR — отменить может только автор распределения."
           },
           "404": {
             "content": {
@@ -8686,7 +11233,9 @@
             "session": []
           }
         ],
-        "tags": ["envelope-plans (v2)"]
+        "tags": [
+          "envelope-plans (v2)"
+        ]
       },
       "patch": {
         "operationId": "EnvelopePlanController_reviseAssignment_v2",
@@ -8751,7 +11300,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OPERATION_AUTHOR — изменять может только автор распределения."
           },
           "404": {
             "content": {
@@ -8789,7 +11338,9 @@
             "session": []
           }
         ],
-        "tags": ["envelope-plans (v2)"]
+        "tags": [
+          "envelope-plans (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/cycle-change/confirm": {
@@ -8896,7 +11447,9 @@
           }
         ],
         "summary": "Подтвердить смену границ цикла",
-        "tags": ["cycle change (v2)"]
+        "tags": [
+          "cycle change (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/cycle-change/preview": {
@@ -8992,7 +11545,9 @@
           }
         ],
         "summary": "Предпросмотр смены границ цикла без записи",
-        "tags": ["cycle change (v2)"]
+        "tags": [
+          "cycle change (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/dashboard": {
@@ -9080,13 +11635,25 @@
           }
         ],
         "summary": "Главная: «Можно потратить» и объяснение (модель плана v2)",
-        "tags": ["dashboard (v2)"]
+        "tags": [
+          "dashboard (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/envelopes": {
       "get": {
         "operationId": "EnvelopePlanController_list_v2",
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "ownerUserId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -9154,7 +11721,9 @@
             "session": []
           }
         ],
-        "tags": ["envelope-plans (v2)"]
+        "tags": [
+          "envelope-plans (v2)"
+        ]
       },
       "post": {
         "operationId": "EnvelopePlanController_create_v2",
@@ -9257,7 +11826,9 @@
             "session": []
           }
         ],
-        "tags": ["envelope-plans (v2)"]
+        "tags": [
+          "envelope-plans (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/envelopes/{envelopeId}": {
@@ -9331,7 +11902,9 @@
             "session": []
           }
         ],
-        "tags": ["envelope-plans (v2)"]
+        "tags": [
+          "envelope-plans (v2)"
+        ]
       },
       "patch": {
         "operationId": "EnvelopePlanController_update_v2",
@@ -9396,7 +11969,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -9434,7 +12007,9 @@
             "session": []
           }
         ],
-        "tags": ["envelope-plans (v2)"]
+        "tags": [
+          "envelope-plans (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/envelopes/{envelopeId}/archive": {
@@ -9491,7 +12066,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -9529,7 +12104,9 @@
             "session": []
           }
         ],
-        "tags": ["envelope-plans (v2)"]
+        "tags": [
+          "envelope-plans (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/envelopes/{envelopeId}/funding-rule": {
@@ -9596,7 +12173,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -9634,7 +12211,9 @@
             "session": []
           }
         ],
-        "tags": ["envelope-plans (v2)"]
+        "tags": [
+          "envelope-plans (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/envelopes/{envelopeId}/history": {
@@ -9708,7 +12287,9 @@
             "session": []
           }
         ],
-        "tags": ["envelope-plans (v2)"]
+        "tags": [
+          "envelope-plans (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/envelopes/{envelopeId}/periods/{periodStart}/target": {
@@ -9775,7 +12356,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -9813,7 +12394,9 @@
             "session": []
           }
         ],
-        "tags": ["envelope-plans (v2)"]
+        "tags": [
+          "envelope-plans (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/exports/assignments.csv": {
@@ -9918,7 +12501,9 @@
           }
         ],
         "summary": "CSV назначений и движений модели 2",
-        "tags": ["exports (v2)"]
+        "tags": [
+          "exports (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/exports/transactions.csv": {
@@ -10023,7 +12608,9 @@
           }
         ],
         "summary": "CSV транзакций модели 2",
-        "tags": ["exports (v2)"]
+        "tags": [
+          "exports (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/funding-rules": {
@@ -10097,10 +12684,12 @@
             "session": []
           }
         ],
-        "tags": ["envelope-plans (v2)"]
+        "tags": [
+          "envelope-plans (v2)"
+        ]
       },
       "put": {
-        "description": "Одна транзакция: правила конвертов, порядок очереди и предложение «категория дохода → конверт». Конверты вне тела не меняются. Распределения, остатки и цели периодов не меняются. Только OWNER; повтор с тем же Idempotency-Key возвращает тот же ответ.",
+        "description": "Одна транзакция: правила конвертов, порядок очереди и предложение «категория дохода → конверт». Конверты вне тела не меняются. Распределения, остатки и цели периодов не меняются. Доступно writer (OWNER или EDITOR); правило чужого конверта, которое пакет создаёт, меняет или удаляет, даёт NOT_OBJECT_OWNER, изменение incomeSuggestion — только OWNER (FORBIDDEN). Повтор с тем же Idempotency-Key возвращает тот же ответ.",
         "operationId": "EnvelopePlanController_putFundingRules_v2",
         "parameters": [
           {
@@ -10163,7 +12752,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи либо изменение incomeSuggestion не владельцем бюджета; NOT_OBJECT_OWNER — изменённое правило принадлежит чужому конверту."
           },
           "404": {
             "content": {
@@ -10202,12 +12791,14 @@
           }
         ],
         "summary": "Сохранить очередь и правила пополнения конвертов",
-        "tags": ["envelope-plans (v2)"]
+        "tags": [
+          "envelope-plans (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/funding/confirm": {
       "post": {
-        "description": "Одна транзакция: блокировка бюджета, идемпотентность, блокировка дохода, пересчёт previewHash из реальных данных (расхождение даёт 409 PREVIEW_STALE без записи), подтверждение целей периода, затем назначения. Любая ошибка откатывает всё, включая подтверждение целей. Ручная сумма строки может отличаться от предложенной в пределах фактического источника. Пустые lines с непустым confirmPeriodTargets подтверждают только цели; оба пустых — без записи. Без записи: lines=[] и confirmPeriodTargets=[] возвращают 200 с нулями без проверки ключа, хеша и дохода. previewHash годится, только если lines/confirmPeriodTargets подтверждения равны overrides/выбору предпросмотра; сумма 0 в preview убирает строку, а confirm отвечает на 0 кодом 400. Только OWNER. Коды: 400 VALIDATION_FAILED, 403 FORBIDDEN, 404 (бюджет/доход/конверт/период), 409 PREVIEW_STALE|SOURCE_EXHAUSTED|ASSIGNMENT_UNBACKED|IDEMPOTENCY_CONFLICT|MODEL_VERSION_MISMATCH, 422 OPENING_NOT_AVAILABLE|ENVELOPE_ARCHIVED|PERIOD_REQUIRED|PERIOD_NOT_ALLOWED.",
+        "description": "Одна транзакция: блокировка бюджета, идемпотентность, блокировка дохода, пересчёт previewHash из реальных данных (расхождение даёт 409 PREVIEW_STALE без записи), подтверждение целей периода, затем назначения. Любая ошибка откатывает всё, включая подтверждение целей. Ручная сумма строки может отличаться от предложенной в пределах фактического источника. Пустые lines с непустым confirmPeriodTargets подтверждают только цели; оба пустых — без записи. Без записи: lines=[] и confirmPeriodTargets=[] возвращают 200 с нулями без проверки ключа, хеша и дохода. previewHash годится, только если lines/confirmPeriodTargets подтверждения равны overrides/выбору предпросмотра; строки с суммой 0 передаются так же, как в overrides preview, и не создают назначений; только нулевые строки без целей — 200 без записи. Доступно writer (OWNER или EDITOR); sourceKind=INCOME требует свой доход; sourceKind=OPENING и confirmPeriodTargets требуют свои конверты. Коды: 400 VALIDATION_FAILED, 403 FORBIDDEN|NOT_INCOME_AUTHOR|NOT_OBJECT_OWNER, 404 (бюджет/доход/конверт/период), 409 PREVIEW_STALE|SOURCE_EXHAUSTED|ASSIGNMENT_UNBACKED|IDEMPOTENCY_CONFLICT|MODEL_VERSION_MISMATCH, 422 OPENING_NOT_AVAILABLE|ENVELOPE_ARCHIVED|PERIOD_REQUIRED|PERIOD_NOT_ALLOWED.",
         "operationId": "FundingController_confirmFunding_v2",
         "parameters": [
           {
@@ -10250,7 +12841,7 @@
                 }
               }
             },
-            "description": "VALIDATION_FAILED: некорректное тело, ключ, нулевая или повторная строка."
+            "description": "VALIDATION_FAILED: некорректное тело, ключ, отрицательная или повторная строка."
           },
           "401": {
             "content": {
@@ -10270,7 +12861,7 @@
                 }
               }
             },
-            "description": "FORBIDDEN: не OWNER."
+            "description": "FORBIDDEN — нет права записи; NOT_INCOME_AUTHOR — доход принадлежит другому участнику; NOT_OBJECT_OWNER — строка OPENING или подтверждаемая цель принадлежит чужому конверту."
           },
           "404": {
             "content": {
@@ -10309,12 +12900,14 @@
           }
         ],
         "summary": "Атомарно подтвердить назначения и цели периода",
-        "tags": ["funding (v2)"]
+        "tags": [
+          "funding (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/funding/preview": {
       "post": {
-        "description": "Сервер предлагает назначения INCOME/OPENING/FREE по правилам, потребности обязательных и целям текущего периода. Ничего не назначает и не подтверждает цели; допустима только идемпотентная запись структурной строки периода (DRAFT/UNSET). POST берёт блокировку бюджета, ключ идемпотентности не нужен. Только OWNER (как будущее подтверждение). Коды: 404 (бюджет/доход/конверт/период), 409 MODEL_VERSION_MISMATCH, 422 OPENING_NOT_AVAILABLE|ENVELOPE_ARCHIVED|PERIOD_REQUIRED|PERIOD_NOT_ALLOWED.",
+        "description": "Сервер предлагает назначения INCOME/OPENING/FREE по правилам, потребности обязательных и целям текущего периода. Ничего не назначает и не подтверждает цели; допустима только идемпотентная запись структурной строки периода (DRAFT/UNSET). POST берёт блокировку бюджета, ключ идемпотентности не нужен. Доступно writer (OWNER или EDITOR); sourceKind=INCOME требует свой доход. Коды: 404 (бюджет/доход/конверт/период), 409 MODEL_VERSION_MISMATCH, 422 OPENING_NOT_AVAILABLE|ENVELOPE_ARCHIVED|PERIOD_REQUIRED|PERIOD_NOT_ALLOWED. lines содержит строку для каждого неархивного конверта: сначала очередь правил (queuePosition), затем конверты без правила по имени; конверт без предложения — suggestedMinor \"0\". Конверт другой половины получает ближайший период своего слота (идемпотентная структурная строка).",
         "operationId": "FundingController_previewFunding_v2",
         "parameters": [],
         "requestBody": {
@@ -10366,7 +12959,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_INCOME_AUTHOR — доход принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -10405,7 +12998,9 @@
           }
         ],
         "summary": "Предпросмотр назначений из источника без записи денег",
-        "tags": ["funding (v2)"]
+        "tags": [
+          "funding (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/income-category-suggestion": {
@@ -10512,7 +13107,9 @@
           }
         ],
         "summary": "Сохранить правило предложения «категория дохода → конверт»",
-        "tags": ["funding (v2)"]
+        "tags": [
+          "funding (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/income-plans": {
@@ -10521,11 +13118,25 @@
         "operationId": "IncomePlanController_listPlans_v2",
         "parameters": [
           {
+            "description": "Только планы с этим владельцем.",
+            "in": "query",
+            "name": "ownerUserId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
             "in": "query",
             "name": "status",
             "required": false,
             "schema": {
-              "enum": ["active", "archived", "all"],
+              "enum": [
+                "active",
+                "archived",
+                "all"
+              ],
               "type": "string"
             }
           }
@@ -10608,10 +13219,12 @@
           }
         ],
         "summary": "Список планов доходов",
-        "tags": ["income plans (v2)"]
+        "tags": [
+          "income plans (v2)"
+        ]
       },
       "post": {
-        "description": "Создаёт прогноз дохода на активной категории дохода и материализует occurrences текущего и следующего периода без worker. Не создаёт операций и назначений, не входит в деньги и обязательные платежи. Только OWNER. Коды 409: IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
+        "description": "Создаёт прогноз дохода на активной категории дохода и материализует occurrences текущего и следующего периода без worker. Не создаёт операций и назначений, не входит в деньги и обязательные платежи. Создание — любой участник с правом записи; управление — только владелец плана. Коды 409: IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
         "operationId": "IncomePlanController_createPlan_v2",
         "parameters": [
           {
@@ -10713,7 +13326,9 @@
           }
         ],
         "summary": "Создать план дохода (разовый или регулярный)",
-        "tags": ["income plans (v2)"]
+        "tags": [
+          "income plans (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/income-plans/occurrences": {
@@ -10744,7 +13359,13 @@
             "name": "status",
             "required": false,
             "schema": {
-              "enum": ["PENDING", "DUE", "SKIPPED", "COMPLETED", "CANCELLED"],
+              "enum": [
+                "PENDING",
+                "DUE",
+                "SKIPPED",
+                "COMPLETED",
+                "CANCELLED"
+              ],
               "type": "string"
             }
           },
@@ -10836,12 +13457,14 @@
           }
         ],
         "summary": "Список прогнозов доходов (occurrences)",
-        "tags": ["income plans (v2)"]
+        "tags": [
+          "income plans (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/income-plans/occurrences/{occurrenceId}/record": {
       "post": {
-        "description": "Атомарно создаёт одну подтверждённую операцию INCOME (v2) и закрывает occurrence (COMPLETED, transactionId). Категория по умолчанию — категория плана. Будущая дата отклоняется. Назначение дохода конвертам остаётся отдельным явным действием. OWNER или EDITOR. Коды 409: OCCURRENCE_NOT_OPEN (повторная запись, даже с другим Idempotency-Key, либо план отключён), IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
+        "description": "Атомарно создаёт одну подтверждённую операцию INCOME (v2) и закрывает occurrence (COMPLETED, transactionId). Категория по умолчанию — категория плана. Будущая дата отклоняется. Назначение дохода конвертам остаётся отдельным явным действием. Запись — только владелец плана; создание плана доступно любому участнику с правом записи (OWNER, EDITOR). Коды 409: OCCURRENCE_NOT_OPEN (повторная запись, даже с другим Idempotency-Key, либо план отключён), IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
         "operationId": "IncomePlanController_recordIncome_v2",
         "parameters": [
           {
@@ -10904,7 +13527,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN или NOT_OBJECT_OWNER."
           },
           "404": {
             "content": {
@@ -10943,12 +13566,14 @@
           }
         ],
         "summary": "Записать фактический доход по прогнозу",
-        "tags": ["income plans (v2)"]
+        "tags": [
+          "income plans (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/income-plans/{planId}": {
       "patch": {
-        "description": "Имя и сумма применяются к будущим открытым occurrences; уже наступившие открытые меняются только при applyToCurrentOpen=true; закрытые не меняются. status=ARCHIVED отключает только будущие открытые. Только OWNER. Коды 409: IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
+        "description": "Имя и сумма применяются к будущим открытым occurrences; уже наступившие открытые меняются только при applyToCurrentOpen=true; закрытые не меняются. status=ARCHIVED отключает только будущие открытые. Управление — только владелец плана. Коды 409: IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
         "operationId": "IncomePlanController_updatePlan_v2",
         "parameters": [
           {
@@ -11011,7 +13636,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN или NOT_OBJECT_OWNER."
           },
           "404": {
             "content": {
@@ -11050,13 +13675,25 @@
           }
         ],
         "summary": "Изменить или архивировать план дохода",
-        "tags": ["income plans (v2)"]
+        "tags": [
+          "income plans (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/journal": {
       "get": {
         "operationId": "JournalController_list_v2",
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "createdByUserId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -11124,7 +13761,9 @@
             "session": []
           }
         ],
-        "tags": ["journal (v2)"]
+        "tags": [
+          "journal (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/model": {
@@ -11198,7 +13837,9 @@
             "session": []
           }
         ],
-        "tags": ["budget model (v2)"]
+        "tags": [
+          "budget model (v2)"
+        ]
       },
       "patch": {
         "operationId": "V2BudgetModelController_updateModel_v2",
@@ -11270,7 +13911,9 @@
             "session": []
           }
         ],
-        "tags": ["budget model (v2)"]
+        "tags": [
+          "budget model (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/movements": {
@@ -11337,7 +13980,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — исходный конверт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -11375,7 +14018,9 @@
             "session": []
           }
         ],
-        "tags": ["envelope-plans (v2)"]
+        "tags": [
+          "envelope-plans (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/obligations/occurrences": {
@@ -11406,7 +14051,13 @@
             "name": "status",
             "required": false,
             "schema": {
-              "enum": ["PENDING", "DUE", "SKIPPED", "COMPLETED", "CANCELLED"],
+              "enum": [
+                "PENDING",
+                "DUE",
+                "SKIPPED",
+                "COMPLETED",
+                "CANCELLED"
+              ],
               "type": "string"
             }
           },
@@ -11498,7 +14149,9 @@
           }
         ],
         "summary": "Список обязательств (occurrences обязательных планов)",
-        "tags": ["obligations (v2)"]
+        "tags": [
+          "obligations (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/obligations/one-time-pay": {
@@ -11605,20 +14258,36 @@
           }
         ],
         "summary": "Разовый обязательный платёж и расход одним действием",
-        "tags": ["obligations (v2)"]
+        "tags": [
+          "obligations (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/obligations/plans": {
       "get": {
-        "description": "Планы расходов на конверте обязательных расходов. Доступно любому участнику.",
+        "description": "Планы расходов на конверте обязательных расходов. Доступно любому участнику; в ответе owner и canEdit.",
         "operationId": "ObligationPlanController_listPlans_v2",
         "parameters": [
+          {
+            "description": "Только планы с этим владельцем.",
+            "in": "query",
+            "name": "ownerUserId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
           {
             "in": "query",
             "name": "status",
             "required": false,
             "schema": {
-              "enum": ["active", "archived", "all"],
+              "enum": [
+                "active",
+                "archived",
+                "all"
+              ],
               "type": "string"
             }
           }
@@ -11701,10 +14370,12 @@
           }
         ],
         "summary": "Список обязательных планов",
-        "tags": ["obligations (v2)"]
+        "tags": [
+          "obligations (v2)"
+        ]
       },
       "post": {
-        "description": "Создаёт план расхода на активном конверте обязательных расходов и сразу материализует occurrences текущего и следующего периода без worker. Для ONE_TIME возвращает occurrenceId для оплаты. Только OWNER. Коды 409: MANDATORY_ENVELOPE_REQUIRED (нет активного конверта обязательных расходов), IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
+        "description": "Создаёт план расхода на активном конверте обязательных расходов и сразу материализует occurrences текущего и следующего периода без worker. Для ONE_TIME возвращает occurrenceId для оплаты. OWNER или EDITOR; план принадлежит создателю. Коды 409: MANDATORY_ENVELOPE_REQUIRED (нет активного конверта обязательных расходов), IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
         "operationId": "ObligationPlanController_createPlan_v2",
         "parameters": [
           {
@@ -11806,12 +14477,14 @@
           }
         ],
         "summary": "Создать обязательный план (разовый или регулярный)",
-        "tags": ["obligations (v2)"]
+        "tags": [
+          "obligations (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/obligations/plans/{planId}": {
       "patch": {
-        "description": "Имя и сумма применяются к будущим неоплаченным occurrences; уже наступившие открытые меняются только при applyToCurrentOpen=true; оплаченные, завершённые и пропущенные не меняются. status=ARCHIVED отключает только будущие неоплаченные. Только OWNER. Коды 409: MANDATORY_ENVELOPE_REQUIRED (нет активного конверта обязательных расходов), IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
+        "description": "Имя и сумма применяются к будущим неоплаченным occurrences; уже наступившие открытые меняются только при applyToCurrentOpen=true; оплаченные, завершённые и пропущенные не меняются. status=ARCHIVED отключает только будущие неоплаченные. OWNER или EDITOR-владелец плана; чужой план — 403. Коды 409: MANDATORY_ENVELOPE_REQUIRED (нет активного конверта обязательных расходов), IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
         "operationId": "ObligationPlanController_updatePlan_v2",
         "parameters": [
           {
@@ -11874,7 +14547,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN или NOT_OBJECT_OWNER."
           },
           "404": {
             "content": {
@@ -11913,7 +14586,9 @@
           }
         ],
         "summary": "Изменить или архивировать обязательный план",
-        "tags": ["obligations (v2)"]
+        "tags": [
+          "obligations (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/obligations/{occurrenceId}/close": {
@@ -11971,7 +14646,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN или NOT_OBJECT_OWNER."
           },
           "404": {
             "content": {
@@ -12010,7 +14685,9 @@
           }
         ],
         "summary": "Закрыть обязательство после частичных оплат",
-        "tags": ["obligations (v2)"]
+        "tags": [
+          "obligations (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/obligations/{occurrenceId}/pay": {
@@ -12078,7 +14755,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_OBJECT_OWNER или NOT_ACCOUNT_OWNER."
           },
           "404": {
             "content": {
@@ -12117,7 +14794,9 @@
           }
         ],
         "summary": "Оплатить обязательство",
-        "tags": ["obligations (v2)"]
+        "tags": [
+          "obligations (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/obligations/{occurrenceId}/skip": {
@@ -12175,7 +14854,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN или NOT_OBJECT_OWNER."
           },
           "404": {
             "content": {
@@ -12214,7 +14893,9 @@
           }
         ],
         "summary": "Пропустить обязательство без оплат",
-        "tags": ["obligations (v2)"]
+        "tags": [
+          "obligations (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/onboarding/no-mandatory-plans": {
@@ -12294,7 +14975,9 @@
           }
         ],
         "summary": "Онбординг: обязательных платежей нет",
-        "tags": ["onboarding (v2)"]
+        "tags": [
+          "onboarding (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/periods/{periodId}/confirm-target": {
@@ -12351,7 +15034,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -12379,7 +15062,9 @@
             "session": []
           }
         ],
-        "tags": ["envelope-plans (v2)"]
+        "tags": [
+          "envelope-plans (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/periods/{periodId}/reject-target": {
@@ -12436,7 +15121,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -12464,12 +15149,14 @@
             "session": []
           }
         ],
-        "tags": ["envelope-plans (v2)"]
+        "tags": [
+          "envelope-plans (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/plans/calendar": {
       "get": {
-        "description": "Все суммы строки minor units, расчёт на сервере одним снимком. Факты дня: только CONFIRMED и не удалённые доходы/расходы (переводы не входят). Плановые итоги: occurrences месяца без CANCELLED и SKIPPED. overdue — все открытые просроченные платежи бюджета независимо от месяца. Доступно любому активному участнику. Коды: 400 VALIDATION_FAILED, 401, 404 RESOURCE_NOT_FOUND, 409 MODEL_VERSION_MISMATCH.",
+        "description": "Все суммы строки minor units, расчёт на сервере одним снимком. Факты дня: только CONFIRMED и не удалённые доходы/расходы (переводы не входят). Плановые итоги: occurrences месяца без CANCELLED и SKIPPED. overdue — все открытые просроченные платежи бюджета независимо от месяца. Доступно любому активному участнику. События списка и просрочки несут owner (владелец плана) и canEdit (может ли текущий участник управлять этим планом); filter ownerUserId показывает только события планов указанного владельца. Коды: 400 VALIDATION_FAILED, 401, 404 RESOURCE_NOT_FOUND, 409 MODEL_VERSION_MISMATCH.",
         "operationId": "PlansCalendarController_calendar_v2",
         "parameters": [
           {
@@ -12479,6 +15166,16 @@
             "schema": {
               "example": "2026-09",
               "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Только планы, владельцем которых является указанный пользователь.",
+            "in": "query",
+            "name": "ownerUserId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -12551,7 +15248,9 @@
           }
         ],
         "summary": "Календарь планов месяца: факты и планы по дням, просрочка, итоги",
-        "tags": ["plans calendar (v2)"]
+        "tags": [
+          "plans calendar (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/reference-template/apply": {
@@ -12658,7 +15357,9 @@
           }
         ],
         "summary": "Применить настроенный шаблон v2 без дублей",
-        "tags": ["reference template (v2)"]
+        "tags": [
+          "reference template (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/reference-template/preview": {
@@ -12734,7 +15435,9 @@
           }
         ],
         "summary": "Предпросмотр базового шаблона v2 без записи",
-        "tags": ["reference template (v2)"]
+        "tags": [
+          "reference template (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/reports/{key}": {
@@ -12920,7 +15623,9 @@
           }
         ],
         "summary": "Отчёты модели плана v2",
-        "tags": ["reports (v2)"]
+        "tags": [
+          "reports (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/settings": {
@@ -13027,7 +15732,9 @@
           }
         ],
         "summary": "Изменить имя, политику отрицательного остатка счёта и часовой пояс бюджета",
-        "tags": ["budget settings (v2)"]
+        "tags": [
+          "budget settings (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/transactions": {
@@ -13080,12 +15787,17 @@
             }
           },
           {
-            "description": "DELETED доступен только владельцу (иначе 403); по умолчанию удалённые скрыты.",
+            "description": "DELETED виден создателю и участникам с правом записи; наблюдателю — 403; по умолчанию удалённые скрыты.",
             "in": "query",
             "name": "status",
             "required": false,
             "schema": {
-              "enum": ["DRAFT", "CONFIRMED", "CANCELLED", "DELETED"],
+              "enum": [
+                "DRAFT",
+                "CONFIRMED",
+                "CANCELLED",
+                "DELETED"
+              ],
               "type": "string"
             }
           },
@@ -13094,7 +15806,10 @@
             "name": "type",
             "required": false,
             "schema": {
-              "enum": ["INCOME", "EXPENSE"],
+              "enum": [
+                "INCOME",
+                "EXPENSE"
+              ],
               "type": "string"
             }
           },
@@ -13157,7 +15872,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13185,7 +15900,9 @@
             "session": []
           }
         ],
-        "tags": ["transactions (v2)"]
+        "tags": [
+          "transactions (v2)"
+        ]
       },
       "post": {
         "operationId": "TransactionV2Controller_create_v2",
@@ -13250,7 +15967,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13288,7 +16005,9 @@
             "session": []
           }
         ],
-        "tags": ["transactions (v2)"]
+        "tags": [
+          "transactions (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/transactions/{transactionId}": {
@@ -13345,7 +16064,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13373,7 +16092,9 @@
             "session": []
           }
         ],
-        "tags": ["transactions (v2)"]
+        "tags": [
+          "transactions (v2)"
+        ]
       },
       "get": {
         "operationId": "TransactionV2Controller_get_v2",
@@ -13417,7 +16138,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13445,7 +16166,9 @@
             "session": []
           }
         ],
-        "tags": ["transactions (v2)"]
+        "tags": [
+          "transactions (v2)"
+        ]
       },
       "patch": {
         "operationId": "TransactionV2Controller_update_v2",
@@ -13510,7 +16233,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13548,7 +16271,9 @@
             "session": []
           }
         ],
-        "tags": ["transactions (v2)"]
+        "tags": [
+          "transactions (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/transactions/{transactionId}/restore": {
@@ -13605,7 +16330,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13633,7 +16358,9 @@
             "session": []
           }
         ],
-        "tags": ["transactions (v2)"]
+        "tags": [
+          "transactions (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/transfers": {
@@ -13679,7 +16406,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13707,7 +16434,9 @@
             "session": []
           }
         ],
-        "tags": ["direct transfers (v2)"]
+        "tags": [
+          "direct transfers (v2)"
+        ]
       },
       "post": {
         "operationId": "DirectTransferController_create_v2",
@@ -13772,7 +16501,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13810,7 +16539,9 @@
             "session": []
           }
         ],
-        "tags": ["direct transfers (v2)"]
+        "tags": [
+          "direct transfers (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/transfers/{transferId}": {
@@ -13867,7 +16598,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13895,7 +16626,9 @@
             "session": []
           }
         ],
-        "tags": ["direct transfers (v2)"]
+        "tags": [
+          "direct transfers (v2)"
+        ]
       },
       "get": {
         "operationId": "DirectTransferController_get_v2",
@@ -13939,7 +16672,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13967,7 +16700,9 @@
             "session": []
           }
         ],
-        "tags": ["direct transfers (v2)"]
+        "tags": [
+          "direct transfers (v2)"
+        ]
       },
       "patch": {
         "operationId": "DirectTransferController_update_v2",
@@ -14032,7 +16767,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -14070,7 +16805,9 @@
             "session": []
           }
         ],
-        "tags": ["direct transfers (v2)"]
+        "tags": [
+          "direct transfers (v2)"
+        ]
       }
     },
     "/api/v2/budgets/{budgetId}/transfers/{transferId}/restore": {
@@ -14127,7 +16864,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -14155,7 +16892,9 @@
             "session": []
           }
         ],
-        "tags": ["direct transfers (v2)"]
+        "tags": [
+          "direct transfers (v2)"
+        ]
       }
     }
   },

@@ -34,7 +34,13 @@ export class PlansCalendarController {
   @ApiOperation({
     summary: 'Календарь планов месяца: факты и планы по дням, просрочка, итоги',
     description:
-      'Все суммы строки minor units, расчёт на сервере одним снимком. Факты дня: только CONFIRMED и не удалённые доходы/расходы (переводы не входят). Плановые итоги: occurrences месяца без CANCELLED и SKIPPED. overdue — все открытые просроченные платежи бюджета независимо от месяца. Доступно любому активному участнику. Коды: 400 VALIDATION_FAILED, 401, 404 RESOURCE_NOT_FOUND, 409 MODEL_VERSION_MISMATCH.',
+       'Все суммы строки minor units, расчёт на сервере одним снимком. Факты дня: только CONFIRMED и не удалённые доходы/расходы (переводы не входят). Плановые итоги: occurrences месяца без CANCELLED и SKIPPED. overdue — все открытые просроченные платежи бюджета независимо от месяца. Доступно любому активному участнику. События списка и просрочки несут owner (владелец плана) и canEdit (может ли текущий участник управлять этим планом); filter ownerUserId показывает только события планов указанного владельца. Коды: 400 VALIDATION_FAILED, 401, 404 RESOURCE_NOT_FOUND, 409 MODEL_VERSION_MISMATCH.',
+  })
+  @ApiQuery({
+    name: 'ownerUserId',
+    required: false,
+    schema: { type: 'string', format: 'uuid' },
+    description: 'Только планы, владельцем которых является указанный пользователь.',
   })
   @ApiQuery({
     name: 'month',
