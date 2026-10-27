@@ -11,8 +11,10 @@ import type { EmailSender } from '../auth/email-sender.js';
 import type { ApiConfig } from '../config/env.js';
 import {
   createAccessNotification,
+  createObjectsTransferredNotification,
   resolveUserNotifications,
 } from '../family/family-notifications.js';
+import { transferMemberObjects } from '../family/object-transfer.js';
 import type { CancelDeletionInput, RequestDeletionInput } from './account-deletion.schemas.js';
 import type { AccountDeletionRepository } from './account-deletion.repository.js';
 
@@ -60,6 +62,14 @@ export class AccountDeletionApplicationService {
       const memberName = user.displayName ?? user.email;
       for (const membership of deactivated) {
         await resolveUserNotifications(tx, membership.workspaceId, userId, now);
+        const transferred = await transferMemberObjects(tx, {
+          workspaceId: membership.workspaceId,
+          fromUserId: userId,
+          toUserId: membership.ownerId,
+          actorUserId: userId,
+          requestId: meta.requestId,
+          now,
+        });
         const foreignBudgetId = await this.repository.findActiveBudgetId(
           tx,
           membership.workspaceId,
@@ -81,6 +91,16 @@ export class AccountDeletionApplicationService {
             memberName,
             eventKey: `${membership.id}:${now.toISOString()}`,
           });
+          if (transferred.accounts + transferred.envelopes + transferred.plans > 0) {
+            await createObjectsTransferredNotification(tx, {
+              workspaceId: membership.workspaceId,
+              budgetId: foreignBudgetId,
+              userId: membership.ownerId,
+              memberName,
+              counts: transferred,
+              eventKey: `${membership.id}:${now.toISOString()}`,
+            });
+          }
         }
       }
       await this.repository.archiveScope(tx, workspaceIds, budgetIds);

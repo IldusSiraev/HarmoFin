@@ -2,9 +2,14 @@ import { Injectable } from '@nestjs/common';
 
 import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import { cannotChangeCreator } from './family.errors.js';
-import { createAccessNotification, resolveUserNotifications } from './family-notifications.js';
+import {
+  createAccessNotification,
+  createObjectsTransferredNotification,
+  resolveUserNotifications,
+} from './family-notifications.js';
 import { FamilyRepository, type MemberRow, type Tx } from './family.repository.js';
 import type { InvitableRole } from './invitation.domain.js';
+import { transferMemberObjects } from './object-transfer.js';
 import { createPersonalWorkspace } from './personal-workspace.js';
 
 export interface MemberResponse {
@@ -168,6 +173,14 @@ export class MembersApplicationService {
     });
     if (deactivated.count !== 1) throw resourceNotFound();
     await resolveUserNotifications(tx, input.workspaceId, input.memberUserId, now);
+    const transferred = await transferMemberObjects(tx, {
+      workspaceId: input.workspaceId,
+      fromUserId: input.memberUserId,
+      toUserId: input.ownerId,
+      actorUserId: input.actorUserId,
+      requestId: input.requestId,
+      now,
+    });
     const budgetId = await this.repository.findActiveBudgetId(tx, input.workspaceId);
     await this.repository.audit(tx, {
       actorUserId: input.actorUserId,
@@ -187,6 +200,16 @@ export class MembersApplicationService {
         memberName: input.memberName,
         eventKey: `${input.membershipId}:${now.toISOString()}`,
       });
+      if (transferred.accounts + transferred.envelopes + transferred.plans > 0) {
+        await createObjectsTransferredNotification(tx, {
+          workspaceId: input.workspaceId,
+          budgetId,
+          userId: input.ownerId,
+          memberName: input.memberName,
+          counts: transferred,
+          eventKey: `${input.membershipId}:${now.toISOString()}`,
+        });
+      }
     }
     const remaining = await tx.workspaceMembership.count({
       where: { userId: input.memberUserId, isActive: true, workspace: { status: 'ACTIVE' } },
