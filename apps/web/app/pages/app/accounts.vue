@@ -4,6 +4,7 @@ import { definePageMeta, navigateTo, useRoute } from '#imports';
 
 import AccountDialog from '../../components/accounts/AccountDialog.vue';
 import AccountRow from '../../components/accounts/AccountRow.vue';
+import OwnerFilter from '../../components/app/OwnerFilter.vue';
 import FinanceMoney from '../../components/finance/FinanceMoney.vue';
 import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../components/ui/Button.vue';
@@ -32,6 +33,7 @@ import {
 } from '../../composables/useBudgetReferenceData.js';
 import { useEnvelopePlanV2 } from '../../composables/useEnvelopePlanV2.js';
 import { useFundingEntry } from '../../composables/useFundingEntry.js';
+import { useOwnerFilter } from '../../composables/useOwnerFilter.js';
 import { usePermissions } from '../../composables/usePermissions.js';
 import { useReferenceDataForm } from '../../composables/useReferenceDataForm.js';
 import { useToast } from '../../composables/useToast.js';
@@ -85,9 +87,10 @@ const form = reactive({
 });
 
 const { budgetId } = useActiveWorkspace();
-// Creating and archiving accounts is OWNER-only on the server; the buttons
-// below only hide the action a VIEWER or EDITOR would be refused anyway.
-const { canManage } = usePermissions();
+// The server checks every action again; the buttons only hide an action the
+// role or the account owner would not be allowed to do.
+const { canCreate, userId } = usePermissions();
+const ownerFilter = useOwnerFilter();
 
 function getAccountTypeOptions() {
   return [
@@ -146,9 +149,10 @@ async function loadAccounts(): Promise<void> {
   // A reference record may have just changed, so the shared cache the journal
   // and the global dialogs read must not stay on old names.
   useOperationReferenceData().invalidate();
+  const ownerUserId = ownerFilter.ownerUserId.value;
   const [items, totals] = await Promise.all([
-    api.listAccounts(id, status.value),
-    api.getAccountsSummary(id, status.value),
+    api.listAccounts(id, status.value, ownerUserId),
+    api.getAccountsSummary(id, status.value, ownerUserId),
   ]);
   accounts.value = items;
   summary.value = totals;
@@ -331,6 +335,15 @@ onMounted(() => {
 watch(globalOperationDialog, (value, previous) => {
   if (value === 'none' && previous !== 'none') void loadAccounts();
 });
+
+// The owner filter is page-local state (not in the URL), so a change just
+// re-requests the list and the total without switching the status segment.
+watch(
+  () => ownerFilter.mode.value,
+  () => {
+    if (budgetId.value) void loadAccounts();
+  },
+);
 </script>
 
 <template>
@@ -352,7 +365,7 @@ watch(globalOperationDialog, (value, previous) => {
         Счёт — это место, где физически находятся деньги: карта, банковский счёт или наличные.
       </template>
       <template #actions>
-        <UiButton v-if="canManage" data-action="create-account" @click="startCreate">
+        <UiButton v-if="canCreate" data-action="create-account" @click="startCreate">
           Создать счёт
         </UiButton>
       </template>
@@ -363,6 +376,12 @@ watch(globalOperationDialog, (value, previous) => {
           label="Показать счета"
           testid-prefix="status"
           @update:model-value="changeStatus"
+        />
+        <OwnerFilter
+          v-if="ownerFilter.kind.value !== 'none'"
+          v-model="ownerFilter.mode.value"
+          :kind="ownerFilter.kind.value"
+          :options="ownerFilter.options.value"
         />
       </template>
       <template #content>
@@ -396,14 +415,19 @@ watch(globalOperationDialog, (value, previous) => {
             title="Счетов пока нет"
             description="Создайте счёт, чтобы вести на нём операции."
           >
-            <template v-if="canManage" #action>
+            <template v-if="canCreate" #action>
               <UiButton @click="startCreate">Создать счёт</UiButton>
             </template>
           </UiEmptyState>
 
           <ul v-else class="accounts-page__grid" aria-label="Список счетов">
             <li v-for="account in accounts" :key="account.id">
-              <AccountRow :account="account" @select="detailed = account" />
+              <AccountRow
+                :account="account"
+                :show-owner="ownerFilter.kind.value !== 'none'"
+                :user-id="userId"
+                @select="detailed = account"
+              />
             </li>
           </ul>
         </template>

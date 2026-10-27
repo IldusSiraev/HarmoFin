@@ -18,10 +18,14 @@ const account: AccountDto = {
   accountingStartDate: '2026-09-01',
   comment: null,
   archivedAt: null,
+  owner: { userId: 'owner-id', displayName: 'Алия', isActiveMember: true },
+  canEdit: true,
 };
 
-const mountRow = (overrides: Partial<AccountDto> = {}) =>
-  mount(AccountRow, { props: { account: { ...account, ...overrides } } });
+const mountRow = (
+  overrides: Partial<AccountDto> = {},
+  props: { showOwner?: boolean; userId?: string | null } = {},
+) => mount(AccountRow, { props: { account: { ...account, ...overrides }, ...props } });
 
 const normalize = (value: string): string => value.replace(/[\u00a0\u202f]/g, ' ');
 
@@ -75,6 +79,20 @@ describe('AccountRow', () => {
         .attributes('aria-label') ?? '',
     );
     expect(archivedLabel).toContain('в архиве');
+  });
+
+  it('shows the owner label in the subtitle only with the showOwner prop', () => {
+    const cash = { accountType: 'CASH' as const, bankName: null, lastFourDigits: null };
+
+    const plain = mountRow(cash);
+    expect(plain.text()).not.toContain('Алия');
+    expect(plain.text()).not.toContain('Мой');
+
+    const aliyas = mountRow(cash, { showOwner: true, userId: 'u-me' });
+    expect(normalize(aliyas.text())).toContain('Наличные · Алия');
+
+    const mine = mountRow(cash, { showOwner: true, userId: 'owner-id' });
+    expect(normalize(mine.text())).toContain('Наличные · Мой');
   });
 
   it('selects the account when the row is pressed', async () => {

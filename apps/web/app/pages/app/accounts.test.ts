@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   auth: {
     currentData: { value: null as unknown },
+    currentUser: { value: { id: 'user-id' } as unknown } as { value: unknown },
     loadMe: vi.fn(),
   },
   api: {
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   v2: { getDashboard: vi.fn() },
   route: { path: '/app/accounts', query: {} as Record<string, string> },
   navigateTo: vi.fn(),
+  ownerKind: 'toggle' as 'none' | 'toggle' | 'chip',
 }));
 
 vi.mock('#imports', () => ({
@@ -28,6 +30,23 @@ vi.mock('../../composables/useBudgetReferenceData.js', () => ({
   useBudgetReferenceData: () => mocks.api,
 }));
 vi.mock('../../composables/useEnvelopePlanV2.js', () => ({ useEnvelopePlanV2: () => mocks.v2 }));
+vi.mock('../../composables/useOwnerFilter.js', async () => {
+  const { computed, ref } = await import('vue');
+  const mode = ref('all');
+  return {
+    useOwnerFilter: () => ({
+      mode,
+      ownerUserId: computed(() => (mode.value === 'all' ? undefined : 'user-id')),
+      options: computed(() => [
+        { value: 'all', label: 'Все' },
+        { value: 'mine', label: 'Мои' },
+      ]),
+      // Plain getter, not a computed: tests switch `ownerKind` between mounts,
+      // and a computed without a reactive source would cache the first value.
+      kind: { get value() { return mocks.ownerKind; } },
+    }),
+  };
+});
 
 import AccountsPage from './accounts.vue';
 import { ApiRequestError } from '../../composables/useApiClient.js';
@@ -49,6 +68,8 @@ const account = {
   accountingStartDate: '2026-09-03',
   comment: null,
   archivedAt: null,
+  owner: { userId: 'user-id', name: 'Алия' },
+  canEdit: true,
 };
 
 const normalize = (value: string): string => value.replace(/[\u00a0\u202f]/g, ' ');
@@ -77,6 +98,7 @@ describe('accounts page', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.ownerKind = 'toggle';
     mocks.route.query = {};
     mocks.auth.currentData.value = {
       user: { id: 'user-id', email: 'owner@example.test', displayName: null },
@@ -343,7 +365,7 @@ describe('accounts page', () => {
 
     expect(wrapper.findAll('[data-testid="account-card-select"]').length).toBeGreaterThan(0);
     expect(normalize(wrapper.get('[data-testid="accounts-total"]').text())).toContain('1 500,00 ₽');
-    expect(mocks.api.getAccountsSummary).toHaveBeenCalledWith('budget-id', 'active');
+    expect(mocks.api.getAccountsSummary).toHaveBeenCalledWith('budget-id', 'active', undefined);
   });
 
   it('opens the dialog from a card', async () => {
@@ -364,8 +386,12 @@ describe('accounts page', () => {
     await wrapper.get('[data-testid="status-archived"]').trigger('click');
     await flushPromises();
 
-    expect(mocks.api.listAccounts).toHaveBeenLastCalledWith('budget-id', 'archived');
-    expect(mocks.api.getAccountsSummary).toHaveBeenLastCalledWith('budget-id', 'archived');
+    expect(mocks.api.listAccounts).toHaveBeenLastCalledWith('budget-id', 'archived', undefined);
+    expect(mocks.api.getAccountsSummary).toHaveBeenLastCalledWith(
+      'budget-id',
+      'archived',
+      undefined,
+    );
   });
 
   it('separates an empty archive from an empty budget', async () => {
@@ -382,7 +408,7 @@ describe('accounts page', () => {
 
   type MockedWorkspaces = { workspaces: Array<{ role: string }> };
 
-  it('hides account creation for a viewer, who cannot manage accounts', async () => {
+  it('hides account creation for a viewer, who cannot create accounts', async () => {
     (mocks.auth.currentData.value as MockedWorkspaces).workspaces[0]!.role = 'VIEWER';
     wrapper = mountPage();
     await flushPromises();
@@ -390,11 +416,46 @@ describe('accounts page', () => {
     expect(wrapper.find('[data-action="create-account"]').exists()).toBe(false);
   });
 
-  it('hides account creation for an editor too: only the owner manages accounts', async () => {
+  it('offers account creation for an editor: every member creates their own accounts', async () => {
     (mocks.auth.currentData.value as MockedWorkspaces).workspaces[0]!.role = 'EDITOR';
     wrapper = mountPage();
     await flushPromises();
 
-    expect(wrapper.find('[data-action="create-account"]').exists()).toBe(false);
+    expect(wrapper.find('[data-action="create-account"]').exists()).toBe(true);
+  });
+
+  it('reloads the list and the summary with my id when the owner filter picks «Мои»', async () => {
+    mocks.api.listAccounts.mockResolvedValue([account]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    expect(mocks.api.listAccounts).toHaveBeenLastCalledWith('budget-id', 'active', undefined);
+
+    await wrapper.get('[data-testid="owner-filter-mine"]').trigger('click');
+    await flushPromises();
+
+    expect(mocks.api.listAccounts).toHaveBeenLastCalledWith('budget-id', 'active', 'user-id');
+    expect(mocks.api.getAccountsSummary).toHaveBeenLastCalledWith('budget-id', 'active', 'user-id');
+  });
+
+  it('hides the owner caption in a one-member family, where filter kind is none', async () => {
+    mocks.ownerKind = 'none';
+    mocks.api.listAccounts.mockResolvedValue([account]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    // Page passes show-owner = kind !== 'none', so the row keeps the plain
+    // type subtitle without the «· Мой» owner tail.
+    expect(wrapper.get('.account-card__subtitle').text()).toBe('Банковский счёт');
+    expect(wrapper.find('[data-testid="owner-filter-mine"]').exists()).toBe(false);
+  });
+
+  it('shows the owner caption once the family has two or more members', async () => {
+    mocks.ownerKind = 'toggle';
+    mocks.api.listAccounts.mockResolvedValue([account]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.get('.account-card__subtitle').text()).toBe('Банковский счёт · Мой');
   });
 });
