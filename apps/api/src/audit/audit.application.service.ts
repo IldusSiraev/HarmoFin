@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import { AuditRepository } from './audit.repository.js';
 
@@ -17,6 +18,8 @@ export type AuditEventView = {
 
 @Injectable()
 export class AuditApplicationService {
+  private readonly access = new BudgetAccessPolicy();
+
   constructor(private readonly repository: AuditRepository) {}
 
   async listForTransaction(
@@ -26,7 +29,10 @@ export class AuditApplicationService {
   ): Promise<{ items: AuditEventView[] }> {
     const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
     if (!budget) throw resourceNotFound();
-    if (budget.workspace.memberships[0]?.role !== 'OWNER') throw forbidden();
+    const role = budget.workspace.memberships[0]?.role;
+    if (!role || !this.access.canManageBudgetSettings({ userId, role, isCreator: false })) {
+      throw forbidden();
+    }
     const transaction = await this.repository.findAccessibleTransaction(
       userId,
       budgetId,

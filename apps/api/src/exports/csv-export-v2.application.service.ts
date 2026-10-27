@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 
 import { formatMinorUnits } from '../common/money/minor-units.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
+import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { MetricsRegistry } from '../observability/observability.js';
@@ -62,6 +63,8 @@ const iso = (value: Date | null) => value?.toISOString() ?? '';
  */
 @Injectable()
 export class CsvExportV2ApplicationService {
+  private readonly access = new BudgetAccessPolicy();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly repository: CsvExportV2Repository,
@@ -146,7 +149,9 @@ export class CsvExportV2ApplicationService {
         const budget = await this.repository.findAccessibleBudget(tx, userId, budgetId);
         if (!budget) throw resourceNotFound();
         const role = await this.repository.findActiveRole(tx, budget.workspaceId, userId);
-        if (role !== 'OWNER') throw forbidden();
+        if (!role || !this.access.canManageBudgetSettings({ userId, role, isCreator: false })) {
+          throw forbidden();
+        }
         return read(tx);
       },
       { ...TX_OPTIONS, isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },

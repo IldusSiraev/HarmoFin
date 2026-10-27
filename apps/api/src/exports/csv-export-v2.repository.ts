@@ -1,4 +1,9 @@
-import type { EnvelopeAssignmentType, Prisma, TransactionStatus } from '@prisma/client';
+import type {
+  EnvelopeAssignmentType,
+  Prisma,
+  TransactionStatus,
+  WorkspaceMembershipRole,
+} from '@prisma/client';
 
 export type ExportTransactionV2Row = {
   id: string;
@@ -53,7 +58,7 @@ export class CsvExportV2Repository {
     tx: Prisma.TransactionClient,
     workspaceId: string,
     userId: string,
-  ): Promise<string | null> {
+  ): Promise<WorkspaceMembershipRole | null> {
     const membership = await tx.workspaceMembership.findFirst({
       where: { workspaceId, userId, isActive: true },
       select: { role: true },

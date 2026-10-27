@@ -1,14 +1,13 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 
-import { RolePolicy } from '../common/policies/role-policy.js';
+import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { BudgetRepository, type BudgetView } from './budget.repository.js';
 
 @Injectable()
 export class BudgetApplicationService {
-  constructor(
-    private readonly repository: BudgetRepository,
-    private readonly rolePolicy: RolePolicy,
-  ) {}
+  private readonly access = new BudgetAccessPolicy();
+
+  constructor(private readonly repository: BudgetRepository) {}
 
   async get(userId: string, budgetId: string): Promise<BudgetView> {
     const budget = await this.repository.findAccessible(userId, budgetId);
@@ -30,7 +29,9 @@ export class BudgetApplicationService {
   ): Promise<BudgetView> {
     const membership = await this.repository.findWorkspaceMembership(userId, workspaceId);
     if (!membership) throw notFound();
-    if (!this.rolePolicy.canManage(membership.role)) throw forbidden();
+    if (!this.access.canManageBudgetSettings({ userId, role: membership.role, isCreator: false })) {
+      throw forbidden();
+    }
     return this.repository.create(userId, workspaceId, input, requestId);
   }
 }

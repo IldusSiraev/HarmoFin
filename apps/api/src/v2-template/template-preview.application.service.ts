@@ -2,7 +2,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
-import { RolePolicy } from '../common/policies/role-policy.js';
+import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { forbidden } from '../common/reference-data/reference-data.errors.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { TemplatePreviewRepository } from './template-preview.repository.js';
@@ -61,7 +61,7 @@ export type TemplatePreviewComputation = { body: TemplatePreviewBody; state: Tem
 @Injectable()
 export class TemplatePreviewApplicationService {
   private readonly repository = new TemplatePreviewRepository();
-  private readonly rolePolicy = new RolePolicy();
+  private readonly access = new BudgetAccessPolicy();
 
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
@@ -73,7 +73,9 @@ export class TemplatePreviewApplicationService {
     return this.prisma.$transaction(
       async (tx) => {
         const role = await this.repository.findMemberRole(tx, model.workspaceId, userId);
-        if (!role || !this.rolePolicy.canManage(role)) throw forbidden();
+        if (!role || !this.access.canManageBudgetSettings({ userId, role, isCreator: false })) {
+          throw forbidden();
+        }
         return (await this.compute(tx, { budgetId, workspaceId: model.workspaceId })).body;
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },

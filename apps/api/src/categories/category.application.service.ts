@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CategoryType } from '@prisma/client';
 
-import { RolePolicy } from '../common/policies/role-policy.js';
+import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import {
   forbidden,
   invalidReference,
@@ -30,10 +30,9 @@ export interface CategoryView {
 
 @Injectable()
 export class CategoryApplicationService {
-  constructor(
-    private readonly repository: CategoryRepository,
-    private readonly rolePolicy: RolePolicy,
-  ) {}
+  private readonly access = new BudgetAccessPolicy();
+
+  constructor(private readonly repository: CategoryRepository) {}
 
   async list(
     userId: string,
@@ -142,7 +141,9 @@ export class CategoryApplicationService {
     const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
     if (!budget) throw resourceNotFound();
     const role = budget.workspace.memberships[0]?.role;
-    if (!role || !this.rolePolicy.canManage(role)) throw forbidden();
+    if (!role || !this.access.canManageBudgetSettings({ userId, role, isCreator: false })) {
+      throw forbidden();
+    }
     return budget;
   }
 
