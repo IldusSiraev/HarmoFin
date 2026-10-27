@@ -148,30 +148,65 @@ describe('v2 notifications', () => {
     expect(await open(v2, 'PLAN_OVERDUE')).toHaveLength(0);
   });
 
-  it('notifies every active OWNER and EDITOR, never a VIEWER, and resolves on payment', async () => {
+  it('notifies only the plan owner among active writers and resolves leftover plan notifications', async () => {
     const editorId = randomUUID();
-    const viewerId = randomUUID();
     await prisma.user.createMany({
-      data: [
-        { id: editorId, email: `editor-${randomUUID()}@harmofin.test`, passwordHash: 'x' },
-        { id: viewerId, email: `viewer-${randomUUID()}@harmofin.test`, passwordHash: 'x' },
-      ],
+      data: [{ id: editorId, email: `editor-${randomUUID()}@harmofin.test`, passwordHash: 'x' }],
     });
     await prisma.workspaceMembership.createMany({
       data: [
         { id: randomUUID(), workspaceId: v2.workspaceId, userId: editorId, role: 'EDITOR' },
-        { id: randomUUID(), workspaceId: v2.workspaceId, userId: viewerId, role: 'VIEWER' },
       ],
     });
-    const occurrenceId = randomUUID();
-    await prisma.planOccurrence.create({
+    const memberPlanId = randomUUID();
+    await prisma.regularPlan.create({
       data: {
-        id: occurrenceId,
+        id: memberPlanId,
         workspaceId: v2.workspaceId,
         budgetId: v2.budgetId,
-        planId: v2.planId,
-        scheduledOn: day('2026-09-08'),
-        planName: 'Аренда',
+        ownerUserId: editorId,
+        name: 'Прокат',
+        planType: 'EXPENSE',
+        amountMinor: 100n,
+        anchorOn: day('2026-09-08'),
+        startOn: day('2026-09-08'),
+        recurrence: 'MONTHLY',
+        accountId: v2.accountId,
+        categoryId: v2.categoryId,
+        envelopeId: v2.envelopeId,
+        createdByUserId: v2.userId,
+        updatedByUserId: v2.userId,
+      },
+    });
+    const creatorPlanId = randomUUID();
+    await prisma.regularPlan.create({
+      data: {
+        id: creatorPlanId,
+        workspaceId: v2.workspaceId,
+        budgetId: v2.budgetId,
+        ownerUserId: v2.userId,
+        name: 'Коммунальные',
+        planType: 'EXPENSE',
+        amountMinor: 100n,
+        anchorOn: day(today),
+        startOn: day(today),
+        recurrence: 'MONTHLY',
+        accountId: v2.accountId,
+        categoryId: v2.categoryId,
+        envelopeId: v2.envelopeId,
+        createdByUserId: v2.userId,
+        updatedByUserId: v2.userId,
+      },
+    });
+    const creatorOccurrenceId = randomUUID();
+    await prisma.planOccurrence.create({
+      data: {
+        id: creatorOccurrenceId,
+        workspaceId: v2.workspaceId,
+        budgetId: v2.budgetId,
+        planId: creatorPlanId,
+        scheduledOn: day(today),
+        planName: 'Коммунальные',
         planType: 'EXPENSE',
         amountMinor: 100n,
         accountId: v2.accountId,
@@ -180,43 +215,97 @@ describe('v2 notifications', () => {
         status: 'DUE',
       },
     });
+    const memberOccurrenceId = randomUUID();
+    await prisma.planOccurrence.create({
+      data: {
+        id: memberOccurrenceId,
+        workspaceId: v2.workspaceId,
+        budgetId: v2.budgetId,
+        planId: memberPlanId,
+        scheduledOn: day('2026-09-08'),
+        planName: 'Прокат',
+        planType: 'EXPENSE',
+        amountMinor: 100n,
+        accountId: v2.accountId,
+        categoryId: v2.categoryId,
+        envelopeId: v2.envelopeId,
+        status: 'DUE',
+      },
+    });
+    // Leftover from stage A: the creator kept an open overdue notification for a member's plan.
+    await prisma.notification.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: v2.workspaceId,
+        budgetId: v2.budgetId,
+        userId: v2.userId,
+        notificationType: 'PLAN_OVERDUE',
+        occurrenceId: memberOccurrenceId,
+        title: 'Просроченный план',
+        body: 'План «Прокат» просрочен с 2026-09-08.',
+        actionPath: `/app/plans?occurrence=${memberOccurrenceId}`,
+        notificationKey: `occurrence:${memberOccurrenceId}:PLAN_OVERDUE`,
+      },
+    });
 
     await new NotificationRuleHandler(prisma).execute(now, v2.budgetId);
 
-    const overdueRecipients = await prisma.notification.findMany({
+    // The creator's plan (today's occurrence) stays with the creator only; the EDITOR gets none.
+    const todayRecipients = await prisma.notification.findMany({
       where: {
         budgetId: v2.budgetId,
-        notificationType: 'PLAN_OVERDUE',
-        occurrenceId,
+        notificationType: 'PLAN_TODAY',
+        occurrenceId: creatorOccurrenceId,
         resolvedAt: null,
       },
       select: { userId: true },
-      orderBy: { userId: 'asc' },
     });
-    expect(overdueRecipients).toEqual(
-      [{ userId: v2.userId }, { userId: editorId }].sort((a, b) =>
-        a.userId.localeCompare(b.userId),
-      ),
-    );
-    expect(overdueRecipients.some((item) => item.userId === viewerId)).toBe(false);
+    expect(todayRecipients).toEqual([{ userId: v2.userId }]);
+    expect(
+      (
+        await prisma.notification.findMany({
+          where: { budgetId: v2.budgetId, userId: editorId },
+          select: { occurrenceId: true },
+        })
+      ).some((item) => item.occurrenceId === creatorOccurrenceId),
+    ).toBe(false);
 
-    await pay(v2, occurrenceId, 100n);
-    await new NotificationRuleHandler(prisma).execute(now, v2.budgetId);
-
-    const afterPayment = await prisma.notification.findMany({
-      where: { budgetId: v2.budgetId, notificationType: 'PLAN_OVERDUE', occurrenceId },
-      select: { userId: true, resolvedAt: true },
+    // The member's plan notifies only the member.
+    const memberRecipients = await prisma.notification.findMany({
+      where: {
+        budgetId: v2.budgetId,
+        notificationType: 'PLAN_OVERDUE',
+        occurrenceId: memberOccurrenceId,
+        resolvedAt: null,
+      },
+      select: { userId: true },
     });
-    expect(afterPayment).toHaveLength(2);
-    expect(afterPayment.every((item) => item.resolvedAt !== null)).toBe(true);
+    expect(memberRecipients).toEqual([{ userId: editorId }]);
+
+    // The creator's leftover on the member's plan is closed with an audit event.
+    const leftover = await prisma.notification.findFirst({
+      where: { budgetId: v2.budgetId, userId: v2.userId, occurrenceId: memberOccurrenceId },
+      select: { id: true, resolvedAt: true },
+    });
+    if (!leftover) throw new Error('оставшееся уведомление не найдено');
+    expect(leftover.resolvedAt).not.toBeNull();
+    const audited = await prisma.auditEvent.findFirst({
+      where: { workspaceId: v2.workspaceId, entityId: leftover.id, action: 'RESOLVED' },
+      select: { id: true },
+    });
+    expect(audited).not.toBeNull();
 
     await prisma.notification.deleteMany({
-      where: { budgetId: v2.budgetId, userId: { in: [editorId, viewerId] } },
+      where: { occurrenceId: { in: [creatorOccurrenceId, memberOccurrenceId] } },
     });
+    await prisma.planOccurrence.deleteMany({
+      where: { id: { in: [creatorOccurrenceId, memberOccurrenceId] } },
+    });
+    await prisma.regularPlan.deleteMany({ where: { id: { in: [memberPlanId, creatorPlanId] } } });
     await prisma.workspaceMembership.deleteMany({
-      where: { workspaceId: v2.workspaceId, userId: { in: [editorId, viewerId] } },
+      where: { workspaceId: v2.workspaceId, userId: editorId },
     });
-    await prisma.user.deleteMany({ where: { id: { in: [editorId, viewerId] } } });
+    await prisma.user.deleteMany({ where: { id: editorId } });
   });
 
   it('resolves open notifications of a member demoted to VIEWER or deactivated, with an audit event, and leaves the owner unaffected', async () => {
@@ -250,28 +339,105 @@ describe('v2 notifications', () => {
         },
       ],
     });
+    const demotedPlanId = randomUUID();
+    const deactivatedPlanId = randomUUID();
+    await prisma.regularPlan.createMany({
+      data: [
+        {
+          id: demotedPlanId,
+          workspaceId: v2.workspaceId,
+          budgetId: v2.budgetId,
+          ownerUserId: demotedId,
+          name: 'Прокат',
+          planType: 'EXPENSE',
+          amountMinor: 100n,
+          anchorOn: day('2026-09-07'),
+          startOn: day('2026-09-07'),
+          recurrence: 'MONTHLY',
+          accountId: v2.accountId,
+          categoryId: v2.categoryId,
+          envelopeId: v2.envelopeId,
+          createdByUserId: v2.userId,
+          updatedByUserId: v2.userId,
+        },
+        {
+          id: deactivatedPlanId,
+          workspaceId: v2.workspaceId,
+          budgetId: v2.budgetId,
+          ownerUserId: deactivatedId,
+          name: 'Курсы',
+          planType: 'EXPENSE',
+          amountMinor: 100n,
+          anchorOn: day('2026-09-07'),
+          startOn: day('2026-09-07'),
+          recurrence: 'MONTHLY',
+          accountId: v2.accountId,
+          categoryId: v2.categoryId,
+          envelopeId: v2.envelopeId,
+          createdByUserId: v2.userId,
+          updatedByUserId: v2.userId,
+        },
+      ],
+    });
     const occurrenceId = randomUUID();
-    await prisma.planOccurrence.create({
-      data: {
-        id: occurrenceId,
-        workspaceId: v2.workspaceId,
-        budgetId: v2.budgetId,
-        planId: v2.planId,
-        scheduledOn: day('2026-09-07'),
-        planName: 'Аренда',
-        planType: 'EXPENSE',
-        amountMinor: 100n,
-        accountId: v2.accountId,
-        categoryId: v2.categoryId,
-        envelopeId: v2.envelopeId,
-        status: 'DUE',
-      },
+    const demotedOccurrenceId = randomUUID();
+    const deactivatedOccurrenceId = randomUUID();
+    await prisma.planOccurrence.createMany({
+      data: [
+        {
+          id: occurrenceId,
+          workspaceId: v2.workspaceId,
+          budgetId: v2.budgetId,
+          planId: v2.planId,
+          scheduledOn: day('2026-09-07'),
+          planName: 'Аренда',
+          planType: 'EXPENSE',
+          amountMinor: 100n,
+          accountId: v2.accountId,
+          categoryId: v2.categoryId,
+          envelopeId: v2.envelopeId,
+          status: 'DUE',
+        },
+        {
+          id: demotedOccurrenceId,
+          workspaceId: v2.workspaceId,
+          budgetId: v2.budgetId,
+          planId: demotedPlanId,
+          scheduledOn: day('2026-09-07'),
+          planName: 'Прокат',
+          planType: 'EXPENSE',
+          amountMinor: 100n,
+          accountId: v2.accountId,
+          categoryId: v2.categoryId,
+          envelopeId: v2.envelopeId,
+          status: 'DUE',
+        },
+        {
+          id: deactivatedOccurrenceId,
+          workspaceId: v2.workspaceId,
+          budgetId: v2.budgetId,
+          planId: deactivatedPlanId,
+          scheduledOn: day('2026-09-07'),
+          planName: 'Курсы',
+          planType: 'EXPENSE',
+          amountMinor: 100n,
+          accountId: v2.accountId,
+          categoryId: v2.categoryId,
+          envelopeId: v2.envelopeId,
+          status: 'DUE',
+        },
+      ],
     });
 
-    // Both are EDITORs first: each gets the open overdue notification.
+    // Each of the three writes an open overdue notification for the plan they own.
     await new NotificationRuleHandler(prisma).execute(now, v2.budgetId);
+    const testOccurrences = [occurrenceId, demotedOccurrenceId, deactivatedOccurrenceId];
     const beforeChange = await prisma.notification.findMany({
-      where: { budgetId: v2.budgetId, notificationType: 'PLAN_OVERDUE', occurrenceId },
+      where: {
+        budgetId: v2.budgetId,
+        notificationType: 'PLAN_OVERDUE',
+        occurrenceId: { in: testOccurrences },
+      },
       select: { userId: true, resolvedAt: true },
     });
     expect(beforeChange.filter((item) => item.resolvedAt === null)).toHaveLength(3);
@@ -289,7 +455,11 @@ describe('v2 notifications', () => {
     await new NotificationRuleHandler(prisma).execute(now, v2.budgetId);
 
     const afterChange = await prisma.notification.findMany({
-      where: { budgetId: v2.budgetId, notificationType: 'PLAN_OVERDUE', occurrenceId },
+      where: {
+        budgetId: v2.budgetId,
+        notificationType: 'PLAN_OVERDUE',
+        occurrenceId: { in: testOccurrences },
+      },
       select: { userId: true, resolvedAt: true },
     });
     const ownerRow = afterChange.find((item) => item.userId === v2.userId);
@@ -309,19 +479,29 @@ describe('v2 notifications', () => {
     });
     const auditedNotificationIds = new Set(audit.map((item) => item.entityId));
     const demotedNotification = await prisma.notification.findFirst({
-      where: { budgetId: v2.budgetId, userId: demotedId, occurrenceId },
+      where: { budgetId: v2.budgetId, userId: demotedId, occurrenceId: demotedOccurrenceId },
       select: { id: true },
     });
     const deactivatedNotification = await prisma.notification.findFirst({
-      where: { budgetId: v2.budgetId, userId: deactivatedId, occurrenceId },
+      where: { budgetId: v2.budgetId, userId: deactivatedId, occurrenceId: deactivatedOccurrenceId },
       select: { id: true },
     });
     expect(auditedNotificationIds.has(demotedNotification?.id as string)).toBe(true);
     expect(auditedNotificationIds.has(deactivatedNotification?.id as string)).toBe(true);
 
     await prisma.notification.deleteMany({
-      where: { budgetId: v2.budgetId, userId: { in: [demotedId, deactivatedId] } },
+      where: {
+        budgetId: v2.budgetId,
+        OR: [
+          { userId: { in: [demotedId, deactivatedId] } },
+          { occurrenceId: { in: testOccurrences } },
+        ],
+      },
     });
+    await prisma.planOccurrence.deleteMany({
+      where: { id: { in: testOccurrences } },
+    });
+    await prisma.regularPlan.deleteMany({ where: { id: { in: [demotedPlanId, deactivatedPlanId] } } });
     await prisma.workspaceMembership.deleteMany({
       where: { workspaceId: v2.workspaceId, userId: { in: [demotedId, deactivatedId] } },
     });
