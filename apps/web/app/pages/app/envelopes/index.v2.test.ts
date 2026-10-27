@@ -6,7 +6,11 @@ import { ApiRequestError } from '../../../composables/useApiClient.js';
 enableAutoUnmount(afterEach);
 
 const mocks = vi.hoisted(() => ({
-  auth: { currentData: { value: null as unknown }, loadMe: vi.fn() },
+  auth: {
+    currentData: { value: null as unknown },
+    currentUser: { value: { id: 'user-id' } as unknown } as { value: unknown },
+    loadMe: vi.fn(),
+  },
   v1: {
     getBudget: vi.fn(),
     listEnvelopes: vi.fn(),
@@ -29,6 +33,8 @@ const mocks = vi.hoisted(() => ({
   },
   route: { path: '/app/envelopes', query: {} as Record<string, string> },
   navigateTo: vi.fn(),
+  ownerKind: 'none' as 'none' | 'toggle' | 'chip',
+  ownerMode: 'all',
 }));
 
 vi.mock('#imports', () => ({
@@ -43,6 +49,27 @@ vi.mock('../../../composables/useBudgetReferenceData.js', () => ({
 vi.mock('../../../composables/useEnvelopePlanV2.js', () => ({
   useEnvelopePlanV2: () => mocks.v2,
 }));
+vi.mock('../../../composables/useOwnerFilter.js', async () => {
+  const { computed, ref } = await import('vue');
+  return {
+    // Fresh per-mount refs: v-model writes work, `kind` resolves to a string,
+    // and tests switch `mocks.ownerKind` / `mocks.ownerMode` between mounts.
+    useOwnerFilter: () => {
+      const mode = ref(mocks.ownerMode as string);
+      return {
+        mode,
+        ownerUserId: computed(() =>
+          mode.value === 'all' ? undefined : mode.value === 'mine' ? 'user-id' : mode.value,
+        ),
+        options: computed(() => [
+          { value: 'all', label: 'Все' },
+          { value: 'mine', label: 'Мои' },
+        ]),
+        kind: computed(() => mocks.ownerKind as 'none' | 'toggle' | 'chip'),
+      };
+    },
+  };
+});
 
 import { selectOption } from '../../../test/select-option.js';
 import { useFundingEntry } from '../../../composables/useFundingEntry.js';
@@ -149,6 +176,8 @@ describe('envelopes page, plan model v2', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.route.query = {};
+    mocks.ownerKind = 'none';
+    mocks.ownerMode = 'all';
     mocks.auth.currentData.value = {
       user: { id: 'user-id', email: 'owner@example.test', displayName: null },
       workspaces: [
@@ -426,7 +455,7 @@ describe('envelopes page, plan model v2', () => {
 
     expect(mocks.v2.getEnvelopeHistory).toHaveBeenCalledWith('budget-id', 'env-repair', {});
     const dialog = wrapper.get('[data-testid="modal"]');
-    expect(dialog.text()).toContain('30.09.2026');
+    expect(dialog.text()).toContain('30 сентября');
     expect(dialog.text()).toContain('Расход');
     expect(dialog.text()).not.toContain('Начальный баланс');
 
@@ -435,7 +464,7 @@ describe('envelopes page, plan model v2', () => {
     expect(mocks.v2.getEnvelopeHistory).toHaveBeenLastCalledWith('budget-id', 'env-repair', {
       cursor: 'cur-1',
     });
-    expect(wrapper.get('[data-testid="modal"]').text()).toContain('01.09.2026');
+    expect(wrapper.get('[data-testid="modal"]').text()).toContain('1 сентября');
     expect(wrapper.find('[data-testid="history-more"]').exists()).toBe(false);
   });
 
@@ -640,6 +669,43 @@ describe('envelopes page, plan model v2', () => {
       });
     });
 
+    it('lets an editor open the cover panel from the dashboard deep link', async () => {
+      const data = mocks.auth.currentData.value as { workspaces: Array<{ role: string }> };
+      data.workspaces[0]!.role = 'EDITOR';
+      mocks.route.query = { coverPeriod: 'p-old' };
+      mocks.v2.listEnvelopes.mockResolvedValue({ items: [first, second, savings] });
+      mocks.v2.getDashboard.mockResolvedValue(dashboard({ warnings: [deficit] }));
+      mountPage();
+      await flushPromises();
+
+      expect(panel()).not.toBeNull();
+      expect(document.body.textContent).not.toContain('может только владелец или редактор');
+    });
+
+    it('covers an overspend inside a foreign envelope', async () => {
+      // The deficit envelope itself belongs to another member: money moves
+      // INTO it, which writers may do regardless of ownership.
+      const foreignFirst = { ...first, canEdit: false };
+      mocks.route.query = { coverPeriod: 'p-old' };
+      mocks.v2.listEnvelopes.mockResolvedValue({ items: [foreignFirst, second] });
+      mocks.v2.getDashboard.mockResolvedValue(dashboard({ warnings: [deficit] }));
+      mountPage();
+      await flushPromises();
+
+      expect(panel()).not.toBeNull();
+      // The foreign deficit envelope cannot fund its own cover; own envelopes can.
+      expect(document.querySelector('[data-testid="cover-donor-env-first"]')).toBeNull();
+      await click('[data-testid="cover-donor-env-second"]');
+      await click('[data-testid="cover-confirm"]');
+
+      expect(mocks.v2.move).toHaveBeenCalledTimes(1);
+      expect(mocks.v2.move.mock.calls[0]![1]).toMatchObject({
+        sourceEnvelopeId: 'env-second',
+        destinationEnvelopeId: 'env-first',
+        destinationPeriodId: 'p-old',
+      });
+    });
+
     it('asks for a source envelope before sending', async () => {
       mocks.route.query = { coverPeriod: 'p-old' };
       mocks.v2.listEnvelopes.mockResolvedValue({ items: [first, second, savings] });
@@ -690,16 +756,16 @@ describe('envelopes page, plan model v2', () => {
       expect(document.querySelector('[data-testid="shortfall-dialog"]')).not.toBeNull();
     });
 
-    it('does not open for a member who cannot manage envelopes', async () => {
+    it('does not open for a viewer who cannot allocate at all', async () => {
       const data = mocks.auth.currentData.value as { workspaces: Array<{ role: string }> };
-      data.workspaces[0]!.role = 'EDITOR';
+      data.workspaces[0]!.role = 'VIEWER';
       mocks.route.query = { cover: 'mandatory' };
       mocks.v2.getDashboard.mockResolvedValue(dashboard({ warnings: [gap] }));
       const wrapper = mountPage();
       await flushPromises();
 
       expect(panel()).toBeNull();
-      expect(wrapper.text()).toContain('может владелец бюджета');
+      expect(wrapper.text()).toContain('может только владелец или редактор');
     });
   });
 
@@ -1325,12 +1391,75 @@ describe('envelopes page, plan model v2', () => {
     expect(wrapper.find('[data-action="archive-envelope"]').exists()).toBe(false);
   });
 
-  it('hides envelope management for an editor too: only the owner manages envelopes', async () => {
+  it('shows an editor create and rules: writing belongs to writers, ownership is server-side', async () => {
     (mocks.auth.currentData.value as MockedWorkspaces).workspaces[0]!.role = 'EDITOR';
     const wrapper = mountPage();
     await flushPromises();
 
-    expect(wrapper.find('[data-action="create-envelope"]').exists()).toBe(false);
-    expect(wrapper.find('[data-action="envelope-rules"]').exists()).toBe(false);
+    expect(wrapper.find('[data-action="create-envelope"]').exists()).toBe(true);
+    expect(wrapper.find('[data-action="envelope-rules"]').exists()).toBe(true);
+  });
+
+  it('shows an editor row actions only on own envelopes', async () => {
+    (mocks.auth.currentData.value as MockedWorkspaces).workspaces[0]!.role = 'EDITOR';
+    const foreign = plan({ id: 'env-foreign', name: 'Чужая цель', canEdit: false });
+    mocks.v2.listEnvelopes.mockResolvedValue({ items: [repair, foreign] });
+    const wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="row-actions-env-repair"]').trigger('click');
+    expect(wrapper.find('[data-action="reassign-envelope"]').exists()).toBe(true);
+    expect(wrapper.find('[data-action="edit-envelope"]').exists()).toBe(true);
+    expect(wrapper.find('[data-action="archive-envelope"]').exists()).toBe(true);
+
+    // A second mount that only contains the foreign envelope: its menu must
+    // offer no edit actions, independent of the first row's open menu.
+    const foreignOnly = plan({ id: 'env-foreign', name: 'Чужая цель', canEdit: false });
+    mocks.v2.listEnvelopes.mockResolvedValue({ items: [foreignOnly] });
+    const foreignWrapper = mountPage();
+    await flushPromises();
+    await foreignWrapper.get('[data-testid="row-actions-env-foreign"]').trigger('click');
+    expect(foreignWrapper.find('[data-action="reassign-envelope"]').exists()).toBe(false);
+    expect(foreignWrapper.find('[data-action="edit-envelope"]').exists()).toBe(false);
+    expect(foreignWrapper.find('[data-action="archive-envelope"]').exists()).toBe(false);
+  });
+
+  it('shows the editor the summary distribute and cover actions', async () => {
+    (mocks.auth.currentData.value as MockedWorkspaces).workspaces[0]!.role = 'EDITOR';
+    mocks.v2.getDashboard.mockResolvedValue(
+      dashboard({
+        freeToAssignMinor: '2000000',
+        warnings: [
+          {
+            kind: 'COVERAGE',
+            code: 'MANDATORY_GAP',
+            level: 'ALERT',
+            message: 'Не хватает на обязательные платежи',
+            amountMinor: '1036469',
+            envelopeId: null,
+            periodId: null,
+            balanceMinor: null,
+            actionPath: '/app/envelopes?cover=mandatory',
+          },
+        ],
+      }),
+    );
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="summary-free"]').text()).toContain('Распределить');
+    expect(wrapper.get('[data-testid="summary-gap"]').text()).toContain('Покрыть');
+  });
+
+  it('switches the owner filter and narrows the list request', async () => {
+    mocks.ownerKind = 'toggle';
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const mine = wrapper.get('[data-testid="owner-filter-mine"]');
+    await mine.trigger('click');
+    await flushPromises();
+
+    expect(mocks.v2.listEnvelopes).toHaveBeenLastCalledWith('budget-id', 'user-id');
   });
 });

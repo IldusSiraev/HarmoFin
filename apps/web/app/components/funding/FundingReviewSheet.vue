@@ -4,6 +4,7 @@ import { AlertTriangle, Info, RefreshCw } from '@lucide/vue';
 
 import type { FundingPreviewResponse } from '../../composables/useEnvelopePlanV2.js';
 import { formatMinorUnits } from '../finance/money-format.js';
+import { authorLabel } from '../operations/author-label.js';
 import EnvelopeTypeIcon from '../envelopes/EnvelopeTypeIcon.vue';
 import UiAmountHero from '../ui/AmountHero.vue';
 import UiAttentionRow from '../ui/AttentionRow.vue';
@@ -64,6 +65,8 @@ const props = withDefaults(
     error: FundingSheetError | null;
     currency?: string;
     scale?: number;
+    /** When set, envelope lines owned by somebody else get a text caption. */
+    currentUserId?: string | null;
   }>(),
   {
     currency: 'RUB',
@@ -71,6 +74,7 @@ const props = withDefaults(
     sourceKind: undefined,
     mandatoryDueCurrentMinor: undefined,
     mandatoryDueNextMinor: undefined,
+    currentUserId: null,
   },
 );
 
@@ -171,6 +175,14 @@ function lineName(line: FundingSheetLine): string {
 
 function lineType(line: FundingSheetLine): string {
   return line.envelopeType ?? 'CUSTOM';
+}
+
+// Who owns the envelope on a line: shown next to the name only for lines
+// belonging to another family member; older previews without owner stay clean.
+function lineOwnerCaption(line: FundingSheetLine): string | null {
+  const owner = line.owner ?? null;
+  if (!owner || owner.userId === props.currentUserId) return null;
+  return authorLabel(owner);
 }
 
 function lineInputId(line: FundingSheetLine): string {
@@ -402,6 +414,12 @@ function handleConfirm(): void {
               <EnvelopeTypeIcon :envelope-type="lineType(line)" size="sm" />
               <span class="funding-sheet__line-title">
                 <span class="funding-sheet__line-name">{{ lineName(line) }}</span>
+                <span
+                  v-if="lineOwnerCaption(line)"
+                  class="funding-sheet__line-owner"
+                  :data-testid="`funding-line-owner-${line.envelopeId}`"
+                  >{{ lineOwnerCaption(line) }}</span
+                >
                 <span v-if="periodCaption(line)" class="funding-sheet__line-period">
                   {{ periodCaption(line) }}
                 </span>
@@ -749,6 +767,12 @@ function handleConfirm(): void {
 .funding-sheet__line-period {
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-small);
+}
+
+.funding-sheet__line-owner {
+  flex: 0 0 auto;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-caption);
 }
 
 .funding-sheet__input {

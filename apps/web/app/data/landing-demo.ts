@@ -213,6 +213,8 @@ export const demoEnvelopes: EnvelopePlanDto[] = [
     spentMinor: '3350000',
     balanceMinor: '3150000',
     archivedAt: null,
+    owner: { userId: 'demo-owner', displayName: null, isActiveMember: true },
+    canEdit: true,
   },
   {
     id: 'demo-env-mandatory',
@@ -225,6 +227,8 @@ export const demoEnvelopes: EnvelopePlanDto[] = [
     spentMinor: '0',
     balanceMinor: '5200000',
     archivedAt: null,
+    owner: { userId: 'demo-owner', displayName: null, isActiveMember: true },
+    canEdit: true,
   },
   {
     id: 'demo-env-repair',
@@ -237,6 +241,8 @@ export const demoEnvelopes: EnvelopePlanDto[] = [
     spentMinor: '0',
     balanceMinor: '7000000',
     archivedAt: null,
+    owner: { userId: 'demo-owner', displayName: null, isActiveMember: true },
+    canEdit: true,
   },
   {
     id: 'demo-env-reserve',
@@ -249,6 +255,8 @@ export const demoEnvelopes: EnvelopePlanDto[] = [
     spentMinor: '0',
     balanceMinor: '1500000',
     archivedAt: null,
+    owner: { userId: 'demo-owner', displayName: null, isActiveMember: true },
+    canEdit: true,
   },
 ];
 

@@ -12,9 +12,10 @@ defineOptions({ name: 'EnvelopesSummary' });
 
 // Money summary of the envelopes page. Every amount is a server minor-units
 // string shown as is: nothing is added, subtracted or compared numerically here.
-const props = withDefaults(defineProps<{ dashboard: DashboardV2Response; canManage?: boolean }>(), {
-  canManage: true,
-});
+const props = withDefaults(
+  defineProps<{ dashboard: DashboardV2Response; canAllocate?: boolean }>(),
+  { canAllocate: true },
+);
 // Each action opens its panel on this page: free money, the mandatory gap, the cash shortfall.
 const emit = defineEmits<{ distribute: []; 'cover-mandatory': []; shortfall: [] }>();
 
@@ -102,7 +103,7 @@ const hasAttention = computed(
           tone="info"
           :title="`Не распределено · ${formatMoneyText(dashboard.freeToAssignMinor)}`"
           description="Доход ещё не разложен по конвертам"
-          :action-label="canManage ? 'Распределить' : undefined"
+          :action-label="canAllocate ? 'Распределить' : undefined"
           @action="emit('distribute')"
         />
         <UiAttentionRow
@@ -114,7 +115,7 @@ const hasAttention = computed(
           :description="
             gap.level === 'ALERT' ? gap.message : 'На следующий период — можно отложить заранее'
           "
-          :action-label="canManage ? 'Покрыть' : undefined"
+          :action-label="canAllocate ? 'Покрыть' : undefined"
           @action="emit('cover-mandatory')"
         />
         <UiAttentionRow

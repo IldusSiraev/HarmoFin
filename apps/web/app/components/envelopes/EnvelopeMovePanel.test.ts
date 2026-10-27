@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { computed } from 'vue';
 
 import type { EnvelopePlanDto } from '../../composables/useEnvelopePlanV2.js';
 
@@ -8,8 +9,17 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../composables/useEnvelopePlanV2.js', () => ({ useEnvelopePlanV2: () => mocks.v2 }));
+// The panel labels recipients by ownership, so usePermissions needs a current user.
+vi.mock('../../composables/useActiveWorkspace.js', () => ({
+  useActiveWorkspace: () => ({ role: computed(() => 'OWNER') }),
+}));
+vi.mock('../../composables/useAuth.js', () => ({
+  useAuth: () => ({ currentUser: { value: { id: 'user-me' } } }),
+}));
 
 import EnvelopeMovePanel from './EnvelopeMovePanel.vue';
+
+const ME = { userId: 'user-me', displayName: 'Я', isActiveMember: true };
 
 function envelope(overrides: Partial<EnvelopePlanDto> = {}): EnvelopePlanDto {
   return {
@@ -23,6 +33,8 @@ function envelope(overrides: Partial<EnvelopePlanDto> = {}): EnvelopePlanDto {
     spentMinor: '0',
     balanceMinor: '14850000',
     archivedAt: null,
+    owner: { ...ME },
+    canEdit: true,
     ...overrides,
   };
 }
@@ -223,6 +235,69 @@ describe('EnvelopeMovePanel', () => {
       'Перенести и архивировать',
     );
     expect(previewRows()).toEqual([['Ремонт', '148 500,00 ₽ → 0,00 ₽']]);
+  });
+
+  describe('family access', () => {
+    async function mountWith(source: EnvelopePlanDto, envelopes: EnvelopePlanDto[]) {
+      const wrapper = mount(EnvelopeMovePanel, {
+        props: { budgetId: 'budget-id', source, envelopes, mode: 'reassign' },
+        attachTo: document.body,
+      });
+      wrappers.push(wrapper);
+      await flushPromises();
+      return wrapper;
+    }
+
+    it('чужой источник: перекладывать наружу нельзя, «из свободных» остаётся', async () => {
+      const foreign = envelope({
+        canEdit: false,
+        owner: { userId: 'u-x', displayName: 'Марат', isActiveMember: true },
+      });
+      await mountWith(foreign, [envA, envB, foreign]);
+
+      const radio = (item: string) => q<HTMLInputElement>(`[data-testid="move-direction-${item}"]`)!;
+      expect(radio('envelope-envelope').disabled).toBe(true);
+      expect(radio('envelope-free').disabled).toBe(true);
+      expect(radio('free-envelope').disabled).toBe(false);
+      expect(radio('free-envelope').checked).toBe(true);
+      expect(normalize(q('[data-testid="move-foreign-note"]')?.textContent)).toContain(
+        'Перекладывать из чужого конверта может только его владелец',
+      );
+    });
+
+    it('чужой получатель — подпись владельца на пилюле, у своего без подписи', async () => {
+      const theirs = envelope({
+        id: 'env-theirs',
+        name: 'Подарки',
+        owner: { userId: 'u-ilnura', displayName: 'Ильнура', isActiveMember: true },
+        balanceMinor: '300000',
+      });
+      await mountWith(envA, [envA, envB, theirs]);
+
+      expect(normalize(q('[data-testid="move-recipient-owner-env-theirs"]')?.textContent)).toBe(
+        'Ильнура',
+      );
+      expect(q('[data-testid="move-recipient-owner-env-b"]')).toBeNull();
+    });
+
+    it('чужой конверт остаётся получателем: деньги принимать может', async () => {
+      const theirs = envelope({
+        id: 'env-theirs',
+        name: 'Подарки',
+        canEdit: false,
+        owner: { userId: 'u-ilnura', displayName: 'Ильнура', isActiveMember: true },
+      });
+      await mountWith(envA, [envA, theirs]);
+      await click('[data-testid="move-recipient-pill-env-theirs"]');
+      await typeAmount('1000');
+      await click('[data-testid="move-confirm"]');
+
+      expect(mocks.v2.move).toHaveBeenCalledWith(
+        'budget-id',
+        { sourceEnvelopeId: 'env-a', destinationEnvelopeId: 'env-theirs', amount: '1000' },
+        expect.any(String),
+      );
+    });
   });
 
   describe('period envelopes', () => {

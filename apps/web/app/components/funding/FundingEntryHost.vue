@@ -12,6 +12,7 @@ import {
 } from '../../composables/useEnvelopePlanV2.js';
 import { useFundingEntry, type FundingEntryRequest } from '../../composables/useFundingEntry.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
+import { usePermissions } from '../../composables/usePermissions.js';
 import { useToast } from '../../composables/useToast.js';
 import FundingReviewSheet, {
   type FundingChangeLinePayload,
@@ -354,10 +355,13 @@ watch(
   },
   { immediate: true },
 );
+// Owner captions in the review sheet compare line owners with the current user.
+const { userId } = usePermissions();
 </script>
 
 <template>
   <FundingReviewSheet
+    :current-user-id="userId"
     :open="open"
     :source-kind="preview?.sourceKind"
     :source-minor="preview?.sourceAvailableMinor ?? '0'"

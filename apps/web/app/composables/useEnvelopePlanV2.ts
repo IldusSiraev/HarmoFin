@@ -51,6 +51,8 @@ export interface FundingPreviewResponse {
     /** Period of the line (YYYY-MM-DD); null for envelopes without periods. */
     periodStartsOn?: string | null;
     periodEndsOn?: string | null;
+    /** Envelope owner; shown as a caption when it is not the current user. */
+    owner?: PersonRef | null;
   }>;
   remainingMinor: string;
   mandatoryDueCurrentMinor: string;
@@ -106,6 +108,9 @@ export interface EnvelopePlanDto {
   spentMinor: string;
   balanceMinor: string;
   archivedAt: string | null;
+  /** Who may edit this envelope: only the owner, regardless of workspace role. */
+  owner: PersonRef;
+  canEdit: boolean;
   /** Period buckets with money movement plus the current one; empty for non-period envelopes. */
   periods?: EnvelopePeriodDto[];
 }
@@ -167,6 +172,14 @@ export interface EnvelopeHistoryItem {
   kind: 'ASSIGNMENT' | 'MOVEMENT' | 'SPENDING';
   amountMinor: string;
   effectiveOn: string;
+  /** Money direction relative to this envelope; the only source of the sign. */
+  direction?: 'IN' | 'OUT';
+  /** Who recorded the movement; may be missing on older rows. */
+  createdBy?: PersonRef;
+  /** Where the money came from or went (counterpart envelope or income name). */
+  counterpartName?: string | null;
+  /** Assignment origin when known (e.g. income allocation). */
+  assignmentType?: string | null;
 }
 
 export interface EnvelopeHistoryResponse {
@@ -1191,8 +1204,10 @@ export function useEnvelopePlanV2() {
         input,
         idempotencyKey,
       ),
-    listEnvelopes: (budgetId: string) =>
-      get<EnvelopePlanListResponse>(`${base(budgetId)}/envelopes`),
+    listEnvelopes: (budgetId: string, ownerUserId?: string) =>
+      get<EnvelopePlanListResponse>(
+        `${base(budgetId)}/envelopes${query({ ownerUserId })}`,
+      ),
     createTransaction: (
       budgetId: string,
       input: CreateTransactionV2Request,

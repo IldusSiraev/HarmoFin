@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { format, parseISO } from 'date-fns';
+import { ru } from 'date-fns/locale';
 import {
   AlertOctagon,
   AlertTriangle,
@@ -13,6 +15,9 @@ import {
 } from '@lucide/vue';
 
 import FinanceMoney from '../finance/FinanceMoney.vue';
+import OperationGroup from '../operations/OperationGroup.vue';
+import { authorLabel } from '../operations/author-label.js';
+import { ownerNotice } from '../app/owner-label.js';
 import UiAmountHero from '../ui/AmountHero.vue';
 import UiButton from '../ui/Button.vue';
 import UiModal from '../ui/Modal.vue';
@@ -22,7 +27,6 @@ import {
   type EnvelopePlanDto,
   useEnvelopePlanV2,
 } from '../../composables/useEnvelopePlanV2.js';
-import { usePermissions } from '../../composables/usePermissions.js';
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
 import {
   type PlanBadge,
@@ -33,7 +37,6 @@ import {
   historyAmountText,
   historySign,
 } from './envelope-plan-kind.js';
-import { formatPlainDate } from '../obligations/format-plain-date.js';
 
 defineOptions({ name: 'EnvelopePlanDialog' });
 
@@ -58,10 +61,10 @@ const emit = defineEmits<{
 }>();
 
 const planV2 = useEnvelopePlanV2();
-// Reassigning, editing, setting a period target and archiving are OWNER-only
-// on the server. Viewing cancelled ("deleted") history entries has no server
-// role check, so that toggle stays visible to every role.
-const { canManage } = usePermissions();
+// Edit-class actions (reassign, rename, period target, archive) are gated by
+// the server-computed envelope.canEdit: only the envelope owner, regardless of
+// workspace role. Viewing history has no role check, so the cancelled-entries
+// toggle stays visible to every role.
 
 const KIND_LABELS: Record<EnvelopeHistoryItem['kind'], string> = {
   ASSIGNMENT: 'Распределение',
@@ -158,6 +161,50 @@ const statusIcon = computed(() => {
   if (statusTone.value === 'warning') return AlertTriangle;
   return Check;
 });
+
+// History reads as a day feed like the journal: adjacent same-day rows fold
+// into one group; the day label replaces the per-row date.
+const historyGroups = computed<Array<{ day: string; items: EnvelopeHistoryItem[] }>>(() => {
+  const groups: Array<{ day: string; items: EnvelopeHistoryItem[] }> = [];
+  for (const item of items.value) {
+    const last = groups[groups.length - 1];
+    if (last && last.day === item.effectiveOn) last.items.push(item);
+    else groups.push({ day: item.effectiveOn, items: [item] });
+  }
+  return groups;
+});
+
+function dayLabel(day: string): string {
+  try {
+    return format(parseISO(day), 'd MMMM', { locale: ru });
+  } catch {
+    return day;
+  }
+}
+
+// Who recorded the row; unknown author hides the prefix entirely.
+function authorPart(item: EnvelopeHistoryItem): string {
+  return item.createdBy ? `${authorLabel(item.createdBy)}: ` : '';
+}
+
+// Where the money came from or went. Direction stays in a text arrow, never
+// in colour alone.
+function captionFor(item: EnvelopeHistoryItem): string | null {
+  const name = item.counterpartName ?? null;
+  if (item.kind === 'MOVEMENT') {
+    if (!name) return null;
+    return item.direction === 'IN' ? `← ${name}` : `→ ${name}`;
+  }
+  if (item.kind === 'ASSIGNMENT') return name ? `из ${name}` : 'из свободных';
+  return name;
+}
+
+// Own envelopes (and older responses without canEdit) keep the actions; a
+// foreign envelope is read-only with the owner named in plain text.
+const canEditEnvelope = computed(() => props.envelope?.canEdit !== false);
+const ownerNoticeText = computed(() =>
+  props.envelope && props.envelope.canEdit === false ? ownerNotice(props.envelope.owner) : '',
+);
 </script>
 
 <template>
@@ -181,6 +228,14 @@ const statusIcon = computed(() => {
           </span>
         </template>
       </UiAmountHero>
+
+      <p
+        v-if="ownerNoticeText"
+        class="plan-dialog__note"
+        data-testid="plan-dialog-owner-notice"
+      >
+        {{ ownerNoticeText }}
+      </p>
 
       <div class="plan-dialog__columns">
         <dl class="plan-dialog__rows">
@@ -230,29 +285,43 @@ const statusIcon = computed(() => {
           <p v-if="showDeleted" class="plan-dialog__note">
             Только для чтения: эти записи отменены и не влияют на остаток.
           </p>
-          <ul
+          <div
             v-if="items.length > 0"
             class="plan-dialog__list hf-scroll"
             tabindex="0"
             aria-label="История конверта"
             data-testid="plan-history-list"
           >
-            <li v-for="(item, index) in items" :key="`${item.effectiveOn}-${index}`">
-              <span class="plan-dialog__kind-icon" aria-hidden="true">
-                <component :is="KIND_ICONS[item.kind]" :size="16" />
-              </span>
-              <span class="plan-dialog__kind-body">
-                <span class="plan-dialog__kind-title">{{ KIND_LABELS[item.kind] }}</span>
-                <time :datetime="item.effectiveOn">{{ formatPlainDate(item.effectiveOn) }}</time>
-              </span>
-              <span
-                class="plan-dialog__kind-amount"
-                :class="{ 'plan-dialog__kind-amount--in': historySign(item.kind) === '+' }"
-              >
-                {{ historyAmountText(item.kind, item.amountMinor) }}
-              </span>
-            </li>
-          </ul>
+            <OperationGroup
+              v-for="group in historyGroups"
+              :key="group.day"
+              :label="dayLabel(group.day)"
+              flat
+            >
+              <li v-for="(item, index) in group.items" :key="`${item.effectiveOn}-${index}`">
+                <span class="plan-dialog__kind-icon" aria-hidden="true">
+                  <component :is="KIND_ICONS[item.kind]" :size="16" />
+                </span>
+                <span class="plan-dialog__kind-body">
+                  <span class="plan-dialog__kind-title">
+                    <template v-if="item.createdBy">{{ authorPart(item) }}</template>
+                    <template v-else>{{ KIND_LABELS[item.kind] }} </template>
+                    <span
+                      class="plan-dialog__kind-amount"
+                      :class="{
+                        'plan-dialog__kind-amount--in': historySign(item.direction) === '+',
+                      }"
+                    >
+                      {{ historyAmountText(item.direction, item.amountMinor) }}
+                    </span>
+                  </span>
+                  <span v-if="captionFor(item)" class="plan-dialog__kind-caption">{{
+                    captionFor(item)
+                  }}</span>
+                </span>
+              </li>
+            </OperationGroup>
+          </div>
           <UiSkeleton v-else-if="loading" :count="3" />
           <p v-else-if="error" class="plan-dialog__error" role="alert" data-testid="history-error">
             {{ error }}
@@ -294,7 +363,7 @@ const statusIcon = computed(() => {
 
     <template v-if="envelope" #footer>
       <UiButton
-        v-if="!envelope.archivedAt && canManage"
+        v-if="!envelope.archivedAt && canEditEnvelope"
         data-testid="plan-dialog-reassign"
         @click="emit('reassign', envelope)"
       >
@@ -302,7 +371,7 @@ const statusIcon = computed(() => {
         Переложить
       </UiButton>
       <UiButton
-        v-if="!envelope.archivedAt && canManage"
+        v-if="!envelope.archivedAt && canEditEnvelope"
         variant="secondary"
         data-testid="plan-dialog-target"
         @click="emit('target', envelope)"
@@ -310,7 +379,7 @@ const statusIcon = computed(() => {
         Изменить цель периода
       </UiButton>
       <UiButton
-        v-if="!envelope.archivedAt && canManage"
+        v-if="!envelope.archivedAt && canEditEnvelope"
         variant="secondary"
         data-testid="plan-dialog-edit"
         @click="emit('edit', envelope)"
@@ -323,7 +392,7 @@ const statusIcon = computed(() => {
         Операции конверта
       </UiButton>
       <UiButton
-        v-if="!envelope.archivedAt && canManage"
+        v-if="!envelope.archivedAt && canEditEnvelope"
         variant="tertiary"
         class="plan-dialog__archive"
         data-testid="plan-dialog-archive"
@@ -481,10 +550,13 @@ const statusIcon = computed(() => {
 }
 
 .plan-dialog__kind-title {
+  display: flex;
+  gap: var(--hf-space-2);
+  align-items: baseline;
   font-weight: var(--hf-font-weight-medium);
 }
 
-.plan-dialog__kind-body time {
+.plan-dialog__kind-caption {
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-caption);
 }

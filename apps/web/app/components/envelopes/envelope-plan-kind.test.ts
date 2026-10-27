@@ -208,16 +208,14 @@ describe('envelopeCaption', () => {
 });
 
 describe('historySign / historyAmountText', () => {
-  it('распределение — «+», расход — «−», перенос — без знака (направление не известно)', () => {
-    expect(historySign('ASSIGNMENT')).toBe('+');
-    expect(historySign('SPENDING')).toBe('−');
-    expect(historySign('MOVEMENT')).toBeNull();
+  it('знак по направлению записи: IN — «+», OUT — «−»', () => {
+    expect(historySign('IN')).toBe('+');
+    expect(historySign('OUT')).toBe('−');
   });
 
-  it('знак формируется без арифметики, из вида записи', () => {
-    expect(historyAmountText('ASSIGNMENT', '1200000')).toMatch(/^\+12\s000,00/);
-    expect(historyAmountText('SPENDING', '465000')).toMatch(/^−4\s650,00/);
-    expect(historyAmountText('MOVEMENT', '700000')).toMatch(/^7\s000,00/);
+  it('формат суммы не меняется, знак берётся без арифметики', () => {
+    expect(historyAmountText('IN', '1200000')).toMatch(/^\+12\s000,00/);
+    expect(historyAmountText('OUT', '465000')).toMatch(/^−4\s650,00/);
   });
 });
 

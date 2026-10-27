@@ -13,6 +13,11 @@ vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) =>
   ...(await importOriginal<object>()),
   useBudgetReferenceData: () => api,
 }));
+// usePermissions reads the user from useAuth; the dialogs only need the id or null.
+vi.mock('../../composables/useAuth.js', async () => {
+  const { computed } = await import('vue');
+  return { useAuth: () => ({ currentUser: computed(() => null) }) };
+});
 vi.mock('../../composables/useActiveWorkspace.js', () => ({
   useActiveWorkspace: () => ({ role: computed(() => roleState.role) }),
 }));

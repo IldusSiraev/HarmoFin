@@ -14,6 +14,11 @@ const roleState = vi.hoisted(() => ({ role: 'OWNER' as 'OWNER' | 'EDITOR' | 'VIE
 vi.mock('../../composables/useTransferMutations.js', () => ({
   useTransferMutations: () => mutations,
 }));
+// usePermissions reads the user from useAuth; the dialogs only need the id or null.
+vi.mock('../../composables/useAuth.js', async () => {
+  const { computed } = await import('vue');
+  return { useAuth: () => ({ currentUser: computed(() => null) }) };
+});
 vi.mock('../../composables/useActiveWorkspace.js', () => ({
   useActiveWorkspace: () => ({ role: computed(() => roleState.role) }),
 }));

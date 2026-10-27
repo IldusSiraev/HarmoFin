@@ -19,9 +19,9 @@ const props = withDefaults(
     open: boolean;
     amountMinor: string;
     deficits: ReadonlyArray<{ warning: Warning; name: string }>;
-    canManage?: boolean;
+    canAllocate?: boolean;
   }>(),
-  { canManage: true },
+  { canAllocate: true },
 );
 const emit = defineEmits<{ close: []; cover: [warning: Warning] }>();
 
@@ -53,14 +53,14 @@ const hasDeficits = computed(() => props.deficits.length > 0);
             </p>
             <p class="shortfall__muted">
               {{
-                canManage
+                canAllocate
                   ? 'Покройте его из свободных денег или из другого конверта.'
                   : 'Покрыть перерасход может владелец бюджета.'
               }}
             </p>
           </div>
           <UiButton
-            v-if="canManage"
+            v-if="canAllocate"
             variant="secondary"
             size="sm"
             data-testid="shortfall-cover"

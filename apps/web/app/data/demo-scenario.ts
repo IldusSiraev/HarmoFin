@@ -431,6 +431,12 @@ export function toEnvelopeRows(s: DemoSnapshot): EnvelopePlanDto[] {
     spentMinor: s.envelopes[key].spentMinor,
     balanceMinor: s.envelopes[key].balanceMinor,
     archivedAt: null,
+    owner: {
+      userId: 'demo-owner',
+      displayName: null,
+      isActiveMember: true,
+    },
+    canEdit: true,
   }));
 }
 

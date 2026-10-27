@@ -11,7 +11,11 @@ const PERIOD = '0190a000-0000-7000-8000-0000000000b1';
 
 const mocks = vi.hoisted(() => ({
   v2: { previewFunding: vi.fn(), confirmFunding: vi.fn() },
-  auth: { currentData: { value: null as unknown }, loadMe: vi.fn() },
+  auth: {
+    currentData: { value: null as unknown },
+    currentUser: { value: null as unknown },
+    loadMe: vi.fn(),
+  },
   reference: { load: vi.fn() },
 }));
 

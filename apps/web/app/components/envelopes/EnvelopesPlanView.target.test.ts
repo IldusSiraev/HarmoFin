@@ -5,6 +5,7 @@ import { computed, defineComponent, h } from 'vue';
 const BUDGET = '0190a000-0000-7000-8000-000000000001';
 
 const mocks = vi.hoisted(() => ({
+  auth: { currentUser: { value: { id: 'user-me', email: 'me@example.com' } } },
   v2: {
     listEnvelopes: vi.fn(),
     getDashboard: vi.fn(),
@@ -13,10 +14,22 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
+vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => mocks.auth }));
 vi.mock('../../composables/useEnvelopePlanV2.js', () => ({ useEnvelopePlanV2: () => mocks.v2 }));
 vi.mock('../../composables/useActiveWorkspace.js', () => ({
   useActiveWorkspace: () => ({ role: computed(() => 'OWNER' as const) }),
 }));
+vi.mock('../../composables/useOwnerFilter.js', async () => {
+  const { computed, ref } = await import('vue');
+  return {
+    useOwnerFilter: () => ({
+      mode: ref('all'),
+      ownerUserId: computed(() => undefined),
+      options: computed(() => []),
+      kind: computed(() => 'none' as const),
+    }),
+  };
+});
 vi.mock('../../composables/useOperationReferenceData.js', () => ({
   useOperationReferenceData: () => ({ invalidate: vi.fn() }),
 }));

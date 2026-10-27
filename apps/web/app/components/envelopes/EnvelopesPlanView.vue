@@ -39,6 +39,9 @@ import EnvelopeCoverPanel, {
 import EnvelopeMovePanel, { type MovePanelResult } from './EnvelopeMovePanel.vue';
 import EnvelopePlanDialog from './EnvelopePlanDialog.vue';
 import EnvelopePlanRow from './EnvelopePlanRow.vue';
+import OwnerFilter from '../app/OwnerFilter.vue';
+import { ownerLabel } from '../app/owner-label.js';
+import { useOwnerFilter } from '../../composables/useOwnerFilter.js';
 import EnvelopesShortfallDialog from './EnvelopesShortfallDialog.vue';
 import EnvelopesSummary from './EnvelopesSummary.vue';
 import PeriodTargetDialog from './PeriodTargetDialog.vue';
@@ -65,7 +68,8 @@ const { push } = useToast();
 // Envelope management, reassignment, funding rules and assignment are
 // OWNER-only on the server (editing/archiving envelopes, moving money between
 // them, setting a period target, and the free/opening distribution flow).
-const { canManage } = usePermissions();
+const { userId, canCreate } = usePermissions();
+const { mode: ownerMode, ownerUserId, options: ownerOptions, kind: ownerKind } = useOwnerFilter();
 const formFields = ['name', 'envelopeType', 'periodSlot', 'targetAmountMinor', 'comment'] as const;
 const formHelper = useReferenceDataForm(formFields);
 
@@ -321,8 +325,9 @@ function applyActionQuery(): void {
   if (action === appliedAction || loading.value || !dashboard.value) return;
   appliedAction = action;
   const covers = Boolean(query.coverPeriod) || query.cover === 'mandatory';
-  if (covers && !canManage.value) {
-    statusMessage.value = 'Распределять деньги между конвертами может владелец бюджета.';
+  if (covers && !canCreate.value) {
+    statusMessage.value =
+      'Распределять деньги между конвертами может только владелец или редактор бюджета.';
   } else if (query.coverPeriod) {
     const warning = deficitWarnings.value.find((item) => item.periodId === query.coverPeriod);
     if (!warning || !coverDeficit(warning)) {
@@ -361,8 +366,11 @@ async function load(): Promise<void> {
   try {
     // A reference record may have changed: drop the shared operation cache.
     useOperationReferenceData().invalidate();
-    // The v2 list returns active envelopes only.
-    const response = await planV2.listEnvelopes(props.budgetId);
+    // The v2 list returns active envelopes only; the owner filter narrows it
+    // server-side, with no second argument at all for "all owners".
+    const response = ownerUserId.value
+      ? await planV2.listEnvelopes(props.budgetId, ownerUserId.value)
+      : await planV2.listEnvelopes(props.budgetId);
     envelopes.value = response.items;
     try {
       rules.value = (await planV2.listFundingRules(props.budgetId)).items;
@@ -652,6 +660,21 @@ function confirmArchive(): void {
 onMounted(() => {
   void load();
 });
+
+watch(ownerUserId, () => {
+  void load();
+});
+
+// Owner-gated row edits use the server flag; a missing flag (older cached
+// payloads) falls back to showing the actions, and the server still refuses.
+function canEditEnvelopeFor(envelope: EnvelopePlanDto): boolean {
+  return canCreate.value && envelope.canEdit !== false;
+}
+
+function rowOwnerCaption(envelope: EnvelopePlanDto): string | null {
+  if (ownerKind.value === 'none' || !envelope.owner) return null;
+  return ownerLabel(envelope.owner, userId.value);
+}
 </script>
 
 <template>
@@ -665,7 +688,7 @@ onMounted(() => {
     </template>
     <template #actions>
       <UiButton
-        v-if="canManage"
+        v-if="canCreate"
         variant="secondary"
         to="/app/envelopes/rules"
         data-action="envelope-rules"
@@ -673,7 +696,7 @@ onMounted(() => {
         <Settings2 :size="18" aria-hidden="true" />
         Задать правила
       </UiButton>
-      <UiButton v-if="canManage" data-action="create-envelope" @click="startCreate">
+      <UiButton v-if="canCreate" data-action="create-envelope" @click="startCreate">
         <Plus :size="18" aria-hidden="true" />
         Создать конверт
       </UiButton>
@@ -682,7 +705,7 @@ onMounted(() => {
       <EnvelopesSummary
         v-if="dashboard"
         :dashboard="dashboard"
-        :can-manage="canManage"
+        :can-allocate="canCreate"
         @distribute="distributeFree"
         @cover-mandatory="coverMandatory"
         @shortfall="openShortfall"
@@ -751,7 +774,7 @@ onMounted(() => {
           title="Конвертов пока нет"
           description="Создайте конверт, чтобы распределять в него деньги."
         >
-          <template v-if="canManage" #action>
+          <template v-if="canCreate" #action>
             <UiButton @click="startCreate">Создать конверт</UiButton>
           </template>
         </UiEmptyState>
@@ -766,6 +789,12 @@ onMounted(() => {
               <h2 id="envelopes-all-title" class="plan-view__title">Все конверты</h2>
               <span class="plan-view__count">{{ activeCountText }}</span>
             </div>
+            <OwnerFilter
+              v-if="ownerKind !== 'none'"
+              v-model="ownerMode"
+              :kind="ownerKind"
+              :options="ownerOptions"
+            />
             <UiInput
               v-model="search"
               class="plan-view__search"
@@ -796,6 +825,7 @@ onMounted(() => {
                   :envelope="envelope"
                   :progress="planProgress(envelope, mandatoryProgress)"
                   :badge="planBadge(envelope, mandatoryGap)"
+                  :owner-caption="rowOwnerCaption(envelope)"
                   :data-testid="`envelope-row-${envelope.id}`"
                   @select="
                     rememberFocus();
@@ -808,7 +838,7 @@ onMounted(() => {
                       :trigger-test-id="`row-actions-${envelope.id}`"
                     >
                       <button
-                        v-if="!envelope.archivedAt && canManage"
+                        v-if="!envelope.archivedAt && canEditEnvelopeFor(envelope)"
                         type="button"
                         role="menuitem"
                         data-testid="row-reassign"
@@ -819,7 +849,7 @@ onMounted(() => {
                         Переложить
                       </button>
                       <button
-                        v-if="!envelope.archivedAt && canManage"
+                        v-if="!envelope.archivedAt && canEditEnvelopeFor(envelope)"
                         type="button"
                         role="menuitem"
                         data-testid="row-edit"
@@ -838,7 +868,7 @@ onMounted(() => {
                         Операции конверта
                       </NuxtLink>
                       <button
-                        v-if="!envelope.archivedAt && canManage"
+                        v-if="!envelope.archivedAt && canEditEnvelopeFor(envelope)"
                         type="button"
                         role="menuitem"
                         data-testid="row-archive"
@@ -896,7 +926,7 @@ onMounted(() => {
     :open="shortfallOpen"
     :amount-minor="shortfallMinor"
     :deficits="shortfallDeficits"
-    :can-manage="canManage"
+    :can-allocate="canCreate"
     @close="closeShortfall"
     @cover="coverDeficit"
   />
