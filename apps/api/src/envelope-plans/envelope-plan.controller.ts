@@ -173,7 +173,8 @@ export class EnvelopePlanController {
   @ApiResponse({
     status: 403,
     type: ProblemDetailsResponse,
-    description: 'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику.',
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику.',
   })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
@@ -207,7 +208,8 @@ export class EnvelopePlanController {
   @ApiResponse({
     status: 403,
     type: ProblemDetailsResponse,
-    description: 'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику.',
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику.',
   })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
@@ -308,7 +310,8 @@ export class EnvelopePlanController {
   @ApiResponse({
     status: 403,
     type: ProblemDetailsResponse,
-    description: 'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику.',
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику.',
   })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
@@ -342,7 +345,8 @@ export class EnvelopePlanController {
   @ApiResponse({
     status: 403,
     type: ProblemDetailsResponse,
-    description: 'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику.',
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику.',
   })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
@@ -378,7 +382,8 @@ export class EnvelopePlanController {
   @ApiResponse({
     status: 403,
     type: ProblemDetailsResponse,
-    description: 'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику.',
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику.',
   })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
@@ -409,7 +414,8 @@ export class EnvelopePlanController {
   @ApiResponse({
     status: 403,
     type: ProblemDetailsResponse,
-    description: 'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику.',
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику.',
   })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
@@ -493,7 +499,8 @@ export class EnvelopePlanController {
   @ApiResponse({
     status: 403,
     type: ProblemDetailsResponse,
-    description: 'FORBIDDEN — нет права записи; NOT_OPERATION_AUTHOR — изменять может только автор распределения.',
+    description:
+      'FORBIDDEN — нет права записи; NOT_OPERATION_AUTHOR — изменять может только автор распределения.',
   })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
@@ -527,7 +534,8 @@ export class EnvelopePlanController {
   @ApiResponse({
     status: 403,
     type: ProblemDetailsResponse,
-    description: 'FORBIDDEN — нет права записи; NOT_OPERATION_AUTHOR — отменить может только автор распределения.',
+    description:
+      'FORBIDDEN — нет права записи; NOT_OPERATION_AUTHOR — отменить может только автор распределения.',
   })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
@@ -559,7 +567,8 @@ export class EnvelopePlanController {
   @ApiResponse({
     status: 403,
     type: ProblemDetailsResponse,
-    description: 'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — исходный конверт принадлежит другому участнику.',
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — исходный конверт принадлежит другому участнику.',
   })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })

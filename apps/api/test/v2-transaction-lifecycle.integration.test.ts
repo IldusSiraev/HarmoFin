@@ -522,21 +522,15 @@ describe('v2 расход: изменение, удаление и восста�
     expect((await dbTx(created.id)).status).toBe('CONFIRMED');
 
     // The author (EDITOR) edits, deletes and restores their own expense.
-    const ownExpense = await call(
-      'POST',
-      ctx.editor!,
-      '/transactions',
-      `mk-${randomUUID()}`,
-      {
-        transactionType: 'EXPENSE',
-        status: 'CONFIRMED',
-        amount: '10.00',
-        occurredOn: today,
-        accountId: editorAccountId,
-        categoryId: expenseCategoryId,
-        envelopeId: null,
-      },
-    );
+    const ownExpense = await call('POST', ctx.editor!, '/transactions', `mk-${randomUUID()}`, {
+      transactionType: 'EXPENSE',
+      status: 'CONFIRMED',
+      amount: '10.00',
+      occurredOn: today,
+      accountId: editorAccountId,
+      categoryId: expenseCategoryId,
+      envelopeId: null,
+    });
     expect(ownExpense.statusCode).toBe(201);
     const ownId = ownExpense.json<{ id: string }>().id;
     expect((await del(ownId, 'rl-e2', ctx.editor!)).statusCode).toBe(200);

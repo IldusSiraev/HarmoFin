@@ -116,11 +116,7 @@ function requestClose(): void {
   <UiModal :open="open" title="Цель текущего периода" size="sm" @close="requestClose">
     <div v-if="envelope" class="target-dialog">
       <p class="target-dialog__muted target-dialog__name">{{ envelope.name }}</p>
-      <p
-        v-if="ownerNoticeText"
-        class="target-dialog__muted"
-        data-testid="target-owner-notice"
-      >
+      <p v-if="ownerNoticeText" class="target-dialog__muted" data-testid="target-owner-notice">
         {{ ownerNoticeText }}
       </p>
       <p v-if="periodStart === null" class="target-dialog__muted" data-testid="target-unavailable">

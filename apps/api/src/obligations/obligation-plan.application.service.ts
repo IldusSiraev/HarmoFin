@@ -4,7 +4,11 @@ import { BadRequestException, ConflictException, Injectable } from '@nestjs/comm
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
-import { findPersonRefs, personRefOf, type PersonRef } from '../common/people/person-ref.repository.js';
+import {
+  findPersonRefs,
+  personRefOf,
+  type PersonRef,
+} from '../common/people/person-ref.repository.js';
 import { findAccessActor, requireAccessActor } from '../common/policies/access-actor.repository.js';
 import { BudgetAccessPolicy, type AccessActor } from '../common/policies/budget-access.policy.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
@@ -139,7 +143,12 @@ export class ObligationPlanApplicationService {
     query: ListObligationPlansInput,
   ): Promise<{ items: ObligationPlanView[] }> {
     const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
-    const rows = await this.planData.listPlans(this.prisma, budgetId, query.status, query.ownerUserId);
+    const rows = await this.planData.listPlans(
+      this.prisma,
+      budgetId,
+      query.status,
+      query.ownerUserId,
+    );
     const access = await findAccessActor(this.prisma, model.workspaceId, userId);
     const people = await findPersonRefs(
       this.prisma,
@@ -147,13 +156,12 @@ export class ObligationPlanApplicationService {
       rows.map((row) => row.ownerUserId),
     );
     return {
-      items: rows.map(
-        (row) =>
-          this.planView(
-            row,
-            personRefOf(people, row.ownerUserId),
-            access !== null && this.access.canEditObject(access, row),
-          ),
+      items: rows.map((row) =>
+        this.planView(
+          row,
+          personRefOf(people, row.ownerUserId),
+          access !== null && this.access.canEditObject(access, row),
+        ),
       ),
     };
   }
@@ -205,7 +213,8 @@ export class ObligationPlanApplicationService {
       hash,
       model.workspaceId,
       201,
-      (tx, access) => this.createPlanInTransaction(tx, userId, budgetId, model, input, requestId, access),
+      (tx, access) =>
+        this.createPlanInTransaction(tx, userId, budgetId, model, input, requestId, access),
       (access) => this.access.requireWriter(access),
     );
   }

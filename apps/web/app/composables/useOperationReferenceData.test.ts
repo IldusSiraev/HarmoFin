@@ -71,7 +71,11 @@ beforeEach(() => {
     { id: 'category-id', name: 'Продукты', categoryType: 'EXPENSE', templateKey: null },
   ]);
   v2.listEnvelopes.mockResolvedValue({
-    items: [OWN_ENVELOPE, FOREIGN_ENVELOPE, { ...OWN_ENVELOPE, id: 'archived-id', archivedAt: 'x' }],
+    items: [
+      OWN_ENVELOPE,
+      FOREIGN_ENVELOPE,
+      { ...OWN_ENVELOPE, id: 'archived-id', archivedAt: 'x' },
+    ],
   });
 });
 
@@ -103,10 +107,7 @@ describe('useOperationReferenceData', () => {
       'account-id',
       'foreign-account',
     ]);
-    expect(envelopePlans.value.map((plan) => plan.id)).toEqual([
-      'envelope-id',
-      'foreign-envelope',
-    ]);
+    expect(envelopePlans.value.map((plan) => plan.id)).toEqual(['envelope-id', 'foreign-envelope']);
   });
 
   it('offers the forms only own accounts, while the family lists caption foreign ones', async () => {

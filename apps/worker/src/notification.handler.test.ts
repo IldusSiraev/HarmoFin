@@ -55,7 +55,13 @@ function makePrisma(budgets: unknown[], tx: ReturnType<typeof makeTx>) {
 
 const now = new Date('2026-09-10T12:00:00.000Z');
 
-function occurrence(id: string, scheduledOn: string, amount: bigint, paid: bigint[] = [], ownerId = 'owner-1') {
+function occurrence(
+  id: string,
+  scheduledOn: string,
+  amount: bigint,
+  paid: bigint[] = [],
+  ownerId = 'owner-1',
+) {
   return {
     id,
     planName: 'Аренда',

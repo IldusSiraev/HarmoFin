@@ -106,7 +106,8 @@ export class FundingController {
   @ApiResponse({
     status: 403,
     type: ProblemDetailsResponse,
-    description: 'FORBIDDEN — нет права записи; NOT_INCOME_AUTHOR — доход принадлежит другому участнику.',
+    description:
+      'FORBIDDEN — нет права записи; NOT_INCOME_AUTHOR — доход принадлежит другому участнику.',
   })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })

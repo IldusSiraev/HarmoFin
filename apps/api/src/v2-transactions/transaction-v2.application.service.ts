@@ -5,7 +5,11 @@ import type { Prisma } from '@prisma/client';
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
-import { findPersonRefs, personRefOf, type PersonRef } from '../common/people/person-ref.repository.js';
+import {
+  findPersonRefs,
+  personRefOf,
+  type PersonRef,
+} from '../common/people/person-ref.repository.js';
 import { requireAccessActor } from '../common/policies/access-actor.repository.js';
 import { BudgetAccessPolicy, type AccessActor } from '../common/policies/budget-access.policy.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';

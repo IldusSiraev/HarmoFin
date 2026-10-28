@@ -50,19 +50,18 @@ describe('family plans ownership (stage B): планы, оплаты и кале
   });
   const pay = (actor: FamilyActor, occurrenceId: string, accountId: string) =>
     app.inject('POST', `${v2(actor)}/obligations/${occurrenceId}/pay`, actor, {
-    amount: '3000.00',
-    categoryId: expenseCategoryId,
-    accountId,
-    occurredOn: iso(0),
-    willPayMore: false,
-  });
+      amount: '3000.00',
+      categoryId: expenseCategoryId,
+      accountId,
+      occurredOn: iso(0),
+      willPayMore: false,
+    });
   const recordIncome = (actor: FamilyActor, occurrenceId: string, accountId: string) =>
-    app.inject(
-      'POST',
-      `${v2(actor)}/income-plans/occurrences/${occurrenceId}/record`,
-      actor,
-      { accountId, amount: '87000.00', occurredOn: iso(0) },
-    );
+    app.inject('POST', `${v2(actor)}/income-plans/occurrences/${occurrenceId}/record`, actor, {
+      accountId,
+      amount: '87000.00',
+      occurredOn: iso(0),
+    });
   const planIds = (response: { json(): { items: Array<{ id: string }> } }) =>
     response.json().items.map((plan) => plan.id);
 
@@ -121,8 +120,9 @@ describe('family plans ownership (stage B): планы, оплаты и кале
     );
     expect(mine.statusCode).toBe(200);
     expect(planIds(mine)).toContain(editorPlanId);
-    expect(mine.json<{ items: Array<{ id: string }> }>().items.find((p) => p.id === editorPlanId))
-      .toMatchObject({ owner: { userId: editor.user.id }, canEdit: true });
+    expect(
+      mine.json<{ items: Array<{ id: string }> }>().items.find((p) => p.id === editorPlanId),
+    ).toMatchObject({ owner: { userId: editor.user.id }, canEdit: true });
 
     const others = await app.inject(
       'GET',
@@ -157,7 +157,12 @@ describe('family plans ownership (stage B): планы, оплаты и кале
   });
 
   it('C: оплата с чужого счёта — NOT_ACCOUNT_OWNER; с чужого плана — NOT_OBJECT_OWNER; владелец платит — 201', async () => {
-    const created = await app.inject('POST', `${v2(creator)}/obligations/plans`, creator, planBody());
+    const created = await app.inject(
+      'POST',
+      `${v2(creator)}/obligations/plans`,
+      creator,
+      planBody(),
+    );
     expect(created.statusCode).toBe(201);
     const plan = created.json<{ id: string; occurrenceId: string }>();
     creatorPlanOccurrenceId = plan.occurrenceId;
@@ -188,7 +193,12 @@ describe('family plans ownership (stage B): планы, оплаты и кале
   });
 
   it('E: income-plans — EDITOR создаёт свой план; record — только владелец плана', async () => {
-    const created = await app.inject('POST', `${v2(editor)}/income-plans`, editor, incomePlanBody());
+    const created = await app.inject(
+      'POST',
+      `${v2(editor)}/income-plans`,
+      editor,
+      incomePlanBody(),
+    );
     expect(created.statusCode).toBe(201);
     const editorPlan = created.json<{ id: string; occurrenceId: string }>();
 
@@ -221,7 +231,12 @@ describe('family plans ownership (stage B): планы, оплаты и кале
   });
 
   it('F: календарь — owner и canEdit на планах', async () => {
-    const created = await app.inject('POST', `${v2(creator)}/obligations/plans`, creator, planBody());
+    const created = await app.inject(
+      'POST',
+      `${v2(creator)}/obligations/plans`,
+      creator,
+      planBody(),
+    );
     expect(created.statusCode).toBe(201);
     const calendarCreatorPlanId = created.json<{ id: string }>().id;
 

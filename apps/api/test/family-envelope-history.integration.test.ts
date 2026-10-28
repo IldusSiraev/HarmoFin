@@ -106,6 +106,8 @@ describe('envelope history', () => {
     const removed = await env.inject('DELETE', `${v2(editor)}/transactions/${expenseId}`, editor);
     expect(removed.statusCode).toBe(200);
     expect((await history(kidsEnvelopeId)).some((item) => item.id === expenseId)).toBe(false);
-    expect((await history(kidsEnvelopeId, 'DELETED')).some((item) => item.id === expenseId)).toBe(true);
+    expect((await history(kidsEnvelopeId, 'DELETED')).some((item) => item.id === expenseId)).toBe(
+      true,
+    );
   });
 });

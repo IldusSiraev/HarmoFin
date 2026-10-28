@@ -6,7 +6,11 @@ import type { Prisma } from '@prisma/client';
 import { FinancialBalanceRepository } from '../common/finance/financial-balance.repository.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
-import { findPersonRefs, personRefOf, type PersonRef } from '../common/people/person-ref.repository.js';
+import {
+  findPersonRefs,
+  personRefOf,
+  type PersonRef,
+} from '../common/people/person-ref.repository.js';
 import { requireAccessActor } from '../common/policies/access-actor.repository.js';
 import { BudgetAccessPolicy, type AccessActor } from '../common/policies/budget-access.policy.js';
 import {
@@ -544,7 +548,12 @@ export class DirectTransferApplicationService {
     body: (
       tx: Prisma.TransactionClient,
       current: TransferRow,
-      ctx: { actor: AccessActor; workspaceId: string; allowNegativeBalance: boolean; today: string },
+      ctx: {
+        actor: AccessActor;
+        workspaceId: string;
+        allowNegativeBalance: boolean;
+        today: string;
+      },
     ) => Promise<TransferRow>,
   ): Promise<TransferJournalItem> {
     const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);

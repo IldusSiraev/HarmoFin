@@ -21,16 +21,20 @@ afterAll(async () => {
 
 describe('findAccessActor', () => {
   it('returns role and creator flag for active members', async () => {
-    await expect(findAccessActor(env.prisma, creator.workspaceId, creator.user.id)).resolves.toEqual({
+    await expect(
+      findAccessActor(env.prisma, creator.workspaceId, creator.user.id),
+    ).resolves.toEqual({
       userId: creator.user.id,
       role: 'OWNER',
       isCreator: true,
     });
-    await expect(findAccessActor(env.prisma, creator.workspaceId, editor.user.id)).resolves.toEqual({
-      userId: editor.user.id,
-      role: 'EDITOR',
-      isCreator: false,
-    });
+    await expect(findAccessActor(env.prisma, creator.workspaceId, editor.user.id)).resolves.toEqual(
+      {
+        userId: editor.user.id,
+        role: 'EDITOR',
+        isCreator: false,
+      },
+    );
   });
 
   it('returns null for a removed member and for a stranger', async () => {
@@ -38,7 +42,9 @@ describe('findAccessActor', () => {
       where: { workspaceId: creator.workspaceId, userId: viewer.user.id },
       data: { isActive: false, removedAt: new Date() },
     });
-    await expect(findAccessActor(env.prisma, creator.workspaceId, viewer.user.id)).resolves.toBeNull();
+    await expect(
+      findAccessActor(env.prisma, creator.workspaceId, viewer.user.id),
+    ).resolves.toBeNull();
     const stranger = await env.register();
     await expect(
       findAccessActor(env.prisma, creator.workspaceId, stranger.user.id),

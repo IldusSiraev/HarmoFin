@@ -76,7 +76,9 @@ export function transferSummary(counts: TransferredObjects): string {
     parts.push(`${counts.accounts} ${plural(counts.accounts, 'счёт', 'счёта', 'счетов')}`);
   }
   if (counts.envelopes > 0) {
-    parts.push(`${counts.envelopes} ${plural(counts.envelopes, 'конверт', 'конверта', 'конвертов')}`);
+    parts.push(
+      `${counts.envelopes} ${plural(counts.envelopes, 'конверт', 'конверта', 'конвертов')}`,
+    );
   }
   if (counts.plans > 0) {
     parts.push(`${counts.plans} ${plural(counts.plans, 'план', 'плана', 'планов')}`);

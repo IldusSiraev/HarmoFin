@@ -43,7 +43,11 @@ vi.mock('../../composables/useOwnerFilter.js', async () => {
       ]),
       // Plain getter, not a computed: tests switch `ownerKind` between mounts,
       // and a computed without a reactive source would cache the first value.
-      kind: { get value() { return mocks.ownerKind; } },
+      kind: {
+        get value() {
+          return mocks.ownerKind;
+        },
+      },
     }),
   };
 });

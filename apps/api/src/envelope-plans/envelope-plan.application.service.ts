@@ -456,7 +456,11 @@ export class EnvelopePlanApplicationService {
       );
       const hasMore = rows.length > limit;
       const page = rows.slice(0, limit);
-      const people = await findPersonRefs(tx, model.workspaceId, page.map((row) => row.createdByUserId));
+      const people = await findPersonRefs(
+        tx,
+        model.workspaceId,
+        page.map((row) => row.createdByUserId),
+      );
       const items = page.map(({ createdByUserId, ...row }) => ({
         ...row,
         createdBy: personRefOf(people, createdByUserId),

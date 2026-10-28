@@ -197,7 +197,11 @@ export class FundingPreviewApplicationService {
       const actor = await requireAccessActor(tx, model.workspaceId, userId);
       this.access.requireWriter(actor);
       if (input.sourceKind === 'INCOME' && input.incomeTransactionId) {
-        const income = await this.assignments.requireIncome(tx, budgetId, input.incomeTransactionId);
+        const income = await this.assignments.requireIncome(
+          tx,
+          budgetId,
+          input.incomeTransactionId,
+        );
         this.access.requireIncomeAuthor(actor, income);
       }
       const { body } = await this.compute(tx, {

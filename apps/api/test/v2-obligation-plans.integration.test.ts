@@ -782,9 +782,9 @@ describe('v2 обязательства: управление планами', (
       const before = await totals();
       expect((await payOne(on(ctx.viewer!), oneBody())).statusCode).toBe(403);
       expect(await totals()).toEqual(before);
-      expect((await payOne(on(ctx.editor!), oneBody({ accountId: editorAccountId }))).statusCode).toBe(
-        201,
-      );
+      expect(
+        (await payOne(on(ctx.editor!), oneBody({ accountId: editorAccountId }))).statusCode,
+      ).toBe(201);
       const badCsrf = await server.inject({
         method: 'POST',
         url: payUrl(),

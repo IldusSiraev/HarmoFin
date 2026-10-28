@@ -120,7 +120,12 @@ export class RegularPlanRepository {
     });
   }
 
-  list(userId: string, budgetId: string, status: 'active' | 'inactive' | 'all', ownerUserId?: string) {
+  list(
+    userId: string,
+    budgetId: string,
+    status: 'active' | 'inactive' | 'all',
+    ownerUserId?: string,
+  ) {
     return this.prisma.regularPlan.findMany({
       where: {
         budgetId,

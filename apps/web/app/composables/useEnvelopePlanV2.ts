@@ -1230,9 +1230,7 @@ export function useEnvelopePlanV2() {
         idempotencyKey,
       ),
     listEnvelopes: (budgetId: string, ownerUserId?: string) =>
-      get<EnvelopePlanListResponse>(
-        `${base(budgetId)}/envelopes${query({ ownerUserId })}`,
-      ),
+      get<EnvelopePlanListResponse>(`${base(budgetId)}/envelopes${query({ ownerUserId })}`),
     createTransaction: (
       budgetId: string,
       input: CreateTransactionV2Request,

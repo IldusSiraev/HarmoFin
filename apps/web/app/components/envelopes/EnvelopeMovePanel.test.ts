@@ -255,7 +255,8 @@ describe('EnvelopeMovePanel', () => {
       });
       await mountWith(foreign, [envA, envB, foreign]);
 
-      const radio = (item: string) => q<HTMLInputElement>(`[data-testid="move-direction-${item}"]`)!;
+      const radio = (item: string) =>
+        q<HTMLInputElement>(`[data-testid="move-direction-${item}"]`)!;
       expect(radio('envelope-envelope').disabled).toBe(true);
       expect(radio('envelope-free').disabled).toBe(true);
       expect(radio('free-envelope').disabled).toBe(false);

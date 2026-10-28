@@ -10,15 +10,12 @@ import {
   personRefOf,
   type PersonRef,
 } from '../common/people/person-ref.repository.js';
+import { findAccessActor, requireAccessActor } from '../common/policies/access-actor.repository.js';
+import { BudgetAccessPolicy, type AccessActor } from '../common/policies/budget-access.policy.js';
 import {
-  findAccessActor,
-  requireAccessActor,
-} from '../common/policies/access-actor.repository.js';
-import {
-  BudgetAccessPolicy,
-  type AccessActor,
-} from '../common/policies/budget-access.policy.js';
-import { invalidReference, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
+  invalidReference,
+  resourceNotFound,
+} from '../common/reference-data/reference-data.errors.js';
 import { todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { nextPeriodEndAt } from '../cycles/cycle-settings-at.js';
 import { PrismaService } from '../database/prisma.service.js';
@@ -135,7 +132,12 @@ export class IncomePlanApplicationService {
     query: ListIncomePlansInput,
   ): Promise<{ items: IncomePlanView[] }> {
     const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
-    const rows = await this.planData.listPlans(this.prisma, budgetId, query.status, query.ownerUserId);
+    const rows = await this.planData.listPlans(
+      this.prisma,
+      budgetId,
+      query.status,
+      query.ownerUserId,
+    );
     const access = await findAccessActor(this.prisma, model.workspaceId, userId);
     const people = await findPersonRefs(
       this.prisma,
@@ -143,13 +145,12 @@ export class IncomePlanApplicationService {
       rows.map((row) => row.ownerUserId),
     );
     return {
-      items: rows.map(
-        (row) =>
-          this.planView(
-            row,
-            personRefOf(people, row.ownerUserId),
-            access !== null && this.access.canEditObject(access, row),
-          ),
+      items: rows.map((row) =>
+        this.planView(
+          row,
+          personRefOf(people, row.ownerUserId),
+          access !== null && this.access.canEditObject(access, row),
+        ),
       ),
     };
   }

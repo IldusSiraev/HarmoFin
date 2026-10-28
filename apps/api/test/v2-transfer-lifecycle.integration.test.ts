@@ -438,13 +438,7 @@ describe('v2 жизненный цикл прямого перевода (изм
       await expectError(service.remove(ctx.editor!.userId, budgetId(), created.id, randomUUID())),
     ).toEqual({ status: 403, code: 'NOT_OPERATION_AUTHOR' });
 
-    await service.update(
-      ctx.owner!.userId,
-      budgetId(),
-      created.id,
-      { comment: 'e' },
-      randomUUID(),
-    );
+    await service.update(ctx.owner!.userId, budgetId(), created.id, { comment: 'e' }, randomUUID());
     await service.remove(ctx.owner!.userId, budgetId(), created.id, randomUUID());
     await service.restore(ctx.owner!.userId, budgetId(), created.id, randomUUID());
     expect(

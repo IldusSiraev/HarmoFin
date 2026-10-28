@@ -229,7 +229,7 @@ describe('OperationDialog', () => {
     wrapper.unmount();
   });
 
-  it('hides every action and explains authorship for someone else\'s operation', async () => {
+  it("hides every action and explains authorship for someone else's operation", async () => {
     const wrapper = mountDialog({
       createdBy: { userId: 'member-1', displayName: 'Алия', isActiveMember: true },
     });

@@ -98,7 +98,12 @@ describe('v2 общая лента журнала (GET /api/v2/budgets/:budgetId
 
     a = await createRawAccount(ctx.owner!.budgetId, ctx.owner!.userId, 'RUB', 1_000_000n);
     b = await createRawAccount(ctx.owner!.budgetId, ctx.owner!.userId, 'RUB', 0n);
-    editorAccount = await createRawAccount(ctx.owner!.budgetId, ctx.editor!.userId, 'RUB', 1_000_000n);
+    editorAccount = await createRawAccount(
+      ctx.owner!.budgetId,
+      ctx.editor!.userId,
+      'RUB',
+      1_000_000n,
+    );
     food = await createCategory(ctx.owner!.budgetId, 'EXPENSE');
     salary = await createCategory(ctx.owner!.budgetId, 'INCOME');
     env = await createEnvelope(ctx.owner!.budgetId, ctx.owner!.userId, 'P');

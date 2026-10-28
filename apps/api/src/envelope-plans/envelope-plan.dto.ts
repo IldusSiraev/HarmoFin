@@ -341,7 +341,12 @@ export class EnvelopeHistoryItemResponse {
   @ApiProperty({ type: String, nullable: true, example: 'Отпуск' })
   counterpartName!: string | null;
 
-  @ApiProperty({ type: String, nullable: true, enum: ['INCOME', 'OPENING', 'FREE'], example: 'INCOME' })
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    enum: ['INCOME', 'OPENING', 'FREE'],
+    example: 'INCOME',
+  })
   assignmentType!: string | null;
 }
 

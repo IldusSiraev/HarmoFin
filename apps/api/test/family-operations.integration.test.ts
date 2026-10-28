@@ -90,7 +90,11 @@ describe('recording on an account', () => {
 
 describe('changing operations', () => {
   it('only the author edits, deletes and restores; the card shows the author', async () => {
-    const id = await env.record(editor, { type: 'EXPENSE', accountId: editorAccountId, amount: '10' });
+    const id = await env.record(editor, {
+      type: 'EXPENSE',
+      accountId: editorAccountId,
+      amount: '10',
+    });
     const card = await env.inject('GET', `${v2(creator)}/transactions/${id}`, creator);
     expect(card.json()).toMatchObject({
       createdBy: { userId: editor.user.id, isActiveMember: true },
@@ -111,7 +115,11 @@ describe('changing operations', () => {
   });
 
   it('the author cannot move an own operation onto someone else’s account', async () => {
-    const id = await env.record(editor, { type: 'EXPENSE', accountId: editorAccountId, amount: '10' });
+    const id = await env.record(editor, {
+      type: 'EXPENSE',
+      accountId: editorAccountId,
+      amount: '10',
+    });
     const edit = await env.inject('PATCH', `${v2(editor)}/transactions/${id}`, editor, {
       accountId: creatorAccountId,
     });

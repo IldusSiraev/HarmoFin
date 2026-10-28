@@ -65,7 +65,10 @@ export class PlansCalendarRepository {
         budgetId,
         status: 'COMPLETED',
         OR: [
-          { planType: 'EXPENSE', plan: { is: { ...mandatoryPlanFilter(budgetId), ...ownerFilter } } },
+          {
+            planType: 'EXPENSE',
+            plan: { is: { ...mandatoryPlanFilter(budgetId), ...ownerFilter } },
+          },
           { planType: 'INCOME', plan: { is: { ...incomePlanFilter(budgetId), ...ownerFilter } } },
         ],
         AND: [

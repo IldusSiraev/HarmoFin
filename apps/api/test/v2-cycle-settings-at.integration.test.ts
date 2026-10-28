@@ -469,11 +469,7 @@ function headers(name: Name, key?: string): Record<string, string> {
   };
 }
 
-async function createSlotEnvelope(
-  budgetId: string,
-  ownerUserId: string,
-  slot: 'FIRST' | 'SECOND',
-) {
+async function createSlotEnvelope(budgetId: string, ownerUserId: string, slot: 'FIRST' | 'SECOND') {
   const envelope = await prisma.envelope.create({
     data: {
       id: randomUUID(),

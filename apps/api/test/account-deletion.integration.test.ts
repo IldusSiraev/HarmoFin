@@ -287,9 +287,9 @@ describe('account deletion', () => {
     const rawToken = `transfer-${randomUUID()}`;
     await deleteWithKnownToken(member, rawToken);
 
-    expect((await prisma.account.findUniqueOrThrow({ where: { id: account.id } })).ownerUserId).toBe(
-      creator.userId,
-    );
+    expect(
+      (await prisma.account.findUniqueOrThrow({ where: { id: account.id } })).ownerUserId,
+    ).toBe(creator.userId);
     expect(
       await prisma.auditEvent.count({
         where: {
@@ -306,9 +306,9 @@ describe('account deletion', () => {
     ).toBe(1);
 
     expect((await cancel(rawToken)).statusCode).toBe(204);
-    expect((await prisma.account.findUniqueOrThrow({ where: { id: account.id } })).ownerUserId).toBe(
-      creator.userId,
-    );
+    expect(
+      (await prisma.account.findUniqueOrThrow({ where: { id: account.id } })).ownerUserId,
+    ).toBe(creator.userId);
 
     await prisma.workspaceMembership.deleteMany({
       where: { workspaceId: creator.workspaceId, userId: member.userId },

@@ -131,12 +131,21 @@ describe('changing an allocation', () => {
     });
     expect(created.statusCode).toBe(201);
     const assignmentId = created.json<{ assignmentId: string }>().assignmentId;
-    const revise = await env.inject('PATCH', `${v2(creator)}/assignments/${assignmentId}`, creator, {
-      amount: '100',
-    });
+    const revise = await env.inject(
+      'PATCH',
+      `${v2(creator)}/assignments/${assignmentId}`,
+      creator,
+      {
+        amount: '100',
+      },
+    );
     expect(revise.statusCode).toBe(403);
     expect(revise.json()).toMatchObject({ code: 'NOT_OPERATION_AUTHOR' });
-    const cancel = await env.inject('DELETE', `${v2(creator)}/assignments/${assignmentId}`, creator);
+    const cancel = await env.inject(
+      'DELETE',
+      `${v2(creator)}/assignments/${assignmentId}`,
+      creator,
+    );
     expect(cancel.json()).toMatchObject({ code: 'NOT_OPERATION_AUTHOR' });
     const own = await env.inject('DELETE', `${v2(editor)}/assignments/${assignmentId}`, editor);
     expect(own.statusCode).toBe(200);
@@ -289,12 +298,11 @@ describe('funding confirm guards foreign envelopes and periods', () => {
       today,
     ).period.id;
 
-    const envelopeResponse = await env.inject(
-      'POST',
-      `${v2(freshOwner)}/envelopes`,
-      freshOwner,
-      { name: 'Текущие расходы', envelopeType: 'CURRENT_EXPENSES', periodSlot },
-    );
+    const envelopeResponse = await env.inject('POST', `${v2(freshOwner)}/envelopes`, freshOwner, {
+      name: 'Текущие расходы',
+      envelopeType: 'CURRENT_EXPENSES',
+      periodSlot,
+    });
     expect(envelopeResponse.statusCode).toBe(201);
     const ruleEnvelopeId = envelopeResponse.json<{ id: string }>().id;
 
@@ -311,9 +319,11 @@ describe('funding confirm guards foreign envelopes and periods', () => {
       sourceKind: 'FREE',
     });
     expect(materialize.statusCode).toBe(200);
-    const draftPeriodId = materialize.json<{
-      periodTargetDrafts: Array<{ periodId: string; targetMinor: string }>;
-    }>().periodTargetDrafts.find((draft) => draft.targetMinor === '50000')?.periodId;
+    const draftPeriodId = materialize
+      .json<{
+        periodTargetDrafts: Array<{ periodId: string; targetMinor: string }>;
+      }>()
+      .periodTargetDrafts.find((draft) => draft.targetMinor === '50000')?.periodId;
     expect(draftPeriodId).toBeDefined();
 
     const editorPreview = await env.inject(

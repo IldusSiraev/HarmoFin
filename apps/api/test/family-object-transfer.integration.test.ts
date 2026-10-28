@@ -38,17 +38,22 @@ describe('objects of a member who leaves', () => {
     const { member, accountId, envelopeId, expenseId } = await memberWithObjects();
     firstLeaver = member;
     firstLeaverAccountId = accountId;
-    const response = await env.inject('POST', `/api/v1/workspaces/${creator.workspaceId}/leave`, member);
+    const response = await env.inject(
+      'POST',
+      `/api/v1/workspaces/${creator.workspaceId}/leave`,
+      member,
+    );
     expect(response.statusCode).toBe(204);
 
-    expect((await env.prisma.account.findUniqueOrThrow({ where: { id: accountId } })).ownerUserId).toBe(
-      creator.user.id,
-    );
+    expect(
+      (await env.prisma.account.findUniqueOrThrow({ where: { id: accountId } })).ownerUserId,
+    ).toBe(creator.user.id);
     expect(
       (await env.prisma.envelope.findUniqueOrThrow({ where: { id: envelopeId } })).ownerUserId,
     ).toBe(creator.user.id);
     expect(
-      (await env.prisma.transaction.findUniqueOrThrow({ where: { id: expenseId } })).createdByUserId,
+      (await env.prisma.transaction.findUniqueOrThrow({ where: { id: expenseId } }))
+        .createdByUserId,
     ).toBe(member.user.id);
 
     const audits = await env.prisma.auditEvent.findMany({
@@ -79,9 +84,9 @@ describe('objects of a member who leaves', () => {
       creator,
     );
     expect(response.statusCode).toBe(204);
-    expect((await env.prisma.account.findUniqueOrThrow({ where: { id: accountId } })).ownerUserId).toBe(
-      creator.user.id,
-    );
+    expect(
+      (await env.prisma.account.findUniqueOrThrow({ where: { id: accountId } })).ownerUserId,
+    ).toBe(creator.user.id);
   });
 
   it('a member without objects produces no transfer notification', async () => {
@@ -101,7 +106,8 @@ describe('objects of a member who leaves', () => {
       data: { isActive: true, removedAt: null, role: 'EDITOR' },
     });
     expect(
-      (await env.prisma.account.findUniqueOrThrow({ where: { id: firstLeaverAccountId } })).ownerUserId,
+      (await env.prisma.account.findUniqueOrThrow({ where: { id: firstLeaverAccountId } }))
+        .ownerUserId,
     ).toBe(creator.user.id);
   });
 });

@@ -345,7 +345,6 @@ export class PeriodTargetApplicationService {
     }
     return period;
   }
-
 }
 
 function periodTargetBody(period: EnvelopePeriodRecord): PeriodTargetBody {

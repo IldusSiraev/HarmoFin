@@ -882,7 +882,7 @@ describe('AppOperationDialogs', () => {
   });
 
   describe('family boundaries', () => {
-    it('keeps someone else\'s account out of the expense form and captions their envelope', async () => {
+    it("keeps someone else's account out of the expense form and captions their envelope", async () => {
       const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
       useOperationDialogs().openOperation('EXPENSE');
       await flushPromises();
@@ -894,13 +894,14 @@ describe('AppOperationDialogs', () => {
       );
       expect(foreignEnvelope?.textContent).toContain('Аренда');
       expect(foreignEnvelope?.textContent).toContain('Алия');
-      expect(document.querySelector<HTMLSpanElement>('[data-testid="pill-account-account-id"]')?.textContent).toContain(
-        'Основная карта',
-      );
+      expect(
+        document.querySelector<HTMLSpanElement>('[data-testid="pill-account-account-id"]')
+          ?.textContent,
+      ).toContain('Основная карта');
       wrapper.unmount();
     });
 
-    it('offers someone else\'s account only as a transfer destination', async () => {
+    it("offers someone else's account only as a transfer destination", async () => {
       const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
       useOperationDialogs().openTransfer();
       await flushPromises();
@@ -908,7 +909,9 @@ describe('AppOperationDialogs', () => {
       expect(
         document.querySelector('[data-testid="pill-transferSource-foreign-account"]'),
       ).toBeNull();
-      const destination = document.querySelector('[data-testid="pill-transferDestination-foreign-account"]');
+      const destination = document.querySelector(
+        '[data-testid="pill-transferDestination-foreign-account"]',
+      );
       expect(destination?.textContent).toContain('Копилка');
       expect(destination?.textContent).toContain('Алия');
       wrapper.unmount();

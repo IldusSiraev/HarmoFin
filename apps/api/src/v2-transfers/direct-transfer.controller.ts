@@ -93,7 +93,11 @@ export class DirectTransferController {
   @ApiOkResponse({ type: DirectTransferListResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse, description: 'FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR.' })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description: 'FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   async list(
@@ -108,7 +112,11 @@ export class DirectTransferController {
   @ApiOkResponse({ type: DirectTransferResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse, description: 'FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR.' })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description: 'FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   async get(
@@ -126,7 +134,11 @@ export class DirectTransferController {
   @ApiCreatedResponse({ type: DirectTransferResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse, description: 'FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR.' })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description: 'FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
@@ -162,7 +174,11 @@ export class DirectTransferController {
   @ApiOkResponse({ type: TransferJournalItemResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse, description: 'FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR.' })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description: 'FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({
     status: 409,
@@ -194,7 +210,11 @@ export class DirectTransferController {
   @ApiOkResponse({ type: TransferJournalItemResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse, description: 'FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR.' })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description: 'FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({
     status: 409,
@@ -224,7 +244,11 @@ export class DirectTransferController {
   @ApiOkResponse({ type: TransferJournalItemResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse, description: 'FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR.' })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description: 'FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({
     status: 409,

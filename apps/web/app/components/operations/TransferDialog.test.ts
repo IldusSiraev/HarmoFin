@@ -246,7 +246,7 @@ describe('TransferDialog', () => {
     expect(wrapper.find('.modal__footer').exists()).toBe(false);
   });
 
-  it('hides every action and explains authorship for someone else\'s transfer', () => {
+  it("hides every action and explains authorship for someone else's transfer", () => {
     const wrapper = mountDialog({
       transfer: {
         ...transfer,
@@ -273,7 +273,7 @@ describe('TransferDialog', () => {
     expect(wrapper.find('[data-testid="transfer-dialog-restore"]').exists()).toBe(false);
   });
 
-  it('a restore intent on someone else\'s transfer only shows the card', () => {
+  it("a restore intent on someone else's transfer only shows the card", () => {
     const wrapper = mountDialog({
       transfer: {
         ...transfer,

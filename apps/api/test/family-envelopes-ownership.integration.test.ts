@@ -55,9 +55,14 @@ describe('envelope ownership', () => {
   });
 
   it('the creator gets NOT_OBJECT_OWNER renaming the editor envelope', async () => {
-    const response = await env.inject('PATCH', `${v2(creator)}/envelopes/${editorEnvelopeId}`, creator, {
-      name: 'Чужой',
-    });
+    const response = await env.inject(
+      'PATCH',
+      `${v2(creator)}/envelopes/${editorEnvelopeId}`,
+      creator,
+      {
+        name: 'Чужой',
+      },
+    );
     expect(response.statusCode).toBe(403);
     expect(response.json()).toMatchObject({ code: 'NOT_OBJECT_OWNER' });
   });

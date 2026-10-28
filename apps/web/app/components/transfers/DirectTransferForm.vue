@@ -27,7 +27,12 @@ const props = withDefaults(
     pending?: boolean;
     submitLabel?: string;
   }>(),
-  { errors: () => ({}), pending: false, submitLabel: 'Сохранить перевод', destinationAccounts: null },
+  {
+    errors: () => ({}),
+    pending: false,
+    submitLabel: 'Сохранить перевод',
+    destinationAccounts: null,
+  },
 );
 
 const emit = defineEmits<{ submit: [input: CreateDirectTransferRequest] }>();

@@ -229,11 +229,7 @@ const ownerNoticeText = computed(() =>
         </template>
       </UiAmountHero>
 
-      <p
-        v-if="ownerNoticeText"
-        class="plan-dialog__note"
-        data-testid="plan-dialog-owner-notice"
-      >
+      <p v-if="ownerNoticeText" class="plan-dialog__note" data-testid="plan-dialog-owner-notice">
         {{ ownerNoticeText }}
       </p>
 

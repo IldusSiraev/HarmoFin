@@ -288,8 +288,7 @@ function hasRowActions(transaction: TransactionJournalV2Item): boolean {
   return (
     canWrite.value &&
     isAuthor(transaction) &&
-    (canEditTransaction(transaction, userId.value) ||
-      availableActions(transaction).length > 0)
+    (canEditTransaction(transaction, userId.value) || availableActions(transaction).length > 0)
   );
 }
 

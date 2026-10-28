@@ -92,12 +92,7 @@ export class FamilyTestApp {
     return { ...member, workspaceId: creator.workspaceId, budgetId: creator.budgetId };
   }
 
-  inject(
-    method: Method,
-    url: string,
-    actor: FamilyActor,
-    payload?: Record<string, unknown>,
-  ) {
+  inject(method: Method, url: string, actor: FamilyActor, payload?: Record<string, unknown>) {
     const headers: Record<string, string> = { origin };
     if (method !== 'GET') {
       headers['x-csrf-token'] = actor.csrfToken;
@@ -115,13 +110,18 @@ export class FamilyTestApp {
 
   /** Creates an account through the API as `actor`; returns its id. */
   async createAccount(actor: FamilyActor, name: string, startingBalance = '0'): Promise<string> {
-    const response = await this.inject('POST', `/api/v1/budgets/${actor.budgetId}/accounts`, actor, {
-      name,
-      accountType: 'CASH',
-      currency: 'RUB',
-      startingBalance,
-      accountingStartDate: '2026-01-01',
-    });
+    const response = await this.inject(
+      'POST',
+      `/api/v1/budgets/${actor.budgetId}/accounts`,
+      actor,
+      {
+        name,
+        accountType: 'CASH',
+        currency: 'RUB',
+        startingBalance,
+        accountingStartDate: '2026-01-01',
+      },
+    );
     if (response.statusCode !== 201)
       throw new Error(`createAccount ${response.statusCode} ${response.body}`);
     return response.json<{ id: string }>().id;
@@ -129,10 +129,15 @@ export class FamilyTestApp {
 
   /** Creates a CUSTOM envelope through the API as `actor`; returns its id. */
   async createEnvelope(actor: FamilyActor, name: string): Promise<string> {
-    const response = await this.inject('POST', `/api/v2/budgets/${actor.budgetId}/envelopes`, actor, {
-      name,
-      envelopeType: 'CUSTOM',
-    });
+    const response = await this.inject(
+      'POST',
+      `/api/v2/budgets/${actor.budgetId}/envelopes`,
+      actor,
+      {
+        name,
+        envelopeType: 'CUSTOM',
+      },
+    );
     if (response.statusCode !== 201)
       throw new Error(`createEnvelope ${response.statusCode} ${response.body}`);
     return response.json<{ id: string }>().id;
@@ -163,16 +168,22 @@ export class FamilyTestApp {
     actor: FamilyActor,
     input: { type: 'INCOME' | 'EXPENSE'; accountId: string; amount: string; envelopeId?: string },
   ): Promise<string> {
-    const response = await this.inject('POST', `/api/v2/budgets/${actor.budgetId}/transactions`, actor, {
-      transactionType: input.type,
-      status: 'CONFIRMED',
-      amount: input.amount,
-      occurredOn: new Date().toISOString().slice(0, 10),
-      accountId: input.accountId,
-      categoryId: await this.categoryId(actor.budgetId, input.type),
-      envelopeId: input.envelopeId ?? null,
-    });
-    if (response.statusCode !== 201) throw new Error(`record ${response.statusCode} ${response.body}`);
+    const response = await this.inject(
+      'POST',
+      `/api/v2/budgets/${actor.budgetId}/transactions`,
+      actor,
+      {
+        transactionType: input.type,
+        status: 'CONFIRMED',
+        amount: input.amount,
+        occurredOn: new Date().toISOString().slice(0, 10),
+        accountId: input.accountId,
+        categoryId: await this.categoryId(actor.budgetId, input.type),
+        envelopeId: input.envelopeId ?? null,
+      },
+    );
+    if (response.statusCode !== 201)
+      throw new Error(`record ${response.statusCode} ${response.body}`);
     return response.json<{ id: string }>().id;
   }
 
@@ -195,7 +206,10 @@ export class FamilyTestApp {
     }
     const ids = [...workspaceIds];
     const budgetIds = (
-      await this.prisma.budget.findMany({ where: { workspaceId: { in: ids } }, select: { id: true } })
+      await this.prisma.budget.findMany({
+        where: { workspaceId: { in: ids } },
+        select: { id: true },
+      })
     ).map((budget) => budget.id);
     const byBudget = { budgetId: { in: budgetIds } };
     await this.prisma.notification.deleteMany({ where: { workspaceId: { in: ids } } });

@@ -154,9 +154,7 @@ describe('v2 notifications', () => {
       data: [{ id: editorId, email: `editor-${randomUUID()}@harmofin.test`, passwordHash: 'x' }],
     });
     await prisma.workspaceMembership.createMany({
-      data: [
-        { id: randomUUID(), workspaceId: v2.workspaceId, userId: editorId, role: 'EDITOR' },
-      ],
+      data: [{ id: randomUUID(), workspaceId: v2.workspaceId, userId: editorId, role: 'EDITOR' }],
     });
     const memberPlanId = randomUUID();
     await prisma.regularPlan.create({
@@ -483,7 +481,11 @@ describe('v2 notifications', () => {
       select: { id: true },
     });
     const deactivatedNotification = await prisma.notification.findFirst({
-      where: { budgetId: v2.budgetId, userId: deactivatedId, occurrenceId: deactivatedOccurrenceId },
+      where: {
+        budgetId: v2.budgetId,
+        userId: deactivatedId,
+        occurrenceId: deactivatedOccurrenceId,
+      },
       select: { id: true },
     });
     expect(auditedNotificationIds.has(demotedNotification?.id as string)).toBe(true);
@@ -501,7 +503,9 @@ describe('v2 notifications', () => {
     await prisma.planOccurrence.deleteMany({
       where: { id: { in: testOccurrences } },
     });
-    await prisma.regularPlan.deleteMany({ where: { id: { in: [demotedPlanId, deactivatedPlanId] } } });
+    await prisma.regularPlan.deleteMany({
+      where: { id: { in: [demotedPlanId, deactivatedPlanId] } },
+    });
     await prisma.workspaceMembership.deleteMany({
       where: { workspaceId: v2.workspaceId, userId: { in: [demotedId, deactivatedId] } },
     });

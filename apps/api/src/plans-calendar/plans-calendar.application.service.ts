@@ -155,7 +155,7 @@ export class PlansCalendarApplicationService {
             settlement != null &&
             settlement.factOn >= window.from &&
             settlement.factOn <= window.to
-           );
+          );
         });
         // Obligation rows do not carry plan data: one map lookup for their owners. Income and
         // completed rows carry the owner flat from the plan.

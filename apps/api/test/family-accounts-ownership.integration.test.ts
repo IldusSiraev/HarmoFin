@@ -53,7 +53,8 @@ describe('account ownership', () => {
   it('everyone sees every account; canEdit is true only for the owner', async () => {
     const response = await env.inject('GET', accounts(editor), editor);
     expect(response.statusCode).toBe(200);
-    const rows = response.json<Array<{ id: string; canEdit: boolean; owner: { userId: string } }>>();
+    const rows =
+      response.json<Array<{ id: string; canEdit: boolean; owner: { userId: string } }>>();
     const creatorRow = rows.find((row) => row.id === creatorAccountId);
     expect(creatorRow).toMatchObject({ canEdit: false, owner: { userId: creator.user.id } });
   });
@@ -64,7 +65,11 @@ describe('account ownership', () => {
     });
     expect(rename.statusCode).toBe(403);
     expect(rename.json()).toMatchObject({ code: 'NOT_OBJECT_OWNER' });
-    const archive = await env.inject('POST', `${accounts(editor)}/${creatorAccountId}/archive`, editor);
+    const archive = await env.inject(
+      'POST',
+      `${accounts(editor)}/${creatorAccountId}/archive`,
+      editor,
+    );
     expect(archive.json()).toMatchObject({ code: 'NOT_OBJECT_OWNER' });
   });
 
@@ -78,7 +83,11 @@ describe('account ownership', () => {
   });
 
   it('filters by owner and keeps the summary consistent with the filtered list', async () => {
-    const list = await env.inject('GET', `${accounts(creator)}?ownerUserId=${editor.user.id}`, creator);
+    const list = await env.inject(
+      'GET',
+      `${accounts(creator)}?ownerUserId=${editor.user.id}`,
+      creator,
+    );
     const rows = list.json<Array<{ owner: { userId: string } }>>();
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.every((row) => row.owner.userId === editor.user.id)).toBe(true);
@@ -97,7 +106,11 @@ describe('account ownership', () => {
 
   it('a stranger still gets 404 for the family accounts', async () => {
     const stranger = await env.register();
-    const response = await env.inject('GET', `/api/v1/budgets/${creator.budgetId}/accounts`, stranger);
+    const response = await env.inject(
+      'GET',
+      `/api/v1/budgets/${creator.budgetId}/accounts`,
+      stranger,
+    );
     expect(response.statusCode).toBe(404);
   });
 });

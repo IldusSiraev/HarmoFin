@@ -132,7 +132,8 @@ export class AccountController {
   @ApiResponse({
     status: 403,
     type: ProblemDetailsResponse,
-    description: 'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — счёт принадлежит другому участнику.',
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — счёт принадлежит другому участнику.',
   })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
@@ -153,7 +154,8 @@ export class AccountController {
   @ApiResponse({
     status: 403,
     type: ProblemDetailsResponse,
-    description: 'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — счёт принадлежит другому участнику.',
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — счёт принадлежит другому участнику.',
   })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
@@ -179,7 +181,8 @@ export class AccountController {
   @ApiResponse({
     status: 403,
     type: ProblemDetailsResponse,
-    description: 'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — счёт принадлежит другому участнику.',
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — счёт принадлежит другому участнику.',
   })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })

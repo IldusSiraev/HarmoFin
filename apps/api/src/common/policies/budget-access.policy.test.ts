@@ -43,7 +43,9 @@ describe('BudgetAccessPolicy matrix', () => {
     ['canSpendFromEnvelope', [true, true, false]],
     ['canViewDeleted', [true, true, false]],
   ] as const)('%s by role (creator, editor, viewer)', (method, expected) => {
-    expect([policy[method](creator), policy[method](editor), policy[method](viewer)]).toEqual(expected);
+    expect([policy[method](creator), policy[method](editor), policy[method](viewer)]).toEqual(
+      expected,
+    );
   });
 
   it('a non-creator OWNER row cannot manage members', () => {
