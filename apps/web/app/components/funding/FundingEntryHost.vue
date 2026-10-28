@@ -63,6 +63,12 @@ const envelopeTypes = computed(
     new Map(reference.envelopePlans.value.map((envelope) => [envelope.id, envelope.envelopeType])),
 );
 
+// The preview line carries no owner, but the budget envelope references do:
+// the review sheet shows the owner caption from here.
+const envelopeOwners = computed(
+  () => new Map(reference.envelopePlans.value.map((envelope) => [envelope.id, envelope.owner])),
+);
+
 type LineIdentifiable = {
   lineId?: string | null;
   envelopeId: string;
@@ -338,12 +344,17 @@ async function confirm(): Promise<void> {
 }
 
 const sheetLines = computed(() =>
-  (preview.value?.lines ?? []).map((line) => ({
-    ...line,
-    name: lineLabel(line),
-    envelopeType: envelopeTypes.value.get(line.envelopeId),
-    error: lineErrors.value[lineKey(line)],
-  })),
+  (preview.value?.lines ?? []).map((line) => {
+    const owner = envelopeOwners.value.get(line.envelopeId);
+    // exactOptionalPropertyTypes: the owner key only appears when known.
+    return {
+      ...line,
+      name: lineLabel(line),
+      envelopeType: envelopeTypes.value.get(line.envelopeId),
+      ...(owner !== undefined ? { owner } : {}),
+      error: lineErrors.value[lineKey(line)],
+    };
+  }),
 );
 
 watch(
