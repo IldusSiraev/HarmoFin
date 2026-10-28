@@ -15,6 +15,8 @@ const rent: PlanCatalogEntry = {
   intervalMonths: null,
   scheduledOn: '2026-10-05',
   active: true,
+  owner: { userId: 'user-1', displayName: 'Алия', isActiveMember: true },
+  canEdit: true,
 };
 const gym: PlanCatalogEntry = {
   kind: 'obligation',
@@ -25,6 +27,8 @@ const gym: PlanCatalogEntry = {
   intervalMonths: null,
   scheduledOn: '2026-11-01',
   active: false,
+  owner: { userId: 'user-1', displayName: 'Алия', isActiveMember: true },
+  canEdit: true,
 };
 const salary: PlanCatalogEntry = {
   kind: 'income',
@@ -35,6 +39,21 @@ const salary: PlanCatalogEntry = {
   intervalMonths: 3,
   scheduledOn: '2026-12-10',
   active: true,
+  owner: { userId: 'user-1', displayName: 'Алия', isActiveMember: true },
+  canEdit: true,
+};
+// Owned by another member: the server says this user may not change it.
+const loan: PlanCatalogEntry = {
+  kind: 'obligation',
+  id: 'plan-4',
+  name: 'Кредит',
+  amountMinor: '2000000',
+  recurrence: 'MONTHLY',
+  intervalMonths: null,
+  scheduledOn: '2026-10-15',
+  active: true,
+  owner: { userId: 'user-2', displayName: 'Борис', isActiveMember: true },
+  canEdit: false,
 };
 const entries = [rent, gym, salary];
 
@@ -119,26 +138,36 @@ describe('PlanCatalog', () => {
     expect(wrapper.get('summary').text()).not.toContain('ошибка');
   });
 
-  it('hides edit and resume when canManage is false', () => {
-    const wrapper = mount(PlanCatalog, { props: { entries, canManage: false } });
+  it('hides edit and resume on a row the server marked canEdit false', () => {
+    const wrapper = mount(PlanCatalog, { props: { entries: [rent, loan] } });
 
-    expect(wrapper.find('[data-testid="catalog-edit-plan-1"]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="catalog-resume-plan-2"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="catalog-edit-plan-1"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="catalog-edit-plan-4"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="catalog-resume-plan-4"]').exists()).toBe(false);
   });
 
-  it('drops the actions column when canManage is false, instead of an empty gap', () => {
-    const wrapper = mount(PlanCatalog, { props: { entries, canManage: false } });
+  it('drops the actions column on a foreign row, instead of an empty gap', () => {
+    const wrapper = mount(PlanCatalog, { props: { entries: [rent, loan] } });
 
-    expect(wrapper.get('[data-testid="catalog-row-obligation-plan-1"]').classes()).toContain(
+    expect(wrapper.get('[data-testid="catalog-row-obligation-plan-4"]').classes()).toContain(
       'obligation-row--no-actions',
     );
-  });
-
-  it('keeps the actions column when canManage is true', () => {
-    const wrapper = mount(PlanCatalog, { props: { entries } });
-
     expect(wrapper.get('[data-testid="catalog-row-obligation-plan-1"]').classes()).not.toContain(
       'obligation-row--no-actions',
     );
+  });
+
+  it('shows owner captions only when the family has several members', () => {
+    const withOwner = mount(PlanCatalog, {
+      props: { entries: [rent, loan], showOwner: true, userId: 'user-1' },
+    });
+    expect(norm(withOwner.get('[data-testid="catalog-row-obligation-plan-1"]').text())).toContain(
+      'Владелец: Мой',
+    );
+    expect(norm(withOwner.get('[data-testid="catalog-row-obligation-plan-4"]').text())).toContain(
+      'Владелец: Борис',
+    );
+    const plain = mount(PlanCatalog, { props: { entries: [rent, loan] } });
+    expect(plain.text()).not.toContain('Владелец:');
   });
 });

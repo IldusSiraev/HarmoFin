@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { format } from 'date-fns';
 import { AlertTriangle, Plus } from '@lucide/vue';
 import { definePageMeta, useRoute } from '#imports';
@@ -31,6 +31,7 @@ import ObligationPaySheet, {
 import IncomeRecordSheet, {
   type IncomeRecordSubmit,
 } from '../../components/obligations/IncomeRecordSheet.vue';
+import OwnerFilter from '../../components/app/OwnerFilter.vue';
 import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiConfirmDialog from '../../components/ui/ConfirmDialog.vue';
@@ -46,6 +47,7 @@ import {
   useEnvelopePlanV2,
 } from '../../composables/useEnvelopePlanV2.js';
 import { useFundingEntry } from '../../composables/useFundingEntry.js';
+import { useOwnerFilter } from '../../composables/useOwnerFilter.js';
 import { usePermissions } from '../../composables/usePermissions.js';
 import { ApiRequestError } from '../../composables/useApiClient.js';
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
@@ -77,9 +79,10 @@ const confirmation = ref<null | { action: 'skip'; occurrenceId: string }>(null);
 const mutationKeys = new Map<string, string>();
 
 const { budget } = useActiveWorkspace();
-// Creating/editing a plan is OWNER-only on the server; paying, skipping and
-// recording income need OWNER or EDITOR.
-const { canManage, canWrite } = usePermissions();
+// Создание плана — право роли (OWNER/EDITOR); действия по конкретному плану
+// показывает серверный флаг canEdit: план принадлежит его владельцу.
+const { canCreate, userId } = usePermissions();
+const ownerFilter = useOwnerFilter();
 // Every status, remainder and total comes from the server calendar DTO.
 const monthKey = ref(format(new Date(), 'yyyy-MM'));
 const monthAnchor = computed(() => `${monthKey.value}-01`);
@@ -257,9 +260,10 @@ async function loadPage(withReference = false): Promise<void> {
 async function loadPlans(): Promise<void> {
   if (!budget.value) return;
   const budgetId = budget.value.id;
+  const ownerUserId = ownerFilter.ownerUserId.value;
   const [obligations, incomes] = await Promise.allSettled([
-    v2.listObligationPlans(budgetId, 'all'),
-    v2.listIncomePlans(budgetId, 'all'),
+    v2.listObligationPlans(budgetId, 'all', ownerUserId),
+    v2.listIncomePlans(budgetId, 'all', ownerUserId),
   ]);
   if (obligations.status === 'fulfilled' && incomes.status === 'fulfilled') {
     catalog.value = toCatalogEntries(obligations.value.items, incomes.value.items);
@@ -275,7 +279,11 @@ async function loadCalendar(): Promise<void> {
   calendarLoading.value = true;
   calendarError.value = false;
   try {
-    const result = await v2.getPlansCalendar(budget.value.id, monthKey.value);
+    const result = await v2.getPlansCalendar(
+      budget.value.id,
+      monthKey.value,
+      ownerFilter.ownerUserId.value,
+    );
     if (request !== calendarRequest) return;
     calendar.value = result;
   } catch (exception) {
@@ -333,6 +341,17 @@ function retryCalendar() {
   void loadCalendar().catch(() => undefined);
   void loadFacts();
 }
+
+// Фильтр владельца — локальное состояние страницы: смена просто перезапрашивает
+// календарь и списки планов с ownerUserId.
+watch(
+  () => ownerFilter.mode.value,
+  () => {
+    if (!budget.value) return;
+    void loadCalendar().catch(() => undefined);
+    void loadPlans();
+  },
+);
 
 async function showOverdue() {
   listMode.value = 'upcoming';
@@ -705,13 +724,21 @@ function errorMessage(exception: unknown) {
       <template #title>Планы</template>
       <template #actions>
         <UiButton
-          v-if="canManage"
+          v-if="canCreate"
           data-testid="plan-add-obligation"
           @click="openPlanDialog('obligation')"
         >
           <Plus :size="16" aria-hidden="true" />
           Добавить платёж
         </UiButton>
+      </template>
+      <template #filters>
+        <OwnerFilter
+          v-if="ownerFilter.kind.value !== 'none'"
+          v-model="ownerFilter.mode.value"
+          :kind="ownerFilter.kind.value"
+          :options="ownerFilter.options.value"
+        />
       </template>
       <template #content>
         <p v-if="statusText" class="plans-page__status" role="status" data-testid="plans-status">
@@ -760,8 +787,9 @@ function errorMessage(exception: unknown) {
               :facts-loading="factsLoading"
               :facts-error="factsError"
               :busy="pending"
-              :can-manage="canManage"
-              :can-write="canWrite"
+              :can-create="canCreate"
+              :show-owner="ownerFilter.kind.value !== 'none'"
+              :user-id="userId"
               @add-plan="openPlanDialog('obligation', $event)"
               @pay="onPay"
               @skip="onSkip"
@@ -779,8 +807,9 @@ function errorMessage(exception: unknown) {
             :has-any-plans="(calendar?.totals.activePlanCount ?? 0) > 0"
             :busy="pending || payPending || incomePending"
             :linked-id="linkedOccurrenceId"
-            :can-manage="canManage"
-            :can-write="canWrite"
+            :can-create="canCreate"
+            :show-owner="ownerFilter.kind.value !== 'none'"
+            :user-id="userId"
             @pay="onPay"
             @skip="onSkip"
             @record-income="onRecordIncome"
@@ -791,7 +820,8 @@ function errorMessage(exception: unknown) {
             :entries="catalog"
             :load-failed="catalogLoadFailed"
             :busy="planEditPending"
-            :can-manage="canManage"
+            :show-owner="ownerFilter.kind.value !== 'none'"
+            :user-id="userId"
             @edit="openPlanEditFor"
             @resume="resumePlan"
           />

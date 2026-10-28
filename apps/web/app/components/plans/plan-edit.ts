@@ -1,5 +1,6 @@
 import type { ProblemDetails } from '../../composables/useApiClient.js';
 import type {
+  PersonRef,
   PlanRecurrenceV2,
   PlanResponse,
   UpdatePlanRequest,
@@ -20,6 +21,9 @@ export interface PlanCatalogEntry {
   intervalMonths: number | null;
   scheduledOn: string;
   active: boolean;
+  /** Владелец плана; действия показывает только canEdit. */
+  owner: PersonRef;
+  canEdit: boolean;
 }
 
 export interface PlanEditModel {
@@ -127,6 +131,8 @@ function toEntry(plan: PlanResponse, kind: PlanKind): PlanCatalogEntry {
     intervalMonths: plan.intervalMonths,
     scheduledOn: plan.scheduledOn,
     active: plan.status === 'ACTIVE',
+    owner: plan.owner,
+    canEdit: plan.canEdit,
   };
 }
 

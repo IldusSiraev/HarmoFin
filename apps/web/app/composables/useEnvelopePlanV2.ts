@@ -597,6 +597,9 @@ export interface PlanResponse {
   categoryId: string | null;
   comment: string | null;
   status: string;
+  /** План принадлежит этому участнику; редактировать может только владелец. */
+  owner: PersonRef;
+  canEdit: boolean;
 }
 
 export interface UpdatePlanRequest {
@@ -711,6 +714,9 @@ export interface PlansCalendarItem {
   factOn: string | null;
   factMinor: string | null;
   factTransactionIds: string[];
+  /** Владелец связанного плана и право текущего участника управлять им. */
+  owner: PersonRef;
+  canEdit: boolean;
 }
 
 export interface PlansCalendarTotals {
@@ -729,6 +735,25 @@ export interface PlansCalendarResponse {
   overdueCount: number;
   totals: PlansCalendarTotals;
 }
+
+// Raw calendar owner arrives as `id`; the client-wide PersonRef names it `userId`.
+type RawPlansCalendarItem = Omit<PlansCalendarItem, 'owner'> & {
+  owner: { id: string; displayName: string | null; isActiveMember: boolean };
+};
+
+type RawPlansCalendarResponse = Omit<PlansCalendarResponse, 'items' | 'overdue'> & {
+  items: RawPlansCalendarItem[];
+  overdue: RawPlansCalendarItem[];
+};
+
+const toPlansCalendarItem = ({ owner, ...item }: RawPlansCalendarItem): PlansCalendarItem => ({
+  ...item,
+  owner: {
+    userId: owner.id,
+    displayName: owner.displayName,
+    isActiveMember: owner.isActiveMember,
+  },
+});
 
 export interface RecordIncomeOccurrenceRequest {
   accountId: string;
@@ -1227,8 +1252,16 @@ export function useEnvelopePlanV2() {
           limit: filter.limit === undefined ? undefined : String(filter.limit),
         })}`,
       ),
-    getPlansCalendar: (budgetId: string, month: string) =>
-      get<PlansCalendarResponse>(`${base(budgetId)}/plans/calendar${query({ month })}`),
+    getPlansCalendar: async (budgetId: string, month: string, ownerUserId?: string) => {
+      const response = await get<RawPlansCalendarResponse>(
+        `${base(budgetId)}/plans/calendar${query({ month, ownerUserId })}`,
+      );
+      return {
+        ...response,
+        items: response.items.map(toPlansCalendarItem),
+        overdue: response.overdue.map(toPlansCalendarItem),
+      };
+    },
     getTransaction: (budgetId: string, transactionId: string) =>
       get<TransactionJournalV2Item>(
         `${base(budgetId)}/transactions/${encodeURIComponent(transactionId)}`,
@@ -1282,9 +1315,9 @@ export function useEnvelopePlanV2() {
         {},
         idempotencyKey,
       ),
-    listObligationPlans: (budgetId: string, status?: PlanListStatus) =>
+    listObligationPlans: (budgetId: string, status?: PlanListStatus, ownerUserId?: string) =>
       get<{ items: ObligationPlanResponse[] }>(
-        `${base(budgetId)}/obligations/plans${query({ status })}`,
+        `${base(budgetId)}/obligations/plans${query({ status, ownerUserId })}`,
       ),
     createObligationPlan: (budgetId: string, input: CreatePlanRequest, idempotencyKey: string) =>
       postKeyed<ObligationPlanCreateResponse>(
@@ -1302,8 +1335,10 @@ export function useEnvelopePlanV2() {
         input,
         idempotencyKey,
       ),
-    listIncomePlans: (budgetId: string, status?: PlanListStatus) =>
-      get<{ items: PlanResponse[] }>(`${base(budgetId)}/income-plans${query({ status })}`),
+    listIncomePlans: (budgetId: string, status?: PlanListStatus, ownerUserId?: string) =>
+      get<{ items: PlanResponse[] }>(
+        `${base(budgetId)}/income-plans${query({ status, ownerUserId })}`,
+      ),
     createIncomePlan: (budgetId: string, input: CreatePlanRequest, idempotencyKey: string) =>
       postKeyed<PlanCreateResponse>(`${base(budgetId)}/income-plans`, input, idempotencyKey),
     updateObligationPlan: (

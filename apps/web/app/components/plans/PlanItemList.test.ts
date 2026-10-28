@@ -20,6 +20,8 @@ const base: PlansCalendarItem = {
   factOn: null,
   factMinor: null,
   factTransactionIds: [],
+  owner: { userId: 'user-1', displayName: 'Алия', isActiveMember: true },
+  canEdit: true,
 };
 const daycare: PlansCalendarItem = {
   ...base,
@@ -271,18 +273,75 @@ describe('PlanItemList', () => {
     }
   });
 
-  it('hides edit when canManage is false', () => {
-    const wrapper = mountList({ canManage: false });
-
-    expect(wrapper.find('[data-testid="obligation-edit-occ-rent"]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="income-edit-inc-occ"]').exists()).toBe(false);
-  });
-
-  it('hides pay, skip and record-income when canWrite is false', () => {
-    const wrapper = mountList({ canWrite: false });
+  it('hides pay, skip, record-income and edit on items the server marked canEdit false', () => {
+    const foreignRent = {
+      ...rent,
+      canEdit: false,
+      owner: { userId: 'user-2', displayName: 'Борис', isActiveMember: true },
+    };
+    const foreignSalary = {
+      ...salary,
+      canEdit: false,
+      owner: { userId: 'user-2', displayName: 'Борис', isActiveMember: true },
+    };
+    const wrapper = mountList({ items: [foreignRent, foreignSalary], overdue: [] });
 
     expect(wrapper.find('[data-testid="obligation-pay-occ-rent"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="obligation-skip-occ-rent"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="income-record-inc-occ"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="obligation-edit-occ-rent"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="income-edit-inc-occ"]').exists()).toBe(false);
+    // Same as the catalog: without actions the row drops the actions column
+    // instead of leaving a dead empty gap.
+    expect(wrapper.get('[data-testid="obligation-row-occ-rent"]').classes()).toContain(
+      'obligation-row--no-actions',
+    );
+    expect(wrapper.get('[data-testid="income-row-inc-occ"]').classes()).toContain(
+      'obligation-row--no-actions',
+    );
+  });
+
+  it('keeps actions row by row: only the foreign row loses them', () => {
+    const foreignRent = { ...rent, canEdit: false };
+    const wrapper = mountList({ mode: 'all', items: [foreignRent, salary], overdue: [] });
+
+    expect(wrapper.find('[data-testid="obligation-edit-occ-rent"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="income-edit-inc-occ"]').exists()).toBe(true);
+    expect(wrapper.get('[data-testid="obligation-row-occ-rent"]').classes()).toContain(
+      'obligation-row--no-actions',
+    );
+    expect(wrapper.get('[data-testid="income-row-inc-occ"]').classes()).not.toContain(
+      'obligation-row--no-actions',
+    );
+  });
+
+  it('shows owner captions only when the family has several members', () => {
+    const foreignSalary = {
+      ...salary,
+      owner: { userId: 'user-2', displayName: 'Борис', isActiveMember: true },
+    };
+    const wrapper = mountList({
+      items: [rent, foreignSalary],
+      overdue: [],
+      showOwner: true,
+      userId: 'user-1',
+    });
+    expect(wrapper.get('[data-testid="obligation-row-occ-rent"]').text()).toContain(
+      'Владелец: Мой',
+    );
+    expect(wrapper.get('[data-testid="income-row-inc-occ"]').text()).toContain('Владелец: Борис');
+    const plain = mountList({ items: [rent, foreignSalary], overdue: [] });
+    expect(plain.text()).not.toContain('Владелец:');
+  });
+
+  it('hides the add-plan buttons of the empty state when canCreate is false', () => {
+    const wrapper = mountList({
+      items: [],
+      overdue: [],
+      hasAnyPlans: false,
+      canCreate: false,
+    });
+    expect(wrapper.find('[data-testid="plan-add-obligation-empty"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="plan-add-income-empty"]').exists()).toBe(false);
   });
 });

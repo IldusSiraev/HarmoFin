@@ -16,6 +16,7 @@ import type {
   PlansCalendarItem,
   TransactionJournalV2Item,
 } from '../../composables/useEnvelopePlanV2.js';
+import { ownerLabel } from '../app/owner-label.js';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiButton from '../ui/Button.vue';
 
@@ -30,12 +31,21 @@ const props = withDefaults(
     factsLoading?: boolean;
     factsError?: boolean;
     busy?: boolean;
-    // Creating/editing a plan is OWNER-only on the server; paying, skipping
-    // and recording income need OWNER or EDITOR.
-    canManage?: boolean;
-    canWrite?: boolean;
+    // Создание плана — право роли; действия по конкретному плану показывает
+    // серверный флаг item.canEdit: план принадлежит его владельцу.
+    canCreate?: boolean;
+    // Подпись владельца нужна, пока в семье больше одного участника.
+    showOwner?: boolean;
+    userId?: string | null;
   }>(),
-  { factsLoading: false, factsError: false, busy: false, canManage: true, canWrite: true },
+  {
+    factsLoading: false,
+    factsError: false,
+    busy: false,
+    canCreate: true,
+    showOwner: false,
+    userId: null,
+  },
 );
 
 const emit = defineEmits<{
@@ -97,7 +107,7 @@ const isEmpty = computed(
     <header class="day-panel__header">
       <h2 class="day-panel__title">{{ title }}</h2>
       <UiButton
-        v-if="canManage"
+        v-if="canCreate"
         variant="secondary"
         size="sm"
         data-testid="plan-add-for-day"
@@ -136,6 +146,9 @@ const isEmpty = computed(
               <AlertTriangle :size="14" aria-hidden="true" />
               Просрочено
             </span>
+            <span v-if="showOwner" class="day-panel__muted">
+              Владелец: {{ ownerLabel(item.owner, userId ?? null) }}
+            </span>
           </div>
           <div class="day-panel__amounts">
             <FinanceMoney
@@ -153,7 +166,7 @@ const isEmpty = computed(
           </div>
           <div class="day-panel__actions" :data-testid="`day-actions-${item.occurrenceId}`">
             <UiButton
-              v-if="canManage"
+              v-if="item.canEdit"
               variant="tertiary"
               size="sm"
               class="day-panel__icon-btn"
@@ -165,7 +178,7 @@ const isEmpty = computed(
             >
               <Pencil :size="16" aria-hidden="true" />
             </UiButton>
-            <template v-if="isOpen(item) && item.kind === 'OBLIGATION' && canWrite">
+            <template v-if="isOpen(item) && item.kind === 'OBLIGATION' && item.canEdit">
               <UiButton
                 variant="tertiary"
                 size="sm"
@@ -193,7 +206,7 @@ const isEmpty = computed(
               </UiButton>
             </template>
             <UiButton
-              v-else-if="isOpen(item) && canWrite"
+              v-else-if="isOpen(item) && item.canEdit"
               variant="tertiary"
               size="sm"
               class="day-panel__icon-btn"

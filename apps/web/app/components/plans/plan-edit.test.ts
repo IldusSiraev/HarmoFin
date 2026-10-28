@@ -27,6 +27,8 @@ function entry(overrides: Partial<PlanCatalogEntry> = {}): PlanCatalogEntry {
     intervalMonths: null,
     scheduledOn: '2026-10-05',
     active: true,
+    owner: { userId: 'user-1', displayName: 'Алия', isActiveMember: true },
+    canEdit: true,
     ...overrides,
   };
 }
@@ -169,6 +171,8 @@ describe('toCatalogEntries', () => {
     categoryId: 'c',
     comment: null,
     status,
+    owner: { userId: 'user-1', displayName: 'Алия', isActiveMember: true },
+    canEdit: true,
   });
 
   it('merges both kinds, active plans first, order otherwise kept', () => {
@@ -182,6 +186,26 @@ describe('toCatalogEntries', () => {
       ['obligation', 'o-stopped', false],
     ]);
     expect(entries[0]).toMatchObject({ amountMinor: '100', recurrence: 'MONTHLY' });
+    // Owner and the server-side edit right travel with every entry.
+    expect(entries[0]?.owner).toEqual({
+      userId: 'user-1',
+      displayName: 'Алия',
+      isActiveMember: true,
+    });
+    expect(entries.map((item) => item.canEdit)).toEqual([true, true, true]);
+  });
+
+  it('carries a foreign owner and a missing edit right into the entry', () => {
+    const foreign = {
+      ...plan('o-foreign', 'ACTIVE', 'EXPENSE'),
+      canEdit: false,
+      owner: { userId: 'user-2', displayName: 'Борис', isActiveMember: true },
+    };
+    const [first] = toCatalogEntries([foreign], []);
+    expect(first).toMatchObject({
+      canEdit: false,
+      owner: { userId: 'user-2', displayName: 'Борис' },
+    });
   });
 });
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { UserMinus, UserPlus, UserX } from '@lucide/vue';
+import { UserMinus, UserPlus, Users, UserX } from '@lucide/vue';
 import type { Component } from 'vue';
 
 import type {
@@ -16,6 +16,7 @@ const MEMBER_EVENT_ICONS: Partial<Record<NotificationType, Component>> = {
   MEMBER_JOINED: UserPlus,
   MEMBER_LEFT: UserMinus,
   MEMBER_REMOVED: UserX,
+  OBJECTS_TRANSFERRED: Users,
 };
 
 function stateText() {
@@ -42,6 +43,13 @@ function memberEventIcon(): Component | null {
       />
       {{ notification.title }}
     </h2>
+    <p
+      v-if="memberEventIcon()"
+      class="notification-card__type"
+      data-testid="notification-type-caption"
+    >
+      Семья
+    </p>
     <p>{{ notification.body }}</p>
     <NuxtLink
       v-if="notification.actionPath"

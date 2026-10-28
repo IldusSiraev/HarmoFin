@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { CirclePause, CirclePlay } from '@lucide/vue';
 
+import { ownerLabel } from '../app/owner-label.js';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiButton from '../ui/Button.vue';
 import { recurrenceLabel, type PlanCatalogEntry } from './plan-edit.js';
@@ -12,10 +13,13 @@ withDefaults(
     entries: PlanCatalogEntry[];
     loadFailed?: boolean;
     busy?: boolean;
-    // Editing/resuming a plan is OWNER-only on the server.
-    canManage?: boolean;
+    // Изменить/возобновить план может только его владелец — серверный
+    // флаг entry.canEdit.
+    // Подпись владельца нужна, пока в семье больше одного участника.
+    showOwner?: boolean;
+    userId?: string | null;
   }>(),
-  { loadFailed: false, busy: false, canManage: true },
+  { loadFailed: false, busy: false, showOwner: false, userId: null },
 );
 
 const emit = defineEmits<{
@@ -41,7 +45,7 @@ const emit = defineEmits<{
         v-for="entry in entries"
         :key="`${entry.kind}-${entry.id}`"
         class="obligation-row"
-        :class="{ 'obligation-row--no-actions': !canManage }"
+        :class="{ 'obligation-row--no-actions': !entry.canEdit }"
         :data-testid="`catalog-row-${entry.kind}-${entry.id}`"
       >
         <div class="obligation-row__main">
@@ -55,11 +59,14 @@ const emit = defineEmits<{
             <CirclePause v-else :size="14" aria-hidden="true" />
             {{ entry.active ? 'Активен' : 'Остановлен' }}
           </span>
+          <span v-if="showOwner" class="obligation-row__meta">
+            Владелец: {{ ownerLabel(entry.owner, userId ?? null) }}
+          </span>
         </div>
         <div class="obligation-row__amounts">
           <FinanceMoney :minor-units="entry.amountMinor" currency="RUB" :scale="2" />
         </div>
-        <div v-if="canManage" class="obligation-row__actions">
+        <div v-if="entry.canEdit" class="obligation-row__actions">
           <UiButton
             v-if="entry.active"
             variant="secondary"

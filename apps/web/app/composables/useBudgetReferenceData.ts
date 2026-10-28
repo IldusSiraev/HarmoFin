@@ -117,7 +117,8 @@ export type NotificationType =
   | 'INSUFFICIENT_MANDATORY_OBLIGATIONS'
   | 'MEMBER_JOINED'
   | 'MEMBER_LEFT'
-  | 'MEMBER_REMOVED';
+  | 'MEMBER_REMOVED'
+  | 'OBJECTS_TRANSFERRED';
 
 export interface NotificationDto {
   id: string;

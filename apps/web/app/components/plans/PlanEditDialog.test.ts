@@ -13,6 +13,8 @@ const rent: PlanCatalogEntry = {
   intervalMonths: null,
   scheduledOn: '2026-10-05',
   active: true,
+  owner: { userId: 'user-1', displayName: null, isActiveMember: true },
+  canEdit: true,
 };
 const salary: PlanCatalogEntry = { ...rent, kind: 'income', id: 'plan-2', name: 'Зарплата' };
 
