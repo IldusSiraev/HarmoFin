@@ -125,7 +125,7 @@ E2E: `e2e/family-ownership.spec.ts`.
 - Produces: `Account.ownerUserId: string`, `Envelope.ownerUserId: string`, `RegularPlan.ownerUserId: string`, `EnvelopeAssignment.createdByUserId: string`, `EnvelopeMovement.createdByUserId: string` (все `NOT NULL`, FK на `users`); `NotificationType.OBJECTS_TRANSFERRED`; индексы `(budget_id, owner_user_id)`.
 - Produces: `AccountCreateData.ownerUserId`, параметр `ownerUserId` у `createEnvelope` (оба репозитория), `createdByUserId` у создания плана, `actorUserId` уже есть в `AssignmentCreateParams`/параметрах `createMovement` — он же пишется в `createdByUserId`.
 
-- [ ] **Step 1: Написать падающий тест схемы**
+- [x] **Step 1: Написать падающий тест схемы**
 
 ```ts
 // apps/api/test/family-ownership-schema.integration.test.ts
@@ -209,12 +209,12 @@ describe('family object ownership schema', () => {
 });
 ```
 
-- [ ] **Step 2: Запустить и убедиться, что тест падает**
+- [x] **Step 2: Запустить и убедиться, что тест падает**
 
 Run: `pnpm --filter @harmofin/api exec vitest run --config vitest.integration.config.ts test/family-ownership-schema.integration.test.ts`
 Expected: FAIL — колонок `owner_user_id` нет. (Если имя пакета другое — взять из `apps/api/package.json`.)
 
-- [ ] **Step 3: Миграция**
+- [x] **Step 3: Миграция**
 
 ```sql
 -- prisma/migrations/20261026000000_family_object_ownership/migration.sql
@@ -328,7 +328,7 @@ CREATE INDEX "regular_plans_budget_id_owner_user_id_idx" ON "regular_plans"("bud
 
 `ALTER TYPE … ADD VALUE` нельзя использовать в той же транзакции, где новое значение читается; здесь оно только добавляется — так же сделано в миграции этапа A для `MEMBER_*`. Проверить, что `prisma migrate` применяет файл без ошибки.
 
-- [ ] **Step 4: Схема Prisma**
+- [x] **Step 4: Схема Prisma**
 
 В `prisma/schema.prisma`:
 
@@ -382,7 +382,7 @@ model EnvelopeMovement {
 
 Run: `pnpm db:generate`. Затем `pnpm db:migrate` (не `db:migrate:dev`; локальная БД разработки уже содержит миграции этапа A).
 
-- [ ] **Step 5: Владелец и автор во всех точках создания**
+- [x] **Step 5: Владелец и автор во всех точках создания**
 
 Точки создания (полный список по `grep -rn "\.account\.create\|\.envelope\.create\|\.regularPlan\.create\|\.envelopeAssignment\.create\|\.envelopeMovement\.create" apps/api/src`):
 
@@ -395,7 +395,7 @@ Run: `pnpm db:generate`. Затем `pnpm db:migrate` (не `db:migrate:dev`; л
 
 Run: `pnpm --filter @harmofin/api typecheck` — ошибок в `src` быть не должно (тестовые фикстуры исправляются в следующем шаге).
 
-- [ ] **Step 6: Обновить фикстуры тестов и seed**
+- [x] **Step 6: Обновить фикстуры тестов и seed**
 
 Run: `pnpm --filter @harmofin/api typecheck 2>&1 | grep "test/"` — список фикстур без нового обязательного поля.
 
@@ -416,7 +416,7 @@ await prisma.account.create({
 
 Только механическая подстановка; поведение тестов не менять.
 
-- [ ] **Step 7: Проверки**
+- [x] **Step 7: Проверки**
 
 Run:
 - `pnpm --filter @harmofin/api typecheck` — PASS.
@@ -424,7 +424,7 @@ Run:
 - `pnpm test:integration` — PASS целиком (это главный сигнал, что фикстуры и точки создания согласованы).
 - `pnpm lint` — PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add prisma/schema.prisma prisma/migrations/20261026000000_family_object_ownership apps/api/src apps/api/test prisma/seed
@@ -456,7 +456,7 @@ git commit -m "feat(db): владелец счетов, конвертов и п
   - `class PersonRefResponse` (OpenAPI).
   - Тестовый стенд `FamilyTestApp` (см. Step 6).
 
-- [ ] **Step 1: Падающий табличный тест политики**
+- [x] **Step 1: Падающий табличный тест политики**
 
 ```ts
 // apps/api/src/common/policies/budget-access.policy.test.ts
@@ -570,7 +570,7 @@ describe('BudgetAccessPolicy require*', () => {
 Run: `pnpm --filter @harmofin/api exec vitest run src/common/policies/budget-access.policy.test.ts`
 Expected: FAIL — модуля нет.
 
-- [ ] **Step 2: Ошибки и политика**
+- [x] **Step 2: Ошибки и политика**
 
 ```ts
 // apps/api/src/common/policies/access.errors.ts
@@ -729,7 +729,7 @@ export class BudgetAccessPolicy {
 
 Run unit test — PASS. Policy is stateless: сервисы создают её как поле `private readonly access = new BudgetAccessPolicy();` (так же, как сейчас `RolePolicy`), DI-регистрация не нужна.
 
-- [ ] **Step 3: Участник в транзакции**
+- [x] **Step 3: Участник в транзакции**
 
 ```ts
 // apps/api/src/common/policies/access-actor.repository.ts
@@ -765,7 +765,7 @@ export async function requireAccessActor(
 }
 ```
 
-- [ ] **Step 4: Общие ссылки на людей (перенос `findAuthors`)**
+- [x] **Step 4: Общие ссылки на людей (перенос `findAuthors`)**
 
 ```ts
 // apps/api/src/common/people/person-ref.repository.ts
@@ -822,7 +822,7 @@ export class PersonRefResponse {
 
 Если `@ApiSchema` нет в установленной версии `@nestjs/swagger`, оставить имя класса `AuthorRefResponse` в новом файле. Журнал: `findAuthors(budgetId, ids)` заменить на `findPersonRefs(this.prisma, workspaceId, ids)`; `workspaceId` журнал уже получает из бюджета (`budget.workspace`) — если нет, выбрать `workspaceId` в существующем запросе бюджета. `authorOf` → `personRefOf`. Поведение журнала не меняется — `v2-journal.integration.test.ts` должен пройти без правок.
 
-- [ ] **Step 5: Тест участника**
+- [x] **Step 5: Тест участника**
 
 ```ts
 // apps/api/test/family-access-actor.integration.test.ts
@@ -875,7 +875,7 @@ describe('findAccessActor', () => {
 });
 ```
 
-- [ ] **Step 6: Тестовый стенд `FamilyTestApp`**
+- [x] **Step 6: Тестовый стенд `FamilyTestApp`**
 
 Взять конфигурацию приложения, `register`, `addMember`, `inject` и очистку из `apps/api/test/family-members.integration.test.ts` (этап A) и собрать в класс. Очистка дополнительно удаляет в порядке FK: `envelope_movements`, `envelope_assignments`, `plan_payments`, `plan_occurrences`, `regular_plans`, `transfer_parts`, `transfers`, `transactions`, `envelope_funding_rules`, `envelope_periods`, затем то, что удаляет этап A. Если для какой-то таблицы есть готовый пример очистки в `v2-assignments.integration.test.ts` или `v2-obligations.integration.test.ts` — повторить его.
 
@@ -1114,14 +1114,14 @@ export class FamilyTestApp {
 
 Важно: на этапе B `EDITOR` впервые создаёт счета и конверты через API (до задач 3–4 это даёт 403). Поэтому тест задачи 2 использует только `findAccessActor`; `createAccount`/`createEnvelope` от имени `EDITOR` начинают работать после задач 3 и 4.
 
-- [ ] **Step 7: Проверки**
+- [x] **Step 7: Проверки**
 
 Run:
 - `pnpm --filter @harmofin/api exec vitest run src/common/policies` — PASS.
 - `pnpm --filter @harmofin/api exec vitest run --config vitest.integration.config.ts test/family-access-actor.integration.test.ts test/v2-journal.integration.test.ts test/v2-openapi.integration.test.ts` — PASS.
 - `pnpm --filter @harmofin/api typecheck` и `pnpm lint` — PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/api/src/common/policies apps/api/src/common/people apps/api/src/v2-journal apps/api/test/helpers/family-app.ts apps/api/test/family-access-actor.integration.test.ts
@@ -1146,7 +1146,7 @@ git commit -m "feat(api): политика доступа семьи и общи
   - `GET budgets/:budgetId/accounts?status=…&ownerUserId=<uuid>`; `summary` принимает тот же фильтр.
   - Ошибка `NOT_OBJECT_OWNER` на `PATCH`, `archive`, `restore` чужого счёта.
 
-- [ ] **Step 1: Падающий integration-тест**
+- [x] **Step 1: Падающий integration-тест**
 
 ```ts
 // apps/api/test/family-accounts-ownership.integration.test.ts
@@ -1258,7 +1258,7 @@ describe('account ownership', () => {
 Run: `pnpm --filter @harmofin/api exec vitest run --config vitest.integration.config.ts test/family-accounts-ownership.integration.test.ts`
 Expected: FAIL (editor gets 403 on create, no `owner`/`canEdit`).
 
-- [ ] **Step 2: Репозиторий**
+- [x] **Step 2: Репозиторий**
 
 В `account.repository.ts`:
 1. `accountSelect` + `ownerUserId: true`; `AccountRecord` + `ownerUserId: string`.
@@ -1268,7 +1268,7 @@ Expected: FAIL (editor gets 403 on create, no `owner`/`canEdit`).
 5. `list(userId, budgetId, status, ownerUserId?: string)` — `where` дополняется `...(ownerUserId ? { ownerUserId } : {})`.
 6. `auditValues` + `ownerUserId`.
 
-- [ ] **Step 3: Сервис**
+- [x] **Step 3: Сервис**
 
 ```ts
 // account.application.service.ts — the parts that change
@@ -1343,21 +1343,21 @@ private async toViews(
 
 `createData(budgetId, ownerUserId, input, allow)` — второй параметр добавлен в задаче 1.
 
-- [ ] **Step 4: Контроллер, схемы, DTO**
+- [x] **Step 4: Контроллер, схемы, DTO**
 
 - `account.schemas.ts`: `listAccountsQuerySchema` (если есть, иначе схема query в контроллере) + `ownerUserId: z.string().uuid().optional()`.
 - `account.controller.ts`: `list` и `summary` принимают `ownerUserId` (`@ApiQuery({ name: 'ownerUserId', required: false, type: String, format: 'uuid' })`), передают в сервис.
 - `account.dto.ts` `AccountResponse`: `@ApiProperty({ type: PersonRefResponse }) owner!: PersonRefResponse;` и `@ApiProperty({ type: Boolean, description: 'Подсказка для интерфейса: текущий пользователь может изменять счёт. Право проверяет сервер.' }) canEdit!: boolean;`. В описание 403 у `PATCH`/`archive`/`restore` добавить коды `FORBIDDEN`, `NOT_OBJECT_OWNER` (`@ApiResponse({ status: 403, type: ProblemDetailsResponse, description: 'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — счёт принадлежит другому участнику.' })`).
 - `account.application.service.test.ts`: обновить моки под новую сигнатуру; добавить unit-кейс «update вызывает authorize до записи».
 
-- [ ] **Step 5: Проверки**
+- [x] **Step 5: Проверки**
 
 Run:
 - `pnpm --filter @harmofin/api exec vitest run src/accounts` — PASS.
 - `pnpm --filter @harmofin/api exec vitest run --config vitest.integration.config.ts test/family-accounts-ownership.integration.test.ts test/v2-accounts.integration.test.ts test/v2-openapi.integration.test.ts` — PASS. Если существующий тест проверяет «`EDITOR` не может создать счёт» — это поведение этапа A, оно меняется намеренно: тест переписать на `VIEWER`.
 - `pnpm --filter @harmofin/api typecheck`, `pnpm lint` — PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/api/src/accounts apps/api/test/family-accounts-ownership.integration.test.ts apps/api/test/v2-accounts.integration.test.ts
@@ -1388,7 +1388,7 @@ git commit -m "feat(api): владелец счёта и права на изм�
   - `FORBIDDEN` для не-`OWNER` на `PUT income-category-suggestion` и при изменении `incomeSuggestion` в `PUT funding-rules`.
   - `export function changedRuleEnvelopeIds(existing, desired): string[]` в `envelope-plans/funding-rules-diff.ts`.
 
-- [ ] **Step 1: Падающие тесты**
+- [x] **Step 1: Падающие тесты**
 
 ```ts
 // apps/api/test/family-envelopes-ownership.integration.test.ts
@@ -1512,12 +1512,12 @@ describe('changedRuleEnvelopeIds', () => {
 Run: `pnpm --filter @harmofin/api exec vitest run src/envelope-plans/funding-rules-diff.test.ts` и `pnpm --filter @harmofin/api exec vitest run --config vitest.integration.config.ts test/family-envelopes-ownership.integration.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 2: Репозиторий конвертов**
+- [x] **Step 2: Репозиторий конвертов**
 
 - `ENVELOPE_SELECT` + `ownerUserId: true`; `EnvelopePlanRecord` + `ownerUserId: string`; `auditValues` + `ownerUserId`.
 - Метод списка конвертов (его вызывает `EnvelopePlanApplicationService.list`) принимает `ownerUserId?: string` и добавляет `...(ownerUserId ? { ownerUserId } : {})` в `where`.
 
-- [ ] **Step 3: Сервис конвертов**
+- [x] **Step 3: Сервис конвертов**
 
 ```ts
 // envelope-plan.application.service.ts — the parts that change
@@ -1568,7 +1568,7 @@ private async bodies(
 
 `create`, `update`, `archive`, `list`, `get` возвращают тела через `bodies(…)`; тип `totals` взять из `totalsByEnvelope`. `requireManageRole` удалить, импорт `forbidden` убрать, если больше не нужен. `list` принимает `ownerUserId?: string` и передаёт в репозиторий.
 
-- [ ] **Step 4: Цели периодов и правило конверта**
+- [x] **Step 4: Цели периодов и правило конверта**
 
 В `period-target.application.service.ts` поле `access`; `requireManageRole` удалить:
 - `putFundingRule(…, envelopeId, …)` и `putPeriodTarget(…, envelopeId, …)`: внутри idempotency —
@@ -1582,7 +1582,7 @@ this.access.requireObjectOwner(actor, envelope);
 (`this.envelopes` — экземпляр `EnvelopePlanRepository`; если в сервисе его нет, добавить поле `private readonly envelopes = new EnvelopePlanRepository();`.)
 - `decideTarget(periodId)`: период читается с фильтром `budgetId` (как сейчас); затем `findEnvelope(tx, budgetId, period.envelopeId)` → `requireObjectOwner`.
 
-- [ ] **Step 5: Пакет правил и предложение по категории дохода**
+- [x] **Step 5: Пакет правил и предложение по категории дохода**
 
 ```ts
 // apps/api/src/envelope-plans/funding-rules-diff.ts
@@ -1643,20 +1643,20 @@ if (
 this.access.requireBudgetSettings(await requireAccessActor(tx, model.workspaceId, userId));
 ```
 
-- [ ] **Step 6: Контроллер, схемы, DTO**
+- [x] **Step 6: Контроллер, схемы, DTO**
 
 - `envelope-plan.schemas.ts`: query списка конвертов + `ownerUserId: z.string().uuid().optional()`.
 - `envelope-plan.controller.ts` `GET envelopes`: `@ApiQuery({ name: 'ownerUserId', required: false, type: String })`, передать в сервис.
 - `envelope-plan.dto.ts` `EnvelopePlanResponse`: `owner: PersonRefResponse`, `canEdit: boolean` (описание как у счетов). У изменяющих эндпоинтов описание 403: «`FORBIDDEN` — нет права записи; `NOT_OBJECT_OWNER` — конверт принадлежит другому участнику».
 
-- [ ] **Step 7: Проверки**
+- [x] **Step 7: Проверки**
 
 Run:
 - `pnpm --filter @harmofin/api exec vitest run src/envelope-plans src/funding` — PASS.
 - `pnpm --filter @harmofin/api exec vitest run --config vitest.integration.config.ts test/family-envelopes-ownership.integration.test.ts test/v2-envelopes.integration.test.ts test/v2-funding-rules.integration.test.ts test/v2-funding-rules-batch.integration.test.ts test/v2-openapi.integration.test.ts` — PASS. Тесты, где `EDITOR` ожидал 403 на создание конверта или правила, переписать на `VIEWER` (поведение меняется по дизайну).
 - `pnpm --filter @harmofin/api typecheck`, `pnpm lint` — PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/api/src/envelope-plans apps/api/src/funding/income-category-suggestion.application.service.ts apps/api/src/funding/income-category-suggestion.repository.ts apps/api/test
@@ -1685,7 +1685,7 @@ git commit -m "feat(api): владелец конверта, цели и пра�
   - `POST funding/preview`, `POST funding/confirm` — writer; `INCOME` — свой доход; строки `OPENING` — свои конверты; `confirmPeriodTargets` — периоды своих конвертов.
 - Финансовые формулы (защищённые деньги, `freeToAssign`, лимит дохода, остаток источника) **не меняются**; меняется только, кто может вызвать операцию.
 
-- [ ] **Step 1: Падающий integration-тест с финансовыми инвариантами**
+- [x] **Step 1: Падающий integration-тест с финансовыми инвариантами**
 
 ```ts
 // apps/api/test/family-allocations.integration.test.ts
@@ -1884,12 +1884,12 @@ describe('funding by rules', () => {
 Run: `pnpm --filter @harmofin/api exec vitest run --config vitest.integration.config.ts test/family-allocations.integration.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 2: Репозитории возвращают владельца и автора**
+- [x] **Step 2: Репозитории возвращают владельца и автора**
 
 - `assignment.repository.ts`: `requireIncome` — `select` + `createdByUserId`, `IncomeRecord` + `createdByUserId: string`; `requireEnvelope` — + `ownerUserId`; `lockAssignment` — результат + `createdByUserId`.
 - `movement.repository.ts`: метод, который читает исходный конверт в `move`, — + `ownerUserId`.
 
-- [ ] **Step 3: Сервис распределений**
+- [x] **Step 3: Сервис распределений**
 
 В `assignment.application.service.ts`: поле `private readonly access = new BudgetAccessPolicy();` вместо `rolePolicy`. Внутри idempotency-колбэков на месте блока `membership … canManage … forbidden()`:
 
@@ -1912,7 +1912,7 @@ this.access.requireOperationAuthor(actor, locked);
 
 Остальной код методов не меняется. Неиспользуемые импорты (`RolePolicy`, `forbidden`) убрать.
 
-- [ ] **Step 4: Перемещения**
+- [x] **Step 4: Перемещения**
 
 `movement.application.service.ts`, вместо блока `membership … canManage`:
 
@@ -1921,7 +1921,7 @@ const actor = await requireAccessActor(tx, model.workspaceId, userId);
 this.access.requireObjectOwner(actor, sourceEnvelope);
 ```
 
-- [ ] **Step 5: Наполнение по правилам**
+- [x] **Step 5: Наполнение по правилам**
 
 `funding-preview.application.service.ts` — две проверки (`early` вне транзакции и `role` внутри):
 
@@ -1967,18 +1967,18 @@ if (guardedEnvelopeIds.size > 0) {
 }
 ```
 
-- [ ] **Step 6: OpenAPI**
+- [x] **Step 6: OpenAPI**
 
 Описания 403 у `POST assignments`, `PATCH/DELETE assignments/:id`, `POST movements`, `POST funding/preview`, `POST funding/confirm` перечисляют применимые коды: `FORBIDDEN`, `NOT_INCOME_AUTHOR`, `NOT_OBJECT_OWNER`, `NOT_OPERATION_AUTHOR`.
 
-- [ ] **Step 7: Проверки**
+- [x] **Step 7: Проверки**
 
 Run:
 - `pnpm --filter @harmofin/api exec vitest run src/envelope-plans src/funding` — PASS.
 - `pnpm --filter @harmofin/api exec vitest run --config vitest.integration.config.ts test/family-allocations.integration.test.ts test/v2-assignments.integration.test.ts test/v2-movements.integration.test.ts test/v2-funding-preview.integration.test.ts test/v2-funding-confirm.integration.test.ts test/v2-ledger.integration.test.ts test/v2-openapi.integration.test.ts` — PASS. Тесты, где `EDITOR` получал 403 на распределение, переписать: `EDITOR` со своим доходом — 201, с чужим — `NOT_INCOME_AUTHOR`, `VIEWER` — 403 `FORBIDDEN`.
 - `pnpm --filter @harmofin/api typecheck`, `pnpm lint` — PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/api/src/envelope-plans apps/api/src/funding apps/api/test
@@ -2006,7 +2006,7 @@ git commit -m "feat(api): правила распределения и пере�
   - `GET transactions/:id`, `GET transfers/:id` + `createdBy: PersonRef` (отклонение 12).
   - Удалённые операции видят все writer (отклонение 7).
 
-- [ ] **Step 1: Падающий integration-тест**
+- [x] **Step 1: Падающий integration-тест**
 
 ```ts
 // apps/api/test/family-operations.integration.test.ts
@@ -2169,7 +2169,7 @@ describe('transfers', () => {
 Run: `pnpm --filter @harmofin/api exec vitest run --config vitest.integration.config.ts test/family-operations.integration.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 2: Операции**
+- [x] **Step 2: Операции**
 
 В `transaction-v2.application.service.ts` поле `private readonly access = new BudgetAccessPolicy();`.
 
@@ -2209,7 +2209,7 @@ if (!role || !this.access.canViewDeleted({ userId, role, isCreator: false })) th
 
 `get` возвращает `createdBy: personRefOf(await findPersonRefs(this.prisma, workspaceId, [row.createdByUserId]), row.createdByUserId)`; `workspaceId` — из уже прочитанного бюджета (добавить в `select`, если нет). То же правило удалённых — в `journal.application.service.ts`.
 
-- [ ] **Step 3: Переводы**
+- [x] **Step 3: Переводы**
 
 `direct-transfer.application.service.ts` `create` — вместо проверки роли:
 
@@ -2222,20 +2222,20 @@ this.access.requireAccountOwner(actor, source);
 
 `mutate` (update/delete/restore): вместо проверки роли — `requireAccessActor` + `requireWriter`; после чтения текущего перевода — `this.access.requireOperationAuthor(actor, current)`; в `update`, если меняется `sourceAccountId`, — `requireAccountOwner(actor, newSource)`. `get` + `createdBy`.
 
-- [ ] **Step 4: DTO и OpenAPI**
+- [x] **Step 4: DTO и OpenAPI**
 
 - Ответ `GET transactions/:id` — `@ApiProperty({ type: PersonRefResponse, required: false }) createdBy?: PersonRefResponse;` (в ответах `POST`/`PATCH` поле не обязательно).
 - Ответ `GET transfers/:id` — то же.
 - Описания 403: `FORBIDDEN`, `NOT_ACCOUNT_OWNER`, `NOT_OPERATION_AUTHOR`.
 
-- [ ] **Step 5: Проверки**
+- [x] **Step 5: Проверки**
 
 Run:
 - `pnpm --filter @harmofin/api exec vitest run src/v2-transactions src/v2-transfers src/v2-journal` — PASS.
 - `pnpm --filter @harmofin/api exec vitest run --config vitest.integration.config.ts test/family-operations.integration.test.ts test/v2-income-lifecycle.integration.test.ts test/v2-direct-transfers.integration.test.ts test/v2-journal.integration.test.ts test/v2-income-plans.integration.test.ts test/v2-openapi.integration.test.ts` — PASS. Тест этапа A «`EDITOR` не видит удалённые» переписать под отклонение 7.
 - `pnpm --filter @harmofin/api typecheck`, `pnpm lint` — PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/api/src/v2-transactions apps/api/src/transactions apps/api/src/v2-transfers apps/api/src/v2-journal apps/api/test
@@ -2263,7 +2263,7 @@ git commit -m "feat(api): операции и переводы только по
   - Ответы планов и элементы календаря + `owner: PersonRef`, `canEdit: boolean`; списки планов + `?ownerUserId=`.
   - `payInTransaction(tx, actor, userId, budgetId, workspaceId, occurrenceId, input, occurredOn, requestId?)` — новый второй параметр `actor: AccessActor`.
 
-- [ ] **Step 1: Падающий integration-тест**
+- [x] **Step 1: Падающий integration-тест**
 
 ```ts
 // apps/api/test/family-plans-ownership.integration.test.ts
@@ -2380,7 +2380,7 @@ describe('plan ownership', () => {
 Run: `pnpm --filter @harmofin/api exec vitest run --config vitest.integration.config.ts test/family-plans-ownership.integration.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 2: Общий `run` в сервисах планов**
+- [x] **Step 2: Общий `run` в сервисах планов**
 
 В `obligation-plan.application.service.ts`, `income-plan-v2.application.service.ts` и `obligation.application.service.ts` приватный `run(…, allowEditor = false)` (или вариант без флага) заменить на:
 
@@ -2430,21 +2430,21 @@ this.access.requireAccountOwner(actor, account);
 
 Вызовы `payInTransaction` из `pay` и `payOneTime` передают `actor` из `body(tx, actor)`.
 
-- [ ] **Step 3: Ответы и фильтр**
+- [x] **Step 3: Ответы и фильтр**
 
 - `planView(plan)` → + `owner`, `canEdit`. Списки: `people = await findPersonRefs(this.prisma, workspaceId, plans.map((plan) => plan.ownerUserId))`, `actor = await findAccessActor(this.prisma, workspaceId, userId)`, `canEdit = actor !== null && this.access.canEditObject(actor, plan)`. Ответы `create`/`update` — так же для одного плана.
 - `listObligationPlansSchema`, `listIncomePlansSchema` + `ownerUserId: z.string().uuid().optional()`; репозиторий добавляет `ownerUserId` в `where`; контроллеры — `@ApiQuery`.
 - `plans-calendar`: репозиторий выбирает `plan.ownerUserId`; элемент (`PlansCalendarItemResponse`) + `owner: PersonRefResponse`, `canEdit: boolean`.
 - DTO: `ObligationPlanResponse`, `IncomePlanResponse`, `PlansCalendarItemResponse` + `owner`, `canEdit`; описания 403 с кодами.
 
-- [ ] **Step 4: Проверки**
+- [x] **Step 4: Проверки**
 
 Run:
 - `pnpm --filter @harmofin/api exec vitest run src/obligations src/plans src/plans-calendar` — PASS.
 - `pnpm --filter @harmofin/api exec vitest run --config vitest.integration.config.ts test/family-plans-ownership.integration.test.ts test/v2-obligation-plans.integration.test.ts test/v2-obligations.integration.test.ts test/v2-income-plans.integration.test.ts test/v2-plans-calendar.integration.test.ts test/v2-mandatory-due.integration.test.ts test/v2-openapi.integration.test.ts` — PASS. Тесты, где `EDITOR` получал 403 на создание плана, переписать на `VIEWER`.
 - `pnpm --filter @harmofin/api typecheck`, `pnpm lint` — PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/obligations apps/api/src/plans apps/api/src/plans-calendar apps/api/test
@@ -2469,7 +2469,7 @@ git commit -m "feat(api): владелец плана управляет им и
 - Consumes: Task 2.
 - Produces: `grep -rn "RolePolicy\|WRITE_ROLES\|allowEditor\|role !== 'OWNER'\|role === 'OWNER'" apps/api/src --include=*.ts | grep -v "\.test\.ts" | grep -v "src/family/"` пуст. Поведение для пользователей не меняется: всё перечисленное — настройки бюджета (`OWNER`) или чтение.
 
-- [ ] **Step 1: Замены**
+- [x] **Step 1: Замены**
 
 | Файл | Было | Стало |
 |---|---|---|
@@ -2482,7 +2482,7 @@ git commit -m "feat(api): владелец плана управляет им и
 
 `budget.module.ts`, `category.module.ts`: убрать `RolePolicy` из `providers`/`inject`; конструкторы сервисов — без него, поле `private readonly access = new BudgetAccessPolicy();`. Unit-тесты, которые передают `new RolePolicy()`, обновить.
 
-- [ ] **Step 2: Удалить `RolePolicy`**
+- [x] **Step 2: Удалить `RolePolicy`**
 
 ```bash
 git rm apps/api/src/common/policies/role-policy.ts apps/api/src/common/policies/role-policy.test.ts
@@ -2490,14 +2490,14 @@ git rm apps/api/src/common/policies/role-policy.ts apps/api/src/common/policies/
 
 Run: `grep -rn "RolePolicy\|WRITE_ROLES\|allowEditor" apps/api/src` — пусто.
 
-- [ ] **Step 3: Проверки**
+- [x] **Step 3: Проверки**
 
 Run:
 - `pnpm --filter @harmofin/api typecheck`, `pnpm lint` — PASS.
 - `pnpm --filter @harmofin/api test` — PASS.
 - `pnpm test:integration` — PASS целиком.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git status --short
@@ -2536,7 +2536,7 @@ type EnvelopeHistoryItem = {
 };
 ```
 
-- [ ] **Step 1: Падающий тест**
+- [x] **Step 1: Падающий тест**
 
 ```ts
 // apps/api/test/family-envelope-history.integration.test.ts
@@ -2655,7 +2655,7 @@ describe('envelope history', () => {
 Run: `pnpm --filter @harmofin/api exec vitest run --config vitest.integration.config.ts test/family-envelope-history.integration.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 2: SQL истории**
+- [x] **Step 2: SQL истории**
 
 В `listHistory` три ветки `UNION ALL` получают одинаковые новые колонки; бюджет фильтруется в каждом `JOIN`:
 
@@ -2742,7 +2742,7 @@ FROM combined
 
 `EnvelopeHistoryItemRecord` + `direction: 'IN' | 'OUT'`, `createdByUserId: string`, `counterpartName: string | null`, `assignmentType: 'INCOME' | 'OPENING' | 'FREE' | null`.
 
-- [ ] **Step 3: Сервис и DTO**
+- [x] **Step 3: Сервис и DTO**
 
 `history`: `model = await this.planModelPolicy.requireModel(…)` уже вызывается — взять из него `workspaceId`. После чтения страницы:
 
@@ -2756,13 +2756,13 @@ const items = page.map(({ createdByUserId, ...row }) => ({
 
 `EnvelopeHistoryItemResponse`: `direction` (`enum: ['IN', 'OUT']`), `createdBy: PersonRefResponse`, `counterpartName` (`type: String, nullable: true`), `assignmentType` (`enum: ['INCOME', 'OPENING', 'FREE'], nullable: true`).
 
-- [ ] **Step 4: Проверки**
+- [x] **Step 4: Проверки**
 
 Run:
 - `pnpm --filter @harmofin/api exec vitest run --config vitest.integration.config.ts test/family-envelope-history.integration.test.ts test/v2-envelopes.integration.test.ts test/v2-openapi.integration.test.ts` — PASS.
 - `pnpm --filter @harmofin/api typecheck`, `pnpm lint` — PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/envelope-plans apps/api/test/family-envelope-history.integration.test.ts
@@ -2819,7 +2819,7 @@ export async function createObjectsTransferredNotification(
 ): Promise<void>;
 ```
 
-- [ ] **Step 1: Падающие тесты**
+- [x] **Step 1: Падающие тесты**
 
 ```ts
 // apps/api/src/family/family-notifications.test.ts
@@ -2953,7 +2953,7 @@ describe('objects of a member who leaves', () => {
 Run: `pnpm --filter @harmofin/api exec vitest run src/family/family-notifications.test.ts` и `pnpm --filter @harmofin/api exec vitest run --config vitest.integration.config.ts test/family-object-transfer.integration.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 2: Передача объектов**
+- [x] **Step 2: Передача объектов**
 
 ```ts
 // apps/api/src/family/object-transfer.ts
@@ -3030,7 +3030,7 @@ export async function transferMemberObjects(
 
 `AuditEvent.action` и `entityType` — `varchar`, `'regular_plan'` совпадает с аудитом `regular-plan.repository.ts`. Вызов при удалении аккаунта идёт с `source: 'API'`, как остальные события удаления аккаунта (сверить с `auditMembership` в `account-deletion.repository.ts`; если там другое значение — передавать `source` параметром).
 
-- [ ] **Step 3: Уведомление со сводкой**
+- [x] **Step 3: Уведомление со сводкой**
 
 В `family-notifications.ts` дописать (тип `AccessType` не меняется):
 
@@ -3090,7 +3090,7 @@ export async function createObjectsTransferredNotification(
 
 Текст не зависит от рода участника (правило Global Constraints).
 
-- [ ] **Step 4: Вызовы**
+- [x] **Step 4: Вызовы**
 
 `members.application.service.ts` `deactivate` — сразу после `resolveUserNotifications`:
 
@@ -3124,14 +3124,14 @@ if (transferred.accounts + transferred.envelopes + transferred.plans > 0) {
 
 `account-deletion.integration.test.ts`: кейс «участник со счётом в чужой семье удаляет аккаунт → счёт у создателя, есть `AuditEvent` `OWNER_TRANSFERRED`, у создателя `OBJECTS_TRANSFERRED`; после восстановления аккаунта (`restore`) счёт остаётся у создателя». Подготовку участника и счёта — через прямые `prisma`-вставки по образцу этого файла (с `ownerUserId` участника).
 
-- [ ] **Step 5: Проверки**
+- [x] **Step 5: Проверки**
 
 Run:
 - `pnpm --filter @harmofin/api exec vitest run src/family` — PASS.
 - `pnpm --filter @harmofin/api exec vitest run --config vitest.integration.config.ts test/family-object-transfer.integration.test.ts test/family-members.integration.test.ts test/account-deletion.integration.test.ts` — PASS.
 - `pnpm --filter @harmofin/api typecheck`, `pnpm lint` — PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/api/src/family apps/api/src/account-deletion apps/api/test/family-object-transfer.integration.test.ts apps/api/test/account-deletion.integration.test.ts
@@ -3151,7 +3151,7 @@ git commit -m "feat(api): передача объектов создателю �
 - Consumes: `RegularPlan.ownerUserId` (Task 1); relation `PlanOccurrence.plan`.
 - Produces: `PLAN_TODAY`/`PLAN_OVERDUE` получает только владелец плана, если он активный `OWNER` или `EDITOR`. Открытые плановые уведомления других пользователей по вхождению закрываются (`resolvedAt`) с аудитом, как сейчас для бывших получателей.
 
-- [ ] **Step 1: Падающий тест**
+- [x] **Step 1: Падающий тест**
 
 В `apps/api/test/v2-notifications.integration.test.ts` сценарий этапа A «уведомления всем OWNER и EDITOR» переписать:
 1. План создателя (`ownerUserId` создателя) с вхождением на сегодня → уведомление `PLAN_TODAY` только у создателя, у участника `EDITOR` — нет.
@@ -3161,7 +3161,7 @@ git commit -m "feat(api): передача объектов создателю �
 Run: `pnpm --filter @harmofin/api exec vitest run --config vitest.integration.config.ts test/v2-notifications.integration.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 2: Обработчик**
+- [x] **Step 2: Обработчик**
 
 В запросе вхождений добавить владельца плана:
 
@@ -3210,18 +3210,18 @@ const stillActive =
 
 Блок `forExRecipients` не менять. Комментарий над `evaluateBudget`: «Recipient is the plan owner when they are an active OWNER or EDITOR; open plan notifications of anyone else are resolved.»
 
-- [ ] **Step 3: Unit-тест worker**
+- [x] **Step 3: Unit-тест worker**
 
 `apps/worker/src/notification.handler.test.ts`: ожидание «каждому OWNER и EDITOR» заменить на «только владельцу плана»; добавить кейс «владелец не входит в writer → уведомление не создаётся» и кейс «уведомление не-владельца закрывается».
 
-- [ ] **Step 4: Проверки**
+- [x] **Step 4: Проверки**
 
 Run:
 - `pnpm --filter ./apps/worker test` — PASS.
 - `pnpm --filter @harmofin/api exec vitest run --config vitest.integration.config.ts test/v2-notifications.integration.test.ts test/notifications.integration.test.ts` — PASS.
 - `pnpm typecheck`, `pnpm lint` — PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/worker/src/notification.handler.ts apps/worker/src/notification.handler.test.ts apps/api/test/v2-notifications.integration.test.ts
@@ -3248,7 +3248,7 @@ git commit -m "feat(worker): плановые уведомления получ�
   - `useOwnerFilter(): { mode: Ref<'all' | 'mine' | string>, ownerUserId: ComputedRef<string | undefined>, options: ComputedRef<ButtonGroupOption[]>, kind: ComputedRef<'none' | 'toggle' | 'chip'> }` — `none` при одном участнике, `toggle` («Все / Мои») при двух, `chip` (по участнику) при трёх и более.
   - `<OwnerFilter v-model="mode" />` — рендерит `UiButtonGroup` или `UiChip`-выбор по `kind`, ничего при `none`.
 
-- [ ] **Step 1: Падающие тесты**
+- [x] **Step 1: Падающие тесты**
 
 ```ts
 // apps/web/app/components/app/owner-label.test.ts
@@ -3299,7 +3299,7 @@ Writer заполняет три кейса `useOwnerFilter.test.ts` конкр�
 Run: `pnpm --filter ./apps/web exec vitest run app/components/app/owner-label.test.ts app/composables/useOwnerFilter.test.ts app/components/app/OwnerFilter.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 2: Реализация**
+- [x] **Step 2: Реализация**
 
 ```ts
 // apps/web/app/components/app/owner-label.ts
@@ -3352,13 +3352,13 @@ export function usePermissions(): {
 
 `OwnerFilter.vue`: `kind === 'toggle'` → `<UiButtonGroup :options="options" :model-value="modelValue" label="Владелец" testid-prefix="owner-filter" @update:model-value="…" />`; `kind === 'chip'` → тот же `UiButtonGroup` (выбор одного значения из нескольких; Calm Fintech разрешает группу до 4–5 вариантов; при большем числе — `UiSelect` с меткой «Владелец»). Перед версткой прочитать `docs/superpowers/specs/2026-09-17-calm-fintech-visual-guidelines.md`.
 
-- [ ] **Step 3: Проверки**
+- [x] **Step 3: Проверки**
 
 Run:
 - `pnpm --filter ./apps/web exec vitest run app/components/app app/composables` — PASS.
 - `pnpm --filter ./apps/web typecheck` (или `pnpm typecheck`), `pnpm lint` — PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/web/app/composables/usePermissions.ts apps/web/app/composables/usePermissions.test.ts apps/web/app/composables/useOwnerFilter.ts apps/web/app/composables/useOwnerFilter.test.ts apps/web/app/components/app/owner-label.ts apps/web/app/components/app/owner-label.test.ts apps/web/app/components/app/OwnerFilter.vue apps/web/app/components/app/OwnerFilter.test.ts apps/web/app/components/operations/author-label.ts apps/web/app/composables/useEnvelopePlanV2.ts
@@ -3379,7 +3379,7 @@ git commit -m "feat(web): подпись владельца и фильтр «В
 - Consumes: Task 3 (API), Task 12 (`usePermissions().canCreate`, `ownerLabel`, `ownerNotice`, `OwnerFilter`, `useOwnerFilter`).
 - Produces: `AccountDto.owner: PersonRef`, `AccountDto.canEdit: boolean` — их же используют формы операций (задача 15).
 
-- [ ] **Step 1: Падающие тесты**
+- [x] **Step 1: Падающие тесты**
 
 - `AccountRow.test.ts`: строка показывает подпись владельца текстом рядом с типом счёта («Наличные · Алия»; для своего — «Наличные · Мой») только если в семье больше одного участника (проп `showOwner`).
 - `AccountDialog.test.ts`: для `canEdit: false` нет кнопок «Изменить» и «В архив», показан текст `ownerNotice(owner)`; для `canEdit: true` кнопки есть. `EDITOR` с `canEdit: true` видит кнопки (раньше требовался `canManage`).
@@ -3388,20 +3388,20 @@ git commit -m "feat(web): подпись владельца и фильтр «В
 Run: `pnpm --filter ./apps/web exec vitest run app/components/accounts app/pages/app/accounts.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 2: Реализация**
+- [x] **Step 2: Реализация**
 
 - `AccountDto` + `owner: PersonRef`, `canEdit: boolean`; функции списка и сводки принимают `ownerUserId?: string` и добавляют его в query.
 - `accounts.vue`: `canManage` → `canCreate` для «Добавить счёт» и пустого состояния; `<OwnerFilter v-model="ownerFilter.mode.value" />` в шапке списка (рядом с переключателем статуса); перезагрузка списка и сводки при смене `ownerUserId`.
 - `AccountRow.vue`: проп `showOwner: boolean` (страница передаёт `ownerFilter.kind.value !== 'none'`); подпись `ownerLabel(account.owner, userId)` в строке метаданных, текстом.
 - `AccountDialog.vue`: кнопки правки и архивации — по `account.canEdit` (вместо `canWrite`/`canManage`); при `!account.canEdit` — абзац `ownerNotice(account.owner)` с классом заметки диалога.
 
-- [ ] **Step 3: Проверки**
+- [x] **Step 3: Проверки**
 
 Run:
 - `pnpm --filter ./apps/web exec vitest run app/components/accounts app/pages/app/accounts.test.ts` — PASS.
 - `pnpm typecheck`, `pnpm lint` — PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/web/app/composables/useBudgetReferenceData.ts apps/web/app/pages/app/accounts.vue apps/web/app/pages/app/accounts.test.ts apps/web/app/components/accounts
@@ -3432,7 +3432,7 @@ git commit -m "feat(web): владелец счёта, правка только
   - «Переместить» — только из своих конвертов (источник в `EnvelopeMovePanel` — конверты с `canEdit`); получатель — любой конверт, у чужих подпись владельца;
   - история — лента по дням с автором и направлением.
 
-- [ ] **Step 1: Падающие тесты**
+- [x] **Step 1: Падающие тесты**
 
 ```ts
 // apps/web/app/components/envelopes/envelope-plan-kind.test.ts — replace the sign cases
@@ -3460,7 +3460,7 @@ describe('history sign comes from the server direction', () => {
 Run: `pnpm --filter ./apps/web exec vitest run app/components/envelopes app/components/funding app/pages/app/envelopes`
 Expected: FAIL.
 
-- [ ] **Step 2: Реализация**
+- [ ] **Step 2: Реализация** — см. «Ход выполнения» (отличие по кнопке «Распределить»)
 
 - Типы в `useEnvelopePlanV2.ts`; `historySign(direction: 'IN' | 'OUT')`, `historyAmountText(direction, amountMinor)` — вызовы в `EnvelopePlanDialog.vue` передают `item.direction`.
 - `EnvelopePlanDialog.vue`: история группируется по `effectiveOn` в стиле `OperationGroup` (заголовок дня, строки внутри; взять разметку и классы из компонента групп журнала операций). Строка: иконка вида (`KIND_ICONS`), текст `${authorLabel(item.createdBy)}: ${historyAmountText(item.direction, item.amountMinor)}`, вторичная подпись — контрагент по правилам из Step 1. Цвет суммы — только дополнительный сигнал; знак и текст всегда есть. Кнопки правки — `v-if="!envelope.archivedAt && envelope.canEdit"`; кнопка распределения — `canCreate`.
@@ -3469,13 +3469,13 @@ Expected: FAIL.
 - `PeriodTargetDialog.vue`: подтверждение/отклонение цели — только при `canEdit` конверта.
 - `FundingReviewSheet.vue`: у строки конверта подпись `ownerLabel(envelope.owner, userId)`, если в семье больше одного участника.
 
-- [ ] **Step 3: Проверки**
+- [x] **Step 3: Проверки**
 
 Run:
 - `pnpm --filter ./apps/web exec vitest run app/components/envelopes app/components/funding app/components/dashboard app/pages/app/envelopes` — PASS.
 - `pnpm typecheck`, `pnpm lint` — PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/web/app/composables/useEnvelopePlanV2.ts apps/web/app/components/envelopes apps/web/app/components/funding apps/web/app/pages/app/envelopes
@@ -3503,7 +3503,7 @@ git commit -m "feat(web): конверты по владельцу, истори
   - Предложение «Распределить доход» — только для своего дохода.
   - Фильтр «Удалённые» в журнале доступен `EDITOR` (отклонение 7).
 
-- [ ] **Step 1: Падающие тесты**
+- [x] **Step 1: Падающие тесты**
 
 - Форма расхода: у `EDITOR` в списке счетов нет счёта с `canEdit: false`; в списке конвертов есть чужой конверт с подписью «Алия». Если своих счетов нет — вместо формы текст «Сначала добавьте свой счёт» и кнопка-ссылка на `/app/accounts`.
 - `TransferDialog.test.ts`: источник — только свои счета; получатель — все, кроме выбранного источника; при открытии чужого перевода нет кнопок «Изменить»/«Удалить», есть пояснение.
@@ -3513,7 +3513,7 @@ git commit -m "feat(web): конверты по владельцу, истори
 Run: `pnpm --filter ./apps/web exec vitest run app/components/operations app/components/app app/pages/app/operations.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 2: Реализация**
+- [x] **Step 2: Реализация**
 
 - `useOperationReferenceData.ts`: отдаёт `accounts` (все, для отображения и получателя перевода) и `ownAccounts = accounts.filter((account) => account.canEdit)`.
 - Формы используют `ownAccounts` для счёта дохода/расхода и источника перевода; опции конвертов и счетов-получателей получают подпись `ownerLabel(item.owner, userId)` при семье больше одного человека.
@@ -3521,13 +3521,13 @@ Expected: FAIL.
 - `operations.vue`: функции `canEditTransaction`/`availableActions` учитывают автора; `isOwner`-проверка просмотра удалённых (строка с `item.status === 'CONFIRMED' || isOwner.value`) — заменить на `canWrite`.
 - `AppOperationDialogs.vue` строка `funding.offer({ sourceKind: 'INCOME', … })` — вызывается для только что созданного своего дохода; дополнительных изменений не нужно, проверить тестом.
 
-- [ ] **Step 3: Проверки**
+- [x] **Step 3: Проверки**
 
 Run:
 - `pnpm --filter ./apps/web exec vitest run app/components/operations app/components/app app/composables app/pages/app/operations.test.ts` — PASS.
 - `pnpm typecheck`, `pnpm lint` — PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/web/app/composables/useOperationReferenceData.ts apps/web/app/components/app/AppOperationDialogs.vue apps/web/app/components/operations apps/web/app/pages/app/operations.vue apps/web/app/pages/app/operations.test.ts
@@ -3551,7 +3551,7 @@ git commit -m "feat(web): операции по своим счетам, пра�
   - `OwnerFilter` на странице планов.
   - Уведомление `OBJECTS_TRANSFERRED` — иконка и подпись как у уведомлений доступа этапа A (`MEMBER_*`), действие ведёт на `actionPath`.
 
-- [ ] **Step 1: Падающие тесты**
+- [x] **Step 1: Падающие тесты**
 
 - `PlanItemList.test.ts`/`PlanDayPanel.test.ts`: у элемента с `canEdit: false` нет «Оплатить»/«Получить»/«Пропустить» и действий плана, есть «Владелец: Алия»; у своего — есть.
 - `PlanCatalog.test.ts`: действия строки — по `plan.canEdit`; проп `canManage` удалён.
@@ -3561,19 +3561,19 @@ git commit -m "feat(web): операции по своим счетам, пра�
 Run: `pnpm --filter ./apps/web exec vitest run app/components/plans app/components/notifications app/pages/app/plans.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 2: Реализация**
+- [ ] **Step 2: Реализация** — см. «Ход выполнения» (отличие по действию «Закрыть»)
 
 - Пропсы `canManage`/`canWrite` в `PlanCatalog`, `PlanDayPanel`, `PlanItemList` заменить на проверки `plan.canEdit`/`item.canEdit` плюс `canCreate` для кнопок создания и пустых состояний.
 - Подпись владельца в строке плана — текстом в метаданных (`ownerLabel`), только при `kind !== 'none'`.
 - `NotificationCard.vue`: добавить `OBJECTS_TRANSFERRED` в отображение типов уведомлений доступа (иконка и подпись — те же, что у `MEMBER_REMOVED`/`MEMBER_LEFT`; подпись типа «Семья»).
 
-- [ ] **Step 3: Проверки**
+- [x] **Step 3: Проверки**
 
 Run:
 - `pnpm --filter ./apps/web exec vitest run app/components/plans app/components/notifications app/pages/app/plans.test.ts` — PASS.
 - `pnpm typecheck`, `pnpm lint` — PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/web/app/composables apps/web/app/pages/app/plans.vue apps/web/app/pages/app/plans.test.ts apps/web/app/components/plans apps/web/app/components/notifications
@@ -3593,7 +3593,7 @@ git commit -m "feat(web): планы по владельцу, уведомлен
 **Interfaces:**
 - Consumes: всё выше.
 
-- [ ] **Step 1: E2E-спека (выполняется в CI, локально не запускать)**
+- [x] **Step 1: E2E-спека (выполняется в CI, локально не запускать)**
 
 Хелперы регистрации, согласий и приглашения взять из `e2e/family-access.spec.ts` (этап A).
 
@@ -3628,11 +3628,11 @@ test('a family member funds the spouse envelope but cannot edit it', async ({ br
 
 Шаги-комментарии writer реализует через те же локаторы и хелперы, что в `e2e/family-access.spec.ts` и `e2e/envelope-v2-transfers-journal.spec.ts`. Локально спеку **не запускать**; проверка — `pnpm exec tsc --noEmit -p e2e` (если в репозитории есть такой tsconfig) или `pnpm lint`.
 
-- [ ] **Step 2: Документация**
+- [x] **Step 2: Документация**
 
 §17.2 функциональной спецификации: таблица ролей дополняется матрицей этапа B (копия таблицы «Матрица (этап B)» из дизайна) и ссылкой на дизайн. Текст на русском.
 
-- [ ] **Step 3: Финальная проверка**
+- [x] **Step 3: Финальная проверка**
 
 Run:
 - `pnpm format:check` — PASS (если падает только на файлах этой ветки — `pnpm format` и повторить).
@@ -3644,7 +3644,7 @@ Run:
 - `grep -rn "RolePolicy\|WRITE_ROLES\|allowEditor" apps/api/src` — пусто.
 - `git status --short` — нет `identity/logo_description.png` в индексе.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add e2e/family-ownership.spec.ts docs/superpowers/specs/2026-08-30-family-budget-app-spec.md docs/superpowers/specs/2026-10-25-family-access-design.md CLAUDE.md
@@ -3670,3 +3670,55 @@ git commit -m "test(e2e): владение объектами семьи; док
 | 17 | QA, final |
 
 `BLOCK` от financial и security снимается только исправлением writer и повторной проверкой. Writer задачи — один субагент; reviewers только читают.
+
+---
+
+## Ход выполнения (2026-10-28)
+
+Этап B полностью реализован и закоммичен в ветке `feat/family-access-stage-b`
+(база `5364f22`, HEAD `be059ff`). Все 17 задач закрыты, каждая — отдельным
+коммитом: задача 1 — `cddf0ef`, 2 — `e92816b`, 3 — `8cd80c9`, 4 — `760a62b`,
+5 — `140cef9`, 6 — `30b9869` (плюс фиксация статуса `c3c461a`), 7 — `4b0ec7e`,
+8 — `c0894de`, 9 — `9394983`, 10 — `eb17a79`, 11 — `7a0d533`, 12 — `be1116d`,
+13 — `1a776c4`, 14 — `8cdf53f`, 15 — `15392c1`, 16 — `9352137`, 17 — `be059ff`.
+Вне плана по ходу сделано три коммита: `484ac21` (мок object-transfer в
+юнит-тесте удаления счёта — регресс от задачи 10), `1c3d028` (подпись владельца
+в оффере пополнения из ссылок на конверты) и `309052d` (prettier к файлам
+ветки).
+
+Финальные проверки зелёные: `pnpm format:check`, `pnpm lint`, `pnpm typecheck`,
+`pnpm test` (api — 329 тестов, web — более 1500, worker — 50), `pnpm build`, а
+также весь `pnpm test:integration`, кроме `v2-cycle-settings-at`: он падает и
+на базе ветки (зависит от даты/среды, к этапу B не относится). Пустой выбор
+`grep -rn "RolePolicy\|WRITE_ROLES\|allowEditor" apps/api/src` подтверждён;
+`identity/logo_description.png` в коммиты не попадал.
+
+Сознательные отличия от текста плана (остались открытыми подпункты «Реализация»
+в задачах 14 и 16):
+
+1. В списке конвертов (`EnvelopesPlanView.vue`) условие кнопки «Распределить» —
+   `canCreate && envelope.canEdit !== false`, строже плана (по плану — только
+   `canCreate`): у чужого конверта кнопка в строке не показывается.
+2. Действие «Закрыть» у плана — не отдельная кнопка каталога по `item.canEdit`,
+   как в тексте задачи 16; закрытие плана выполняется из карточки/редактирования
+   и паузы под тем же `canEdit`. Смысл матрицы (чужой план не редактируется и не
+   закрывается) сохранён.
+3. Эндпоинты истории и аудита остались owner-only: `GET envelopes/:id/history`
+   требует роль записи по учётной модели, аудит транзакции — владельца. EDITOR,
+   автор записи в чужом конверте, историю/аудит своей записи не читает (403).
+   План этого исключения не описывал; оставлено как есть.
+
+OWNER-DEBT (на заметку владельцу, вне объёма этапа):
+
+- `v2-cycle-settings-at` — хрупкий интеграционный тест (зависит от текущей
+  даты), воспроизводится на базе ветки; требует стабилизации.
+- `manifest.webmanifest`: prettier периодически меняет переносы строк (CRLF),
+  `format:check` может шуметь на файле вне изменений.
+- `openapi.json`: форматирование prettier конфликтует с выводом генератора;
+  трогать только через `309052d`-подобные коммиты.
+- `e2e/family-ownership.spec.ts` написан и проходит `lint`/типы, но локально не
+  запускался (правило: Playwright только по запросу владельца); проверка — CI.
+- Мелочи, оставленные как есть: `PrismaClient` напрямую в
+  `JournalApplicationService`; устаревший кэш `loadedFor` в `useOwnerFilter`;
+  потенциальный тупик правки переданного (`transferred`) счёта в UI; список
+  счетов в `FundingEntryHost` без фильтра по владельцу.
