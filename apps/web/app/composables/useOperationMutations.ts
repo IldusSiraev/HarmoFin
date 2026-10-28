@@ -28,10 +28,16 @@ const OVERRIDES: Record<string, string> = {
     'Деньги этого дохода распределены по конвертам. Сначала уменьшите или отмените эти распределения.',
 };
 
-type RowState = Pick<TransactionJournalV2Item, 'status'>;
+type RowState = Pick<TransactionJournalV2Item, 'status' | 'createdBy'>;
 
-export function canEditTransaction(transaction: RowState): boolean {
-  return transaction.status === 'CONFIRMED' || transaction.status === 'DRAFT';
+// Status alone decides for a server response. Callers that pass the viewer's
+// id additionally require authorship — every mutation is author-only on the
+// server — and then a row without a recorded author is never editable; a
+// caller without an id keeps the old status-only answer.
+export function canEditTransaction(transaction: RowState, userId?: string | null): boolean {
+  const editableStatus = transaction.status === 'CONFIRMED' || transaction.status === 'DRAFT';
+  if (!editableStatus) return false;
+  return userId === undefined ? true : transaction.createdBy?.userId === userId;
 }
 
 export function availableActions(transaction: RowState): OperationAction[] {

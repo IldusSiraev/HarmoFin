@@ -20,11 +20,14 @@ const props = withDefaults(
   defineProps<{
     model: TransferFormModel;
     accounts: ReadonlyArray<{ value: string; label: string }>;
+    // Family-wide list for the destination picker: own accounts plus someone
+    // else's captioned with their owner. Falls back to `accounts` when omitted.
+    destinationAccounts?: ReadonlyArray<{ value: string; label: string }> | null;
     errors?: Partial<Record<string, string>>;
     pending?: boolean;
     submitLabel?: string;
   }>(),
-  { errors: () => ({}), pending: false, submitLabel: 'Сохранить перевод' },
+  { errors: () => ({}), pending: false, submitLabel: 'Сохранить перевод', destinationAccounts: null },
 );
 
 const emit = defineEmits<{ submit: [input: CreateDirectTransferRequest] }>();
@@ -100,7 +103,7 @@ function submit(): void {
       v-model="form.destinationAccountId"
       name="destinationAccountId"
       label="Счёт зачисления"
-      :options="accounts"
+      :options="destinationAccounts ?? accounts"
       :error="fieldError('destinationAccountId')"
       required
     />

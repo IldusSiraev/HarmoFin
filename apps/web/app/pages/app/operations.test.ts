@@ -30,6 +30,7 @@ const auth = {
       }>;
     } | null,
   },
+  currentUser: { value: null as { id: string } | null },
   loadMe: vi.fn(),
 };
 const reference = {
@@ -37,6 +38,16 @@ const reference = {
     { value: 'account-id', label: 'Основная карта' },
     { value: 'account-id-2', label: 'Накопительный счёт' },
   ]),
+  ownAccounts: ref([
+    { value: 'account-id', label: 'Основная карта' },
+    { value: 'account-id-2', label: 'Накопительный счёт' },
+  ]),
+  familyAccounts: ref([
+    { value: 'account-id', label: 'Основная карта' },
+    { value: 'account-id-2', label: 'Накопительный счёт' },
+    { value: 'foreign-account', label: 'Копилка — Алия' },
+  ]),
+  envelopeOptions: ref([{ value: 'envelope-id', label: 'Текущие' }]),
   categories: ref([
     {
       id: 'category-id',
@@ -105,6 +116,7 @@ const expense = {
   cancelledAt: null,
   deletedAt: null,
   createdAt: '2026-09-05T00:00:00.000Z',
+  createdBy: { userId: 'owner-id', displayName: 'Хозяин', isActiveMember: true },
 };
 const lifecycle = (status: string) => ({
   id: expense.id,
@@ -128,6 +140,7 @@ const transferFixture = {
   comment: null,
   createdAt: '2026-09-05T00:00:00.000Z',
   deletedAt: null,
+  createdBy: { userId: 'owner-id', displayName: 'Хозяин', isActiveMember: true },
 };
 
 describe('operations page (v2 journal)', () => {
@@ -177,6 +190,7 @@ describe('operations page (v2 journal)', () => {
         },
       ],
     };
+    auth.currentUser.value = { id: 'owner-id' };
     vi.clearAllMocks();
     useOperationDialogs().close();
     for (const key of Object.keys(routeQuery)) delete routeQuery[key];
@@ -622,5 +636,71 @@ describe('operations page (v2 journal)', () => {
       'budget-id',
       expect.objectContaining({ type: 'TRANSFER' }),
     );
+  });
+
+  it('hides the row menu for an operation created by somebody else', async () => {
+    withItems({
+      ...expense,
+      createdBy: { userId: 'member-1', displayName: 'Алия', isActiveMember: true },
+    });
+    mountPage();
+    await flushPromises();
+
+    expect(wrapper!.find('[data-testid="action-menu-trigger"]').exists()).toBe(false);
+  });
+
+  it('hides the row menu for a transfer created by somebody else, even deleted', async () => {
+    v2.listJournal.mockResolvedValue({
+      items: [
+        {
+          ...transferFixture,
+          status: 'DELETED',
+          deletedAt: '2026-10-20T12:00:00.000Z',
+          createdBy: { userId: 'member-1', displayName: 'Алия', isActiveMember: true },
+        },
+      ],
+      nextCursor: null,
+    });
+    mountPage();
+    await flushPromises();
+
+    expect(wrapper!.find('[data-testid="action-menu-trigger"]').exists()).toBe(false);
+  });
+
+  it('shows the deleted status option to an editor too', async () => {
+    auth.currentData.value!.workspaces.at(0)!.role = 'EDITOR';
+    mountPage();
+    await flushPromises();
+
+    await wrapper!.get('[data-testid="chip-status"]').trigger('click');
+    expect(wrapper!.find('[data-testid="chip-option-status-DELETED"]').exists()).toBe(true);
+  });
+
+  it('keeps the deleted status option away from a viewer', async () => {
+    auth.currentData.value!.workspaces.at(0)!.role = 'VIEWER';
+    mountPage();
+    await flushPromises();
+
+    await wrapper!.get('[data-testid="chip-status"]').trigger('click');
+    expect(wrapper!.find('[data-testid="chip-option-status-DELETED"]').exists()).toBe(false);
+  });
+
+  it('binds the transfer dialog to own accounts with the family list as destinations', async () => {
+    v2.listJournal.mockResolvedValue({ items: [{ ...transferFixture }], nextCursor: null });
+    mountPage();
+    await flushPromises();
+
+    await wrapper!.get('[data-testid="action-menu-trigger"]').trigger('click');
+    await wrapper!.get('[data-testid="transfer-row-edit"]').trigger('click');
+    await wrapper!.vm.$nextTick();
+
+    const dialog = wrapper!.findComponent({ name: 'TransferDialog' });
+    const sourceIds = (dialog.props('accounts') as Array<{ value: string }>).map((o) => o.value);
+    expect(sourceIds).toContain('account-id');
+    expect(sourceIds).not.toContain('foreign-account');
+    const destinationIds = (
+      dialog.props('familyAccounts') as Array<{ value: string }> | undefined
+    )?.map((o) => o.value);
+    expect(destinationIds).toContain('foreign-account');
   });
 });

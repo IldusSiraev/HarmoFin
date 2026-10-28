@@ -34,19 +34,23 @@ const props = withDefaults(
     transfer: TransferJournalItem | null;
     budgetId: string;
     accounts: ReadonlyArray<{ value: string; label: string }>;
+    // Family-wide destination list: the member's own accounts plus the foreign
+    // ones captioned with their owner. Falls back to `accounts` when omitted.
+    familyAccounts?: ReadonlyArray<{ value: string; label: string }> | null;
     accountNames: ReadonlyMap<string, string>;
     canRestore: boolean;
     intent?: TransferDialogIntent;
   }>(),
-  { intent: 'view' },
+  { intent: 'view', familyAccounts: null },
 );
 
 const emit = defineEmits<{ close: []; changed: [] }>();
 
 const SCALE = 2;
 const mutations = useTransferMutations();
-// Editing and deleting a transfer need OWNER or EDITOR on the server.
-const { canWrite } = usePermissions();
+// Editing and deleting a transfer need OWNER or EDITOR on the server — and
+// authorship: only the author ever succeeds with these calls.
+const { canWrite, userId } = usePermissions();
 const editing = ref(false);
 const form = ref<TransferFormModel | null>(null);
 const formErrors = ref<Partial<Record<string, string>>>({});
@@ -56,13 +60,23 @@ const confirming = ref<null | 'delete' | 'restore'>(null);
 // confirmation then closes everything instead of revealing the card.
 const direct = ref(false);
 
+const deleted = computed(() => props.transfer?.status === 'DELETED');
+const isAuthor = computed(
+  () => props.transfer?.createdBy?.userId === userId.value && userId.value !== null,
+);
+const canAct = computed(() => canWrite.value && isAuthor.value);
+const canRestoreNow = computed(() => props.canRestore && isAuthor.value);
+
 watch(
   () => [props.transfer?.id, props.intent] as const,
   () => {
     editing.value = false;
     confirming.value = null;
-    // Restore stays owner-only here too, whatever the caller asked for.
-    const intent = props.intent === 'restore' && !props.canRestore ? 'view' : props.intent;
+    // Whatever the caller asked for, an action a non-author cannot perform
+    // downgrades to the plain detail card.
+    let intent = props.intent;
+    if ((intent === 'edit' || intent === 'delete') && !canAct.value) intent = 'view';
+    if (intent === 'restore' && !canRestoreNow.value) intent = 'view';
     direct.value = props.transfer !== null && intent !== 'view';
     if (!props.transfer) return;
     if (intent === 'edit') startEdit();
@@ -81,12 +95,9 @@ function cancelConfirm(): void {
   if (direct.value) emit('close');
 }
 
-const deleted = computed(() => props.transfer?.status === 'DELETED');
-// A viewer has no footer action at all; an empty padded footer bar would be
-// worse than no footer.
-const hasFooterActions = computed(
-  () => (!deleted.value && canWrite.value) || (deleted.value && props.canRestore),
-);
+// A viewer or a non-author has no footer action at all; an empty padded footer
+// bar would be worse than no footer.
+const hasFooterActions = computed(() => (!deleted.value && canAct.value) || canRestoreNow.value);
 
 function name(accountId: string): string {
   return props.accountNames.get(accountId) ?? 'Счёт';
@@ -198,11 +209,19 @@ async function confirm(): Promise<void> {
           <dd>{{ transfer.comment }}</dd>
         </div>
       </dl>
+
+      <p
+        v-if="canWrite && transfer && !isAuthor"
+        class="transfer-dialog__notice"
+        data-testid="transfer-dialog-not-author"
+      >
+        Изменять перевод может только его автор
+      </p>
     </div>
 
     <template v-if="transfer && hasFooterActions" #footer>
       <UiButton
-        v-if="!deleted && canWrite"
+        v-if="!deleted && canAct"
         variant="secondary"
         data-testid="transfer-dialog-edit"
         :disabled="mutations.pending.value"
@@ -211,7 +230,7 @@ async function confirm(): Promise<void> {
         Изменить
       </UiButton>
       <UiButton
-        v-if="!deleted && canWrite"
+        v-if="!deleted && canAct"
         variant="tertiary"
         data-testid="transfer-dialog-delete"
         :disabled="mutations.pending.value"
@@ -220,7 +239,7 @@ async function confirm(): Promise<void> {
         Удалить
       </UiButton>
       <UiButton
-        v-if="deleted && canRestore"
+        v-if="deleted && canRestoreNow"
         variant="secondary"
         data-testid="transfer-dialog-restore"
         :disabled="mutations.pending.value"
@@ -237,6 +256,7 @@ async function confirm(): Promise<void> {
       v-if="form"
       :model="form"
       :accounts="accounts"
+      :destination-accounts="familyAccounts"
       :errors="formErrors"
       :pending="mutations.pending.value"
       submit-label="Сохранить изменения"
@@ -294,5 +314,13 @@ async function confirm(): Promise<void> {
 .transfer-dialog__error {
   margin: 0 0 var(--hf-space-4);
   color: var(--hf-color-text-danger);
+}
+
+.transfer-dialog__notice {
+  margin: 0;
+  padding: var(--hf-space-3);
+  border: 1px solid var(--hf-color-border);
+  border-radius: var(--hf-radius-md);
+  background: var(--hf-color-surface-subtle);
 }
 </style>

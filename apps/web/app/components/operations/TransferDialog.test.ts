@@ -10,6 +10,7 @@ const mutations = {
 };
 
 const roleState = vi.hoisted(() => ({ role: 'OWNER' as 'OWNER' | 'EDITOR' | 'VIEWER' | null }));
+const userState = vi.hoisted(() => ({ id: 'user-1' as string | null }));
 
 vi.mock('../../composables/useTransferMutations.js', () => ({
   useTransferMutations: () => mutations,
@@ -17,7 +18,9 @@ vi.mock('../../composables/useTransferMutations.js', () => ({
 // usePermissions reads the user from useAuth; the dialogs only need the id or null.
 vi.mock('../../composables/useAuth.js', async () => {
   const { computed } = await import('vue');
-  return { useAuth: () => ({ currentUser: computed(() => null) }) };
+  return {
+    useAuth: () => ({ currentUser: computed(() => (userState.id ? { id: userState.id } : null)) }),
+  };
 });
 vi.mock('../../composables/useActiveWorkspace.js', () => ({
   useActiveWorkspace: () => ({ role: computed(() => roleState.role) }),
@@ -40,6 +43,8 @@ const transfer: TransferJournalItem = {
   comment: 'Отпуск',
   createdAt: '2026-10-20T10:00:00.000Z',
   deletedAt: null,
+  // The author check is strict, so the shared fixture belongs to the signed-in user.
+  createdBy: { userId: 'user-1', displayName: 'Иван', isActiveMember: true },
 };
 
 const accounts = [
@@ -77,6 +82,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mutations.pending.value = false;
   roleState.role = 'OWNER';
+  userState.id = 'user-1';
   vi.spyOn(HTMLDialogElement.prototype, 'showModal').mockImplementation(function (
     this: HTMLDialogElement,
   ) {
@@ -110,7 +116,9 @@ describe('TransferDialog', () => {
   });
 
   it('shows no author line when the journal did not send one', () => {
-    const wrapper = mountDialog();
+    const withoutAuthor = { ...transfer } as Partial<TransferJournalItem>;
+    delete withoutAuthor.createdBy;
+    const wrapper = mountDialog({ transfer: withoutAuthor as TransferJournalItem });
     expect(wrapper.text()).not.toContain('Автор');
   });
 
@@ -236,5 +244,48 @@ describe('TransferDialog', () => {
     expect(wrapper.find('[data-testid="transfer-dialog-delete"]').exists()).toBe(false);
     // No footer action at all: the modal must not render an empty padded bar.
     expect(wrapper.find('.modal__footer').exists()).toBe(false);
+  });
+
+  it('hides every action and explains authorship for someone else\'s transfer', () => {
+    const wrapper = mountDialog({
+      transfer: {
+        ...transfer,
+        createdBy: { userId: 'member-1', displayName: 'Алия', isActiveMember: true },
+      },
+    });
+
+    expect(wrapper.text()).toContain('Изменять перевод может только его автор');
+    expect(wrapper.find('[data-testid="transfer-dialog-edit"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="transfer-dialog-delete"]').exists()).toBe(false);
+    expect(wrapper.find('.modal__footer').exists()).toBe(false);
+  });
+
+  it('an owner without authorship gets no restore card either', () => {
+    const wrapper = mountDialog({
+      transfer: {
+        ...transfer,
+        status: 'DELETED',
+        createdBy: { userId: 'member-1', displayName: 'Алия', isActiveMember: true },
+      },
+      canRestore: true,
+    });
+
+    expect(wrapper.find('[data-testid="transfer-dialog-restore"]').exists()).toBe(false);
+  });
+
+  it('a restore intent on someone else\'s transfer only shows the card', () => {
+    const wrapper = mountDialog({
+      transfer: {
+        ...transfer,
+        status: 'DELETED',
+        createdBy: { userId: 'member-1', displayName: 'Алия', isActiveMember: true },
+      },
+      canRestore: true,
+      intent: 'restore',
+    });
+
+    expect(wrapper.find('dialog[open] button[data-confirm]').exists()).toBe(false);
+    expect(wrapper.text()).toContain('Удалён');
+    expect(wrapper.text()).toContain('Изменять перевод может только его автор');
   });
 });

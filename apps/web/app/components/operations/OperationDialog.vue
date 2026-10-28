@@ -38,8 +38,9 @@ const emit = defineEmits<{
 // The audit route is not bound to the accounting model, so it still lives on the
 // shared reference client; everything else here is the v2 journal row.
 const api = useBudgetReferenceData();
-// Editing, deleting and restoring an operation need OWNER or EDITOR on the server.
-const { canWrite } = usePermissions();
+// Editing, deleting and restoring an operation need OWNER or EDITOR on the
+// server — and authorship: only the author ever succeeds with these calls.
+const { canWrite, userId } = usePermissions();
 
 // The journal money scale is fixed: the API serves RUB in minor units.
 const SCALE = 2;
@@ -56,14 +57,17 @@ const statusLabel = computed(() => {
 });
 
 const actions = computed(() => (props.transaction ? availableActions(props.transaction) : []));
-const editable = computed(() =>
-  props.transaction ? canEditTransaction(props.transaction) : false,
+const isAuthor = computed(
+  () => props.transaction?.createdBy?.userId === userId.value && userId.value !== null,
+);
+const editable = computed(
+  () => props.transaction !== null && canEditTransaction(props.transaction, userId.value),
 );
 const planPayment = computed(() => (props.transaction?.planOccurrenceIds.length ?? 0) > 0);
-// A viewer has no footer action at all; an empty padded footer bar would be
-// worse than no footer.
+// A viewer or a non-author has no footer action at all; an empty padded footer
+// bar would be worse than no footer.
 const hasFooterActions = computed(
-  () => canWrite.value && (editable.value || actions.value.length > 0),
+  () => canWrite.value && isAuthor.value && (editable.value || actions.value.length > 0),
 );
 
 watch(
@@ -133,6 +137,14 @@ watch(
       </dl>
 
       <p v-if="detailsError" class="operation-dialog__error" role="alert">{{ detailsError }}</p>
+
+      <p
+        v-if="canWrite && transaction && !isAuthor"
+        class="operation-dialog__notice"
+        data-testid="operation-dialog-not-author"
+      >
+        Изменять операцию может только её автор
+      </p>
 
       <section aria-labelledby="operation-dialog-audit">
         <h3 id="operation-dialog-audit">История изменений</h3>

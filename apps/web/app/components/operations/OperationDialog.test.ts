@@ -8,6 +8,7 @@ const api = {
 };
 
 const roleState = vi.hoisted(() => ({ role: 'OWNER' as 'OWNER' | 'EDITOR' | 'VIEWER' | null }));
+const userState = vi.hoisted(() => ({ id: 'user-1' as string | null }));
 
 vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -16,7 +17,9 @@ vi.mock('../../composables/useBudgetReferenceData.js', async (importOriginal) =>
 // usePermissions reads the user from useAuth; the dialogs only need the id or null.
 vi.mock('../../composables/useAuth.js', async () => {
   const { computed } = await import('vue');
-  return { useAuth: () => ({ currentUser: computed(() => null) }) };
+  return {
+    useAuth: () => ({ currentUser: computed(() => (userState.id ? { id: userState.id } : null)) }),
+  };
 });
 vi.mock('../../composables/useActiveWorkspace.js', () => ({
   useActiveWorkspace: () => ({ role: computed(() => roleState.role) }),
@@ -46,12 +49,17 @@ const transaction: TransactionJournalV2Item = {
   cancelledAt: null,
   deletedAt: null,
   createdAt: '2026-09-14T10:00:00.000Z',
+  createdBy: { userId: 'user-1', displayName: 'Иван', isActiveMember: true },
 };
 
-const mountDialog = (overrides: Partial<TransactionJournalV2Item> = {}, busy = false) =>
+const mountDialog = (
+  overrides: Partial<TransactionJournalV2Item> = {},
+  busy = false,
+  base: TransactionJournalV2Item = transaction,
+) =>
   mount(OperationDialog, {
     props: {
-      transaction: { ...transaction, ...overrides },
+      transaction: { ...base, ...overrides },
       budgetId: 'budget-id',
       accountName: 'Основная карта',
       categoryName: 'Продукты',
@@ -67,6 +75,7 @@ beforeEach(() => {
   useToast().clear();
   api.listTransactionAudit.mockResolvedValue([]);
   roleState.role = 'OWNER';
+  userState.id = 'user-1';
 });
 
 describe('OperationDialog', () => {
@@ -95,7 +104,9 @@ describe('OperationDialog', () => {
   });
 
   it('shows no author line when the journal did not send one', async () => {
-    const wrapper = mountDialog();
+    const withoutAuthor = { ...transaction } as Partial<TransactionJournalV2Item>;
+    delete withoutAuthor.createdBy;
+    const wrapper = mountDialog({}, false, withoutAuthor as TransactionJournalV2Item);
     await flushPromises();
 
     expect(wrapper.text()).not.toContain('Автор');
@@ -215,6 +226,31 @@ describe('OperationDialog', () => {
     expect(wrapper.find('[data-testid="operation-dialog-delete"]').exists()).toBe(false);
     // No footer action at all: the modal must not render an empty padded bar.
     expect(wrapper.find('.modal__footer').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('hides every action and explains authorship for someone else\'s operation', async () => {
+    const wrapper = mountDialog({
+      createdBy: { userId: 'member-1', displayName: 'Алия', isActiveMember: true },
+    });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Изменять операцию может только её автор');
+    expect(wrapper.find('[data-testid="operation-dialog-edit"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="operation-dialog-delete"]').exists()).toBe(false);
+    expect(wrapper.find('.modal__footer').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('an owner who is not the author gets no restore button on a deleted operation', async () => {
+    const wrapper = mountDialog({
+      status: 'DELETED',
+      createdBy: { userId: 'member-1', displayName: 'Алия', isActiveMember: true },
+    });
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="operation-dialog-restore"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="operation-dialog-not-author"]').exists()).toBe(true);
     wrapper.unmount();
   });
 });
