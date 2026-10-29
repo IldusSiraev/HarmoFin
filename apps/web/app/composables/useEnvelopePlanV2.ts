@@ -51,6 +51,8 @@ export interface FundingPreviewResponse {
     /** Period of the line (YYYY-MM-DD); null for envelopes without periods. */
     periodStartsOn?: string | null;
     periodEndsOn?: string | null;
+    /** Envelope owner; shown as a caption when it is not the current user. */
+    owner?: PersonRef | null;
   }>;
   remainingMinor: string;
   mandatoryDueCurrentMinor: string;
@@ -106,6 +108,9 @@ export interface EnvelopePlanDto {
   spentMinor: string;
   balanceMinor: string;
   archivedAt: string | null;
+  /** Who may edit this envelope: only the owner, regardless of workspace role. */
+  owner: PersonRef;
+  canEdit: boolean;
   /** Period buckets with money movement plus the current one; empty for non-period envelopes. */
   periods?: EnvelopePeriodDto[];
 }
@@ -167,6 +172,14 @@ export interface EnvelopeHistoryItem {
   kind: 'ASSIGNMENT' | 'MOVEMENT' | 'SPENDING';
   amountMinor: string;
   effectiveOn: string;
+  /** Money direction relative to this envelope; the only source of the sign. */
+  direction?: 'IN' | 'OUT';
+  /** Who recorded the movement; may be missing on older rows. */
+  createdBy?: PersonRef;
+  /** Where the money came from or went (counterpart envelope or income name). */
+  counterpartName?: string | null;
+  /** Assignment origin when known (e.g. income allocation). */
+  assignmentType?: string | null;
 }
 
 export interface EnvelopeHistoryResponse {
@@ -382,11 +395,15 @@ export type TransactionV2Status = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'DELETED
 // The journal feed names who recorded each row; other reads of a transaction
 // (a single fetch, a lifecycle response) do not carry it, so the field stays
 // optional on the shared item type instead of forking it into a journal-only type.
-export interface AuthorRef {
+export interface PersonRef {
   userId: string;
   displayName: string | null;
   isActiveMember: boolean;
 }
+
+// Compatibility alias: the same reference now names an owner, not only an
+// operation author. Import PersonRef in new code.
+export type AuthorRef = PersonRef;
 
 // One journal row.
 export interface TransactionJournalV2Item {
@@ -580,6 +597,9 @@ export interface PlanResponse {
   categoryId: string | null;
   comment: string | null;
   status: string;
+  /** План принадлежит этому участнику; редактировать может только владелец. */
+  owner: PersonRef;
+  canEdit: boolean;
 }
 
 export interface UpdatePlanRequest {
@@ -694,6 +714,9 @@ export interface PlansCalendarItem {
   factOn: string | null;
   factMinor: string | null;
   factTransactionIds: string[];
+  /** Владелец связанного плана и право текущего участника управлять им. */
+  owner: PersonRef;
+  canEdit: boolean;
 }
 
 export interface PlansCalendarTotals {
@@ -712,6 +735,25 @@ export interface PlansCalendarResponse {
   overdueCount: number;
   totals: PlansCalendarTotals;
 }
+
+// Raw calendar owner arrives as `id`; the client-wide PersonRef names it `userId`.
+type RawPlansCalendarItem = Omit<PlansCalendarItem, 'owner'> & {
+  owner: { id: string; displayName: string | null; isActiveMember: boolean };
+};
+
+type RawPlansCalendarResponse = Omit<PlansCalendarResponse, 'items' | 'overdue'> & {
+  items: RawPlansCalendarItem[];
+  overdue: RawPlansCalendarItem[];
+};
+
+const toPlansCalendarItem = ({ owner, ...item }: RawPlansCalendarItem): PlansCalendarItem => ({
+  ...item,
+  owner: {
+    userId: owner.id,
+    displayName: owner.displayName,
+    isActiveMember: owner.isActiveMember,
+  },
+});
 
 export interface RecordIncomeOccurrenceRequest {
   accountId: string;
@@ -1187,8 +1229,8 @@ export function useEnvelopePlanV2() {
         input,
         idempotencyKey,
       ),
-    listEnvelopes: (budgetId: string) =>
-      get<EnvelopePlanListResponse>(`${base(budgetId)}/envelopes`),
+    listEnvelopes: (budgetId: string, ownerUserId?: string) =>
+      get<EnvelopePlanListResponse>(`${base(budgetId)}/envelopes${query({ ownerUserId })}`),
     createTransaction: (
       budgetId: string,
       input: CreateTransactionV2Request,
@@ -1208,8 +1250,16 @@ export function useEnvelopePlanV2() {
           limit: filter.limit === undefined ? undefined : String(filter.limit),
         })}`,
       ),
-    getPlansCalendar: (budgetId: string, month: string) =>
-      get<PlansCalendarResponse>(`${base(budgetId)}/plans/calendar${query({ month })}`),
+    getPlansCalendar: async (budgetId: string, month: string, ownerUserId?: string) => {
+      const response = await get<RawPlansCalendarResponse>(
+        `${base(budgetId)}/plans/calendar${query({ month, ownerUserId })}`,
+      );
+      return {
+        ...response,
+        items: response.items.map(toPlansCalendarItem),
+        overdue: response.overdue.map(toPlansCalendarItem),
+      };
+    },
     getTransaction: (budgetId: string, transactionId: string) =>
       get<TransactionJournalV2Item>(
         `${base(budgetId)}/transactions/${encodeURIComponent(transactionId)}`,
@@ -1263,9 +1313,9 @@ export function useEnvelopePlanV2() {
         {},
         idempotencyKey,
       ),
-    listObligationPlans: (budgetId: string, status?: PlanListStatus) =>
+    listObligationPlans: (budgetId: string, status?: PlanListStatus, ownerUserId?: string) =>
       get<{ items: ObligationPlanResponse[] }>(
-        `${base(budgetId)}/obligations/plans${query({ status })}`,
+        `${base(budgetId)}/obligations/plans${query({ status, ownerUserId })}`,
       ),
     createObligationPlan: (budgetId: string, input: CreatePlanRequest, idempotencyKey: string) =>
       postKeyed<ObligationPlanCreateResponse>(
@@ -1283,8 +1333,10 @@ export function useEnvelopePlanV2() {
         input,
         idempotencyKey,
       ),
-    listIncomePlans: (budgetId: string, status?: PlanListStatus) =>
-      get<{ items: PlanResponse[] }>(`${base(budgetId)}/income-plans${query({ status })}`),
+    listIncomePlans: (budgetId: string, status?: PlanListStatus, ownerUserId?: string) =>
+      get<{ items: PlanResponse[] }>(
+        `${base(budgetId)}/income-plans${query({ status, ownerUserId })}`,
+      ),
     createIncomePlan: (budgetId: string, input: CreatePlanRequest, idempotencyKey: string) =>
       postKeyed<PlanCreateResponse>(`${base(budgetId)}/income-plans`, input, idempotencyKey),
     updateObligationPlan: (

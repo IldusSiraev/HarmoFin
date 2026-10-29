@@ -4,9 +4,9 @@ import { BadRequestException, ConflictException, Inject, Injectable } from '@nes
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
-import { RolePolicy } from '../common/policies/role-policy.js';
+import { requireAccessActor } from '../common/policies/access-actor.repository.js';
+import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
-import { forbidden } from '../common/reference-data/reference-data.errors.js';
 import { todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { AssignmentBalanceRepository } from './assignment-balance.repository.js';
@@ -42,7 +42,7 @@ function insufficientEnvelopeBalance(): ConflictException {
 export class MovementApplicationService {
   private readonly repository = new MovementRepository();
   private readonly balances = new AssignmentBalanceRepository();
-  private readonly rolePolicy = new RolePolicy();
+  private readonly access = new BudgetAccessPolicy();
 
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
@@ -138,13 +138,8 @@ export class MovementApplicationService {
           requestHash,
         },
         async () => {
-          const membership = await tx.workspaceMembership.findFirst({
-            where: { workspaceId: model.workspaceId, userId, isActive: true },
-            select: { role: true },
-          });
-          if (!membership || !this.rolePolicy.canManage(membership.role)) {
-            throw forbidden();
-          }
+          const actor = await requireAccessActor(tx, model.workspaceId, userId);
+          this.access.requireObjectOwner(actor, sourceEnvelope);
 
           const timezone = await this.repository.requireBudgetTimezone(tx, budgetId);
           const asOfDate = new Date(`${todayInTimezone(new Date(), timezone)}T00:00:00Z`);

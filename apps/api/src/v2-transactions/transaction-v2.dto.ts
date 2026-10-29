@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+import { PersonRefResponse } from '../common/people/person-ref.dto.js';
+
 export class CreateTransactionV2Body {
   @ApiProperty({ type: String, enum: ['INCOME', 'EXPENSE'], example: 'EXPENSE' })
   transactionType!: 'INCOME' | 'EXPENSE';
@@ -263,6 +265,9 @@ export class TransactionJournalV2Item {
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
+
+  @ApiProperty({ type: PersonRefResponse, required: false })
+  createdBy?: PersonRefResponse;
 }
 
 export class TransactionJournalV2Response {

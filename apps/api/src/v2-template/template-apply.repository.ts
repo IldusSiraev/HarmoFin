@@ -57,10 +57,11 @@ export class TemplateApplyRepository {
   async createEnvelope(
     tx: Prisma.TransactionClient,
     budgetId: string,
+    ownerUserId: string,
     row: NewTemplateEnvelope,
   ): Promise<void> {
     await tx.envelope.create({
-      data: { ...row, budgetId, startingBalanceMinor: 0n },
+      data: { ...row, budgetId, ownerUserId, startingBalanceMinor: 0n },
     });
   }
 

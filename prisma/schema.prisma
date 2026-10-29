@@ -182,6 +182,7 @@ enum NotificationType {
   MEMBER_JOINED
   MEMBER_LEFT
   MEMBER_REMOVED
+  OBJECTS_TRANSFERRED
 }
 
 enum LegalDocumentType {
@@ -213,6 +214,11 @@ model User {
   consents             UserConsent[]
   sentInvitations     WorkspaceInvitation[] @relation("InvitationInviter")
   acceptedInvitations WorkspaceInvitation[] @relation("InvitationAcceptor")
+  ownedAccounts        Account[]            @relation("AccountOwner")
+  ownedEnvelopes       Envelope[]           @relation("EnvelopeOwner")
+  ownedRegularPlans    RegularPlan[]        @relation("RegularPlanOwner")
+  createdAssignments   EnvelopeAssignment[] @relation("EnvelopeAssignmentCreator")
+  createdMovements     EnvelopeMovement[]   @relation("EnvelopeMovementCreator")
 
   @@map("users")
 }
@@ -349,6 +355,7 @@ model Budget {
 model Account {
   id                   String      @id @db.Uuid
   budgetId             String      @map("budget_id") @db.Uuid
+  ownerUserId          String      @map("owner_user_id") @db.Uuid
   name                 String      @db.VarChar(120)
   accountType          AccountType @map("account_type")
   bankName             String?     @map("bank_name") @db.VarChar(120)
@@ -363,6 +370,7 @@ model Account {
   updatedAt            DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   budget                     Budget             @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  owner                      User               @relation("AccountOwner", fields: [ownerUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   transactions               Transaction[]
   incomeAllocations          IncomeAllocation[]
   transferPartsAsSource      TransferPart[]     @relation("TransferPartSourceAccount")
@@ -374,6 +382,7 @@ model Account {
 
   @@unique([id, budgetId])
   @@index([budgetId, archivedAt])
+  @@index([budgetId, ownerUserId])
   @@map("accounts")
 }
 
@@ -406,6 +415,7 @@ model Category {
 model Envelope {
   id                        String       @id @db.Uuid
   budgetId                  String       @map("budget_id") @db.Uuid
+  ownerUserId               String       @map("owner_user_id") @db.Uuid
   templateKey               String?      @map("template_key") @db.VarChar(80)
   name                      String       @db.VarChar(120)
   envelopeType              EnvelopeType @map("envelope_type")
@@ -423,6 +433,7 @@ model Envelope {
   updatedAt                 DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   budget                     Budget             @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  owner                      User               @relation("EnvelopeOwner", fields: [ownerUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   transactions               Transaction[]
   incomeAllocations          IncomeAllocation[]
   transferPartsAsSource      TransferPart[]        @relation("TransferPartSourceEnvelope")
@@ -439,6 +450,7 @@ model Envelope {
 
   @@unique([id, budgetId])
   @@index([budgetId, archivedAt])
+  @@index([budgetId, ownerUserId])
   @@map("envelopes")
 }
 
@@ -681,6 +693,7 @@ model EnvelopeAssignment {
   periodId                  String?              @map("period_id") @db.Uuid
   sourceIncomeTransactionId String?              @map("source_income_transaction_id") @db.Uuid
   status                    EnvelopeLedgerStatus @default(CONFIRMED)
+  createdByUserId           String               @map("created_by_user_id") @db.Uuid
   createdAt                 DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                 DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -688,6 +701,7 @@ model EnvelopeAssignment {
   envelope                Envelope      @relation(fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
   period                  EnvelopePeriod? @relation(fields: [periodId, budgetId, envelopeId], references: [id, budgetId, envelopeId], onDelete: Restrict, onUpdate: Cascade)
   sourceIncomeTransaction Transaction?  @relation(fields: [sourceIncomeTransactionId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  createdBy               User          @relation("EnvelopeAssignmentCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([id, budgetId])
   @@index([budgetId, envelopeId, effectiveOn])
@@ -707,6 +721,7 @@ model EnvelopeMovement {
   amountMinor           BigInt               @map("amount_minor")
   effectiveOn           DateTime             @map("effective_on") @db.Date
   status                EnvelopeLedgerStatus @default(CONFIRMED)
+  createdByUserId       String               @map("created_by_user_id") @db.Uuid
   createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -715,6 +730,7 @@ model EnvelopeMovement {
   sourcePeriod          EnvelopePeriod? @relation("MovementSourcePeriod", fields: [sourcePeriodId, budgetId, sourceEnvelopeId], references: [id, budgetId, envelopeId], onDelete: Restrict, onUpdate: Cascade)
   destinationEnvelope   Envelope?       @relation("MovementDestinationEnvelope", fields: [destinationEnvelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
   destinationPeriod     EnvelopePeriod? @relation("MovementDestinationPeriod", fields: [destinationPeriodId, budgetId, destinationEnvelopeId], references: [id, budgetId, envelopeId], onDelete: Restrict, onUpdate: Cascade)
+  createdBy             User            @relation("EnvelopeMovementCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([id, budgetId])
   @@index([budgetId, sourceEnvelopeId, effectiveOn])
@@ -747,6 +763,7 @@ model RegularPlan {
   id               String          @id @db.Uuid
   workspaceId      String          @map("workspace_id") @db.Uuid
   budgetId         String          @map("budget_id") @db.Uuid
+  ownerUserId      String          @map("owner_user_id") @db.Uuid
   name             String          @db.VarChar(120)
   planType         RegularPlanType @map("plan_type")
   amountMinor      BigInt          @map("amount_minor")
@@ -774,6 +791,7 @@ model RegularPlan {
   account        Account?   @relation("RegularPlanDefaultAccount", fields: [accountId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
   category       Category?  @relation("RegularPlanCategory", fields: [categoryId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
   envelope       Envelope?  @relation("RegularPlanEnvelope", fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  owner          User       @relation("RegularPlanOwner", fields: [ownerUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   createdBy      User       @relation("RegularPlanCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   updatedBy      User       @relation("RegularPlanUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   occurrences    PlanOccurrence[]
@@ -781,6 +799,7 @@ model RegularPlan {
   @@unique([id, budgetId])
   @@index([budgetId, isActive, deletedAt])
   @@index([budgetId, startOn, endOn])
+  @@index([budgetId, ownerUserId])
   @@map("regular_plans")
 }
 

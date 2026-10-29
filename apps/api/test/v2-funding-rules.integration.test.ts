@@ -114,6 +114,7 @@ describe('v2 funding rules and period target snapshots', () => {
       data: {
         id: randomUUID(),
         budgetId: ctx.owner!.budgetId,
+        ownerUserId: ctx.owner!.userId,
         name: 'Основной счёт',
         accountType: 'BANK_ACCOUNT',
         startingBalanceMinor: 30_000_000n,
@@ -121,12 +122,35 @@ describe('v2 funding rules and period target snapshots', () => {
       },
     });
     const budgetId = ctx.owner!.budgetId;
-    firstEnvelope = await createEnvelope(budgetId, 'CURRENT_EXPENSES', 'Первый период', 'FIRST');
-    secondEnvelope = await createEnvelope(budgetId, 'CURRENT_EXPENSES', 'Второй период', 'SECOND');
-    mandatoryEnvelope = await createEnvelope(budgetId, 'MANDATORY_EXPENSES', 'Обязательные');
-    savingsEnvelope = await createEnvelope(budgetId, 'SAVINGS_GOAL', 'Накопление');
+    firstEnvelope = await createEnvelope(
+      budgetId,
+      ctx.owner!.userId,
+      'CURRENT_EXPENSES',
+      'Первый период',
+      'FIRST',
+    );
+    secondEnvelope = await createEnvelope(
+      budgetId,
+      ctx.owner!.userId,
+      'CURRENT_EXPENSES',
+      'Второй период',
+      'SECOND',
+    );
+    mandatoryEnvelope = await createEnvelope(
+      budgetId,
+      ctx.owner!.userId,
+      'MANDATORY_EXPENSES',
+      'Обязательные',
+    );
+    savingsEnvelope = await createEnvelope(
+      budgetId,
+      ctx.owner!.userId,
+      'SAVINGS_GOAL',
+      'Накопление',
+    );
     outsiderEnvelope = await createEnvelope(
       ctx.outsider!.budgetId,
+      ctx.outsider!.userId,
       'CURRENT_EXPENSES',
       'Чужой',
       'FIRST',
@@ -795,7 +819,7 @@ describe('v2 funding rules and period target snapshots', () => {
     it('владелец задаёт Шабашка->Ремонт; доход 12000 не создаёт assignment; replay без второго audit', async () => {
       const budgetId = ctx.owner!.budgetId;
       const category = await makeCategory(budgetId, 'Шабашка', 'INCOME');
-      const repair = await createEnvelope(budgetId, 'SAVINGS_GOAL', 'Ремонт');
+      const repair = await createEnvelope(budgetId, ctx.owner!.userId, 'SAVINGS_GOAL', 'Ремонт');
       const account = await prisma.account.findFirstOrThrow({ where: { budgetId } });
       const assignmentsBefore = await prisma.envelopeAssignment.count({ where: { budgetId } });
       const auditBefore = await suggestionAudit(budgetId);
@@ -866,7 +890,12 @@ describe('v2 funding rules and period target snapshots', () => {
       const archivedIncome = await makeCategory(budgetId, 'Старый доход', 'INCOME', true);
       const expense = await makeCategory(budgetId, 'Еда', 'EXPENSE');
       const foreignCategory = await makeCategory(ctx.outsider!.budgetId, 'Чужой доход', 'INCOME');
-      const archivedEnvelope = await createEnvelope(budgetId, 'SAVINGS_GOAL', 'Архивный');
+      const archivedEnvelope = await createEnvelope(
+        budgetId,
+        ctx.owner!.userId,
+        'SAVINGS_GOAL',
+        'Архивный',
+      );
       await prisma.envelope.update({
         where: { id: archivedEnvelope },
         data: { archivedAt: new Date() },
@@ -945,7 +974,12 @@ describe('v2 funding rules and period target snapshots', () => {
         displayOrder: 903,
       },
     });
-    const archivedEnvelope = await createEnvelope(budgetId, 'SAVINGS_GOAL', 'HTTP архив');
+    const archivedEnvelope = await createEnvelope(
+      budgetId,
+      ctx.owner!.userId,
+      'SAVINGS_GOAL',
+      'HTTP архив',
+    );
     await prisma.envelope.update({
       where: { id: archivedEnvelope },
       data: { archivedAt: new Date() },
@@ -1195,6 +1229,7 @@ async function register(email: string): Promise<RegisteredUser> {
 
 async function createEnvelope(
   budgetId: string,
+  ownerUserId: string,
   envelopeType: 'CURRENT_EXPENSES' | 'MANDATORY_EXPENSES' | 'SAVINGS_GOAL',
   name: string,
   periodSlot?: 'FIRST' | 'SECOND',
@@ -1203,6 +1238,7 @@ async function createEnvelope(
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name,
       envelopeType,
       startingBalanceMinor: 0n,

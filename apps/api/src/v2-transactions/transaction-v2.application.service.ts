@@ -5,6 +5,13 @@ import type { Prisma } from '@prisma/client';
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
+import {
+  findPersonRefs,
+  personRefOf,
+  type PersonRef,
+} from '../common/people/person-ref.repository.js';
+import { requireAccessActor } from '../common/policies/access-actor.repository.js';
+import { BudgetAccessPolicy, type AccessActor } from '../common/policies/budget-access.policy.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import {
   forbidden,
@@ -65,6 +72,7 @@ export type TransactionJournalV2Item = {
   cancelledAt: string | null;
   deletedAt: string | null;
   createdAt: string;
+  createdBy?: PersonRef;
 };
 
 export type TransactionJournalV2Page = {
@@ -179,6 +187,7 @@ export class TransactionV2ApplicationService {
   private readonly assignmentRows = new AssignmentRepository();
   private readonly financialBalances = new FinancialBalanceRepository();
   private readonly obligations: ObligationApplicationService;
+  private readonly access = new BudgetAccessPolicy();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -201,8 +210,11 @@ export class TransactionV2ApplicationService {
     await this.planModelPolicy.requireModel(userId, budgetId, 2);
     const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
     if (!budget) throw resourceNotFound();
-    if (input.status === 'DELETED' && budget.workspace.memberships[0]?.role !== 'OWNER') {
-      throw forbidden();
+    if (input.status === 'DELETED') {
+      const role = budget.workspace.memberships[0]?.role;
+      if (!role || !this.access.canViewDeleted({ userId, role, isCreator: false })) {
+        throw forbidden();
+      }
     }
     const referencesExist = await this.repository.validateJournalReferences(budgetId, input);
     if (!referencesExist) throw resourceNotFound();
@@ -240,11 +252,18 @@ export class TransactionV2ApplicationService {
     if (!budget) throw resourceNotFound();
     const row = await this.repository.find(userId, budgetId, transactionId);
     if (!row) throw resourceNotFound();
-    if (row.status === 'DELETED' && budget.workspace.memberships[0]?.role !== 'OWNER') {
-      throw forbidden();
+    if (row.status === 'DELETED') {
+      const role = budget.workspace.memberships[0]?.role;
+      if (!role || !this.access.canViewDeleted({ userId, role, isCreator: false })) {
+        throw forbidden();
+      }
     }
     const links = await this.repository.findPlanOccurrenceLinks(budgetId, [row.id]);
-    return toJournalItem(row, links.get(row.id) ?? []);
+    const people = await findPersonRefs(this.prisma, budget.workspaceId, [row.createdByUserId]);
+    return {
+      ...toJournalItem(row, links.get(row.id) ?? []),
+      createdBy: personRefOf(people, row.createdByUserId),
+    };
   }
 
   async create(
@@ -315,10 +334,8 @@ export class TransactionV2ApplicationService {
     requestId?: string,
   ): Promise<TransactionV2View> {
     const occurredOn = parseDate(input.occurredOn);
-    const role = await this.repository.findActiveMemberRole(tx, workspaceId, userId);
-    if (role !== 'OWNER' && role !== 'EDITOR') {
-      throw forbidden();
-    }
+    const actor = await requireAccessActor(tx, workspaceId, userId);
+    this.access.requireWriter(actor);
 
     const amount = parseDecimalToMinorUnits(input.amount, RUB_SCALE, false);
     if (amount <= 0n) {
@@ -343,6 +360,7 @@ export class TransactionV2ApplicationService {
     if (!refs.account || !refs.category || (input.envelopeId !== null && !refs.envelope)) {
       throw resourceNotFound();
     }
+    this.access.requireAccountOwner(actor, refs.account);
     if (
       refs.account.currency !== 'RUB' ||
       refs.account.scale !== RUB_SCALE ||
@@ -636,6 +654,7 @@ export class TransactionV2ApplicationService {
       envelopeId,
     );
     this.assertReferences(refs, 'EXPENSE', envelopeId);
+    this.access.requireAccountOwner(ctx.actor, refs.account!);
 
     const wasMandatory =
       occurrences.length > 0 || currentEnvelope?.envelopeType === 'MANDATORY_EXPENSES';
@@ -731,6 +750,7 @@ export class TransactionV2ApplicationService {
       null,
     );
     this.assertReferences(refs, 'INCOME', null);
+    this.access.requireAccountOwner(ctx.actor, refs.account!);
     if (confirmed && occurredOn > ctx.today) {
       throw validationFailed('Нельзя подтвердить факт с будущей датой.');
     }
@@ -891,8 +911,8 @@ export class TransactionV2ApplicationService {
           requestHash,
         },
         async () => {
-          const role = await this.repository.findActiveMemberRole(tx, model.workspaceId, userId);
-          if (role !== 'OWNER' && role !== 'EDITOR') throw forbidden();
+          const actor = await requireAccessActor(tx, model.workspaceId, userId);
+          this.access.requireWriter(actor);
           const budget = await this.repository.findBudgetSettings(tx, budgetId);
           if (!budget) throw resourceNotFound();
           const current = await this.repository.findForMutation(
@@ -902,9 +922,11 @@ export class TransactionV2ApplicationService {
             transactionId,
           );
           if (!current) throw resourceNotFound();
+          this.access.requireOperationAuthor(actor, current);
           return {
             status: 200,
             body: await body(tx, current, {
+              actor,
               budget,
               workspaceId: model.workspaceId,
               allowNegativeBalance: budget.allowNegativeBalance,
@@ -989,6 +1011,7 @@ export class TransactionV2ApplicationService {
 }
 
 type LifecycleContext = {
+  actor: AccessActor;
   budget: NonNullable<Awaited<ReturnType<TransactionRepository['findBudgetSettings']>>>;
   workspaceId: string;
   allowNegativeBalance: boolean;

@@ -132,6 +132,7 @@ async function seedBudget(f: Fixture, withRule: boolean): Promise<void> {
     data: [acc1, acc2].map((accId, i) => ({
       id: accId,
       budgetId,
+      ownerUserId: userId,
       name: `Счёт ${i}`,
       accountType: 'BANK_CARD' as const,
       startingBalanceMinor: 500_000n,
@@ -172,6 +173,7 @@ async function seedBudget(f: Fixture, withRule: boolean): Promise<void> {
     data: [env1, env2].map((envId, i) => ({
       id: envId,
       budgetId,
+      ownerUserId: userId,
       name: `Конверт ${i}`,
       envelopeType: 'CUSTOM' as const,
       startingBalanceMinor: 0n,
@@ -323,6 +325,7 @@ async function seedBudget(f: Fixture, withRule: boolean): Promise<void> {
       effectiveOn: day('2026-10-01'),
       periodId: period1,
       sourceIncomeTransactionId: incomeTx,
+      createdByUserId: userId,
     },
   });
   await prisma.envelopeAssignment.create({
@@ -334,6 +337,7 @@ async function seedBudget(f: Fixture, withRule: boolean): Promise<void> {
       amountMinor: 1_000n,
       effectiveOn: day('2026-10-01'),
       periodId: period2,
+      createdByUserId: userId,
     },
   });
   await prisma.envelopeMovement.create({
@@ -346,6 +350,7 @@ async function seedBudget(f: Fixture, withRule: boolean): Promise<void> {
       destinationPeriodId: period2,
       amountMinor: 500n,
       effectiveOn: day('2026-10-02'),
+      createdByUserId: userId,
     },
   });
   await prisma.budgetCycleRevision.create({
@@ -365,6 +370,7 @@ async function seedBudget(f: Fixture, withRule: boolean): Promise<void> {
       id: plan,
       workspaceId,
       budgetId,
+      ownerUserId: userId,
       name: 'Интернет',
       planType: 'EXPENSE',
       amountMinor: 900n,
@@ -506,6 +512,7 @@ describe('budget-reset.sql: чистый лист на модели v2', () => {
       data: {
         id: randomUUID(),
         budgetId: extraBudgetId,
+        ownerUserId: ctx.c.userId,
         name: 'Счёт второго бюджета',
         accountType: 'CASH',
         startingBalanceMinor: 1_000n,
@@ -546,6 +553,7 @@ describe('budget-reset.sql: чистый лист на модели v2', () => {
       data: {
         id: randomUUID(),
         budgetId: ctx.e.budgetId,
+        ownerUserId: ctx.e.userId,
         name: 'Счёт E',
         accountType: 'CASH',
         startingBalanceMinor: 1_000n,

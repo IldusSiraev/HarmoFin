@@ -1,5 +1,6 @@
 import { ref, type Ref } from 'vue';
 
+import { authorLabel } from '../components/operations/author-label.js';
 import { useActiveWorkspace } from './useActiveWorkspace.js';
 import { useAuth } from './useAuth.js';
 import {
@@ -7,19 +8,28 @@ import {
   type AccountDto,
   type CategoryDto,
 } from './useBudgetReferenceData.js';
-import { useEnvelopePlanV2, type EnvelopePlanDto } from './useEnvelopePlanV2.js';
+import { useEnvelopePlanV2, type EnvelopePlanDto, type PersonRef } from './useEnvelopePlanV2.js';
 
 export interface ReferenceOption {
   value: string;
   label: string;
 }
 
+// Foreign records carry their owner in the label, so a member picking from a
+// family-wide list cannot mistake someone else's account or envelope for theirs.
+function captioned(name: string, owner: PersonRef | null | undefined, meId: string | null): string {
+  return owner && owner.userId !== meId ? `${name} — ${authorLabel(owner)}` : name;
+}
+
 // Module-level cache: the dialogs open from every screen, and re-reading the
 // same three reference lists on each open is pure latency.
 const accounts = ref<ReferenceOption[]>([]);
+const ownAccounts = ref<ReferenceOption[]>([]);
+const familyAccounts = ref<ReferenceOption[]>([]);
 const accountDetails = ref<AccountDto[]>([]);
 const categories = ref<CategoryDto[]>([]);
 const envelopes = ref<ReferenceOption[]>([]);
+const envelopeOptions = ref<ReferenceOption[]>([]);
 // Envelope Plan v2.2 records (funded/spent/balance from the server).
 const envelopePlans = ref<EnvelopePlanDto[]>([]);
 const budgetId = ref<string | null>(null);
@@ -29,9 +39,12 @@ let loadedFor: string | null = null;
 
 export function useOperationReferenceData(): {
   accounts: Ref<ReferenceOption[]>;
+  ownAccounts: Ref<ReferenceOption[]>;
+  familyAccounts: Ref<ReferenceOption[]>;
   accountDetails: Ref<AccountDto[]>;
   categories: Ref<CategoryDto[]>;
   envelopes: Ref<ReferenceOption[]>;
+  envelopeOptions: Ref<ReferenceOption[]>;
   envelopePlans: Ref<EnvelopePlanDto[]>;
   budgetId: Ref<string | null>;
   load: () => Promise<void>;
@@ -68,14 +81,31 @@ export function useOperationReferenceData(): {
     const plans = envelopeResult.items.filter((envelope) => envelope.archivedAt === null);
     envelopePlans.value = plans;
     envelopes.value = plans.map((envelope) => ({ value: envelope.id, label: envelope.name }));
+    // The server owns the verdict; the client only filters by its `canEdit`
+    // flag. Doubles without the flag stay out of the own lists, never in them.
+    const meId = auth.currentUser?.value?.id ?? null;
+    ownAccounts.value = accountList
+      .filter((account) => account.canEdit === true)
+      .map((account) => ({ value: account.id, label: account.name }));
+    familyAccounts.value = accountList.map((account) => ({
+      value: account.id,
+      label: captioned(account.name, account.owner, meId),
+    }));
+    envelopeOptions.value = plans.map((envelope) => ({
+      value: envelope.id,
+      label: captioned(envelope.name, envelope.owner, meId),
+    }));
     loadedFor = id;
   }
 
   function forget(): void {
     accounts.value = [];
+    ownAccounts.value = [];
+    familyAccounts.value = [];
     accountDetails.value = [];
     categories.value = [];
     envelopes.value = [];
+    envelopeOptions.value = [];
     envelopePlans.value = [];
     loadedFor = null;
   }
@@ -88,9 +118,12 @@ export function useOperationReferenceData(): {
 
   return {
     accounts,
+    ownAccounts,
+    familyAccounts,
     accountDetails,
     categories,
     envelopes,
+    envelopeOptions,
     envelopePlans,
     budgetId,
     load,

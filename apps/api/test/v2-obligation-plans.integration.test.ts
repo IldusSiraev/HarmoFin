@@ -39,6 +39,7 @@ const owner = () => ctx.owner!;
 let app: NestFastifyApplication;
 let server: FastifyInstance;
 let accountId: string;
+let editorAccountId: string;
 let expenseCategoryId: string;
 let outsiderCategoryId: string;
 let mandatoryEnvelopeId: string;
@@ -168,7 +169,23 @@ describe('v2 обязательства: управление планами', (
         data: {
           id: randomUUID(),
           budgetId: b,
+          ownerUserId: owner().userId,
           name: 'Счёт',
+          accountType: 'BANK_ACCOUNT',
+          currency: 'RUB',
+          scale: 2,
+          startingBalanceMinor: 100_000_000n,
+          accountingStartDate: d(-90),
+        },
+      })
+    ).id;
+    editorAccountId = (
+      await prisma.account.create({
+        data: {
+          id: randomUUID(),
+          budgetId: b,
+          ownerUserId: ctx.editor!.userId,
+          name: 'Счёт участника',
           accountType: 'BANK_ACCOUNT',
           currency: 'RUB',
           scale: 2,
@@ -184,6 +201,7 @@ describe('v2 обязательства: управление планами', (
         data: {
           id: randomUUID(),
           budgetId: b,
+          ownerUserId: owner().userId,
           name: 'Обязательные',
           envelopeType: 'MANDATORY_EXPENSES',
           startingBalanceMinor: 0n,
@@ -410,11 +428,17 @@ describe('v2 обязательства: управление планами', (
     expect(badBudget.statusCode).toBe(400);
   });
 
-  it('роли: EDITOR и VIEWER не управляют планами, VIEWER читает; CSRF и ключ обязательны', async () => {
+  it('роли: EDITOR создаёт свой план, не управляет чужим; VIEWER не мутирует, читает; CSRF и ключ', async () => {
     const created = (await post(owner(), planBody())).json<{ id: string }>();
+    // Stage B: EDITOR creates own plans; VIEWER cannot.
+    expect((await post(on(ctx.editor!), planBody())).statusCode).toBe(201);
+    expect((await post(on(ctx.viewer!), planBody())).statusCode).toBe(403);
     for (const user of [ctx.editor!, ctx.viewer!]) {
-      expect((await post(on(user), planBody())).statusCode).toBe(403);
-      expect((await patch(on(user), created.id, { name: 'X' })).statusCode).toBe(403);
+      const patchRes = await patch(on(user), created.id, { name: 'X' });
+      expect(patchRes.statusCode).toBe(403);
+      expect(patchRes.json<{ code: string }>().code).toBe(
+        user === ctx.editor! ? 'NOT_OBJECT_OWNER' : 'FORBIDDEN',
+      );
     }
     expect((await get(on(ctx.viewer!), 'plans')).statusCode).toBe(200);
     expect((await get(on(ctx.viewer!), 'occurrences')).statusCode).toBe(200);
@@ -657,6 +681,7 @@ describe('v2 обязательства: управление планами', (
           data: {
             id: randomUUID(),
             budgetId: ctx.outsider!.budgetId,
+            ownerUserId: ctx.outsider!.userId,
             name: 'Чужой',
             accountType: 'BANK_ACCOUNT',
             currency: 'RUB',
@@ -684,6 +709,7 @@ describe('v2 обязательства: управление планами', (
           data: {
             id: randomUUID(),
             budgetId: owner().budgetId,
+            ownerUserId: owner().userId,
             name: 'Бедный',
             accountType: 'CASH',
             currency: 'RUB',
@@ -706,6 +732,7 @@ describe('v2 обязательства: управление планами', (
           data: {
             id: randomUUID(),
             budgetId: ctx.outsider!.budgetId,
+            ownerUserId: ctx.outsider!.userId,
             name: 'Свой',
             accountType: 'BANK_ACCOUNT',
             currency: 'RUB',
@@ -755,7 +782,9 @@ describe('v2 обязательства: управление планами', (
       const before = await totals();
       expect((await payOne(on(ctx.viewer!), oneBody())).statusCode).toBe(403);
       expect(await totals()).toEqual(before);
-      expect((await payOne(on(ctx.editor!), oneBody())).statusCode).toBe(201);
+      expect(
+        (await payOne(on(ctx.editor!), oneBody({ accountId: editorAccountId }))).statusCode,
+      ).toBe(201);
       const badCsrf = await server.inject({
         method: 'POST',
         url: payUrl(),

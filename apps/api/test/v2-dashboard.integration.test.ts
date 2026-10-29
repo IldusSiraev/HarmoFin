@@ -537,6 +537,7 @@ describe('v2 dashboard summary (P01)', () => {
         effectiveOn: day('2026-03-05'),
         periodId: period,
         status: 'DELETED',
+        createdByUserId: w.userId,
       },
     });
     const same = await service.summary(w.userId, w.budgetId, ASOF);
@@ -1136,6 +1137,7 @@ async function world(
     data: {
       id: randomUUID(),
       budgetId: registered.budgetId,
+      ownerUserId: registered.userId,
       name: 'Основной счёт',
       accountType: 'BANK_ACCOUNT',
       startingBalanceMinor,
@@ -1189,6 +1191,7 @@ async function envelope(
     data: {
       id: randomUUID(),
       budgetId: w.budgetId,
+      ownerUserId: w.userId,
       name,
       envelopeType,
       startingBalanceMinor: 0n,
@@ -1241,6 +1244,7 @@ async function assign(
       effectiveOn: day('2026-03-01'),
       periodId,
       status: 'CONFIRMED',
+      createdByUserId: w.userId,
     },
   });
 }
@@ -1289,6 +1293,7 @@ async function occurrence(
       id: planId,
       workspaceId: w.workspaceId,
       budgetId: w.budgetId,
+      ownerUserId: w.userId,
       name: `План ${planId.slice(0, 6)}`,
       planType,
       amountMinor,

@@ -34,6 +34,8 @@ function envelope(overrides: Partial<EnvelopePlanDto> = {}): EnvelopePlanDto {
     spentMinor: '1200000',
     balanceMinor: '2800000',
     archivedAt: null,
+    owner: { userId: 'user-me', displayName: 'Я', isActiveMember: true },
+    canEdit: true,
     ...overrides,
   };
 }
@@ -199,4 +201,23 @@ describe('PeriodTargetDialog', () => {
       expect(message).not.toContain('raw technical detail');
     });
   });
+});
+
+it('чужой конверт: подтверждение цели скрыто, видна подпись владельца', async () => {
+  const wrapper = mount(PeriodTargetDialog, {
+    props: {
+      open: true,
+      budgetId: BUDGET,
+      envelope: envelope({
+        canEdit: false,
+        owner: { userId: 'u-x', displayName: 'Ильнура', isActiveMember: true },
+      }),
+      periodStart: '2026-10-01',
+    },
+    attachTo: document.body,
+  });
+  wrappers.push(wrapper);
+  await flushPromises();
+  expect(document.querySelector('[data-testid="target-confirm"]')).toBeNull();
+  expect(text()).toContain('Принадлежит участнику «Ильнура»');
 });

@@ -32,6 +32,7 @@ export interface TransactionRecord {
   cancelledAt: Date | null;
   deletedAt: Date | null;
   preDeleteStatus: TransactionStatus | null;
+  createdByUserId: string;
   createdAt: Date;
   accountingModelVersion?: number;
   accountCurrentBalanceMinor: bigint;
@@ -58,7 +59,7 @@ export interface TransactionCreateData {
 }
 
 export interface V2ReferenceRecords {
-  account: { id: string; currency: string; scale: number } | null;
+  account: { id: string; currency: string; scale: number; ownerUserId: string } | null;
   category: { id: string; categoryType: TransactionType } | null;
   envelope: {
     id: string;
@@ -328,7 +329,7 @@ export class TransactionRepository {
     const [account, category, envelope] = await Promise.all([
       tx.account.findFirst({
         where: { id: accountId, budgetId, archivedAt: null },
-        select: { id: true, currency: true, scale: true },
+        select: { id: true, currency: true, scale: true, ownerUserId: true },
       }),
       tx.category.findFirst({
         where: { id: categoryId, budgetId, archivedAt: null },
@@ -771,6 +772,7 @@ const transactionSelect = {
   cancelledAt: true,
   deletedAt: true,
   preDeleteStatus: true,
+  createdByUserId: true,
   createdAt: true,
   accountingModelVersion: true,
 } as const;

@@ -1,6 +1,5 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 
-import { RolePolicy } from '../common/policies/role-policy.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { AccountApplicationService } from './account.application.service.js';
 import { AccountController } from './account.controller.js';
@@ -13,7 +12,6 @@ export class AccountModule {
       module: AccountModule,
       controllers: [AccountController],
       providers: [
-        RolePolicy,
         {
           provide: AccountRepository,
           useFactory: (prisma: PrismaService) => new AccountRepository(prisma),
@@ -21,9 +19,8 @@ export class AccountModule {
         },
         {
           provide: AccountApplicationService,
-          useFactory: (repository: AccountRepository, rolePolicy: RolePolicy) =>
-            new AccountApplicationService(repository, rolePolicy),
-          inject: [AccountRepository, RolePolicy],
+          useFactory: (repository: AccountRepository) => new AccountApplicationService(repository),
+          inject: [AccountRepository],
         },
       ],
     };

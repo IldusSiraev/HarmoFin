@@ -30,14 +30,40 @@ const budgetRow = {
 };
 const auth = {
   currentData: { value: { workspaces: [{ role: 'OWNER', budgets: [budgetRow] }] } },
+  currentUser: { value: { id: 'user-id' } },
   loadMe: vi.fn(),
 };
-const { route } = vi.hoisted(() => ({ route: { query: {} } }));
+const { route, ownerKind } = vi.hoisted(() => ({
+  route: { query: {} as Record<string, string> },
+  ownerKind: { value: 'toggle' as 'none' | 'toggle' | 'chip' },
+}));
 
 vi.mock('#imports', () => ({
   definePageMeta: vi.fn(),
   useRoute: () => route,
 }));
+// Fresh refs per mount: picking «Мои» in one test must not leak into the next.
+vi.mock('../../composables/useOwnerFilter.js', async () => {
+  const { computed, ref } = await import('vue');
+  return {
+    useOwnerFilter: () => {
+      const mode = ref('all');
+      return {
+        mode,
+        ownerUserId: computed(() => (mode.value === 'all' ? undefined : 'user-id')),
+        options: computed(() => [
+          { value: 'all', label: 'Все' },
+          { value: 'mine', label: 'Мои' },
+        ]),
+        kind: {
+          get value() {
+            return ownerKind.value;
+          },
+        },
+      };
+    },
+  };
+});
 vi.mock('../../composables/useEnvelopePlanV2.js', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useEnvelopePlanV2: () => v2,
@@ -87,6 +113,8 @@ const toCalendarItem = (
   factOn: extra.factOn ?? null,
   factMinor: extra.factMinor ?? null,
   factTransactionIds: extra.factTransactionIds ?? [],
+  owner: { userId: 'user-id', displayName: 'Алия', isActiveMember: true },
+  canEdit: true,
 });
 
 function calendarOf(
@@ -169,6 +197,8 @@ describe('plans page', () => {
     comment: null,
     status: 'ACTIVE',
     envelopeId: 'mandatory-envelope',
+    owner: { userId: 'user-id', displayName: 'Алия', isActiveMember: true },
+    canEdit: true,
   };
   const salaryPlan = {
     ...rentPlan,
@@ -235,6 +265,7 @@ describe('plans page', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-09-24T00:00:00.000Z'));
     route.query = {};
+    ownerKind.value = 'toggle';
     v2.getPlansCalendar.mockResolvedValue(defaultCalendar());
     v2.listTransactions.mockResolvedValue({ items: [], nextCursor: null });
     v2.payObligation.mockResolvedValue({ transaction: null, occurrence: daycare, warnings: [] });
@@ -275,7 +306,7 @@ describe('plans page', () => {
     wrapper = mountV2();
     await flushPromises();
 
-    expect(v2.getPlansCalendar).toHaveBeenCalledWith('budget-id', '2026-09');
+    expect(v2.getPlansCalendar).toHaveBeenCalledWith('budget-id', '2026-09', undefined);
     expect(wrapper.find('.plans-page__main').exists()).toBe(false);
     expect(wrapper.find('[data-action="create-plan"]').exists()).toBe(false);
     expect(wrapper.get('[data-testid="obligation-row-occ-daycare"]').text()).toContain(
@@ -322,7 +353,7 @@ describe('plans page', () => {
     await flushPromises();
 
     expect(v2.getPlansCalendar).toHaveBeenCalledTimes(1);
-    expect(v2.getPlansCalendar).toHaveBeenCalledWith('budget-id', '2026-09');
+    expect(v2.getPlansCalendar).toHaveBeenCalledWith('budget-id', '2026-09', undefined);
     expect(wrapper.find('[data-testid="calendar-day-2026-09-24"]').exists()).toBe(true);
     for (const tile of ['planned-income', 'planned-expense', 'balance', 'total-plans']) {
       expect(wrapper.find(`[data-testid="kpi-${tile}"]`).exists()).toBe(true);
@@ -469,7 +500,7 @@ describe('plans page', () => {
     await wrapper.get('[data-testid="calendar-next-month"]').trigger('click');
     await flushPromises();
 
-    expect(v2.getPlansCalendar).toHaveBeenLastCalledWith('budget-id', '2026-10');
+    expect(v2.getPlansCalendar).toHaveBeenLastCalledWith('budget-id', '2026-10', undefined);
     expect(wrapper.find('[data-testid="calendar-day-2026-10-01"]').exists()).toBe(true);
   });
 
@@ -498,7 +529,7 @@ describe('plans page', () => {
     resolveStale(calendarOf([], [], totalsOf(111), '2026-10'));
     await flushPromises();
 
-    expect(v2.getPlansCalendar).toHaveBeenLastCalledWith('budget-id', '2026-11');
+    expect(v2.getPlansCalendar).toHaveBeenLastCalledWith('budget-id', '2026-11', undefined);
     const tile = wrapper.get('[data-testid="kpi-total-plans"]').text();
     expect(tile).toContain('222');
     expect(tile).not.toContain('111');
@@ -1090,7 +1121,7 @@ describe('plans page', () => {
       expect(typeof key).toBe('string');
       expect(v2.createIncomePlan).not.toHaveBeenCalled();
       expect(v2.getPlansCalendar).toHaveBeenCalledTimes(1);
-      expect(v2.getPlansCalendar).toHaveBeenCalledWith('budget-id', '2026-09');
+      expect(v2.getPlansCalendar).toHaveBeenCalledWith('budget-id', '2026-09', undefined);
       expect(wrapper.find('[data-testid="plan-submit"]').exists()).toBe(false);
       expect(wrapper.get('[role="status"]').text()).toBe('Платёж «Аренда» добавлен.');
       expect(document.activeElement).toBe(wrapper.get('[data-testid="plans-list"]').element);
@@ -1179,8 +1210,8 @@ describe('plans page', () => {
     it('reads both plan lists on load and shows the catalog count', async () => {
       await mountReady();
 
-      expect(v2.listObligationPlans).toHaveBeenCalledWith('budget-id', 'all');
-      expect(v2.listIncomePlans).toHaveBeenCalledWith('budget-id', 'all');
+      expect(v2.listObligationPlans).toHaveBeenCalledWith('budget-id', 'all', undefined);
+      expect(v2.listIncomePlans).toHaveBeenCalledWith('budget-id', 'all', undefined);
       expect(wrapper!.get('[data-testid="plan-catalog"]').text()).toContain('Все планы (2)');
     });
 
@@ -1384,33 +1415,74 @@ describe('plans page', () => {
       (auth.currentData.value.workspaces[0] as { role: string }).role = role;
     }
 
-    it('viewer: no plan creation, editing or catalog management', async () => {
+    it('viewer: no plan creation, but item actions follow the server canEdit flag', async () => {
       setRole('VIEWER');
       wrapper = mountV2();
       await flushPromises();
 
       expect(wrapper.find('[data-testid="plan-add-obligation"]').exists()).toBe(false);
-      expect(wrapper.find('[data-testid="obligation-edit-occ-rent"]').exists()).toBe(false);
-      expect(wrapper.find('[data-testid="catalog-edit-plan-rent"]').exists()).toBe(false);
+      // The fixtures say canEdit true: the client does not add its own role gate on top.
+      expect(wrapper.find('[data-testid="obligation-pay-occ-rent"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="obligation-edit-occ-rent"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="catalog-edit-plan-rent"]').exists()).toBe(true);
     });
 
-    it('viewer: no pay, skip or record-income on open obligations/income', async () => {
-      setRole('VIEWER');
+    it('editor: creates plans and acts on server-approved items', async () => {
+      setRole('EDITOR');
+      wrapper = mountV2();
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="plan-add-obligation"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="obligation-pay-occ-rent"]').exists()).toBe(true);
+    });
+
+    it('owner role does not unlock foreign items: canEdit false hides every action', async () => {
+      const foreignRent = {
+        ...toCalendarItem(rent, 'OBLIGATION'),
+        canEdit: false,
+        owner: { userId: 'user-2', displayName: 'Борис', isActiveMember: true },
+      };
+      v2.getPlansCalendar.mockResolvedValue(withPlans([foreignRent]));
+      v2.listObligationPlans.mockResolvedValue({
+        items: [{ ...rentPlan, canEdit: false }],
+      });
       wrapper = mountV2();
       await flushPromises();
 
       expect(wrapper.find('[data-testid="obligation-pay-occ-rent"]').exists()).toBe(false);
       expect(wrapper.find('[data-testid="obligation-skip-occ-rent"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="obligation-edit-occ-rent"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="catalog-edit-plan-rent"]').exists()).toBe(false);
     });
+  });
 
-    it('editor: plan management stays hidden, but recording stays available', async () => {
-      setRole('EDITOR');
+  describe('owner filter', () => {
+    it('hides the control when the family has no other members', async () => {
+      ownerKind.value = 'none';
       wrapper = mountV2();
       await flushPromises();
 
-      expect(wrapper.find('[data-testid="plan-add-obligation"]').exists()).toBe(false);
-      expect(wrapper.find('[data-testid="obligation-edit-occ-rent"]').exists()).toBe(false);
-      expect(wrapper.find('[data-testid="obligation-pay-occ-rent"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="owner-filter-all"]').exists()).toBe(false);
+    });
+
+    it('shows the control for a family with several members and defaults to all', async () => {
+      wrapper = mountV2();
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="owner-filter-all"]').exists()).toBe(true);
+      expect(v2.getPlansCalendar).toHaveBeenCalledWith('budget-id', '2026-09', undefined);
+    });
+
+    it('picking mine reloads calendar and plan lists for the current user', async () => {
+      wrapper = mountV2();
+      await flushPromises();
+
+      await wrapper.get('[data-testid="owner-filter-mine"]').trigger('click');
+      await flushPromises();
+
+      expect(v2.getPlansCalendar).toHaveBeenLastCalledWith('budget-id', '2026-09', 'user-id');
+      expect(v2.listObligationPlans).toHaveBeenLastCalledWith('budget-id', 'all', 'user-id');
+      expect(v2.listIncomePlans).toHaveBeenLastCalledWith('budget-id', 'all', 'user-id');
     });
   });
 });

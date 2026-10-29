@@ -5,6 +5,7 @@ import FinanceMoney from '../finance/FinanceMoney.vue';
 import UiButton from '../ui/Button.vue';
 import UiModal from '../ui/Modal.vue';
 import UiStatus from '../ui/Status.vue';
+import { ownerNotice } from '../app/owner-label.js';
 import type { AccountDto } from '../../composables/useBudgetReferenceData.js';
 import { useOperationDialogs } from '../../composables/useOperationDialogs.js';
 import { usePermissions } from '../../composables/usePermissions.js';
@@ -33,9 +34,10 @@ const operationsLink = computed(() =>
 );
 
 const { openTransfer } = useOperationDialogs();
-// Editing/archiving an account is OWNER-only on the server; a transfer needs
-// OWNER or EDITOR. A viewer sees only the read-only "Операции счёта" link.
-const { canManage, canWrite } = usePermissions();
+// The server computes canEdit per account (the owner may be another member);
+// a transfer still only needs the writer role. A denied reader sees the
+// read-only "Операции счёта" link and an explanation.
+const { canWrite } = usePermissions();
 
 function transferFromAccount(): void {
   if (!props.account) return;
@@ -58,6 +60,14 @@ function transferFromAccount(): void {
         :label="account.archivedAt ? 'В архиве' : 'Активен'"
         :tone="account.archivedAt ? 'neutral' : 'success'"
       />
+
+      <p
+        v-if="!account.canEdit"
+        class="account-dialog__notice"
+        data-testid="account-dialog-owner-notice"
+      >
+        {{ ownerNotice(account.owner) }}
+      </p>
 
       <dl class="account-dialog__rows">
         <div>
@@ -98,7 +108,11 @@ function transferFromAccount(): void {
     </div>
 
     <template v-if="account" #footer>
-      <UiButton v-if="canManage" data-testid="account-dialog-edit" @click="emit('edit', account)">
+      <UiButton
+        v-if="account.canEdit"
+        data-testid="account-dialog-edit"
+        @click="emit('edit', account)"
+      >
         Изменить
       </UiButton>
       <UiButton variant="secondary" data-testid="account-dialog-operations" :to="operationsLink">
@@ -113,7 +127,7 @@ function transferFromAccount(): void {
         Перевести со счёта
       </UiButton>
       <UiButton
-        v-if="!account.archivedAt && canManage"
+        v-if="!account.archivedAt && account.canEdit"
         variant="tertiary"
         data-testid="account-dialog-archive"
         @click="emit('archive', account)"
@@ -135,6 +149,17 @@ function transferFromAccount(): void {
   font-size: var(--hf-font-size-h2);
   font-weight: var(--hf-font-weight-bold);
   line-height: var(--hf-line-height-h2);
+}
+
+.account-dialog__notice {
+  margin: 0;
+  padding: var(--hf-space-3);
+  border: 1px solid var(--hf-color-border);
+  border-radius: var(--hf-control-radius);
+  background: var(--hf-color-surface-subtle);
+  color: var(--hf-color-text);
+  font-size: var(--hf-font-size-small);
+  line-height: var(--hf-line-height-small);
 }
 
 .account-dialog__rows {

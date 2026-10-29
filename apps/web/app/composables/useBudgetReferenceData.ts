@@ -1,5 +1,5 @@
 import { type RequestClient, useApiClient } from './useApiClient.js';
-import type { ReportV2Key } from './useEnvelopePlanV2.js';
+import type { PersonRef, ReportV2Key } from './useEnvelopePlanV2.js';
 
 export type ReferenceStatus = 'active' | 'archived' | 'all';
 export type AccountType = 'BANK_ACCOUNT' | 'BANK_CARD' | 'CASH';
@@ -40,6 +40,8 @@ export interface AccountDto {
   accountingStartDate: string;
   comment: string | null;
   archivedAt: string | null;
+  owner: PersonRef;
+  canEdit: boolean;
 }
 
 export interface CreateAccountInput {
@@ -115,7 +117,8 @@ export type NotificationType =
   | 'INSUFFICIENT_MANDATORY_OBLIGATIONS'
   | 'MEMBER_JOINED'
   | 'MEMBER_LEFT'
-  | 'MEMBER_REMOVED';
+  | 'MEMBER_REMOVED'
+  | 'OBJECTS_TRANSFERRED';
 
 export interface NotificationDto {
   id: string;
@@ -211,8 +214,16 @@ export type ReportDto = GenericReportDto | PlanVsActualReportDto | GoalProgressR
 
 export interface BudgetReferenceDataApi {
   getBudget(budgetId: string): Promise<BudgetDto>;
-  getAccountsSummary(budgetId: string, status?: ReferenceStatus): Promise<ReferenceSummaryDto>;
-  listAccounts(budgetId: string, status?: ReferenceStatus): Promise<AccountDto[]>;
+  getAccountsSummary(
+    budgetId: string,
+    status?: ReferenceStatus,
+    ownerUserId?: string,
+  ): Promise<ReferenceSummaryDto>;
+  listAccounts(
+    budgetId: string,
+    status?: ReferenceStatus,
+    ownerUserId?: string,
+  ): Promise<AccountDto[]>;
   getAccount(budgetId: string, accountId: string): Promise<AccountDto>;
   createAccount(budgetId: string, input: CreateAccountInput): Promise<AccountDto>;
   updateAccount(
@@ -282,10 +293,15 @@ export function createBudgetReferenceData(api: RequestClient): BudgetReferenceDa
 
   return {
     getBudget: (budgetId) => api.request<BudgetDto>(budgetPath(budgetId)),
-    getAccountsSummary: (budgetId, status) =>
-      api.request<ReferenceSummaryDto>(withQuery(`${accountPath(budgetId)}/summary`, { status })),
-    listAccounts: (budgetId, status) =>
-      api.request<AccountDto[]>(withQuery(accountPath(budgetId), { status })),
+    getAccountsSummary: (budgetId, status, ownerUserId) =>
+      api.request<ReferenceSummaryDto>(
+        withQuery(`${accountPath(budgetId)}/summary`, {
+          status,
+          ownerUserId,
+        }),
+      ),
+    listAccounts: (budgetId, status, ownerUserId) =>
+      api.request<AccountDto[]>(withQuery(accountPath(budgetId), { status, ownerUserId })),
     getAccount: (budgetId, accountId) => api.request<AccountDto>(accountPath(budgetId, accountId)),
     createAccount: (budgetId, input) =>
       api.request<AccountDto>(accountPath(budgetId), {

@@ -6,6 +6,7 @@ import { resourceNotFound } from '../common/reference-data/reference-data.errors
 export type EnvelopePlanRecord = {
   id: string;
   budgetId: string;
+  ownerUserId: string;
   name: string;
   envelopeType: EnvelopeType;
   targetAmountMinor: bigint | null;
@@ -55,6 +56,10 @@ export type EnvelopeHistoryItemRecord = {
   id: string;
   amountMinor: string;
   effectiveOn: string;
+  direction: 'IN' | 'OUT';
+  createdByUserId: string;
+  counterpartName: string | null;
+  assignmentType: 'INCOME' | 'OPENING' | 'FREE' | null;
 };
 
 export type EnvelopeHistoryCursor = {
@@ -65,6 +70,7 @@ export type EnvelopeHistoryCursor = {
 const ENVELOPE_SELECT = {
   id: true,
   budgetId: true,
+  ownerUserId: true,
   name: true,
   envelopeType: true,
   targetAmountMinor: true,
@@ -77,6 +83,7 @@ const ENVELOPE_SELECT = {
 
 function auditValues(record: EnvelopePlanRecord): Prisma.InputJsonValue {
   return {
+    ownerUserId: record.ownerUserId,
     name: record.name,
     envelopeType: record.envelopeType,
     targetAmountMinor: record.targetAmountMinor?.toString() ?? null,
@@ -116,9 +123,13 @@ export class EnvelopePlanRepository {
     });
   }
 
-  async listActive(tx: Prisma.TransactionClient, budgetId: string): Promise<EnvelopePlanRecord[]> {
+  async listActive(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    ownerUserId?: string,
+  ): Promise<EnvelopePlanRecord[]> {
     return tx.envelope.findMany({
-      where: { budgetId, archivedAt: null },
+      where: { budgetId, archivedAt: null, ...(ownerUserId ? { ownerUserId } : {}) },
       select: ENVELOPE_SELECT,
       orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
     });
@@ -213,6 +224,7 @@ export class EnvelopePlanRepository {
       data: {
         id: createUuidV7(),
         budgetId: params.budgetId,
+        ownerUserId: params.actorUserId,
         name: params.name,
         envelopeType: params.envelopeType,
         startingBalanceMinor: 0n,
@@ -291,8 +303,16 @@ export class EnvelopePlanRepository {
           'ASSIGNMENT'::text AS kind,
           a."id" AS id,
           a."amount_minor"::text AS "amountMinor",
-          TO_CHAR(a."effective_on", 'YYYY-MM-DD') AS "effectiveOn"
+          TO_CHAR(a."effective_on", 'YYYY-MM-DD') AS "effectiveOn",
+          'IN'::text AS direction,
+          a."created_by_user_id" AS "createdByUserId",
+          c."name" AS "counterpartName",
+          a."type"::text AS "assignmentType"
         FROM "envelope_assignments" AS a
+        LEFT JOIN "transactions" AS t
+          ON t."id" = a."source_income_transaction_id" AND t."budget_id" = a."budget_id"
+        LEFT JOIN "categories" AS c
+          ON c."id" = t."category_id" AND c."budget_id" = a."budget_id"
         WHERE a."budget_id" = ${budgetId}::uuid
           AND a."envelope_id" = ${envelopeId}::uuid
           AND (CASE WHEN ${status} = 'DELETED' THEN a."status" = 'DELETED' ELSE a."status" = 'CONFIRMED' END)
@@ -301,8 +321,24 @@ export class EnvelopePlanRepository {
           'MOVEMENT'::text,
           m."id",
           m."amount_minor"::text,
-          TO_CHAR(m."effective_on", 'YYYY-MM-DD')
+          TO_CHAR(m."effective_on", 'YYYY-MM-DD'),
+          -- A movement between two periods of the same envelope is listed once, as IN.
+          CASE
+            WHEN m."source_envelope_id" = ${envelopeId}::uuid
+             AND m."destination_envelope_id" IS DISTINCT FROM ${envelopeId}::uuid
+              THEN 'OUT'
+            ELSE 'IN'
+          END,
+          m."created_by_user_id",
+          other."name",
+          NULL::text
         FROM "envelope_movements" AS m
+        LEFT JOIN "envelopes" AS other
+          ON other."budget_id" = m."budget_id"
+         AND other."id" = CASE
+               WHEN m."source_envelope_id" = ${envelopeId}::uuid THEN m."destination_envelope_id"
+               ELSE m."source_envelope_id"
+             END
         WHERE m."budget_id" = ${budgetId}::uuid
           AND (
             m."source_envelope_id" = ${envelopeId}::uuid
@@ -314,8 +350,13 @@ export class EnvelopePlanRepository {
           'SPENDING'::text,
           t."id",
           t."amount_minor"::text,
-          TO_CHAR(t."occurred_on", 'YYYY-MM-DD')
+          TO_CHAR(t."occurred_on", 'YYYY-MM-DD'),
+          'OUT'::text,
+          t."created_by_user_id",
+          c."name",
+          NULL::text
         FROM "transactions" AS t
+        LEFT JOIN "categories" AS c ON c."id" = t."category_id" AND c."budget_id" = t."budget_id"
         WHERE t."budget_id" = ${budgetId}::uuid
           AND t."envelope_id" = ${envelopeId}::uuid
           AND t."transaction_type" = 'EXPENSE'
@@ -328,7 +369,9 @@ export class EnvelopePlanRepository {
             END
           )
       )
-      SELECT combined.kind, combined.id, combined."amountMinor", combined."effectiveOn"
+      SELECT combined.kind, combined.id, combined."amountMinor", combined."effectiveOn",
+             combined.direction, combined."createdByUserId", combined."counterpartName",
+             combined."assignmentType"
       FROM combined
       ${
         cursor

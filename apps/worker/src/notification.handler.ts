@@ -48,8 +48,8 @@ type ActiveBudget = {
  * "free money" rules (those are the actionable dashboard). The notification carries only ids, the
  * plan name and the date; amounts and remainders never go into title, body or audit payload.
  * "Remainder > 0" is evaluated only to decide whether the occurrence still needs attention.
- * Recipients are every active OWNER and EDITOR of the budget's workspace; VIEWERs and former
- * members receive none, and their open plan notifications are resolved below.
+ * Recipient is the plan owner when they are an active OWNER or EDITOR; open plan notifications
+ * of anyone else are resolved.
  */
 async function evaluateBudget(
   tx: Prisma.TransactionClient,
@@ -70,6 +70,7 @@ async function evaluateBudget(
       planType: true,
       scheduledOn: true,
       amountMinor: true,
+      plan: { select: { ownerUserId: true } },
       payments: {
         where: {
           budgetId: budget.id,
@@ -80,15 +81,17 @@ async function evaluateBudget(
     },
   });
 
+  const writers = new Set(recipientIds);
   const active = new Set<string>();
   for (const occurrence of occurrences) {
     const paid = occurrence.payments.reduce((sum, item) => sum + item.transaction.amountMinor, 0n);
     if (occurrence.amountMinor - paid <= 0n) continue;
+    const ownerId = occurrence.plan.ownerUserId;
+    // A plan of a member who left already belongs to the creator (same transaction as leaving).
+    if (!writers.has(ownerId)) continue;
     const type = isoDate(occurrence.scheduledOn) < today ? 'PLAN_OVERDUE' : 'PLAN_TODAY';
-    active.add(`${occurrence.id}:${type}`);
-    for (const userId of recipientIds) {
-      await createOccurrenceNotification(tx, budget, userId, type, occurrence);
-    }
+    active.add(`${occurrence.id}:${type}:${ownerId}`);
+    await createOccurrenceNotification(tx, budget, ownerId, type, occurrence);
   }
 
   const unresolved = await tx.notification.findMany({
@@ -110,7 +113,9 @@ async function evaluateBudget(
   for (const notification of unresolved) {
     const stillActive =
       notification.occurrenceId !== null &&
-      active.has(`${notification.occurrenceId}:${notification.notificationType}`);
+      active.has(
+        `${notification.occurrenceId}:${notification.notificationType}:${notification.userId}`,
+      );
     if (stillActive) continue;
     await resolveNotification(tx, budget, notification);
   }

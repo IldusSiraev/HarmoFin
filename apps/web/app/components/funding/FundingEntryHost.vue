@@ -12,6 +12,7 @@ import {
 } from '../../composables/useEnvelopePlanV2.js';
 import { useFundingEntry, type FundingEntryRequest } from '../../composables/useFundingEntry.js';
 import { useOperationReferenceData } from '../../composables/useOperationReferenceData.js';
+import { usePermissions } from '../../composables/usePermissions.js';
 import { useToast } from '../../composables/useToast.js';
 import FundingReviewSheet, {
   type FundingChangeLinePayload,
@@ -60,6 +61,12 @@ const envelopeNames = computed(
 const envelopeTypes = computed(
   () =>
     new Map(reference.envelopePlans.value.map((envelope) => [envelope.id, envelope.envelopeType])),
+);
+
+// The preview line carries no owner, but the budget envelope references do:
+// the review sheet shows the owner caption from here.
+const envelopeOwners = computed(
+  () => new Map(reference.envelopePlans.value.map((envelope) => [envelope.id, envelope.owner])),
 );
 
 type LineIdentifiable = {
@@ -264,10 +271,23 @@ async function reload(overrides?: FundingLineInput[], targets?: string[]): Promi
   }
 }
 
+// "10000" and "10000.00" are the same amount.
+function sameAmount(left: string, right: string): boolean {
+  const normalize = (value: string): string => {
+    const [whole = '', fraction = ''] = value.split('.');
+    return `${whole.replace(/^0+(?=d)/, '')}.${fraction.replace(/0+$/, '')}`;
+  };
+  return normalize(left) === normalize(right);
+}
+
 function changeLine(payload: FundingChangeLinePayload): void {
   const current = preview.value;
   if (!current) return;
   const key = lineKey(payload);
+  // Blur re-commits a field that Enter or the typing pause already sent. Recomputing the same
+  // amount would only disable "Распределить" for a moment and swallow the click that caused the blur.
+  const shown = linesToInputs(current.lines).find((line) => lineKey(line) === key);
+  if (shown && !error.value && sameAmount(shown.amount, payload.amount)) return;
   // Replace the edited row in place, matched by lineId, so the server's row
   // order and the identities of the untouched rows survive the recompute.
   void reload(
@@ -337,12 +357,17 @@ async function confirm(): Promise<void> {
 }
 
 const sheetLines = computed(() =>
-  (preview.value?.lines ?? []).map((line) => ({
-    ...line,
-    name: lineLabel(line),
-    envelopeType: envelopeTypes.value.get(line.envelopeId),
-    error: lineErrors.value[lineKey(line)],
-  })),
+  (preview.value?.lines ?? []).map((line) => {
+    const owner = envelopeOwners.value.get(line.envelopeId);
+    // exactOptionalPropertyTypes: the owner key only appears when known.
+    return {
+      ...line,
+      name: lineLabel(line),
+      envelopeType: envelopeTypes.value.get(line.envelopeId),
+      ...(owner !== undefined ? { owner } : {}),
+      error: lineErrors.value[lineKey(line)],
+    };
+  }),
 );
 
 watch(
@@ -354,10 +379,13 @@ watch(
   },
   { immediate: true },
 );
+// Owner captions in the review sheet compare line owners with the current user.
+const { userId } = usePermissions();
 </script>
 
 <template>
   <FundingReviewSheet
+    :current-user-id="userId"
     :open="open"
     :source-kind="preview?.sourceKind"
     :source-minor="preview?.sourceAvailableMinor ?? '0'"

@@ -14,7 +14,7 @@ export type OccurrenceRecord = {
   scale: number;
   envelopeId: string | null;
   status: 'PENDING' | 'DUE' | 'SKIPPED' | 'COMPLETED' | 'CANCELLED';
-  plan: { isActive: boolean; deletedAt: Date | null };
+  plan: { isActive: boolean; deletedAt: Date | null; ownerUserId: string };
 };
 
 export type MandatoryEnvelopeRecord = {
@@ -57,7 +57,7 @@ export class ObligationRepository {
         scale: true,
         envelopeId: true,
         status: true,
-        plan: { select: { isActive: true, deletedAt: true } },
+        plan: { select: { isActive: true, deletedAt: true, ownerUserId: true } },
       },
     });
     return row as OccurrenceRecord | null;
@@ -77,7 +77,7 @@ export class ObligationRepository {
   async findAccount(tx: Prisma.TransactionClient, budgetId: string, accountId: string) {
     return tx.account.findFirst({
       where: { id: accountId, budgetId, archivedAt: null },
-      select: { id: true, currency: true, scale: true },
+      select: { id: true, currency: true, scale: true, ownerUserId: true },
     });
   }
 

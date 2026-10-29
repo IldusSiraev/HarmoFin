@@ -60,9 +60,9 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
     otherId = other.user.id;
     otherBudgetId = other.budget.id;
 
-    ownerEnvelopeAId = await createEnvelope(ownerBudgetId, 'F03 конверт A');
-    ownerEnvelopeBId = await createEnvelope(ownerBudgetId, 'F03 конверт B');
-    foreignEnvelopeId = await createEnvelope(otherBudgetId, 'F03 чужой конверт');
+    ownerEnvelopeAId = await createEnvelope(ownerBudgetId, ownerId, 'F03 конверт A');
+    ownerEnvelopeBId = await createEnvelope(ownerBudgetId, ownerId, 'F03 конверт B');
+    foreignEnvelopeId = await createEnvelope(otherBudgetId, otherId, 'F03 чужой конверт');
 
     ownerPeriodAId = await createPeriod(
       ownerBudgetId,
@@ -116,6 +116,7 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
         data: {
           id: randomUUID(),
           budgetId: ownerBudgetId,
+          createdByUserId: ownerId,
           envelopeId: ownerEnvelopeAId,
           type: 'OPENING',
           amountMinor: 0n,
@@ -131,6 +132,7 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
         data: {
           id: randomUUID(),
           budgetId: ownerBudgetId,
+          createdByUserId: ownerId,
           sourceEnvelopeId: ownerEnvelopeAId,
           amountMinor: 0n,
           effectiveOn: new Date('2026-10-01T00:00:00Z'),
@@ -145,6 +147,7 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
         data: {
           id: randomUUID(),
           budgetId: ownerBudgetId,
+          createdByUserId: ownerId,
           envelopeId: ownerEnvelopeAId,
           type: 'OPENING',
           amountMinor: 100n,
@@ -161,6 +164,7 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
         data: {
           id: randomUUID(),
           budgetId: ownerBudgetId,
+          createdByUserId: ownerId,
           envelopeId: ownerEnvelopeAId,
           type: 'OPENING',
           amountMinor: 100n,
@@ -177,6 +181,7 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
         data: {
           id: randomUUID(),
           budgetId: ownerBudgetId,
+          createdByUserId: ownerId,
           envelopeId: ownerEnvelopeAId,
           type: 'INCOME',
           amountMinor: 100n,
@@ -193,6 +198,7 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
         data: {
           id: randomUUID(),
           budgetId: ownerBudgetId,
+          createdByUserId: ownerId,
           envelopeId: ownerEnvelopeAId,
           type: 'INCOME',
           amountMinor: 100n,
@@ -206,6 +212,7 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
         data: {
           id: randomUUID(),
           budgetId: ownerBudgetId,
+          createdByUserId: ownerId,
           envelopeId: ownerEnvelopeAId,
           type: 'OPENING',
           amountMinor: 100n,
@@ -220,6 +227,7 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
         data: {
           id: randomUUID(),
           budgetId: ownerBudgetId,
+          createdByUserId: ownerId,
           envelopeId: ownerEnvelopeAId,
           type: 'FREE',
           amountMinor: 100n,
@@ -256,6 +264,7 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
         data: {
           id: randomUUID(),
           budgetId: ownerBudgetId,
+          createdByUserId: ownerId,
           sourceEnvelopeId: foreignEnvelopeId,
           amountMinor: 100n,
           effectiveOn: new Date('2026-10-01T00:00:00Z'),
@@ -270,6 +279,7 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
         data: {
           id: randomUUID(),
           budgetId: ownerBudgetId,
+          createdByUserId: ownerId,
           sourceEnvelopeId: ownerEnvelopeBId,
           sourcePeriodId: ownerEnvelopeBPeriodId,
           destinationEnvelopeId: ownerEnvelopeAId,
@@ -286,6 +296,7 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
       data: {
         id: randomUUID(),
         budgetId: ownerBudgetId,
+        createdByUserId: ownerId,
         envelopeId: ownerEnvelopeAId,
         type: 'OPENING',
         amountMinor: 65000n,
@@ -297,6 +308,7 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
       data: {
         id: randomUUID(),
         budgetId: ownerBudgetId,
+        createdByUserId: ownerId,
         envelopeId: ownerEnvelopeAId,
         type: 'OPENING',
         amountMinor: 40000n,
@@ -318,6 +330,7 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
       data: {
         id: randomUUID(),
         budgetId: ownerBudgetId,
+        createdByUserId: ownerId,
         envelopeId: ownerEnvelopeAId,
         type: 'INCOME',
         amountMinor: 20000n,
@@ -335,6 +348,7 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
       data: {
         id: randomUUID(),
         budgetId: ownerBudgetId,
+        createdByUserId: ownerId,
         sourceEnvelopeId: ownerEnvelopeBId,
         sourcePeriodId: ownerEnvelopeBPeriodId,
         destinationEnvelopeId: ownerEnvelopeAId,
@@ -355,6 +369,7 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
       data: {
         id: randomUUID(),
         budgetId: ownerBudgetId,
+        createdByUserId: ownerId,
         sourceEnvelopeId: ownerEnvelopeAId,
         sourcePeriodId: ownerPeriodAId,
         amountMinor: 7000n,
@@ -368,11 +383,16 @@ describe('v2 envelope ledger schema: virtual assignments and explicit movements'
   });
 });
 
-async function createEnvelope(budgetId: string, name: string): Promise<string> {
+async function createEnvelope(
+  budgetId: string,
+  ownerUserId: string,
+  name: string,
+): Promise<string> {
   const envelope = await prisma.envelope.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name,
       envelopeType: 'CUSTOM',
       startingBalanceMinor: 0n,
@@ -410,6 +430,7 @@ async function createIncomeTransaction(
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId: userId,
       name: `Счёт F03 ${randomUUID()}`,
       accountType: 'BANK_ACCOUNT',
       startingBalanceMinor: 0n,

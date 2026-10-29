@@ -13,6 +13,36 @@
         "required": ["consents"],
         "type": "object"
       },
+      "AcceptInvitationRequest": {
+        "properties": {
+          "displayName": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 128,
+            "minLength": 16,
+            "type": "string"
+          }
+        },
+        "required": ["token"],
+        "type": "object"
+      },
+      "AcceptedInvitationResponse": {
+        "properties": {
+          "budgetId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workspaceId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": ["workspaceId", "budgetId"],
+        "type": "object"
+      },
       "AccountDeletionScheduledResponse": {
         "properties": {
           "purgeAfter": {
@@ -47,6 +77,10 @@
             "format": "uuid",
             "type": "string"
           },
+          "canEdit": {
+            "description": "Подсказка для интерфейса: текущий пользователь может изменять счёт. Право проверяет сервер.",
+            "type": "boolean"
+          },
           "comment": {
             "nullable": true,
             "type": "string"
@@ -71,6 +105,9 @@
           "name": {
             "type": "string"
           },
+          "owner": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "scale": {
             "enum": [2],
             "type": "number"
@@ -93,7 +130,9 @@
           "currentBalanceMinor",
           "accountingStartDate",
           "comment",
-          "archivedAt"
+          "archivedAt",
+          "owner",
+          "canEdit"
         ],
         "type": "object"
       },
@@ -259,6 +298,25 @@
           }
         },
         "required": ["user", "workspace", "budget", "csrfToken"],
+        "type": "object"
+      },
+      "AuthorRefResponse": {
+        "properties": {
+          "displayName": {
+            "example": "Алия",
+            "nullable": true,
+            "type": "string"
+          },
+          "isActiveMember": {
+            "description": "False когда человек исключён из рабочего пространства или вышел из него.",
+            "type": "boolean"
+          },
+          "userId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": ["userId", "displayName", "isActiveMember"],
         "type": "object"
       },
       "BudgetDetailResponse": {
@@ -495,6 +553,16 @@
         "required": ["currentPassword", "newPassword"],
         "type": "object"
       },
+      "ChangeRoleRequest": {
+        "properties": {
+          "role": {
+            "enum": ["EDITOR", "VIEWER"],
+            "type": "string"
+          }
+        },
+        "required": ["role"],
+        "type": "object"
+      },
       "ConsentItem": {
         "properties": {
           "document": {
@@ -725,6 +793,21 @@
         "required": ["name", "envelopeType"],
         "type": "object"
       },
+      "CreateInvitationRequest": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "maxLength": 320,
+            "type": "string"
+          },
+          "role": {
+            "enum": ["EDITOR", "VIEWER"],
+            "type": "string"
+          }
+        },
+        "required": ["email", "role"],
+        "type": "object"
+      },
       "CreateTransactionV2Body": {
         "properties": {
           "accountId": {
@@ -790,6 +873,40 @@
           }
         },
         "required": ["workspaceName", "budgetName"],
+        "type": "object"
+      },
+      "CreatedInvitationResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "inviteUrl": {
+            "description": "Одноразовая ссылка-приглашение.",
+            "type": "string"
+          },
+          "role": {
+            "enum": ["EDITOR", "VIEWER"],
+            "type": "string"
+          },
+          "status": {
+            "enum": ["PENDING", "EXPIRED"],
+            "type": "string"
+          }
+        },
+        "required": ["id", "email", "role", "status", "expiresAt", "createdAt", "inviteUrl"],
         "type": "object"
       },
       "CsrfTokenResponse": {
@@ -1492,6 +1609,9 @@
             "example": "Перевод на отпуск",
             "type": "string"
           },
+          "createdBy": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "destinationAccountId": {
             "description": "Только для ACCOUNT_ONLY",
             "example": "0195f3c3-aaaa-bbbb-cccc-000000000004",
@@ -1544,6 +1664,25 @@
             "example": "10000",
             "type": "string"
           },
+          "assignmentType": {
+            "enum": ["INCOME", "OPENING", "FREE"],
+            "example": "INCOME",
+            "nullable": true,
+            "type": "string"
+          },
+          "counterpartName": {
+            "example": "Отпуск",
+            "nullable": true,
+            "type": "string"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
+          "direction": {
+            "enum": ["IN", "OUT"],
+            "example": "OUT",
+            "type": "string"
+          },
           "effectiveOn": {
             "example": "2026-09-30",
             "format": "date",
@@ -1555,7 +1694,15 @@
             "type": "string"
           }
         },
-        "required": ["kind", "amountMinor", "effectiveOn"],
+        "required": [
+          "kind",
+          "amountMinor",
+          "effectiveOn",
+          "direction",
+          "createdBy",
+          "counterpartName",
+          "assignmentType"
+        ],
         "type": "object"
       },
       "EnvelopeHistoryListResponse": {
@@ -1644,6 +1791,10 @@
             "example": "10000",
             "type": "string"
           },
+          "canEdit": {
+            "description": "Подсказка для интерфейса: текущий пользователь может изменять конверт. Право проверяет сервер.",
+            "type": "boolean"
+          },
           "comment": {
             "example": "Семейный резерв",
             "nullable": true,
@@ -1665,6 +1816,9 @@
           "name": {
             "example": "Резерв",
             "type": "string"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
           },
           "periodSlot": {
             "enum": ["FIRST", "SECOND"],
@@ -1700,7 +1854,9 @@
           "spentMinor",
           "balanceMinor",
           "archivedAt",
-          "periods"
+          "periods",
+          "owner",
+          "canEdit"
         ],
         "type": "object"
       },
@@ -1748,7 +1904,7 @@
       "FundingConfirmLineDto": {
         "properties": {
           "amount": {
-            "description": "Положительная сумма в рублях: десятичная строка, до 2 знаков.",
+            "description": "Сумма в рублях ≥ 0: десятичная строка, до 2 знаков. Строка с 0 участвует в проверке previewHash, но назначения не создаёт.",
             "example": "7000.00",
             "type": "string"
           },
@@ -1888,17 +2044,43 @@
             "nullable": true,
             "type": "string"
           },
+          "periodEndsOn": {
+            "description": "Конец периода строки; null для конверта без периодов.",
+            "format": "date",
+            "nullable": true,
+            "type": "string"
+          },
           "periodId": {
             "format": "uuid",
             "nullable": true,
             "type": "string"
           },
+          "periodStartsOn": {
+            "description": "Начало периода строки; null для конверта без периодов.",
+            "format": "date",
+            "nullable": true,
+            "type": "string"
+          },
+          "queuePosition": {
+            "description": "Номер строки в очереди правил пополнения (с 1); null — у конверта нет правила в очереди.",
+            "example": 1,
+            "nullable": true,
+            "type": "number"
+          },
           "suggestedMinor": {
+            "description": "Предложенная или введённая сумма в копейках; \"0\" — конверт в списке без суммы.",
             "example": "4000000",
             "type": "string"
           }
         },
-        "required": ["envelopeId", "periodId", "suggestedMinor"],
+        "required": [
+          "envelopeId",
+          "periodId",
+          "suggestedMinor",
+          "queuePosition",
+          "periodStartsOn",
+          "periodEndsOn"
+        ],
         "type": "object"
       },
       "FundingPreviewOverrideDto": {
@@ -2326,6 +2508,10 @@
             "example": "10000000",
             "type": "string"
           },
+          "canEdit": {
+            "description": "True у владельца плана: именно он может изменить этот план и записать по нему доход. Создание новых планов доступно любому участнику с правом записи.",
+            "type": "boolean"
+          },
           "categoryId": {
             "format": "uuid",
             "maxLength": 36,
@@ -2366,6 +2552,9 @@
             "example": 2,
             "type": "number"
           },
+          "owner": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "planType": {
             "enum": ["INCOME"],
             "type": "string"
@@ -2396,6 +2585,8 @@
           "categoryId",
           "comment",
           "status",
+          "owner",
+          "canEdit",
           "occurrenceId",
           "occurrencesCreated"
         ],
@@ -2419,6 +2610,10 @@
             "description": "Ожидаемая сумма (minor, строка).",
             "example": "10000000",
             "type": "string"
+          },
+          "canEdit": {
+            "description": "True у владельца плана: именно он может изменить этот план и записать по нему доход. Создание новых планов доступно любому участнику с правом записи.",
+            "type": "boolean"
           },
           "categoryId": {
             "format": "uuid",
@@ -2450,6 +2645,9 @@
             "example": "Зарплата",
             "type": "string"
           },
+          "owner": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "planType": {
             "enum": ["INCOME"],
             "type": "string"
@@ -2479,7 +2677,9 @@
           "endOn",
           "categoryId",
           "comment",
-          "status"
+          "status",
+          "owner",
+          "canEdit"
         ],
         "type": "object"
       },
@@ -2512,6 +2712,10 @@
             "description": "Ожидаемая сумма (minor, строка).",
             "example": "10000000",
             "type": "string"
+          },
+          "canEdit": {
+            "description": "True у владельца плана: именно он может изменить этот план и записать по нему доход. Создание новых планов доступно любому участнику с правом записи.",
+            "type": "boolean"
           },
           "cancelledOccurrences": {
             "example": 0,
@@ -2547,6 +2751,9 @@
             "example": "Зарплата",
             "type": "string"
           },
+          "owner": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "planType": {
             "enum": ["INCOME"],
             "type": "string"
@@ -2581,6 +2788,8 @@
           "categoryId",
           "comment",
           "status",
+          "owner",
+          "canEdit",
           "updatedOccurrences",
           "cancelledOccurrences"
         ],
@@ -2737,6 +2946,71 @@
         "required": ["enabled", "sourceCategoryId", "targetEnvelopeId"],
         "type": "object"
       },
+      "InvitationPreviewResponse": {
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "inviterName": {
+            "type": "string"
+          },
+          "maskedEmail": {
+            "description": "Email с маской, например a***@mail.ru.",
+            "type": "string"
+          },
+          "role": {
+            "enum": ["EDITOR", "VIEWER"],
+            "type": "string"
+          },
+          "workspaceName": {
+            "type": "string"
+          }
+        },
+        "required": ["workspaceName", "inviterName", "role", "maskedEmail", "expiresAt"],
+        "type": "object"
+      },
+      "InvitationResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "role": {
+            "enum": ["EDITOR", "VIEWER"],
+            "type": "string"
+          },
+          "status": {
+            "enum": ["PENDING", "EXPIRED"],
+            "type": "string"
+          }
+        },
+        "required": ["id", "email", "role", "status", "expiresAt", "createdAt"],
+        "type": "object"
+      },
+      "InvitationTokenRequest": {
+        "properties": {
+          "token": {
+            "maxLength": 128,
+            "minLength": 16,
+            "type": "string"
+          }
+        },
+        "required": ["token"],
+        "type": "object"
+      },
       "JournalPageResponse": {
         "properties": {
           "items": {
@@ -2744,7 +3018,7 @@
               "discriminator": {
                 "mapping": {
                   "TRANSACTION": "#/components/schemas/TransactionFeedItemResponse",
-                  "TRANSFER": "#/components/schemas/TransferJournalItemResponse"
+                  "TRANSFER": "#/components/schemas/JournalTransferItemResponse"
                 },
                 "propertyName": "kind"
               },
@@ -2753,7 +3027,7 @@
                   "$ref": "#/components/schemas/TransactionFeedItemResponse"
                 },
                 {
-                  "$ref": "#/components/schemas/TransferJournalItemResponse"
+                  "$ref": "#/components/schemas/JournalTransferItemResponse"
                 }
               ]
             },
@@ -2766,6 +3040,79 @@
           }
         },
         "required": ["items", "nextCursor"],
+        "type": "object"
+      },
+      "JournalTransferItemResponse": {
+        "properties": {
+          "amountMinor": {
+            "example": "150000",
+            "type": "string"
+          },
+          "budgetId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "comment": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
+          "currency": {
+            "example": "RUB",
+            "type": "string"
+          },
+          "deletedAt": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "destinationAccountId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["TRANSFER"],
+            "example": "TRANSFER",
+            "type": "string"
+          },
+          "occurredOn": {
+            "example": "2026-10-20",
+            "type": "string"
+          },
+          "sourceAccountId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": ["CONFIRMED", "DELETED"],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "budgetId",
+          "status",
+          "amountMinor",
+          "currency",
+          "occurredOn",
+          "sourceAccountId",
+          "destinationAccountId",
+          "comment",
+          "createdAt",
+          "deletedAt",
+          "createdBy"
+        ],
         "type": "object"
       },
       "LegalDocumentResponse": {
@@ -2856,6 +3203,12 @@
       },
       "MeResponse": {
         "properties": {
+          "activeWorkspaceId": {
+            "description": "Пространство по умолчанию: последнее выбранное.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
           "pendingConsents": {
             "description": "Текущие документы, которые пользователь ещё не принял.",
             "items": {
@@ -2873,7 +3226,48 @@
             "type": "array"
           }
         },
-        "required": ["user", "workspaces", "pendingConsents"],
+        "required": ["user", "activeWorkspaceId", "workspaces", "pendingConsents"],
+        "type": "object"
+      },
+      "MemberResponse": {
+        "properties": {
+          "displayName": {
+            "nullable": true,
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "isCreator": {
+            "type": "boolean"
+          },
+          "joinedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "membershipId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "role": {
+            "enum": ["OWNER", "EDITOR", "VIEWER"],
+            "type": "string"
+          },
+          "userId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "membershipId",
+          "userId",
+          "email",
+          "displayName",
+          "role",
+          "isCreator",
+          "joinedAt"
+        ],
         "type": "object"
       },
       "MoveEnvelopeRequest": {
@@ -3375,6 +3769,10 @@
             "example": "4000000",
             "type": "string"
           },
+          "canEdit": {
+            "description": "True у владельца плана: именно он создаёт/изменяет этот план и оплачивает его вхождения. Создание новых планов доступно любому участнику с правом записи.",
+            "type": "boolean"
+          },
           "categoryId": {
             "format": "uuid",
             "maxLength": 36,
@@ -3423,6 +3821,9 @@
             "example": 2,
             "type": "number"
           },
+          "owner": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "planType": {
             "enum": ["EXPENSE"],
             "type": "string"
@@ -3454,6 +3855,8 @@
           "envelopeId",
           "comment",
           "status",
+          "owner",
+          "canEdit",
           "occurrenceId",
           "occurrencesCreated"
         ],
@@ -3477,6 +3880,10 @@
             "description": "Ожидаемая сумма (minor, строка).",
             "example": "4000000",
             "type": "string"
+          },
+          "canEdit": {
+            "description": "True у владельца плана: именно он создаёт/изменяет этот план и оплачивает его вхождения. Создание новых планов доступно любому участнику с правом записи.",
+            "type": "boolean"
           },
           "categoryId": {
             "format": "uuid",
@@ -3514,6 +3921,9 @@
             "example": "Аренда",
             "type": "string"
           },
+          "owner": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "planType": {
             "enum": ["EXPENSE"],
             "type": "string"
@@ -3544,7 +3954,9 @@
           "categoryId",
           "envelopeId",
           "comment",
-          "status"
+          "status",
+          "owner",
+          "canEdit"
         ],
         "type": "object"
       },
@@ -3578,6 +3990,10 @@
             "description": "Ожидаемая сумма (minor, строка).",
             "example": "4000000",
             "type": "string"
+          },
+          "canEdit": {
+            "description": "True у владельца плана: именно он создаёт/изменяет этот план и оплачивает его вхождения. Создание новых планов доступно любому участнику с правом записи.",
+            "type": "boolean"
           },
           "cancelledOccurrences": {
             "description": "Отключённые (CANCELLED) будущие неоплаченные.",
@@ -3620,6 +4036,9 @@
             "example": "Аренда",
             "type": "string"
           },
+          "owner": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "planType": {
             "enum": ["EXPENSE"],
             "type": "string"
@@ -3656,6 +4075,8 @@
           "envelopeId",
           "comment",
           "status",
+          "owner",
+          "canEdit",
           "updatedOccurrences",
           "cancelledOccurrences"
         ],
@@ -3839,6 +4260,10 @@
       },
       "PlansCalendarItemResponse": {
         "properties": {
+          "canEdit": {
+            "description": "Может ли текущий участник управлять планом, к которому относится событие.",
+            "type": "boolean"
+          },
           "categoryId": {
             "format": "uuid",
             "nullable": true,
@@ -3847,6 +4272,26 @@
           "expectedMinor": {
             "example": "4000000",
             "type": "string"
+          },
+          "factMinor": {
+            "description": "Сумма подтверждённых операций, закрывших план, minor units; null без них.",
+            "example": "4000000",
+            "nullable": true,
+            "type": "string"
+          },
+          "factOn": {
+            "description": "Для COMPLETED с подтверждённой операцией: дата последней такой операции. План показывается в этот день один раз, а не в день по плану. Иначе null.",
+            "format": "date",
+            "nullable": true,
+            "type": "string"
+          },
+          "factTransactionIds": {
+            "description": "Подтверждённые операции, закрывшие план (оплаты платежа или запись дохода). Пустой массив без них.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
           },
           "kind": {
             "enum": ["OBLIGATION", "INCOME_PLAN"],
@@ -3862,6 +4307,9 @@
           "overdue": {
             "description": "Открытый платёж раньше сегодняшней даты.",
             "type": "boolean"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/PlansCalendarOwnerResponse"
           },
           "paidMinor": {
             "description": "Для планового дохода всегда 0.",
@@ -3896,6 +4344,8 @@
           "kind",
           "occurrenceId",
           "planId",
+          "owner",
+          "canEdit",
           "name",
           "scheduledOn",
           "status",
@@ -3904,8 +4354,30 @@
           "unpaidMinor",
           "categoryId",
           "overdue",
-          "transactionId"
+          "transactionId",
+          "factOn",
+          "factMinor",
+          "factTransactionIds"
         ],
+        "type": "object"
+      },
+      "PlansCalendarOwnerResponse": {
+        "properties": {
+          "displayName": {
+            "example": "Алия",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "isActiveMember": {
+            "description": "False когда человек исключён из рабочего пространства или вышел из него.",
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "displayName", "isActiveMember"],
         "type": "object"
       },
       "PlansCalendarResponse": {
@@ -3917,6 +4389,7 @@
             "type": "array"
           },
           "items": {
+            "description": "Планы с датой в этом месяце, а также COMPLETED-планы другого месяца, закрытые операцией в этом месяце (factOn в месяце). totals и days считают только планы с датой в месяце.",
             "items": {
               "$ref": "#/components/schemas/PlansCalendarItemResponse"
             },
@@ -4029,6 +4502,15 @@
           }
         },
         "required": ["type", "title", "status", "code", "detail", "requestId"],
+        "type": "object"
+      },
+      "ProfileResponse": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserResponse"
+          }
+        },
+        "required": ["user"],
         "type": "object"
       },
       "PutFundingRuleRequest": {
@@ -4159,6 +4641,12 @@
           "email": {
             "example": "user@example.com",
             "format": "email",
+            "type": "string"
+          },
+          "invitationToken": {
+            "description": "Токен приглашения: вместо личного пространства пользователь вступает в семью.",
+            "maxLength": 128,
+            "minLength": 16,
             "type": "string"
           },
           "password": {
@@ -5498,6 +5986,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "createdBy": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
           "currency": {
             "example": "RUB",
             "type": "string"
@@ -5609,6 +6100,9 @@
           "createdAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
           },
           "currency": {
             "example": "RUB",
@@ -6109,6 +6603,17 @@
         },
         "type": "object"
       },
+      "UpdateProfileRequest": {
+        "properties": {
+          "displayName": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": ["displayName"],
+        "type": "object"
+      },
       "UpdateTransactionV2Body": {
         "properties": {
           "accountId": {
@@ -6248,6 +6753,10 @@
             "format": "uuid",
             "type": "string"
           },
+          "isCreator": {
+            "description": "Пользователь — создатель этого пространства.",
+            "type": "boolean"
+          },
           "name": {
             "type": "string"
           },
@@ -6256,7 +6765,7 @@
             "type": "string"
           }
         },
-        "required": ["id", "name", "role", "budgets"],
+        "required": ["id", "name", "role", "isCreator", "budgets"],
         "type": "object"
       },
       "WorkspaceResponse": {
@@ -6756,7 +7265,37 @@
             },
             "description": ""
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
           "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
             "content": {
               "application/json": {
                 "schema": {
@@ -6926,7 +7465,17 @@
     "/api/v1/budgets/{budgetId}/accounts": {
       "get": {
         "operationId": "AccountController_list_v1",
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "ownerUserId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -6936,6 +7485,16 @@
                     "$ref": "#/components/schemas/AccountResponse"
                   },
                   "type": "array"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
                 }
               }
             },
@@ -7021,7 +7580,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи (нужна роль OWNER или EDITOR)."
           },
           "404": {
             "content": {
@@ -7055,13 +7614,33 @@
     "/api/v1/budgets/{budgetId}/accounts/summary": {
       "get": {
         "operationId": "AccountController_summary_v1",
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "ownerUserId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AccountSummaryResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
                 }
               }
             },
@@ -7191,7 +7770,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — счёт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -7255,7 +7834,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — счёт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -7320,7 +7899,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — счёт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -8064,6 +8643,209 @@
         "tags": ["health"]
       }
     },
+    "/api/v1/invitations/accept": {
+      "post": {
+        "operationId": "InvitationAcceptController_accept_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedInvitationResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["family"]
+      }
+    },
+    "/api/v1/invitations/preview": {
+      "post": {
+        "operationId": "InvitationPreviewController_preview_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationPreviewResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": ["family"]
+      }
+    },
     "/api/v1/legal/documents": {
       "get": {
         "operationId": "LegalController_documents_v1",
@@ -8102,6 +8884,68 @@
             "description": ""
           },
           "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["auth"]
+      },
+      "patch": {
+        "operationId": "AuthController_updateProfile_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
             "content": {
               "application/json": {
                 "schema": {
@@ -8489,6 +9333,636 @@
         "tags": ["budgets"]
       }
     },
+    "/api/v1/workspaces/{workspaceId}/invitations": {
+      "get": {
+        "operationId": "FamilyController_listInvitations_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InvitationResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["family"]
+      },
+      "post": {
+        "operationId": "FamilyController_createInvitation_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedInvitationResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["family"]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/invitations/{invitationId}": {
+      "delete": {
+        "operationId": "FamilyController_revokeInvitation_v1",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["family"]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/invitations/{invitationId}/resend": {
+      "post": {
+        "operationId": "FamilyController_resendInvitation_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedInvitationResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["family"]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/leave": {
+      "post": {
+        "operationId": "FamilyController_leave_v1",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["family"]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/members": {
+      "get": {
+        "operationId": "FamilyController_list_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MemberResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["family"]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/members/{membershipId}": {
+      "delete": {
+        "operationId": "FamilyController_remove_v1",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["family"]
+      },
+      "patch": {
+        "operationId": "FamilyController_changeRole_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["family"]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/select": {
+      "post": {
+        "operationId": "FamilyController_select_v1",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": ["family"]
+      }
+    },
     "/api/v2/budgets/{budgetId}/assignments": {
       "post": {
         "operationId": "EnvelopePlanController_createAssignment_v2",
@@ -8553,7 +10027,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_INCOME_AUTHOR — доход принадлежит другому участнику (sourceKind=INCOME)."
           },
           "404": {
             "content": {
@@ -8648,7 +10122,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OPERATION_AUTHOR — отменить может только автор распределения."
           },
           "404": {
             "content": {
@@ -8751,7 +10225,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OPERATION_AUTHOR — изменять может только автор распределения."
           },
           "404": {
             "content": {
@@ -9086,7 +10560,17 @@
     "/api/v2/budgets/{budgetId}/envelopes": {
       "get": {
         "operationId": "EnvelopePlanController_list_v2",
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "ownerUserId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -9396,7 +10880,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -9491,7 +10975,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -9596,7 +11080,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -9775,7 +11259,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -10100,7 +11584,7 @@
         "tags": ["envelope-plans (v2)"]
       },
       "put": {
-        "description": "Одна транзакция: правила конвертов, порядок очереди и предложение «категория дохода → конверт». Конверты вне тела не меняются. Распределения, остатки и цели периодов не меняются. Только OWNER; повтор с тем же Idempotency-Key возвращает тот же ответ.",
+        "description": "Одна транзакция: правила конвертов, порядок очереди и предложение «категория дохода → конверт». Конверты вне тела не меняются. Распределения, остатки и цели периодов не меняются. Доступно writer (OWNER или EDITOR); правило чужого конверта, которое пакет создаёт, меняет или удаляет, даёт NOT_OBJECT_OWNER, изменение incomeSuggestion — только OWNER (FORBIDDEN). Повтор с тем же Idempotency-Key возвращает тот же ответ.",
         "operationId": "EnvelopePlanController_putFundingRules_v2",
         "parameters": [
           {
@@ -10163,7 +11647,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи либо изменение incomeSuggestion не владельцем бюджета; NOT_OBJECT_OWNER — изменённое правило принадлежит чужому конверту."
           },
           "404": {
             "content": {
@@ -10207,7 +11691,7 @@
     },
     "/api/v2/budgets/{budgetId}/funding/confirm": {
       "post": {
-        "description": "Одна транзакция: блокировка бюджета, идемпотентность, блокировка дохода, пересчёт previewHash из реальных данных (расхождение даёт 409 PREVIEW_STALE без записи), подтверждение целей периода, затем назначения. Любая ошибка откатывает всё, включая подтверждение целей. Ручная сумма строки может отличаться от предложенной в пределах фактического источника. Пустые lines с непустым confirmPeriodTargets подтверждают только цели; оба пустых — без записи. Без записи: lines=[] и confirmPeriodTargets=[] возвращают 200 с нулями без проверки ключа, хеша и дохода. previewHash годится, только если lines/confirmPeriodTargets подтверждения равны overrides/выбору предпросмотра; сумма 0 в preview убирает строку, а confirm отвечает на 0 кодом 400. Только OWNER. Коды: 400 VALIDATION_FAILED, 403 FORBIDDEN, 404 (бюджет/доход/конверт/период), 409 PREVIEW_STALE|SOURCE_EXHAUSTED|ASSIGNMENT_UNBACKED|IDEMPOTENCY_CONFLICT|MODEL_VERSION_MISMATCH, 422 OPENING_NOT_AVAILABLE|ENVELOPE_ARCHIVED|PERIOD_REQUIRED|PERIOD_NOT_ALLOWED.",
+        "description": "Одна транзакция: блокировка бюджета, идемпотентность, блокировка дохода, пересчёт previewHash из реальных данных (расхождение даёт 409 PREVIEW_STALE без записи), подтверждение целей периода, затем назначения. Любая ошибка откатывает всё, включая подтверждение целей. Ручная сумма строки может отличаться от предложенной в пределах фактического источника. Пустые lines с непустым confirmPeriodTargets подтверждают только цели; оба пустых — без записи. Без записи: lines=[] и confirmPeriodTargets=[] возвращают 200 с нулями без проверки ключа, хеша и дохода. previewHash годится, только если lines/confirmPeriodTargets подтверждения равны overrides/выбору предпросмотра; строки с суммой 0 передаются так же, как в overrides preview, и не создают назначений; только нулевые строки без целей — 200 без записи. Доступно writer (OWNER или EDITOR); sourceKind=INCOME требует свой доход; sourceKind=OPENING и confirmPeriodTargets требуют свои конверты. Коды: 400 VALIDATION_FAILED, 403 FORBIDDEN|NOT_INCOME_AUTHOR|NOT_OBJECT_OWNER, 404 (бюджет/доход/конверт/период), 409 PREVIEW_STALE|SOURCE_EXHAUSTED|ASSIGNMENT_UNBACKED|IDEMPOTENCY_CONFLICT|MODEL_VERSION_MISMATCH, 422 OPENING_NOT_AVAILABLE|ENVELOPE_ARCHIVED|PERIOD_REQUIRED|PERIOD_NOT_ALLOWED.",
         "operationId": "FundingController_confirmFunding_v2",
         "parameters": [
           {
@@ -10250,7 +11734,7 @@
                 }
               }
             },
-            "description": "VALIDATION_FAILED: некорректное тело, ключ, нулевая или повторная строка."
+            "description": "VALIDATION_FAILED: некорректное тело, ключ, отрицательная или повторная строка."
           },
           "401": {
             "content": {
@@ -10270,7 +11754,7 @@
                 }
               }
             },
-            "description": "FORBIDDEN: не OWNER."
+            "description": "FORBIDDEN — нет права записи; NOT_INCOME_AUTHOR — доход принадлежит другому участнику; NOT_OBJECT_OWNER — строка OPENING или подтверждаемая цель принадлежит чужому конверту."
           },
           "404": {
             "content": {
@@ -10314,7 +11798,7 @@
     },
     "/api/v2/budgets/{budgetId}/funding/preview": {
       "post": {
-        "description": "Сервер предлагает назначения INCOME/OPENING/FREE по правилам, потребности обязательных и целям текущего периода. Ничего не назначает и не подтверждает цели; допустима только идемпотентная запись структурной строки периода (DRAFT/UNSET). POST берёт блокировку бюджета, ключ идемпотентности не нужен. Только OWNER (как будущее подтверждение). Коды: 404 (бюджет/доход/конверт/период), 409 MODEL_VERSION_MISMATCH, 422 OPENING_NOT_AVAILABLE|ENVELOPE_ARCHIVED|PERIOD_REQUIRED|PERIOD_NOT_ALLOWED.",
+        "description": "Сервер предлагает назначения INCOME/OPENING/FREE по правилам, потребности обязательных и целям текущего периода. Ничего не назначает и не подтверждает цели; допустима только идемпотентная запись структурной строки периода (DRAFT/UNSET). POST берёт блокировку бюджета, ключ идемпотентности не нужен. Доступно writer (OWNER или EDITOR); sourceKind=INCOME требует свой доход. Коды: 404 (бюджет/доход/конверт/период), 409 MODEL_VERSION_MISMATCH, 422 OPENING_NOT_AVAILABLE|ENVELOPE_ARCHIVED|PERIOD_REQUIRED|PERIOD_NOT_ALLOWED. lines содержит строку для каждого неархивного конверта: сначала очередь правил (queuePosition), затем конверты без правила по имени; конверт без предложения — suggestedMinor \"0\". Конверт другой половины получает ближайший период своего слота (идемпотентная структурная строка).",
         "operationId": "FundingController_previewFunding_v2",
         "parameters": [],
         "requestBody": {
@@ -10366,7 +11850,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_INCOME_AUTHOR — доход принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -10521,6 +12005,16 @@
         "operationId": "IncomePlanController_listPlans_v2",
         "parameters": [
           {
+            "description": "Только планы с этим владельцем.",
+            "in": "query",
+            "name": "ownerUserId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
             "in": "query",
             "name": "status",
             "required": false,
@@ -10611,7 +12105,7 @@
         "tags": ["income plans (v2)"]
       },
       "post": {
-        "description": "Создаёт прогноз дохода на активной категории дохода и материализует occurrences текущего и следующего периода без worker. Не создаёт операций и назначений, не входит в деньги и обязательные платежи. Только OWNER. Коды 409: IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
+        "description": "Создаёт прогноз дохода на активной категории дохода и материализует occurrences текущего и следующего периода без worker. Не создаёт операций и назначений, не входит в деньги и обязательные платежи. Создание — любой участник с правом записи; управление — только владелец плана. Коды 409: IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
         "operationId": "IncomePlanController_createPlan_v2",
         "parameters": [
           {
@@ -10841,7 +12335,7 @@
     },
     "/api/v2/budgets/{budgetId}/income-plans/occurrences/{occurrenceId}/record": {
       "post": {
-        "description": "Атомарно создаёт одну подтверждённую операцию INCOME (v2) и закрывает occurrence (COMPLETED, transactionId). Категория по умолчанию — категория плана. Будущая дата отклоняется. Назначение дохода конвертам остаётся отдельным явным действием. OWNER или EDITOR. Коды 409: OCCURRENCE_NOT_OPEN (повторная запись, даже с другим Idempotency-Key, либо план отключён), IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
+        "description": "Атомарно создаёт одну подтверждённую операцию INCOME (v2) и закрывает occurrence (COMPLETED, transactionId). Категория по умолчанию — категория плана. Будущая дата отклоняется. Назначение дохода конвертам остаётся отдельным явным действием. Запись — только владелец плана; создание плана доступно любому участнику с правом записи (OWNER, EDITOR). Коды 409: OCCURRENCE_NOT_OPEN (повторная запись, даже с другим Idempotency-Key, либо план отключён), IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
         "operationId": "IncomePlanController_recordIncome_v2",
         "parameters": [
           {
@@ -10904,7 +12398,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN или NOT_OBJECT_OWNER."
           },
           "404": {
             "content": {
@@ -10948,7 +12442,7 @@
     },
     "/api/v2/budgets/{budgetId}/income-plans/{planId}": {
       "patch": {
-        "description": "Имя и сумма применяются к будущим открытым occurrences; уже наступившие открытые меняются только при applyToCurrentOpen=true; закрытые не меняются. status=ARCHIVED отключает только будущие открытые. Только OWNER. Коды 409: IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
+        "description": "Имя и сумма применяются к будущим открытым occurrences; уже наступившие открытые меняются только при applyToCurrentOpen=true; закрытые не меняются. status=ARCHIVED отключает только будущие открытые. Управление — только владелец плана. Коды 409: IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
         "operationId": "IncomePlanController_updatePlan_v2",
         "parameters": [
           {
@@ -11011,7 +12505,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN или NOT_OBJECT_OWNER."
           },
           "404": {
             "content": {
@@ -11056,7 +12550,17 @@
     "/api/v2/budgets/{budgetId}/journal": {
       "get": {
         "operationId": "JournalController_list_v2",
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "createdByUserId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -11337,7 +12841,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — исходный конверт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -11610,9 +13114,19 @@
     },
     "/api/v2/budgets/{budgetId}/obligations/plans": {
       "get": {
-        "description": "Планы расходов на конверте обязательных расходов. Доступно любому участнику.",
+        "description": "Планы расходов на конверте обязательных расходов. Доступно любому участнику; в ответе owner и canEdit.",
         "operationId": "ObligationPlanController_listPlans_v2",
         "parameters": [
+          {
+            "description": "Только планы с этим владельцем.",
+            "in": "query",
+            "name": "ownerUserId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
           {
             "in": "query",
             "name": "status",
@@ -11704,7 +13218,7 @@
         "tags": ["obligations (v2)"]
       },
       "post": {
-        "description": "Создаёт план расхода на активном конверте обязательных расходов и сразу материализует occurrences текущего и следующего периода без worker. Для ONE_TIME возвращает occurrenceId для оплаты. Только OWNER. Коды 409: MANDATORY_ENVELOPE_REQUIRED (нет активного конверта обязательных расходов), IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
+        "description": "Создаёт план расхода на активном конверте обязательных расходов и сразу материализует occurrences текущего и следующего периода без worker. Для ONE_TIME возвращает occurrenceId для оплаты. OWNER или EDITOR; план принадлежит создателю. Коды 409: MANDATORY_ENVELOPE_REQUIRED (нет активного конверта обязательных расходов), IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
         "operationId": "ObligationPlanController_createPlan_v2",
         "parameters": [
           {
@@ -11811,7 +13325,7 @@
     },
     "/api/v2/budgets/{budgetId}/obligations/plans/{planId}": {
       "patch": {
-        "description": "Имя и сумма применяются к будущим неоплаченным occurrences; уже наступившие открытые меняются только при applyToCurrentOpen=true; оплаченные, завершённые и пропущенные не меняются. status=ARCHIVED отключает только будущие неоплаченные. Только OWNER. Коды 409: MANDATORY_ENVELOPE_REQUIRED (нет активного конверта обязательных расходов), IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
+        "description": "Имя и сумма применяются к будущим неоплаченным occurrences; уже наступившие открытые меняются только при applyToCurrentOpen=true; оплаченные, завершённые и пропущенные не меняются. status=ARCHIVED отключает только будущие неоплаченные. OWNER или EDITOR-владелец плана; чужой план — 403. Коды 409: MANDATORY_ENVELOPE_REQUIRED (нет активного конверта обязательных расходов), IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.",
         "operationId": "ObligationPlanController_updatePlan_v2",
         "parameters": [
           {
@@ -11874,7 +13388,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN или NOT_OBJECT_OWNER."
           },
           "404": {
             "content": {
@@ -11971,7 +13485,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN или NOT_OBJECT_OWNER."
           },
           "404": {
             "content": {
@@ -12078,7 +13592,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_OBJECT_OWNER или NOT_ACCOUNT_OWNER."
           },
           "404": {
             "content": {
@@ -12175,7 +13689,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN или NOT_OBJECT_OWNER."
           },
           "404": {
             "content": {
@@ -12351,7 +13865,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -12436,7 +13950,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику."
           },
           "404": {
             "content": {
@@ -12469,7 +13983,7 @@
     },
     "/api/v2/budgets/{budgetId}/plans/calendar": {
       "get": {
-        "description": "Все суммы строки minor units, расчёт на сервере одним снимком. Факты дня: только CONFIRMED и не удалённые доходы/расходы (переводы не входят). Плановые итоги: occurrences месяца без CANCELLED и SKIPPED. overdue — все открытые просроченные платежи бюджета независимо от месяца. Доступно любому активному участнику. Коды: 400 VALIDATION_FAILED, 401, 404 RESOURCE_NOT_FOUND, 409 MODEL_VERSION_MISMATCH.",
+        "description": "Все суммы строки minor units, расчёт на сервере одним снимком. Факты дня: только CONFIRMED и не удалённые доходы/расходы (переводы не входят). Плановые итоги: occurrences месяца без CANCELLED и SKIPPED. overdue — все открытые просроченные платежи бюджета независимо от месяца. Доступно любому активному участнику. События списка и просрочки несут owner (владелец плана) и canEdit (может ли текущий участник управлять этим планом); filter ownerUserId показывает только события планов указанного владельца. Коды: 400 VALIDATION_FAILED, 401, 404 RESOURCE_NOT_FOUND, 409 MODEL_VERSION_MISMATCH.",
         "operationId": "PlansCalendarController_calendar_v2",
         "parameters": [
           {
@@ -12479,6 +13993,16 @@
             "schema": {
               "example": "2026-09",
               "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Только планы, владельцем которых является указанный пользователь.",
+            "in": "query",
+            "name": "ownerUserId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -13080,7 +14604,7 @@
             }
           },
           {
-            "description": "DELETED доступен только владельцу (иначе 403); по умолчанию удалённые скрыты.",
+            "description": "DELETED виден создателю и участникам с правом записи; наблюдателю — 403; по умолчанию удалённые скрыты.",
             "in": "query",
             "name": "status",
             "required": false,
@@ -13157,7 +14681,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13250,7 +14774,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13345,7 +14869,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13417,7 +14941,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13510,7 +15034,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13605,7 +15129,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13679,7 +15203,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13772,7 +15296,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13867,7 +15391,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -13939,7 +15463,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -14032,7 +15556,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {
@@ -14127,7 +15651,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "FORBIDDEN, NOT_ACCOUNT_OWNER или NOT_OPERATION_AUTHOR."
           },
           "404": {
             "content": {

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { AlertTriangle } from '@lucide/vue';
 
 import UiButton from '../ui/Button.vue';
 import UiModal from '../ui/Modal.vue';
+import { ownerNotice } from '../app/owner-label.js';
 import { type EnvelopePlanDto, useEnvelopePlanV2 } from '../../composables/useEnvelopePlanV2.js';
 import { ApiRequestError } from '../../composables/useApiClient.js';
 import { v2ErrorMessage } from '../../composables/useV2Error.js';
@@ -24,6 +25,12 @@ const props = defineProps<{
 const emit = defineEmits<{ close: []; changed: [message: string] }>();
 
 const v2 = useEnvelopePlanV2();
+
+// Changing a period target is an edit-class action: owner only.
+const canEditEnvelope = computed(() => props.envelope?.canEdit !== false);
+const ownerNoticeText = computed(() =>
+  props.envelope && props.envelope.canEdit === false ? ownerNotice(props.envelope.owner) : '',
+);
 
 const AMOUNT_PATTERN = /^\d+(?:[.,]\d{1,2})?$/;
 const TARGET_TEXT = 'Укажите сумму от нуля, не более двух знаков после запятой.';
@@ -109,6 +116,9 @@ function requestClose(): void {
   <UiModal :open="open" title="Цель текущего периода" size="sm" @close="requestClose">
     <div v-if="envelope" class="target-dialog">
       <p class="target-dialog__muted target-dialog__name">{{ envelope.name }}</p>
+      <p v-if="ownerNoticeText" class="target-dialog__muted" data-testid="target-owner-notice">
+        {{ ownerNoticeText }}
+      </p>
       <p v-if="periodStart === null" class="target-dialog__muted" data-testid="target-unavailable">
         Текущая цель периода недоступна для изменения здесь: период этого конверта не определён.
         Новое правило начнёт действовать со следующего периода.
@@ -160,7 +170,7 @@ function requestClose(): void {
 
     <template #footer>
       <UiButton
-        v-if="periodStart !== null"
+        v-if="periodStart !== null && canEditEnvelope"
         :loading="pending"
         data-testid="target-confirm"
         @click="confirm"

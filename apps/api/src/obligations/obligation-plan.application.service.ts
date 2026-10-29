@@ -4,9 +4,15 @@ import { BadRequestException, ConflictException, Injectable } from '@nestjs/comm
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
+import {
+  findPersonRefs,
+  personRefOf,
+  type PersonRef,
+} from '../common/people/person-ref.repository.js';
+import { findAccessActor, requireAccessActor } from '../common/policies/access-actor.repository.js';
+import { BudgetAccessPolicy, type AccessActor } from '../common/policies/budget-access.policy.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import {
-  forbidden,
   invalidReference,
   resourceNotFound,
 } from '../common/reference-data/reference-data.errors.js';
@@ -53,6 +59,8 @@ export type ObligationPlanView = {
   envelopeId: string | null;
   comment: string | null;
   status: 'ACTIVE' | 'ARCHIVED';
+  owner: PersonRef;
+  canEdit: boolean;
 };
 
 export type ObligationPlanCreateResult = ObligationPlanView & {
@@ -103,8 +111,10 @@ function mandatoryEnvelopeRequired(): ConflictException {
 
 /**
  * v2 obligation plan management (one-time and recurring EXPENSE plans on the mandatory envelope).
- * Plan management is OWNER-only; every member may read. Lock order: budget row -> idempotency
- * advisory lock -> plan rows (same FOR UPDATE as the occurrence materializer).
+ * Writers (OWNER and EDITOR) manage plans and one-time payments; plan updates, skips and closes
+ * additionally require object ownership (BudgetAccessPolicy); every member may read.
+ * Lock order: budget row -> idempotency advisory lock -> plan rows (same FOR UPDATE as the
+ * occurrence materializer).
  */
 @Injectable()
 export class ObligationPlanApplicationService {
@@ -112,6 +122,7 @@ export class ObligationPlanApplicationService {
   private readonly plans: RegularPlanRepository;
   private readonly planData = new ObligationPlanRepository();
   private readonly obligations = new ObligationRepository();
+  private readonly access = new BudgetAccessPolicy();
   private readonly materializer: V2OccurrenceMaterializer;
   private readonly occurrences = new PlanOccurrenceRepository();
 
@@ -131,10 +142,27 @@ export class ObligationPlanApplicationService {
     budgetId: string,
     query: ListObligationPlansInput,
   ): Promise<{ items: ObligationPlanView[] }> {
-    await this.planModelPolicy.requireModel(userId, budgetId, 2);
-    const rows = await this.planData.listPlans(this.prisma, budgetId, query.status);
+    const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
+    const rows = await this.planData.listPlans(
+      this.prisma,
+      budgetId,
+      query.status,
+      query.ownerUserId,
+    );
+    const access = await findAccessActor(this.prisma, model.workspaceId, userId);
+    const people = await findPersonRefs(
+      this.prisma,
+      model.workspaceId,
+      rows.map((row) => row.ownerUserId),
+    );
     return {
-      items: rows.map((row) => this.planView(row)),
+      items: rows.map((row) =>
+        this.planView(
+          row,
+          personRefOf(people, row.ownerUserId),
+          access !== null && this.access.canEditObject(access, row),
+        ),
+      ),
     };
   }
 
@@ -185,7 +213,9 @@ export class ObligationPlanApplicationService {
       hash,
       model.workspaceId,
       201,
-      (tx) => this.createPlanInTransaction(tx, userId, budgetId, model, input, requestId),
+      (tx, access) =>
+        this.createPlanInTransaction(tx, userId, budgetId, model, input, requestId, access),
+      (access) => this.access.requireWriter(access),
     );
   }
 
@@ -216,7 +246,7 @@ export class ObligationPlanApplicationService {
       hash,
       model.workspaceId,
       201,
-      async (tx) => {
+      async (tx, access) => {
         const created = await this.createPlanInTransaction(
           tx,
           userId,
@@ -231,10 +261,12 @@ export class ObligationPlanApplicationService {
             comment: input.comment ?? null,
           },
           requestId,
+          access,
         );
         if (!created.occurrenceId) throw resourceNotFound();
         const paid = await this.payments.payInTransaction(
           tx,
+          access,
           userId,
           budgetId,
           model.workspaceId,
@@ -258,7 +290,7 @@ export class ObligationPlanApplicationService {
           warnings: paid.warnings,
         };
       },
-      true,
+      (access) => this.access.requireWriter(access),
     );
   }
 
@@ -268,7 +300,8 @@ export class ObligationPlanApplicationService {
     budgetId: string,
     model: { workspaceId: string; planModelActivatedOn: Date | null },
     input: CreateObligationPlanInput,
-    requestId?: string,
+    requestId: string | undefined,
+    access: AccessActor,
   ): Promise<ObligationPlanCreateResult> {
     const amount = parseDecimalToMinorUnits(input.amount, RUB_SCALE, false);
     if (amount <= 0n) throw validationFailed('Сумма должна быть больше нуля.');
@@ -305,6 +338,7 @@ export class ObligationPlanApplicationService {
         comment: input.comment ?? null,
         isActive: true,
         disabledAt: null,
+        ownerUserId: userId,
         createdByUserId: userId,
         updatedByUserId: userId,
       },
@@ -322,7 +356,16 @@ export class ObligationPlanApplicationService {
     if (input.recurrence === 'ONE_TIME' && !occurrenceId) {
       throw validationFailed('Не удалось создать разовый платёж.');
     }
-    return { ...this.planView(plan), occurrenceId, occurrencesCreated: created };
+    const people = await findPersonRefs(tx, model.workspaceId, [userId]);
+    return {
+      ...this.planView(
+        plan,
+        personRefOf(people, userId),
+        this.access.canEditObject(access, { ownerUserId: userId }),
+      ),
+      occurrenceId,
+      occurrencesCreated: created,
+    };
   }
 
   async updatePlan(
@@ -343,13 +386,16 @@ export class ObligationPlanApplicationService {
       hash,
       model.workspaceId,
       200,
-      async (tx) => {
+      async (tx, access) => {
         const current = await this.plans.findPlanForMutation(tx, userId, budgetId, planId);
         if (!current || current.planType !== 'EXPENSE' || !current.envelopeId) {
           throw resourceNotFound();
         }
         const envelope = await this.obligations.findEnvelope(tx, budgetId, current.envelopeId);
         if (!envelope || envelope.envelopeType !== 'MANDATORY_EXPENSES') throw resourceNotFound();
+        const ownerUserId = await this.planData.findPlanOwnerUserId(tx, budgetId, planId);
+        if (ownerUserId === null) throw resourceNotFound();
+        this.access.requireObjectOwner(access, { ownerUserId });
         const budget = await this.transactions.findBudgetSettings(tx, budgetId);
         if (!budget) throw resourceNotFound();
 
@@ -494,12 +540,18 @@ export class ObligationPlanApplicationService {
             { actorUserId: userId },
           );
         }
+        const people = await findPersonRefs(tx, model.workspaceId, [ownerUserId]);
         return {
-          ...this.planView(plan),
+          ...this.planView(
+            plan,
+            personRefOf(people, ownerUserId),
+            this.access.canEditObject(access, { ownerUserId }),
+          ),
           updatedOccurrences: updated,
           cancelledOccurrences: cancelled,
         };
       },
+      (access) => this.access.requireWriter(access),
     );
   }
 
@@ -511,8 +563,8 @@ export class ObligationPlanApplicationService {
     requestHash: string,
     workspaceId: string,
     status: number,
-    body: (tx: Tx) => Promise<T>,
-    allowEditor = false,
+    body: (tx: Tx, access: AccessActor) => Promise<T>,
+    authorize: (access: AccessActor) => void,
   ): Promise<T> {
     const result = await this.prisma.$transaction(async (tx) => {
       await this.transactions.lockBudget(tx, budgetId);
@@ -520,28 +572,32 @@ export class ObligationPlanApplicationService {
         tx,
         { budgetId, actorUserId: userId, key, operation, requestHash },
         async () => {
-          const role = await this.transactions.findActiveMemberRole(tx, workspaceId, userId);
-          if (role !== 'OWNER' && !(allowEditor && role === 'EDITOR')) throw forbidden();
-          return { status, body: await body(tx) };
+          const access = await requireAccessActor(tx, workspaceId, userId);
+          authorize(access);
+          return { status, body: await body(tx, access) };
         },
       );
     });
     return result.body;
   }
 
-  private planView(plan: {
-    id: string;
-    name: string;
-    amountMinor: bigint;
-    recurrence: string;
-    intervalMonths: number | null;
-    startOn: Date;
-    endOn: Date | null;
-    categoryId: string | null;
-    envelopeId: string | null;
-    comment: string | null;
-    isActive: boolean;
-  }): ObligationPlanView {
+  private planView(
+    plan: {
+      id: string;
+      name: string;
+      amountMinor: bigint;
+      recurrence: string;
+      intervalMonths: number | null;
+      startOn: Date;
+      endOn: Date | null;
+      categoryId: string | null;
+      envelopeId: string | null;
+      comment: string | null;
+      isActive: boolean;
+    },
+    owner: PersonRef,
+    canEdit: boolean,
+  ): ObligationPlanView {
     return {
       id: plan.id,
       planType: 'EXPENSE',
@@ -555,6 +611,8 @@ export class ObligationPlanApplicationService {
       envelopeId: plan.envelopeId,
       comment: plan.comment,
       status: plan.isActive ? 'ACTIVE' : 'ARCHIVED',
+      owner,
+      canEdit,
     };
   }
 

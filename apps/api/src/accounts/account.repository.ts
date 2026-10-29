@@ -2,6 +2,7 @@ import { Prisma, type AccountType } from '@prisma/client';
 
 import { FinancialBalanceRepository } from '../common/finance/financial-balance.repository.js';
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
+import { findPersonRefs, type PersonRef } from '../common/people/person-ref.repository.js';
 import { duplicateName } from '../common/reference-data/reference-data.errors.js';
 import type { ReferenceDataStatus } from '../common/reference-data/reference-data.types.js';
 import { PrismaService } from '../database/prisma.service.js';
@@ -9,6 +10,7 @@ import { PrismaService } from '../database/prisma.service.js';
 export interface AccountRecord {
   id: string;
   budgetId: string;
+  ownerUserId: string;
   name: string;
   accountType: AccountType;
   bankName: string | null;
@@ -24,6 +26,7 @@ export interface AccountRecord {
 
 export interface AccountCreateData {
   budgetId: string;
+  ownerUserId: string;
   name: string;
   accountType: AccountType;
   bankName: string | null;
@@ -80,12 +83,14 @@ export class AccountRepository {
     userId: string,
     budgetId: string,
     status: ReferenceDataStatus,
+    ownerUserId?: string,
   ): Promise<AccountRecord[]> {
     return this.prisma.$transaction(async (tx) => {
       const accounts = await tx.account.findMany({
         where: {
           budgetId,
           ...archiveWhere(status),
+          ...(ownerUserId ? { ownerUserId } : {}),
           budget: activeBudgetWhere(userId, budgetId),
         },
         select: accountSelect,
@@ -110,14 +115,16 @@ export class AccountRepository {
     input: AccountCreateData,
     requestId?: string,
     guard?: AccountMutationGuard,
+    authorize?: (tx: Prisma.TransactionClient) => Promise<void>,
   ): Promise<AccountRecord | null> {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const budget = await tx.budget.findFirst({
-          where: activeOwnerBudgetWhere(userId, input.budgetId),
+          where: activeBudgetWhere(userId, input.budgetId),
           select: { workspaceId: true, planModelVersion: true },
         });
         if (!budget) return null;
+        await authorize?.(tx);
         if (budget.planModelVersion === 2) await lockBudget(tx, input.budgetId);
         await guard?.before?.(tx);
         const account = await tx.account.create({
@@ -153,6 +160,7 @@ export class AccountRepository {
     input: AccountUpdateData,
     requestId?: string,
     guard?: AccountMutationGuard,
+    authorize?: (current: AccountRecord, tx: Prisma.TransactionClient) => Promise<void>,
   ): Promise<AccountRecord | null> {
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -161,11 +169,13 @@ export class AccountRepository {
             id: accountId,
             budgetId,
             archivedAt: null,
-            budget: activeOwnerBudgetWhere(userId, budgetId),
+            budget: activeBudgetWhere(userId, budgetId),
           },
           select: accountSelect,
         });
         if (!current) return null;
+        const currentWithBalance = await this.withCurrentBalance(tx, current);
+        await authorize?.(currentWithBalance, tx);
         const budget = await tx.budget.findUniqueOrThrow({
           where: { id: budgetId },
           select: { workspaceId: true, planModelVersion: true },
@@ -206,14 +216,17 @@ export class AccountRepository {
     accountId: string,
     requestId?: string,
     guard?: AccountMutationGuard,
+    authorize?: (current: AccountRecord, tx: Prisma.TransactionClient) => Promise<void>,
   ): Promise<AccountRecord | null> {
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.account.findFirst({
-        where: { id: accountId, budgetId, budget: activeOwnerBudgetWhere(userId, budgetId) },
+        where: { id: accountId, budgetId, budget: activeBudgetWhere(userId, budgetId) },
         select: accountSelect,
       });
       if (!current) return null;
-      if (current.archivedAt) return this.withCurrentBalance(tx, current);
+      const currentWithBalance = await this.withCurrentBalance(tx, current);
+      await authorize?.(currentWithBalance, tx);
+      if (current.archivedAt) return currentWithBalance;
       const budget = await tx.budget.findUniqueOrThrow({
         where: { id: budgetId },
         select: { workspaceId: true, planModelVersion: true },
@@ -251,6 +264,7 @@ export class AccountRepository {
     budgetId: string,
     accountId: string,
     requestId?: string,
+    authorize?: (current: AccountRecord, tx: Prisma.TransactionClient) => Promise<void>,
   ): Promise<AccountRecord | null> {
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.account.findFirst({
@@ -258,11 +272,13 @@ export class AccountRepository {
           id: accountId,
           budgetId,
           archivedAt: { not: null },
-          budget: activeOwnerBudgetWhere(userId, budgetId),
+          budget: activeBudgetWhere(userId, budgetId),
         },
         select: accountSelect,
       });
       if (!current) return null;
+      const currentWithBalance = await this.withCurrentBalance(tx, current);
+      await authorize?.(currentWithBalance, tx);
       const budget = await tx.budget.findUniqueOrThrow({
         where: { id: budgetId },
         select: { workspaceId: true, planModelVersion: true },
@@ -290,6 +306,10 @@ export class AccountRepository {
       });
       return this.withCurrentBalance(tx, account);
     });
+  }
+
+  async personRefs(workspaceId: string, userIds: string[]): Promise<Map<string, PersonRef>> {
+    return findPersonRefs(this.prisma, workspaceId, userIds);
   }
 
   private async withCurrentBalances(
@@ -327,16 +347,6 @@ function activeBudgetWhere(userId: string, budgetId: string) {
   };
 }
 
-function activeOwnerBudgetWhere(userId: string, budgetId: string) {
-  return {
-    ...activeBudgetWhere(userId, budgetId),
-    workspace: {
-      status: 'ACTIVE' as const,
-      memberships: { some: { userId, isActive: true, role: 'OWNER' as const } },
-    },
-  };
-}
-
 function archiveWhere(status: ReferenceDataStatus) {
   if (status === 'active') return { archivedAt: null };
   if (status === 'archived') return { archivedAt: { not: null } };
@@ -345,6 +355,7 @@ function archiveWhere(status: ReferenceDataStatus) {
 
 function auditValues(account: Omit<AccountRecord, 'currentBalanceMinor'>) {
   return {
+    ownerUserId: account.ownerUserId,
     name: account.name,
     accountType: account.accountType,
     bankName: account.bankName,
@@ -366,6 +377,7 @@ function throwDuplicateName(error: unknown): never {
 const accountSelect = {
   id: true,
   budgetId: true,
+  ownerUserId: true,
   name: true,
   accountType: true,
   bankName: true,

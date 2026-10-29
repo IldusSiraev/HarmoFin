@@ -29,6 +29,8 @@ const props = defineProps<{
   progress?: PlanProgress | null | undefined;
   badge?: PlanBadge | null | undefined;
   highlight?: string | undefined;
+  /** Author of the envelope for the "all" owner view; null/undefined stays clean. */
+  ownerCaption?: string | null | undefined;
 }>();
 
 defineEmits<{ select: [] }>();
@@ -92,6 +94,12 @@ const rowLabel = computed(() => {
       <span class="plan-row__grid" :class="{ 'plan-row__grid--side': hasSide }">
         <span class="plan-row__identity">
           <span class="plan-row__title">{{ envelope.name }}</span>
+          <span
+            v-if="ownerCaption"
+            class="plan-row__muted plan-row__owner"
+            data-testid="plan-row-owner"
+            >{{ ownerCaption }}</span
+          >
           <span
             v-if="caption.targetMinor !== null"
             class="plan-row__muted"

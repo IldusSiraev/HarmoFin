@@ -1,7 +1,6 @@
 import { CategoryType } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
-import { RolePolicy } from '../common/policies/role-policy.js';
 import { CategoryApplicationService } from './category.application.service.js';
 import type { CategoryRecord, CategoryRepository } from './category.repository.js';
 import type { CreateCategoryInput } from './category.schemas.js';
@@ -75,10 +74,7 @@ describe('CategoryApplicationService', () => {
   });
 
   function createService(repository: ReturnType<typeof repositoryDouble>) {
-    return new CategoryApplicationService(
-      repository as unknown as CategoryRepository,
-      new RolePolicy(),
-    );
+    return new CategoryApplicationService(repository as unknown as CategoryRepository);
   }
 
   function repositoryDouble() {

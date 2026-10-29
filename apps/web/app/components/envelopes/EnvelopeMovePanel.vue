@@ -4,6 +4,8 @@ import { AlertTriangle } from '@lucide/vue';
 
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import { formatMinorUnits } from '../finance/money-format.js';
+import { authorLabel } from '../operations/author-label.js';
+import { usePermissions } from '../../composables/usePermissions.js';
 import UiAmountHero from '../ui/AmountHero.vue';
 import UiBeforeAfter from '../ui/BeforeAfter.vue';
 import UiButton from '../ui/Button.vue';
@@ -44,6 +46,10 @@ const props = defineProps<{
 const emit = defineEmits<{ close: []; done: [result: MovePanelResult] }>();
 
 const planV2 = useEnvelopePlanV2();
+const { userId } = usePermissions();
+// Ownership gates the source: only its owner may take money out of a
+// non-free envelope. Any envelope may still receive money.
+const sourceForeign = computed(() => props.source?.canEdit === false);
 
 // The money of a period envelope lives in period buckets. The server sends the
 // buckets (ids, dates, balances, which one is current); the panel only picks
@@ -150,7 +156,10 @@ const sourceOverspent = computed(
   () => props.mode !== 'archive' && sourceAvailableMinor.value.startsWith('-'),
 );
 function directionDisabled(item: Direction): boolean {
-  return sourceOverspent.value && item !== 'free-envelope';
+  // A foreign or overspent source can only receive; just «Из свободных сюда»
+  // stays open for it.
+  if (item === 'free-envelope') return false;
+  return sourceOverspent.value || sourceForeign.value;
 }
 
 // Hero: the bucket that gives the money, or, for «Из свободных сюда», the one
@@ -243,7 +252,7 @@ watch(
     direction.value =
       props.mode === 'archive'
         ? 'envelope-free'
-        : sourceOverspent.value
+        : sourceOverspent.value || sourceForeign.value
           ? 'free-envelope'
           : 'envelope-envelope';
     destinationId.value = '';
@@ -430,6 +439,9 @@ defineExpose({ confirm });
         <p v-if="sourceOverspent" class="move-panel__muted" data-testid="move-overspent-note">
           Нечего перекладывать: в конверте перерасход
         </p>
+        <p v-else-if="sourceForeign" class="move-panel__muted" data-testid="move-foreign-note">
+          Перекладывать из чужого конверта может только его владелец
+        </p>
       </fieldset>
 
       <div v-if="showSourcePeriods && sourceMoneyPeriods.length > 1" class="move-panel__field">
@@ -474,6 +486,12 @@ defineExpose({ confirm });
           >
             <EnvelopeTypeIcon :envelope-type="item.envelopeType" size="sm" />
             <span class="move-panel__pill-name">{{ item.name }}</span>
+            <span
+              v-if="item.owner && item.owner.userId !== userId"
+              class="move-panel__pill-owner"
+              :data-testid="`move-recipient-owner-${item.id}`"
+              >{{ authorLabel(item.owner) }}</span
+            >
           </button>
         </div>
         <p
@@ -716,6 +734,12 @@ legend.move-panel__label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.move-panel__pill-owner {
+  flex: 0 0 auto;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-caption);
 }
 
 .move-panel__pill--selected {

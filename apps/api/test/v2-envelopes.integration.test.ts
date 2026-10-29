@@ -93,8 +93,13 @@ describe('v2 envelopes: create, read, safe archive', () => {
       },
     });
 
-    await createAccount(ctx.owner!.budgetId, 30_000_000n);
-    outsiderEnvelope = await createEnvelope(ctx.outsider!.budgetId, 'CUSTOM', 'Чужой');
+    await createAccount(ctx.owner!.budgetId, ctx.owner!.userId, 30_000_000n);
+    outsiderEnvelope = await createEnvelope(
+      ctx.outsider!.budgetId,
+      ctx.outsider!.userId,
+      'CUSTOM',
+      'Чужой',
+    );
 
     const prismaService = new PrismaService(databaseUrl);
     service = new EnvelopePlanApplicationService(
@@ -657,6 +662,7 @@ describe('v2 envelopes: HTTP-контракт', () => {
       data: {
         id: randomUUID(),
         budgetId: ctx.outsider!.budgetId,
+        ownerUserId: ctx.outsider!.userId,
         name: 'Счёт чужака',
         accountType: 'BANK_ACCOUNT',
         startingBalanceMinor: 10n,
@@ -1329,12 +1335,18 @@ async function register(email: string): Promise<RegisteredUser> {
   };
 }
 
-async function createAccount(budgetId: string | undefined, startingMinor: bigint): Promise<string> {
+async function createAccount(
+  budgetId: string | undefined,
+  ownerUserId: string | undefined,
+  startingMinor: bigint,
+): Promise<string> {
   if (!budgetId) throw new Error('Budget missing');
+  if (!ownerUserId) throw new Error('Owner missing');
   const account = await prisma.account.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: 'Основной счёт',
       accountType: 'BANK_ACCOUNT',
       startingBalanceMinor: startingMinor,
@@ -1346,14 +1358,17 @@ async function createAccount(budgetId: string | undefined, startingMinor: bigint
 
 async function createEnvelope(
   budgetId: string | undefined,
+  ownerUserId: string | undefined,
   envelopeType: 'CUSTOM',
   name: string,
 ): Promise<string> {
   if (!budgetId) throw new Error('Budget missing');
+  if (!ownerUserId) throw new Error('Owner missing');
   const envelope = await prisma.envelope.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name,
       envelopeType,
       startingBalanceMinor: 0n,

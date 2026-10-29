@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common';
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
-import { RolePolicy } from '../common/policies/role-policy.js';
+import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { forbidden } from '../common/reference-data/reference-data.errors.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { OnboardingV2Repository } from './onboarding-v2.repository.js';
@@ -14,7 +14,7 @@ const TX_OPTIONS = { maxWait: 5_000, timeout: 15_000 } as const;
 
 @Injectable()
 export class OnboardingV2ApplicationService {
-  private readonly rolePolicy = new RolePolicy();
+  private readonly access = new BudgetAccessPolicy();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -46,7 +46,9 @@ export class OnboardingV2ApplicationService {
           },
           async () => {
             const role = await this.repository.memberRole(tx, model.workspaceId, userId);
-            if (!role || !this.rolePolicy.canManage(role)) throw forbidden();
+            if (!role || !this.access.canManageBudgetSettings({ userId, role, isCreator: false })) {
+              throw forbidden();
+            }
             const declinedAt = new Date();
             const changed = await this.repository.declineMandatoryPlans(
               tx,

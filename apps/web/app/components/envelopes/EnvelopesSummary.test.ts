@@ -129,7 +129,7 @@ describe('EnvelopesSummary', () => {
 
   it('hides the "Распределить" action when the viewer cannot manage assignments', () => {
     const wrapper = mount(EnvelopesSummary, {
-      props: { dashboard: dashboard() as never, canManage: false },
+      props: { dashboard: dashboard() as never, canAllocate: false },
       global: { stubs },
     });
     const free = wrapper.find('[data-testid="summary-free"]');

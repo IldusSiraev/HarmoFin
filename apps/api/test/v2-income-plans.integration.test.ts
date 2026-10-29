@@ -41,6 +41,7 @@ const owner = () => ctx.owner!;
 let app: NestFastifyApplication;
 let server: FastifyInstance;
 let accountId: string;
+let editorAccountId: string;
 let incomeCategoryId: string;
 let otherIncomeCategoryId: string;
 let expenseCategoryId: string;
@@ -168,7 +169,23 @@ describe('v2 планы доходов: прогноз без фиктивных
         data: {
           id: randomUUID(),
           budgetId: b,
+          ownerUserId: owner().userId,
           name: 'Счёт',
+          accountType: 'BANK_ACCOUNT',
+          currency: 'RUB',
+          scale: 2,
+          startingBalanceMinor: 100_000_000n,
+          accountingStartDate: d(-90),
+        },
+      })
+    ).id;
+    editorAccountId = (
+      await prisma.account.create({
+        data: {
+          id: randomUUID(),
+          budgetId: b,
+          ownerUserId: ctx.editor!.userId,
+          name: 'Счёт участника',
           accountType: 'BANK_ACCOUNT',
           currency: 'RUB',
           scale: 2,
@@ -416,6 +433,7 @@ describe('v2 планы доходов: прогноз без фиктивных
         id: savings,
         workspaceId: owner().workspaceId,
         budgetId: owner().budgetId,
+        ownerUserId: owner().userId,
         name: 'Накопления',
         planType: 'SAVINGS',
         amountMinor: 100_000n,
@@ -472,6 +490,7 @@ describe('v2 планы доходов: прогноз без фиктивных
         id: expensePlan,
         workspaceId: owner().workspaceId,
         budgetId: owner().budgetId,
+        ownerUserId: owner().userId,
         name: 'Расход',
         planType: 'EXPENSE',
         amountMinor: 100n,
@@ -494,11 +513,17 @@ describe('v2 планы доходов: прогноз без фиктивных
     ).not.toContain(income.id);
   });
 
-  it('роли: создание и PATCH только OWNER, record OWNER и EDITOR, VIEWER читает', async () => {
+  it('роли: создание — любой writer, PATCH — только владелец, record — только владелец плана, VIEWER читает', async () => {
     const created = await createPlan({ scheduledOn: iso(0) });
+    // Stage B: EDITOR creates own income plans; VIEWER cannot.
+    expect((await post(on(ctx.editor!), planBody())).statusCode).toBe(201);
+    expect((await post(on(ctx.viewer!), planBody())).statusCode).toBe(403);
     for (const user of [ctx.editor!, ctx.viewer!]) {
-      expect((await post(on(user), planBody())).statusCode).toBe(403);
-      expect((await patch(on(user), created.id, { name: 'X' })).statusCode).toBe(403);
+      const patchRes = await patch(on(user), created.id, { name: 'X' });
+      expect(patchRes.statusCode).toBe(403);
+      expect(patchRes.json<{ code: string }>().code).toBe(
+        user === ctx.editor! ? 'NOT_OBJECT_OWNER' : 'FORBIDDEN',
+      );
     }
     expect((await get(on(ctx.viewer!))).statusCode).toBe(200);
     expect((await get(on(ctx.viewer!), '/occurrences')).statusCode).toBe(200);
@@ -507,9 +532,30 @@ describe('v2 планы доходов: прогноз без фиктивных
       403,
     );
     expect(await incomeCount()).toBe(before);
-    expect((await record(on(ctx.editor!), created.occurrenceId!, recordBody())).statusCode).toBe(
-      201,
+    // Stage B: record — only the plan owner. Editor on the owner's plan: 403.
+    const foreignRecord = await record(
+      on(ctx.editor!),
+      created.occurrenceId!,
+      recordBody({ accountId: editorAccountId }),
     );
+    expect(foreignRecord.statusCode).toBe(403);
+    expect(foreignRecord.json<{ code: string }>().code).toBe('NOT_OBJECT_OWNER');
+    // Editor records their own plan on their own income account.
+    const editorPlan = (await post(on(ctx.editor!), planBody({ scheduledOn: iso(0) }))).json<{
+      id: string;
+      occurrenceId: string;
+    }>();
+    expect(editorPlan.occurrenceId).toBeTruthy();
+    expect(
+      (
+        await record(
+          on(ctx.editor!),
+          editorPlan.occurrenceId,
+          recordBody({ accountId: editorAccountId }),
+        )
+      ).statusCode,
+    ).toBe(201);
+    expect(await incomeCount()).toBe(before + 1);
   });
 
   it('401, 400 UUID, CSRF, ключ и изоляция бюджетов', async () => {
@@ -554,6 +600,7 @@ describe('v2 планы доходов: прогноз без фиктивных
         data: {
           id: randomUUID(),
           budgetId: ctx.outsider!.budgetId,
+          ownerUserId: ctx.outsider!.userId,
           name: 'Свой',
           accountType: 'BANK_ACCOUNT',
           currency: 'RUB',

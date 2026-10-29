@@ -5,6 +5,16 @@ const password = 'e2e-password-10';
 test('adds an operation from a page other than the dashboard', async ({ page }) => {
   await registerAndReachApp(page, 'shell');
 
+  // The entry dialog needs an account of the user's own to show its form.
+  await page.goto('/app/accounts');
+  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Создать счёт' }).first().click();
+  await page.getByLabel('Название счёта').fill('Основной счёт');
+  await page.getByLabel('Начальный баланс').fill('10 000,00');
+  await page.getByLabel('Дата начала учёта').pressSequentially('04092026');
+  await page.getByRole('button', { name: 'Сохранить счёт' }).click();
+  await expect(page.getByTestId('toast-stack')).toContainText('Счёт создан');
+
   await page.goto('/app/operations');
   // The shell renders server-side, so its buttons are clickable before Vue has
   // hydrated them; wait for content the client renders before driving the menu.

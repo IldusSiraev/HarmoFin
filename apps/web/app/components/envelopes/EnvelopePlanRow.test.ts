@@ -14,6 +14,8 @@ const base = {
   spentMinor: '1200000',
   balanceMinor: '2800000',
   archivedAt: null,
+  owner: { userId: 'user-owner', displayName: null, isActiveMember: true },
+  canEdit: true,
 };
 
 const plain = (value: string): string => value.replace(/\s/g, ' ');

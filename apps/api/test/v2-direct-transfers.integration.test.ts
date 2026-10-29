@@ -86,15 +86,25 @@ describe('v2 прямые переводы между счетами без ко
       },
     });
 
-    ownerAccountId = await createRawAccount(ctx.owner!.budgetId, 'RUB', 10_000_000n);
-    ownerAccountIdB = await createRawAccount(ctx.owner!.budgetId, 'RUB', 0n);
-    archivedAccountId = await createRawAccount(ctx.owner!.budgetId, 'RUB', 0n);
+    ownerAccountId = await createRawAccount(
+      ctx.owner!.budgetId,
+      ctx.owner!.userId,
+      'RUB',
+      10_000_000n,
+    );
+    ownerAccountIdB = await createRawAccount(ctx.owner!.budgetId, ctx.owner!.userId, 'RUB', 0n);
+    archivedAccountId = await createRawAccount(ctx.owner!.budgetId, ctx.owner!.userId, 'RUB', 0n);
     await prisma.account.update({
       where: { id: archivedAccountId },
       data: { archivedAt: new Date() },
     });
-    envelopeId = await createEnvelope(ctx.owner!.budgetId, 'P');
-    outsiderAccountId = await createRawAccount(ctx.outsider!.budgetId, 'RUB', 10_000_000n);
+    envelopeId = await createEnvelope(ctx.owner!.budgetId, ctx.owner!.userId, 'P');
+    outsiderAccountId = await createRawAccount(
+      ctx.outsider!.budgetId,
+      ctx.outsider!.userId,
+      'RUB',
+      10_000_000n,
+    );
 
     service = new DirectTransferApplicationService(
       new PrismaService(databaseUrl),
@@ -582,10 +592,30 @@ describe('v2 прямого перевод — HTTP-контракт', () => {
       },
     });
 
-    fixtureSrcAccount = await createRawAccount(fCtx.fixtureOwner!.budgetId, 'RUB', 10_000_000n);
-    fixtureDestAccount = await createRawAccount(fCtx.fixtureOwner!.budgetId, 'RUB', 0n);
-    pagerSrcAccount = await createRawAccount(fCtx.fixturePager!.budgetId, 'RUB', 10_000_000n);
-    pagerDestAccount = await createRawAccount(fCtx.fixturePager!.budgetId, 'RUB', 0n);
+    fixtureSrcAccount = await createRawAccount(
+      fCtx.fixtureOwner!.budgetId,
+      fCtx.fixtureOwner!.userId,
+      'RUB',
+      10_000_000n,
+    );
+    fixtureDestAccount = await createRawAccount(
+      fCtx.fixtureOwner!.budgetId,
+      fCtx.fixtureOwner!.userId,
+      'RUB',
+      0n,
+    );
+    pagerSrcAccount = await createRawAccount(
+      fCtx.fixturePager!.budgetId,
+      fCtx.fixturePager!.userId,
+      'RUB',
+      10_000_000n,
+    );
+    pagerDestAccount = await createRawAccount(
+      fCtx.fixturePager!.budgetId,
+      fCtx.fixturePager!.userId,
+      'RUB',
+      0n,
+    );
 
     const fixtureDate = f(-7);
     fixtureLegacyTransferId = randomUUID();
@@ -604,8 +634,16 @@ describe('v2 прямого перевод — HTTP-контракт', () => {
         updatedByUserId: fCtx.fixtureOwner!.userId,
       },
     });
-    fixtureEnvelope = await createEnvelope(fCtx.fixtureOwner!.budgetId, 'H-SRC');
-    fixtureEnvelopeB = await createEnvelope(fCtx.fixtureOwner!.budgetId, 'H-DST');
+    fixtureEnvelope = await createEnvelope(
+      fCtx.fixtureOwner!.budgetId,
+      fCtx.fixtureOwner!.userId,
+      'H-SRC',
+    );
+    fixtureEnvelopeB = await createEnvelope(
+      fCtx.fixtureOwner!.budgetId,
+      fCtx.fixtureOwner!.userId,
+      'H-DST',
+    );
 
     await prisma.transferPart.create({
       data: {
@@ -749,6 +787,7 @@ describe('v2 прямого перевод — HTTP-контракт', () => {
   it('#5 POST outsider budgetId → 404', async () => {
     const outsiderAccountId = await createRawAccount(
       fCtx.fixtureOutsider!.budgetId,
+      fCtx.fixtureOutsider!.userId,
       'RUB',
       10_000_000n,
     );
@@ -1026,6 +1065,7 @@ async function register(email: string): Promise<RegisteredUser> {
 
 async function createRawAccount(
   budgetId: string,
+  ownerUserId: string,
   currency: string,
   startingBalanceMinor: bigint,
 ): Promise<string> {
@@ -1033,6 +1073,7 @@ async function createRawAccount(
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Счёт ${randomUUID().slice(0, 8)}`,
       accountType: 'BANK_ACCOUNT',
       currency,
@@ -1044,11 +1085,16 @@ async function createRawAccount(
   return account.id;
 }
 
-async function createEnvelope(budgetId: string, code: string): Promise<string> {
+async function createEnvelope(
+  budgetId: string,
+  ownerUserId: string,
+  code: string,
+): Promise<string> {
   const envelope = await prisma.envelope.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Envelope ${code}`,
       envelopeType: 'MANDATORY_EXPENSES',
       startingBalanceMinor: 0n,

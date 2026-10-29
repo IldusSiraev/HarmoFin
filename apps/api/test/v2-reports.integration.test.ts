@@ -893,6 +893,7 @@ async function planOccurrence(
       id: planId,
       workspaceId: w.workspaceId,
       budgetId: w.budgetId,
+      ownerUserId: w.userId,
       name,
       planType,
       amountMinor,
@@ -970,6 +971,7 @@ async function world(options: { planModelVersion?: 1 | 2 } = {}): Promise<World>
       data: {
         id: randomUUID(),
         budgetId: registered.budgetId,
+        ownerUserId: registered.userId,
         name,
         accountType: 'BANK_ACCOUNT',
         startingBalanceMinor,
@@ -1009,7 +1011,7 @@ async function world(options: { planModelVersion?: 1 | 2 } = {}): Promise<World>
 }
 
 async function envelope(
-  w: { budgetId: string },
+  w: { budgetId: string; userId: string },
   envelopeType: 'CURRENT_EXPENSES' | 'MANDATORY_EXPENSES' | 'SAVINGS_GOAL',
   name: string,
   periodSlot?: 'FIRST' | 'SECOND',
@@ -1019,6 +1021,7 @@ async function envelope(
     data: {
       id: randomUUID(),
       budgetId: w.budgetId,
+      ownerUserId: w.userId,
       name,
       envelopeType,
       startingBalanceMinor: 0n,
@@ -1105,6 +1108,7 @@ async function assign(
       effectiveOn: day('2026-03-01'),
       periodId,
       status,
+      createdByUserId: w.userId,
     },
   });
 }
@@ -1126,6 +1130,7 @@ async function movement(
       amountMinor,
       effectiveOn: day(effectiveOn),
       status,
+      createdByUserId: w.userId,
     },
   });
 }
@@ -1255,6 +1260,7 @@ async function occurrence(
         id: planId,
         workspaceId: w.workspaceId,
         budgetId: w.budgetId,
+        ownerUserId: w.userId,
         name: 'Аренда',
         planType: 'EXPENSE',
         amountMinor,

@@ -5,17 +5,33 @@ import { ArrowRight } from '@lucide/vue';
 import FinanceMoney from '../finance/FinanceMoney.vue';
 import { formatMinorUnits } from '../finance/money-format.js';
 import UiStatus from '../ui/Status.vue';
+import { ownerLabel } from '../app/owner-label.js';
 import type { AccountDto } from '../../composables/useBudgetReferenceData.js';
 import AccountTypeIcon from './AccountTypeIcon.vue';
 import { accountSubtitle } from './account-type.js';
 
 defineOptions({ name: 'AccountRow' });
 
-const props = defineProps<{ account: AccountDto }>();
+const props = withDefaults(
+  defineProps<{
+    account: AccountDto;
+    /** Name the owner in the subtitle; off while there is nothing to compare with. */
+    showOwner?: boolean;
+    userId?: string | null;
+  }>(),
+  {
+    showOwner: false,
+    userId: null,
+  },
+);
 
 defineEmits<{ select: [] }>();
 
-const subtitle = computed(() => accountSubtitle(props.account));
+const baseSubtitle = computed(() => accountSubtitle(props.account));
+const owner = computed(() => ownerLabel(props.account.owner, props.userId));
+const subtitle = computed(() =>
+  props.showOwner ? `${baseSubtitle.value} · ${owner.value}` : baseSubtitle.value,
+);
 
 // The sign comes from the server value; the client never computes the balance.
 const isNegative = computed(() => props.account.currentBalanceMinor.startsWith('-'));
@@ -29,6 +45,7 @@ const formattedBalance = computed(() =>
 
 const cardLabel = computed(() => {
   const parts = [`Открыть счёт «${props.account.name}»`, `баланс ${formattedBalance.value}`];
+  if (props.showOwner) parts.push(`владелец ${owner.value}`);
   if (isNegative.value) parts.push('ниже нуля');
   if (props.account.archivedAt) parts.push('в архиве');
   return parts.join(', ');

@@ -16,7 +16,10 @@ vi.mock('../../composables/useActiveWorkspace.js', () => ({
 
 import EnvelopePlanDialog from './EnvelopePlanDialog.vue';
 
-function envelope(id: string, name: string) {
+const ME = { userId: 'user-me', displayName: 'Я', isActiveMember: true };
+const ILDAR = { userId: 'user-ildar', displayName: 'Ильдар', isActiveMember: true };
+
+function envelope(id: string, name: string, overrides: Record<string, unknown> = {}) {
   return {
     id,
     name,
@@ -28,6 +31,9 @@ function envelope(id: string, name: string) {
     spentMinor: '0',
     balanceMinor: '100',
     archivedAt: null,
+    owner: { ...ME },
+    canEdit: true,
+    ...overrides,
   };
 }
 
@@ -76,27 +82,132 @@ describe('EnvelopePlanDialog: статус и история', () => {
     expect(status?.className).toContain('--danger');
   });
 
-  it('история: знак суммы по виду записи', async () => {
+  it('история: автор, сумма со знаком направления, контрагент', async () => {
     mocks.v2.getEnvelopeHistory.mockResolvedValue({
       items: [
-        { kind: 'ASSIGNMENT', amountMinor: '1200000', effectiveOn: '2026-10-21' },
-        { kind: 'SPENDING', amountMinor: '465000', effectiveOn: '2026-10-12' },
-        { kind: 'MOVEMENT', amountMinor: '700000', effectiveOn: '2026-10-10' },
+        {
+          kind: 'SPENDING',
+          direction: 'OUT',
+          amountMinor: '230000',
+          effectiveOn: '2026-10-21',
+          createdBy: { userId: 'u-aliya', displayName: 'Алия', isActiveMember: true },
+          counterpartName: 'Детский мир',
+          assignmentType: null,
+        },
+        {
+          kind: 'MOVEMENT',
+          direction: 'OUT',
+          amountMinor: '100000',
+          effectiveOn: '2026-10-21',
+          createdBy: { ...ILDAR },
+          counterpartName: 'Отпуск',
+          assignmentType: null,
+        },
       ],
       nextCursor: null,
     });
     await mountDialog({ envelope: envelope('env-a', 'Еда') });
 
     const rows = document.querySelectorAll('[data-testid="plan-history"] li');
-    expect(plain(rows[0]?.textContent ?? '')).toContain('+12 000,00');
+    expect(plain(rows[0]?.textContent ?? '')).toContain('Алия: −2 300,00');
+    expect(plain(rows[0]?.textContent ?? '')).toContain('Детский мир');
+    expect(rows[0]?.querySelector('.plan-dialog__kind-amount')?.className).not.toContain('--in');
+    expect(plain(rows[1]?.textContent ?? '')).toContain('Ильдар: −1 000,00');
+    expect(plain(rows[1]?.textContent ?? '')).toContain('→ Отпуск');
+  });
+
+  it('направление задаёт знак и цвет как дополнительный сигнал', async () => {
+    mocks.v2.getEnvelopeHistory.mockResolvedValue({
+      items: [
+        {
+          kind: 'MOVEMENT',
+          direction: 'IN',
+          amountMinor: '100000',
+          effectiveOn: '2026-10-12',
+          createdBy: { ...ILDAR },
+          counterpartName: 'Детские расходы',
+          assignmentType: null,
+        },
+        {
+          kind: 'ASSIGNMENT',
+          direction: 'IN',
+          amountMinor: '1000000',
+          effectiveOn: '2026-10-12',
+          createdBy: { userId: 'u-ilya', displayName: null, isActiveMember: true },
+          counterpartName: 'Зарплата',
+          assignmentType: 'PERCENT',
+        },
+        {
+          kind: 'MOVEMENT',
+          direction: 'OUT',
+          amountMinor: '100000',
+          effectiveOn: '2026-10-12',
+          createdBy: { userId: 'u-x', displayName: 'Марат', isActiveMember: false },
+          counterpartName: 'Резерв',
+          assignmentType: null,
+        },
+      ],
+      nextCursor: null,
+    });
+    await mountDialog({ envelope: envelope('env-a', 'Еда') });
+
+    const rows = document.querySelectorAll('[data-testid="plan-history"] li');
+    // Incoming movement names the counterpart as the source of the money.
+    expect(plain(rows[0]?.textContent ?? '')).toContain('Ильдар: +1 000,00');
+    expect(plain(rows[0]?.textContent ?? '')).toContain('← Детские расходы');
     expect(rows[0]?.querySelector('.plan-dialog__kind-amount')?.className).toContain('--in');
-    expect(plain(rows[1]?.textContent ?? '')).toContain('−4 650,00');
-    expect(rows[1]?.querySelector('.plan-dialog__kind-amount')?.className).not.toContain('--in');
-    // Movement direction relative to this envelope is unknown: no sign, neutral colour.
-    expect(plain(rows[2]?.textContent ?? '')).toContain('7 000,00');
-    expect(plain(rows[2]?.textContent ?? '')).not.toContain('+7 000,00');
-    expect(plain(rows[2]?.textContent ?? '')).not.toContain('−7 000,00');
-    expect(rows[2]?.querySelector('.plan-dialog__kind-amount')?.className).not.toContain('--in');
+    // Income assignment reads "from <income>"; a missing name falls back to the fixed word.
+    expect(plain(rows[1]?.textContent ?? '')).toContain('Участник: +10 000,00');
+    expect(plain(rows[1]?.textContent ?? '')).toContain('из Зарплата');
+    // A former family member keeps the "not in family" suffix.
+    expect(plain(rows[2]?.textContent ?? '')).toContain('Марат (не в семье): −1 000,00');
+  });
+
+  it('история сгруппирована по дням в стиле OperationGroup', async () => {
+    mocks.v2.getEnvelopeHistory.mockResolvedValue({
+      items: [
+        {
+          kind: 'ASSIGNMENT',
+          direction: 'IN',
+          amountMinor: '1200000',
+          effectiveOn: '2026-10-21',
+          createdBy: { ...ILDAR },
+          counterpartName: 'Зарплата',
+          assignmentType: 'FIXED',
+        },
+        {
+          kind: 'SPENDING',
+          direction: 'OUT',
+          amountMinor: '465000',
+          effectiveOn: '2026-10-12',
+          createdBy: { ...ME },
+          counterpartName: 'Продукты',
+          assignmentType: null,
+        },
+        {
+          kind: 'SPENDING',
+          direction: 'OUT',
+          amountMinor: '150000',
+          effectiveOn: '2026-10-12',
+          createdBy: { ...ME },
+          counterpartName: 'Кофе',
+          assignmentType: null,
+        },
+      ],
+      nextCursor: null,
+    });
+    await mountDialog({ envelope: envelope('env-a', 'Еда') });
+
+    const groups = document.querySelectorAll('[data-testid="plan-history"] .operation-group');
+    expect(groups).toHaveLength(2);
+    const labels = [...document.querySelectorAll('[data-testid="operation-group-label"]')].map(
+      (el) => plain(el.textContent ?? '').trim(),
+    );
+    expect(labels[0]).toContain('21 октября');
+    expect(labels[1]).toContain('12 октября');
+    expect(groups[1]?.querySelectorAll('li')).toHaveLength(2);
+    // The date now lives in the group header, not in every row.
+    expect(groups[0]?.querySelectorAll('time')).toHaveLength(0);
   });
 
   it('история прокручивается внутри диалога и доступна с клавиатуры', async () => {
@@ -145,16 +256,29 @@ describe('EnvelopePlanDialog: статус и история', () => {
     );
   });
 
-  it('hides reassign, target, edit and archive for a viewer, but keeps read-only actions', async () => {
-    mocks.role.current = 'VIEWER';
-    await mountDialog({ envelope: envelope('env-a', 'Еда') });
+  it('чужой конверт (canEdit false): нет управляющих действий, видна подпись владельца', async () => {
+    // Even an editor sees a family member's envelope read-only — ownership, not role, gates it.
+    await mountDialog({
+      envelope: envelope('env-a', 'Еда', { canEdit: false, owner: { ...ILDAR } }),
+    });
 
     expect(document.querySelector('[data-testid="plan-dialog-reassign"]')).toBeNull();
     expect(document.querySelector('[data-testid="plan-dialog-target"]')).toBeNull();
     expect(document.querySelector('[data-testid="plan-dialog-edit"]')).toBeNull();
     expect(document.querySelector('[data-testid="plan-dialog-archive"]')).toBeNull();
     expect(document.querySelector('[data-testid="plan-dialog-operations"]')).not.toBeNull();
+    expect(plain(document.body.textContent ?? '')).toContain(
+      'Принадлежит участнику «Ильдар» — изменять может только владелец',
+    );
+  });
+
+  it('чтение доступно всем, действия своего конверта — владельцу', async () => {
+    await mountDialog({ envelope: envelope('env-a', 'Еда') });
+
     // The server's envelope history endpoint has no role check, so every role sees the toggle.
     expect(document.querySelector('[data-testid="history-toggle-deleted"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="plan-dialog-reassign"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="plan-dialog-edit"]')).not.toBeNull();
+    expect(plain(document.body.textContent ?? '')).not.toContain('Принадлежит участнику');
   });
 });

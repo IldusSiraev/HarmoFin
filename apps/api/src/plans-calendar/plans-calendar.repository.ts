@@ -16,6 +16,7 @@ export interface CompletedOccurrenceRow {
   amountMinor: bigint;
   categoryId: string | null;
   transactionId: string | null;
+  ownerUserId: string;
   facts: SettlementFact[];
 }
 
@@ -53,17 +54,22 @@ export class PlansCalendarRepository {
     db: Prisma.TransactionClient,
     budgetId: string,
     window: MonthWindow,
+    ownerUserId?: string,
   ): Promise<CompletedOccurrenceRow[]> {
     const inWindow = { gte: dateValue(window.from), lte: dateValue(window.to) };
     const confirmed = { budgetId, status: 'CONFIRMED' as const, deletedAt: null };
     const factSelect = { id: true, occurredOn: true, amountMinor: true } as const;
+    const ownerFilter = ownerUserId ? { ownerUserId } : {};
     const rows = await db.planOccurrence.findMany({
       where: {
         budgetId,
         status: 'COMPLETED',
         OR: [
-          { planType: 'EXPENSE', plan: { is: mandatoryPlanFilter(budgetId) } },
-          { planType: 'INCOME', plan: { is: incomePlanFilter(budgetId) } },
+          {
+            planType: 'EXPENSE',
+            plan: { is: { ...mandatoryPlanFilter(budgetId), ...ownerFilter } },
+          },
+          { planType: 'INCOME', plan: { is: { ...incomePlanFilter(budgetId), ...ownerFilter } } },
         ],
         AND: [
           {
@@ -84,6 +90,7 @@ export class PlansCalendarRepository {
         amountMinor: true,
         categoryId: true,
         transactionId: true,
+        plan: { select: { ownerUserId: true } },
         transaction: { select: { ...factSelect, status: true, deletedAt: true } },
         payments: {
           where: { budgetId, transaction: confirmed },
@@ -110,6 +117,7 @@ export class PlansCalendarRepository {
         amountMinor: row.amountMinor,
         categoryId: row.categoryId,
         transactionId: row.transactionId,
+        ownerUserId: row.plan.ownerUserId,
         facts: linked.map((fact) => ({
           id: fact.id,
           date: isoDate(fact.occurredOn),
@@ -119,13 +127,34 @@ export class PlansCalendarRepository {
     });
   }
 
-  /** Active mandatory-expense and income plans of the budget. */
-  countActivePlans(db: Prisma.TransactionClient, budgetId: string): Promise<number> {
+  /** Active mandatory-expense and income plans of the budget, optionally one owner. */
+  countActivePlans(
+    db: Prisma.TransactionClient,
+    budgetId: string,
+    ownerUserId?: string,
+  ): Promise<number> {
+    const ownerFilter = ownerUserId ? { ownerUserId } : {};
     return db.regularPlan.count({
       where: {
         isActive: true,
-        OR: [mandatoryPlanFilter(budgetId), incomePlanFilter(budgetId)],
+        OR: [
+          { ...mandatoryPlanFilter(budgetId), ...ownerFilter },
+          { ...incomePlanFilter(budgetId), ...ownerFilter },
+        ],
       },
     });
+  }
+
+  /** Owner of the given budget plans: planId to owner user id. */
+  async planOwners(
+    db: Prisma.TransactionClient,
+    budgetId: string,
+    planIds: readonly string[],
+  ): Promise<Map<string, string>> {
+    const owners = await db.regularPlan.findMany({
+      where: { budgetId, id: { in: [...planIds] } },
+      select: { id: true, ownerUserId: true },
+    });
+    return new Map(owners.map((plan) => [plan.id, plan.ownerUserId]));
   }
 }

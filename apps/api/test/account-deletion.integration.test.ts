@@ -259,6 +259,62 @@ describe('account deletion', () => {
     });
   });
 
+  it('transfers a member-owned account to the creator on deletion and keeps it there after restore', async () => {
+    const creator = await register('del-transfer-creator');
+    const member = await register('del-transfer-member');
+    await prisma.workspaceMembership.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: creator.workspaceId,
+        userId: member.userId,
+        role: 'EDITOR',
+      },
+    });
+    const account = await prisma.account.create({
+      data: {
+        id: randomUUID(),
+        budgetId: creator.budgetId,
+        ownerUserId: member.userId,
+        name: 'Счёт участника',
+        accountType: 'CASH',
+        currency: 'RUB',
+        scale: 2,
+        startingBalanceMinor: 10_000n,
+        accountingStartDate: new Date('2026-10-01T00:00:00.000Z'),
+      },
+    });
+
+    const rawToken = `transfer-${randomUUID()}`;
+    await deleteWithKnownToken(member, rawToken);
+
+    expect(
+      (await prisma.account.findUniqueOrThrow({ where: { id: account.id } })).ownerUserId,
+    ).toBe(creator.userId);
+    expect(
+      await prisma.auditEvent.count({
+        where: {
+          workspaceId: creator.workspaceId,
+          action: 'OWNER_TRANSFERRED',
+          entityId: account.id,
+        },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.notification.count({
+        where: { userId: creator.userId, notificationType: 'OBJECTS_TRANSFERRED' },
+      }),
+    ).toBe(1);
+
+    expect((await cancel(rawToken)).statusCode).toBe(204);
+    expect(
+      (await prisma.account.findUniqueOrThrow({ where: { id: account.id } })).ownerUserId,
+    ).toBe(creator.userId);
+
+    await prisma.workspaceMembership.deleteMany({
+      where: { workspaceId: creator.workspaceId, userId: member.userId },
+    });
+  });
+
   it('restoring a member account skips reactivating a family membership that is now full', async () => {
     const creator = await register('del-restore-limit-creator');
     const member = await register('del-restore-limit-member');
@@ -612,6 +668,7 @@ describe('account deletion', () => {
       data: {
         id: randomUUID(),
         budgetId: fixture.budgetId,
+        ownerUserId: fixture.userId,
         name: 'Карта',
         accountType: 'BANK_ACCOUNT',
         currency: 'RUB',
@@ -624,6 +681,7 @@ describe('account deletion', () => {
       data: {
         id: randomUUID(),
         budgetId: fixture.budgetId,
+        ownerUserId: fixture.userId,
         name: 'Наличные',
         accountType: 'CASH',
         currency: 'RUB',
@@ -664,6 +722,7 @@ describe('account deletion', () => {
       data: {
         id: randomUUID(),
         budgetId: fixture.budgetId,
+        ownerUserId: fixture.userId,
         name: 'Текущие расходы',
         envelopeType: 'CURRENT_EXPENSES',
         periodSlot: 'FIRST',
@@ -675,6 +734,7 @@ describe('account deletion', () => {
       data: {
         id: randomUUID(),
         budgetId: fixture.budgetId,
+        ownerUserId: fixture.userId,
         name: 'Свободный конверт',
         envelopeType: 'CUSTOM',
         startingBalanceMinor: 0n,
@@ -736,6 +796,7 @@ describe('account deletion', () => {
         effectiveOn: new Date(),
         periodId: period.id,
         status: 'CONFIRMED',
+        createdByUserId: fixture.userId,
       },
     });
     await prisma.envelopeMovement.create({
@@ -748,6 +809,7 @@ describe('account deletion', () => {
         amountMinor: 1_000n,
         effectiveOn: new Date(),
         status: 'CONFIRMED',
+        createdByUserId: fixture.userId,
       },
     });
     await prisma.envelopeFundingRule.create({
@@ -789,6 +851,7 @@ describe('account deletion', () => {
         id: randomUUID(),
         workspaceId: fixture.workspaceId,
         budgetId: fixture.budgetId,
+        ownerUserId: fixture.userId,
         name: 'Подписка',
         planType: 'EXPENSE',
         amountMinor: 10_000n,

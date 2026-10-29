@@ -101,9 +101,16 @@ export class ObligationPlanController {
   @Get('plans')
   @ApiOperation({
     summary: 'Список обязательных планов',
-    description: 'Планы расходов на конверте обязательных расходов. Доступно любому участнику.',
+    description:
+      'Планы расходов на конверте обязательных расходов. Доступно любому участнику; в ответе owner и canEdit.',
   })
   @ApiQuery({ name: 'status', required: false, enum: ['active', 'archived', 'all'] })
+  @ApiQuery({
+    name: 'ownerUserId',
+    required: false,
+    schema: { type: 'string', format: 'uuid' },
+    description: 'Только планы с этим владельцем.',
+  })
   @ApiOkResponse({ type: ObligationPlanListResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
@@ -124,7 +131,7 @@ export class ObligationPlanController {
   @UseGuards(CsrfGuard)
   @ApiOperation({
     summary: 'Создать обязательный план (разовый или регулярный)',
-    description: `Создаёт план расхода на активном конверте обязательных расходов и сразу материализует occurrences текущего и следующего периода без worker. Для ONE_TIME возвращает occurrenceId для оплаты. Только OWNER. ${conflictCodes}`,
+    description: `Создаёт план расхода на активном конверте обязательных расходов и сразу материализует occurrences текущего и следующего периода без worker. Для ONE_TIME возвращает occurrenceId для оплаты. OWNER или EDITOR; план принадлежит создателю. ${conflictCodes}`,
   })
   @ApiHeader(idempotencyHeader)
   @ApiBody({ type: ObligationPlanCreateBody })
@@ -186,14 +193,18 @@ export class ObligationPlanController {
   @UseGuards(CsrfGuard)
   @ApiOperation({
     summary: 'Изменить или архивировать обязательный план',
-    description: `Имя и сумма применяются к будущим неоплаченным occurrences; уже наступившие открытые меняются только при applyToCurrentOpen=true; оплаченные, завершённые и пропущенные не меняются. status=ARCHIVED отключает только будущие неоплаченные. Только OWNER. ${conflictCodes}`,
+    description: `Имя и сумма применяются к будущим неоплаченным occurrences; уже наступившие открытые меняются только при applyToCurrentOpen=true; оплаченные, завершённые и пропущенные не меняются. status=ARCHIVED отключает только будущие неоплаченные. OWNER или EDITOR-владелец плана; чужой план — 403. ${conflictCodes}`,
   })
   @ApiHeader(idempotencyHeader)
   @ApiBody({ type: ObligationPlanUpdateBody })
   @ApiOkResponse({ type: ObligationPlanUpdateResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description: 'FORBIDDEN или NOT_OBJECT_OWNER.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })

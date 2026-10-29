@@ -50,6 +50,7 @@ let outsiderIncomeId: string;
 let tightAccountId: string;
 let tightIncomeCategoryId: string;
 let tightEnvelopeId: string;
+let editorAccountId: string;
 
 const today = todayInTimezone(new Date(), 'UTC');
 const yesterday = todayInTimezone(new Date(Date.now() - dayMs), 'UTC');
@@ -189,17 +190,18 @@ describe('v2 доход: изменение, удаление и восстан�
       });
     }
     const b = owner().budgetId;
-    accountId = await createAccount(b, 0n);
+    accountId = await createAccount(b, owner().userId, 0n);
     expenseCategoryId = await createCategory(b, 'EXPENSE');
     incomeCategoryId = await createCategory(b, 'INCOME');
     otherIncomeCategoryId = await createCategory(b, 'INCOME');
-    envelopeAId = await createEnvelope(b);
-    envelopeBId = await createEnvelope(b);
-    tightAccountId = await createAccount(tight().budgetId, 0n);
+    envelopeAId = await createEnvelope(b, owner().userId);
+    envelopeBId = await createEnvelope(b, owner().userId);
+    editorAccountId = await createAccount(b, ctx.editor!.userId, 0n);
+    tightAccountId = await createAccount(tight().budgetId, tight().userId, 0n);
     tightIncomeCategoryId = await createCategory(tight().budgetId, 'INCOME');
-    tightEnvelopeId = await createEnvelope(tight().budgetId);
+    tightEnvelopeId = await createEnvelope(tight().budgetId, tight().userId);
 
-    const outsiderAccount = await createAccount(ctx.outsider!.budgetId, 0n);
+    const outsiderAccount = await createAccount(ctx.outsider!.budgetId, ctx.outsider!.userId, 0n);
     const outsiderCategory = await createCategory(ctx.outsider!.budgetId, 'INCOME');
     const foreign = await prisma.transaction.create({
       data: {
@@ -297,8 +299,8 @@ describe('v2 доход: изменение, удаление и восстан�
   });
 
   it('строгий счёт: уменьшение, перенос и удаление дохода, лишающие счёт покрытия расхода, дают INSUFFICIENT_BALANCE', async () => {
-    const strict = await createAccount(owner().budgetId, 0n);
-    const second = await createAccount(owner().budgetId, 0n);
+    const strict = await createAccount(owner().budgetId, owner().userId, 0n);
+    const second = await createAccount(owner().budgetId, owner().userId, 0n);
     const id = await income('500.00', { accountId: strict });
     const spend = await call('POST', owner(), '/transactions', 'strict-exp', {
       transactionType: 'EXPENSE',
@@ -368,7 +370,7 @@ describe('v2 доход: изменение, удаление и восстан�
   });
 
   it('restore заново проверяет ссылки и дату: архивный счёт даёт ошибку, запись остаётся DELETED', async () => {
-    const acc = await createAccount(owner().budgetId, 0n);
+    const acc = await createAccount(owner().budgetId, owner().userId, 0n);
     const id = await income('50.00', { accountId: acc });
     expect((await del(id, 'rr-1')).statusCode).toBe(200);
     await prisma.account.update({ where: { id: acc }, data: { archivedAt: new Date() } });
@@ -377,7 +379,7 @@ describe('v2 доход: изменение, удаление и восстан�
     expect((await dbTx(id)).status).toBe('DELETED');
   });
 
-  it('роли и изоляция: EDITOR может, VIEWER 403, посторонний и чужой доход 404', async () => {
+  it('роли и изоляция: только автор правит; VIEWER 403; посторонний и чужой доход 404', async () => {
     const id = await income('10.00');
     expect((await patch(id, 'rl-v1', { comment: 'x' }, ctx.viewer!)).statusCode).toBe(403);
     expect((await del(id, 'rl-v2', ctx.viewer!)).statusCode).toBe(403);
@@ -397,9 +399,35 @@ describe('v2 доход: изменение, удаление и восстан�
     expect((await dbTx(outsiderIncomeId)).status).toBe('CONFIRMED');
     expect((await call('DELETE', owner(), `/transactions/${id}`, undefined)).statusCode).toBe(400);
 
-    const byEditor = await del(id, 'rl-e1', ctx.editor!);
-    expect(byEditor.statusCode).toBe(200);
-    expect((await restore(id, 'rl-e2', ctx.editor!)).statusCode).toBe(200);
+    // EDITOR is a writer but not this income's author: NOT_OPERATION_AUTHOR, not NOT_FOUND.
+    const byForeignEditor = await del(id, 'rl-e1', ctx.editor!);
+    expect(byForeignEditor.statusCode).toBe(403);
+    expect(byForeignEditor.json()).toMatchObject({ code: 'NOT_OPERATION_AUTHOR' });
+
+    const byOwner = await del(id, 'rl-e1b');
+    expect(byOwner.statusCode).toBe(200);
+    expect((await restore(id, 'rl-e3')).statusCode).toBe(200);
+
+    // The author (EDITOR) edits, deletes and restores their own income (same shared budget).
+    const createdByEditor = await call(
+      'POST',
+      ctx.editor!,
+      '/transactions',
+      `mk-${randomUUID()}`,
+      {
+        transactionType: 'INCOME',
+        status: 'CONFIRMED',
+        amount: '10.00',
+        occurredOn: today,
+        accountId: editorAccountId,
+        categoryId: incomeCategoryId,
+      },
+      owner(),
+    );
+    expect(createdByEditor.statusCode).toBe(201);
+    const editorIncomeId = createdByEditor.json<{ id: string }>().id;
+    expect((await del(editorIncomeId, 'rl-e4', ctx.editor!)).statusCode).toBe(200);
+    expect((await restore(editorIncomeId, 'rl-e5', ctx.editor!)).statusCode).toBe(200);
   });
 
   it('OpenAPI описывает SOURCE_EXHAUSTED и assignmentIds в ошибке 409', async () => {
@@ -446,11 +474,16 @@ async function register(email: string): Promise<User> {
   };
 }
 
-async function createAccount(budgetId: string, startingBalanceMinor: bigint): Promise<string> {
+async function createAccount(
+  budgetId: string,
+  ownerUserId: string,
+  startingBalanceMinor: bigint,
+): Promise<string> {
   const account = await prisma.account.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Счёт ${randomUUID().slice(0, 8)}`,
       accountType: 'BANK_ACCOUNT',
       currency: 'RUB',
@@ -475,11 +508,12 @@ async function createCategory(budgetId: string, categoryType: 'INCOME' | 'EXPENS
   return category.id;
 }
 
-async function createEnvelope(budgetId: string): Promise<string> {
+async function createEnvelope(budgetId: string, ownerUserId: string): Promise<string> {
   const envelope = await prisma.envelope.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Envelope ${randomUUID().slice(0, 8)}`,
       envelopeType: 'CUSTOM',
       periodSlot: null,

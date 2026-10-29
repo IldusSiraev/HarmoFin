@@ -33,8 +33,15 @@ const {
   openTransfer,
   close,
 } = useOperationDialogs();
-const { accountDetails, categories, envelopes, envelopePlans, budgetId, load } =
-  useOperationReferenceData();
+const {
+  accountDetails,
+  familyAccounts,
+  categories,
+  envelopeOptions,
+  envelopePlans,
+  budgetId,
+  load,
+} = useOperationReferenceData();
 const { push } = useToast();
 const funding = useFundingEntry();
 
@@ -49,13 +56,30 @@ function chooseType(type: EntryType): void {
   }
 }
 
+// Spending happens only on the member's own accounts, the server's `canEdit`
+// flag has the word; the destination list is the family-wide one with foreign
+// owners in the caption, icons preserved from the same records.
+const ownAccountDetails = computed(() => accountDetails.value.filter((a) => a.canEdit === true));
 const accountOptions = computed(() =>
-  accountDetails.value.map((account) => ({
+  ownAccountDetails.value.map((account) => ({
     value: account.id,
     label: account.name,
     icon: ACCOUNT_TYPE_ICONS[account.accountType],
     iconColor: accountToneColor(account.accountType),
   })),
+);
+const familyAccountOptions = computed(() =>
+  familyAccounts.value.map((option) => {
+    const details = accountDetails.value.find((account) => account.id === option.value);
+    return details
+      ? {
+          value: option.value,
+          label: option.label,
+          icon: ACCOUNT_TYPE_ICONS[details.accountType],
+          iconColor: accountToneColor(details.accountType),
+        }
+      : { ...option };
+  }),
 );
 
 // "Current" is the server's flag on the envelope's period bucket. Half-month
@@ -222,8 +246,9 @@ async function saveDirectTransfer(input: CreateDirectTransferRequest): Promise<v
       :open="entryOpen"
       :initial-type="entryType ?? 'EXPENSE'"
       :accounts="accountOptions"
+      :family-accounts="familyAccountOptions"
       :categories="categories"
-      :envelopes="envelopes"
+      :envelopes="envelopeOptions"
       :mandatory-envelope-ids="mandatoryEnvelopeIds"
       :current-period-envelope-ids="currentPeriodEnvelopeIds"
       :initial-source-account-id="transferSourceAccountId"

@@ -89,11 +89,21 @@ let requestVersion = 0;
 const { role, budget, workspace } = useActiveWorkspace();
 const isOwner = computed(() => role.value === 'OWNER');
 // Recording, editing, deleting and restoring operations and transfers need
-// OWNER or EDITOR on the server; a viewer only reads the journal.
-const { canWrite } = usePermissions();
+// OWNER or EDITOR on the server, and every change of an existing row additionally
+// its author; a viewer only reads the journal.
+const { canWrite, userId } = usePermissions();
 // Accounts, categories and envelopes come from the shared cache the global add
 // dialogs already use, so opening the journal does not re-read them every time.
-const { accounts, categories, envelopes, load: loadReferenceData } = useOperationReferenceData();
+// Forms get only the own accounts; the family lists carry foreign ones captioned.
+const {
+  accounts,
+  ownAccounts,
+  familyAccounts,
+  envelopeOptions,
+  categories,
+  envelopes,
+  load: loadReferenceData,
+} = useOperationReferenceData();
 // The author column and filter only earn their place once there is more than
 // one person who could have recorded a row.
 const workspaceId = computed(() => workspace.value?.id);
@@ -137,10 +147,17 @@ function transferRoute(item: TransferJournalItem) {
   };
 }
 
-// A deleted transfer offers only restore, and only the owner sees deleted rows.
-// A viewer never gets a menu at all: every entry inside needs OWNER or EDITOR.
+// Only the author of a row can change it, whatever the role — the server says
+// so, and the menu does not promise otherwise. A deleted row of somebody else
+// is read-only for everyone but its author.
+function isAuthor(item: TransactionJournalV2Item | TransferJournalItem): boolean {
+  return item.createdBy?.userId === userId.value && userId.value !== null;
+}
+
+// A deleted transfer offers only restore, and only editors query deleted rows.
+// A viewer or a non-author never gets a menu at all.
 function hasTransferActions(item: TransferJournalItem): boolean {
-  return canWrite.value && (item.status === 'CONFIRMED' || isOwner.value);
+  return canWrite.value && isAuthor(item);
 }
 
 function openTransfer(item: TransferJournalItem, intent: TransferDialogIntent): void {
@@ -265,10 +282,13 @@ function envelopeName(transaction: TransactionJournalV2Item): string | null {
 
 // An operation from before model 2 has no actions at all: an empty menu would
 // only be a dead control. A viewer never gets a menu either: edit, delete and
-// restore all need OWNER or EDITOR on the server.
+// restore all need OWNER or EDITOR on the server, and only the author of a row
+// can use them.
 function hasRowActions(transaction: TransactionJournalV2Item): boolean {
   return (
-    canWrite.value && (canEditTransaction(transaction) || availableActions(transaction).length > 0)
+    canWrite.value &&
+    isAuthor(transaction) &&
+    (canEditTransaction(transaction, userId.value) || availableActions(transaction).length > 0)
   );
 }
 
@@ -453,7 +473,7 @@ async function downloadCsv() {
           :accounts="accounts"
           :categories="categoryOptions"
           :envelopes="envelopes"
-          :can-view-deleted="isOwner"
+          :can-view-deleted="canWrite"
           :authors="authorOptions"
           @change="onFilterChange"
           @reset="onReset"
@@ -514,7 +534,7 @@ async function downloadCsv() {
                       Удалить
                     </button>
                     <button
-                      v-if="item.status === 'DELETED' && isOwner"
+                      v-if="item.status === 'DELETED' && isAuthor(item)"
                       type="button"
                       role="menuitem"
                       data-testid="transfer-row-restore"
@@ -538,7 +558,7 @@ async function downloadCsv() {
                 <template v-if="hasRowActions(item)" #actions>
                   <UiActionMenu label="Действия над операцией">
                     <button
-                      v-if="canEditTransaction(item)"
+                      v-if="canEditTransaction(item, userId)"
                       type="button"
                       role="menuitem"
                       data-testid="row-edit"
@@ -596,9 +616,10 @@ async function downloadCsv() {
       :transfer="detailedTransfer"
       :intent="transferIntent"
       :budget-id="budget.id"
-      :accounts="accounts"
+      :accounts="ownAccounts"
+      :family-accounts="familyAccounts"
       :account-names="accountNameById"
-      :can-restore="isOwner"
+      :can-restore="canWrite"
       @close="detailedTransfer = null"
       @changed="onTransferChanged"
     />
@@ -608,9 +629,9 @@ async function downloadCsv() {
         v-if="selectedTransaction"
         :key="selectedTransaction.id"
         :current="selectedTransaction"
-        :accounts="accounts"
+        :accounts="ownAccounts"
         :categories="categories"
-        :envelopes="envelopes"
+        :envelopes="envelopeOptions"
         :errors="formErrors"
         :form-error="formError"
         :pending="pending"

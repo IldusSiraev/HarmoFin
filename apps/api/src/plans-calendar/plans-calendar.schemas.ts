@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
+const uuid = z.string().uuid();
+
 export const plansCalendarQuerySchema = z
   .object({
+    ownerUserId: uuid.optional(),
     month: z
       .string()
       .regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Укажите месяц в формате ГГГГ-ММ.')

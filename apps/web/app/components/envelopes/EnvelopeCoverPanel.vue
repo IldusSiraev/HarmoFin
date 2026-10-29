@@ -101,6 +101,9 @@ const donors = computed<Donor[]>(() => {
   const list: Donor[] = [];
   for (const envelope of props.envelopes) {
     if (envelope.archivedAt !== null) continue;
+    // Moving out of an envelope is its owner's action; a missing flag falls
+    // back to allowed and the server still refuses foreign envelopes.
+    if (envelope.canEdit === false) continue;
     let periodId: string | null = null;
     let availableMinor = envelope.balanceMinor;
     if (envelope.envelopeType === 'CURRENT_EXPENSES') {

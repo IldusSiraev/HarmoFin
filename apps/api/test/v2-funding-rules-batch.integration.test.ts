@@ -97,6 +97,7 @@ describe('v2 funding rules batch', () => {
       data: {
         id: randomUUID(),
         budgetId: ctx.owner!.budgetId,
+        ownerUserId: ctx.owner!.userId,
         name: 'Основной счёт',
         accountType: 'BANK_ACCOUNT',
         startingBalanceMinor: 30_000_000n,
@@ -104,14 +105,32 @@ describe('v2 funding rules batch', () => {
       },
     });
     const budgetId = ctx.owner!.budgetId;
-    currentA = await createEnvelope(budgetId, 'CURRENT_EXPENSES', 'Еда', 'FIRST');
-    currentB = await createEnvelope(budgetId, 'CURRENT_EXPENSES', 'Транспорт', 'SECOND');
-    mandatory = await createEnvelope(budgetId, 'MANDATORY_EXPENSES', 'Обязательные');
-    savings = await createEnvelope(budgetId, 'SAVINGS_GOAL', 'Подушка');
-    archived = await createEnvelope(budgetId, 'SAVINGS_GOAL', 'Старый');
+    currentA = await createEnvelope(
+      budgetId,
+      ctx.owner!.userId,
+      'CURRENT_EXPENSES',
+      'Еда',
+      'FIRST',
+    );
+    currentB = await createEnvelope(
+      budgetId,
+      ctx.owner!.userId,
+      'CURRENT_EXPENSES',
+      'Транспорт',
+      'SECOND',
+    );
+    mandatory = await createEnvelope(
+      budgetId,
+      ctx.owner!.userId,
+      'MANDATORY_EXPENSES',
+      'Обязательные',
+    );
+    savings = await createEnvelope(budgetId, ctx.owner!.userId, 'SAVINGS_GOAL', 'Подушка');
+    archived = await createEnvelope(budgetId, ctx.owner!.userId, 'SAVINGS_GOAL', 'Старый');
     await prisma.envelope.update({ where: { id: archived }, data: { archivedAt: new Date() } });
     outsiderEnvelope = await createEnvelope(
       ctx.outsider!.budgetId,
+      ctx.outsider!.userId,
       'CURRENT_EXPENSES',
       'Чужой',
       'FIRST',
@@ -629,6 +648,7 @@ async function register(email: string): Promise<RegisteredUser> {
 
 async function createEnvelope(
   budgetId: string,
+  ownerUserId: string,
   envelopeType: 'CURRENT_EXPENSES' | 'MANDATORY_EXPENSES' | 'SAVINGS_GOAL',
   name: string,
   periodSlot?: 'FIRST' | 'SECOND',
@@ -637,6 +657,7 @@ async function createEnvelope(
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name,
       envelopeType,
       startingBalanceMinor: 0n,

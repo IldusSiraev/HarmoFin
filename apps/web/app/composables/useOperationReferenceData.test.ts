@@ -14,7 +14,39 @@ const auth = {
   currentData: {
     value: null as AuthData,
   },
+  currentUser: {
+    value: null as { id: string; email: string } | null,
+  },
   loadMe: vi.fn(),
+};
+
+const OWN_ACCOUNT = {
+  id: 'account-id',
+  name: 'Основная карта',
+  accountType: 'BANK_CARD',
+  canEdit: true,
+  owner: { userId: 'user-1', displayName: 'Иван', isActiveMember: true },
+};
+const FOREIGN_ACCOUNT = {
+  id: 'foreign-account',
+  name: 'Копилка',
+  accountType: 'SAVINGS',
+  canEdit: false,
+  owner: { userId: 'member-1', displayName: 'Алия', isActiveMember: true },
+};
+const OWN_ENVELOPE = {
+  id: 'envelope-id',
+  name: 'Текущие',
+  envelopeType: 'CURRENT_EXPENSES',
+  archivedAt: null,
+  owner: { userId: 'user-1', displayName: 'Иван', isActiveMember: true },
+};
+const FOREIGN_ENVELOPE = {
+  id: 'foreign-envelope',
+  name: 'Аренда',
+  envelopeType: 'CURRENT_EXPENSES',
+  archivedAt: null,
+  owner: { userId: 'member-1', displayName: 'Алия', isActiveMember: true },
 };
 
 vi.mock('./useBudgetReferenceData.js', async (importOriginal) => ({
@@ -32,17 +64,17 @@ beforeEach(() => {
     user: { email: 'owner@example.test' },
     workspaces: [{ name: 'Семья', budgets: [{ id: 'budget-id', name: 'Бюджет' }] }],
   };
+  auth.currentUser.value = { id: 'user-1', email: 'owner@example.test' };
   useOperationReferenceData().invalidate();
-  api.listAccounts.mockResolvedValue([
-    { id: 'account-id', name: 'Основная карта', accountType: 'BANK_CARD' },
-  ]);
+  api.listAccounts.mockResolvedValue([OWN_ACCOUNT, FOREIGN_ACCOUNT]);
   api.listCategories.mockResolvedValue([
     { id: 'category-id', name: 'Продукты', categoryType: 'EXPENSE', templateKey: null },
   ]);
   v2.listEnvelopes.mockResolvedValue({
     items: [
-      { id: 'envelope-id', name: 'Текущие', envelopeType: 'CURRENT_EXPENSES', archivedAt: null },
-      { id: 'archived-id', name: 'Старый', envelopeType: 'CURRENT_EXPENSES', archivedAt: 'x' },
+      OWN_ENVELOPE,
+      FOREIGN_ENVELOPE,
+      { ...OWN_ENVELOPE, id: 'archived-id', archivedAt: 'x' },
     ],
   });
 });
@@ -55,8 +87,14 @@ describe('useOperationReferenceData', () => {
 
     expect(v2.listEnvelopes).toHaveBeenCalledWith('budget-id');
     expect(budgetId.value).toBe('budget-id');
-    expect(accounts.value).toEqual([{ value: 'account-id', label: 'Основная карта' }]);
-    expect(envelopes.value).toEqual([{ value: 'envelope-id', label: 'Текущие' }]);
+    expect(accounts.value).toEqual([
+      { value: 'account-id', label: 'Основная карта' },
+      { value: 'foreign-account', label: 'Копилка' },
+    ]);
+    expect(envelopes.value).toEqual([
+      { value: 'envelope-id', label: 'Текущие' },
+      { value: 'foreign-envelope', label: 'Аренда' },
+    ]);
     expect(categories.value).toHaveLength(1);
   });
 
@@ -65,10 +103,29 @@ describe('useOperationReferenceData', () => {
 
     await load();
 
-    expect(accountDetails.value).toEqual([
-      { id: 'account-id', name: 'Основная карта', accountType: 'BANK_CARD' },
+    expect(accountDetails.value.map((account) => account.id)).toEqual([
+      'account-id',
+      'foreign-account',
     ]);
-    expect(envelopePlans.value.map((plan) => plan.id)).toEqual(['envelope-id']);
+    expect(envelopePlans.value.map((plan) => plan.id)).toEqual(['envelope-id', 'foreign-envelope']);
+  });
+
+  it('offers the forms only own accounts, while the family lists caption foreign ones', async () => {
+    const { load, ownAccounts, familyAccounts, envelopeOptions } = useOperationReferenceData();
+
+    await load();
+
+    // Forms: strictly the server-marked editable accounts, plain names.
+    expect(ownAccounts.value).toEqual([{ value: 'account-id', label: 'Основная карта' }]);
+    // Destination pickers and envelope lists: everything, foreign owner in the label.
+    expect(familyAccounts.value).toEqual([
+      { value: 'account-id', label: 'Основная карта' },
+      { value: 'foreign-account', label: 'Копилка — Алия' },
+    ]);
+    expect(envelopeOptions.value).toEqual([
+      { value: 'envelope-id', label: 'Текущие' },
+      { value: 'foreign-envelope', label: 'Аренда — Алия' },
+    ]);
   });
 
   it('does not refetch what it already has', async () => {
@@ -107,7 +164,8 @@ describe('useOperationReferenceData', () => {
   });
 
   it('drops what it holds when nobody is signed in', async () => {
-    const { load, accounts } = useOperationReferenceData();
+    const { load, accounts, ownAccounts, familyAccounts, envelopeOptions } =
+      useOperationReferenceData();
     await load();
 
     auth.currentData.value = null;
@@ -115,5 +173,8 @@ describe('useOperationReferenceData', () => {
     await load();
 
     expect(accounts.value).toEqual([]);
+    expect(ownAccounts.value).toEqual([]);
+    expect(familyAccounts.value).toEqual([]);
+    expect(envelopeOptions.value).toEqual([]);
   });
 });

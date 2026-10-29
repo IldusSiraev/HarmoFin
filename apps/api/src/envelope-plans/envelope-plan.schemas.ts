@@ -164,6 +164,14 @@ export const putPeriodTargetSchema = z.object({ target: decimalAmount.nullable()
 
 export type PutPeriodTargetInput = z.output<typeof putPeriodTargetSchema>;
 
+export const listEnvelopesSchema = z
+  .object({
+    ownerUserId: z.string().uuid().optional(),
+  })
+  .strict();
+
+export type ListEnvelopesInput = z.output<typeof listEnvelopesSchema>;
+
 export const envelopeHistorySchema = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).optional(),

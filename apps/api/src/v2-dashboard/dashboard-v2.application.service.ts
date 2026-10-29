@@ -5,6 +5,7 @@ import { calculateSpendable } from '../common/finance/v2-money.domain.js';
 import { formatMinorUnits } from '../common/money/minor-units.js';
 import { mandatorySliceGaps } from '../obligations/mandatory-due.domain.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
+import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { addIsoDays, todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { cycleAndPeriodAt, nextPeriodEndAt } from '../cycles/cycle-settings-at.js';
 import { PrismaService } from '../database/prisma.service.js';
@@ -14,7 +15,6 @@ import { DashboardV2Repository } from './dashboard-v2.repository.js';
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_ATTEMPTS = 3;
 const TX_OPTIONS = { maxWait: 5_000, timeout: 15_000 } as const;
-const WRITE_ROLES = new Set(['OWNER', 'EDITOR']);
 const NEAREST_OBLIGATIONS_LIMIT = 3;
 const NEAREST_OBLIGATIONS_DAYS = 60;
 const DAY_MS = 86_400_000;
@@ -180,6 +180,8 @@ function rubles(minor: bigint): string {
  */
 @Injectable()
 export class DashboardV2ApplicationService {
+  private readonly access = new BudgetAccessPolicy();
+
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     private readonly planModelPolicy: PlanModelPolicy,
@@ -241,7 +243,7 @@ export class DashboardV2ApplicationService {
     const repo = this.repository;
     await this.prisma.$transaction(async (tx) => {
       const role = await repo.memberRole(tx, workspaceId, userId);
-      if (!role || !WRITE_ROLES.has(role)) return;
+      if (!role || !this.access.canCreateObjects({ userId, role, isCreator: false })) return;
       const settings = await repo.budgetSettings(tx, budgetId, workspaceId);
       if (!settings) return;
       const today = todayInTimezone(new Date(), settings.timezone);
@@ -346,7 +348,10 @@ export class DashboardV2ApplicationService {
     const currentPeriod = (await cycleAndPeriodAt(tx, budgetId, today, settings)).period;
     const role = await repo.memberRole(tx, workspaceId, userId);
     const dueMayBeIncomplete =
-      !role || !WRITE_ROLES.has(role) || asOf < currentPeriod.start || asOf > currentPeriod.end;
+      !role ||
+      !this.access.canCreateObjects({ userId, role, isCreator: false }) ||
+      asOf < currentPeriod.start ||
+      asOf > currentPeriod.end;
 
     const envelopeById = new Map(envelopes.map((envelope) => [envelope.id, envelope]));
     const isCurrentRow = (row: { envelopeId: string; periodId: string | null }) =>

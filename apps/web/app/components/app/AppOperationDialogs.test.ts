@@ -23,6 +23,7 @@ const auth = {
       ],
     },
   },
+  currentUser: { value: { id: 'user-1', email: 'owner@harmofin.test' } },
   loadMe: vi.fn(),
 };
 
@@ -61,11 +62,25 @@ function typeAmount(value: string): void {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  auth.currentUser.value = { id: 'user-1', email: 'owner@harmofin.test' };
   router.route = { path: '/app', query: {} };
   useOperationDialogs().close();
   useToast().clear();
   useOperationReferenceData().invalidate();
-  api.listAccounts.mockResolvedValue([{ id: 'account-id', name: 'Основная карта' }]);
+  api.listAccounts.mockResolvedValue([
+    {
+      id: 'account-id',
+      name: 'Основная карта',
+      canEdit: true,
+      owner: { userId: 'user-1', displayName: 'Иван', isActiveMember: true },
+    },
+    {
+      id: 'foreign-account',
+      name: 'Копилка',
+      canEdit: false,
+      owner: { userId: 'member-1', displayName: 'Алия', isActiveMember: true },
+    },
+  ]);
   api.listCategories.mockResolvedValue([
     {
       id: 'category-id',
@@ -83,7 +98,20 @@ beforeEach(() => {
     },
   ]);
   v2.listEnvelopes.mockResolvedValue({
-    items: [{ id: 'envelope-id', name: 'Текущие', archivedAt: null }],
+    items: [
+      {
+        id: 'envelope-id',
+        name: 'Текущие',
+        archivedAt: null,
+        owner: { userId: 'user-1', displayName: 'Иван', isActiveMember: true },
+      },
+      {
+        id: 'foreign-envelope',
+        name: 'Аренда',
+        archivedAt: null,
+        owner: { userId: 'member-1', displayName: 'Алия', isActiveMember: true },
+      },
+    ],
   });
 });
 
@@ -272,8 +300,18 @@ describe('AppOperationDialogs', () => {
         ],
       });
       api.listAccounts.mockResolvedValue([
-        { id: 'account-id', name: 'Основная карта' },
-        { id: 'savings-id', name: 'Накопительный' },
+        {
+          id: 'account-id',
+          name: 'Основная карта',
+          canEdit: true,
+          owner: { userId: 'user-1', displayName: 'Иван', isActiveMember: true },
+        },
+        {
+          id: 'savings-id',
+          name: 'Накопительный',
+          canEdit: true,
+          owner: { userId: 'user-1', displayName: 'Иван', isActiveMember: true },
+        },
       ]);
     });
 
@@ -370,7 +408,13 @@ describe('AppOperationDialogs', () => {
 
     it('shows account and category icons in the pills', async () => {
       api.listAccounts.mockResolvedValue([
-        { id: 'account-id', name: 'Основная карта', accountType: 'BANK_CARD' },
+        {
+          id: 'account-id',
+          name: 'Основная карта',
+          accountType: 'BANK_CARD',
+          canEdit: true,
+          owner: { userId: 'user-1', displayName: 'Иван', isActiveMember: true },
+        },
       ]);
       const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
       useOperationDialogs().openOperation('EXPENSE');
@@ -835,5 +879,65 @@ describe('AppOperationDialogs', () => {
         wrapper.unmount();
       },
     );
+  });
+
+  describe('family boundaries', () => {
+    it("keeps someone else's account out of the expense form and captions their envelope", async () => {
+      const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
+      useOperationDialogs().openOperation('EXPENSE');
+      await flushPromises();
+
+      expect(document.querySelector('[data-testid="pill-account-account-id"]')).not.toBeNull();
+      expect(document.querySelector('[data-testid="pill-account-foreign-account"]')).toBeNull();
+      const foreignEnvelope = document.querySelector<HTMLSpanElement>(
+        '[data-testid="pill-envelope-foreign-envelope"]',
+      );
+      expect(foreignEnvelope?.textContent).toContain('Аренда');
+      expect(foreignEnvelope?.textContent).toContain('Алия');
+      expect(
+        document.querySelector<HTMLSpanElement>('[data-testid="pill-account-account-id"]')
+          ?.textContent,
+      ).toContain('Основная карта');
+      wrapper.unmount();
+    });
+
+    it("offers someone else's account only as a transfer destination", async () => {
+      const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
+      useOperationDialogs().openTransfer();
+      await flushPromises();
+
+      expect(
+        document.querySelector('[data-testid="pill-transferSource-foreign-account"]'),
+      ).toBeNull();
+      const destination = document.querySelector(
+        '[data-testid="pill-transferDestination-foreign-account"]',
+      );
+      expect(destination?.textContent).toContain('Копилка');
+      expect(destination?.textContent).toContain('Алия');
+      wrapper.unmount();
+    });
+
+    it('explains and routes to the accounts page when the member has no own account', async () => {
+      api.listAccounts.mockResolvedValue([
+        {
+          id: 'foreign-account',
+          name: 'Копилка',
+          canEdit: false,
+          owner: { userId: 'member-1', displayName: 'Алия', isActiveMember: true },
+        },
+      ]);
+      const wrapper = mount(AppOperationDialogs, { attachTo: document.body });
+      useOperationDialogs().openOperation('EXPENSE');
+      await flushPromises();
+
+      expect(document.querySelector('[data-testid="entry-no-accounts"]')?.textContent).toContain(
+        'Сначала добавьте свой счёт',
+      );
+      expect(document.querySelector('[data-testid="entry-submit"]')).toBeNull();
+      click('entry-create-account');
+      await flushPromises();
+      expect(router.navigateTo).toHaveBeenCalledWith('/app/accounts');
+      wrapper.unmount();
+    });
   });
 });

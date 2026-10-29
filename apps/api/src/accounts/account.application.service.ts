@@ -1,9 +1,12 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import type { WorkspaceMembershipRole } from '@prisma/client';
 
 import { FinancialBalanceRepository } from '../common/finance/financial-balance.repository.js';
 import { formatMinorUnits, parseDecimalToMinorUnits } from '../common/money/minor-units.js';
-import { RolePolicy } from '../common/policies/role-policy.js';
-import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
+import { personRefOf, type PersonRef } from '../common/people/person-ref.repository.js';
+import { requireAccessActor } from '../common/policies/access-actor.repository.js';
+import { BudgetAccessPolicy, type AccessActor } from '../common/policies/budget-access.policy.js';
+import { resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import type { ReferenceDataStatus } from '../common/reference-data/reference-data.types.js';
 import { AssignmentBalanceRepository } from '../envelope-plans/assignment-balance.repository.js';
 import {
@@ -29,7 +32,17 @@ export interface AccountView {
   accountingStartDate: string;
   comment: string | null;
   archivedAt: string | null;
+  owner: PersonRef;
+  canEdit: boolean;
 }
+
+type BudgetWithRole = {
+  id: string;
+  workspaceId: string;
+  allowNegativeBalance: boolean;
+  planModelVersion: number;
+  workspace: { memberships: Array<{ role: WorkspaceMembershipRole }> };
+};
 
 export interface AccountSummaryView {
   currency: 'RUB';
@@ -42,7 +55,7 @@ export interface AccountSummaryView {
 export class AccountApplicationService {
   constructor(
     private readonly repository: AccountRepository,
-    private readonly rolePolicy: RolePolicy,
+    private readonly access = new BudgetAccessPolicy(),
     private readonly assignments = new AssignmentBalanceRepository(),
     private readonly balances = new FinancialBalanceRepository(),
   ) {}
@@ -51,12 +64,11 @@ export class AccountApplicationService {
     userId: string,
     budgetId: string,
     status: ReferenceDataStatus,
+    ownerUserId?: string,
   ): Promise<AccountView[]> {
-    const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
-    if (!budget) throw resourceNotFound();
-    return (await this.repository.list(userId, budgetId, status)).map((account) =>
-      this.toView(account),
-    );
+    const budget = await this.requireBudget(userId, budgetId);
+    const rows = await this.repository.list(userId, budgetId, status, ownerUserId);
+    return this.toViews(rows, budget, userId);
   }
 
   // The total is the sum of the very balances the list hands out, computed by
@@ -66,10 +78,10 @@ export class AccountApplicationService {
     userId: string,
     budgetId: string,
     status: ReferenceDataStatus,
+    ownerUserId?: string,
   ): Promise<AccountSummaryView> {
-    const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
-    if (!budget) throw resourceNotFound();
-    const accounts = await this.repository.list(userId, budgetId, status);
+    await this.requireBudget(userId, budgetId);
+    const accounts = await this.repository.list(userId, budgetId, status, ownerUserId);
     const totalMinor = accounts.reduce((sum, account) => sum + account.currentBalanceMinor, 0n);
     return {
       currency: 'RUB',
@@ -80,9 +92,10 @@ export class AccountApplicationService {
   }
 
   async get(userId: string, budgetId: string, accountId: string): Promise<AccountView> {
+    const budget = await this.requireBudget(userId, budgetId);
     const account = await this.repository.find(userId, budgetId, accountId);
     if (!account) throw resourceNotFound();
-    return this.toView(account);
+    return (await this.toViews([account], budget, userId))[0]!;
   }
 
   async create(
@@ -91,15 +104,18 @@ export class AccountApplicationService {
     input: CreateAccountInput,
     requestId?: string,
   ): Promise<AccountView> {
-    const budget = await this.requireOwnerBudget(userId, budgetId);
+    const budget = await this.requireBudget(userId, budgetId);
     const account = await this.repository.create(
       userId,
-      this.createData(budgetId, input, budget.allowNegativeBalance),
+      this.createData(budgetId, userId, input, budget.allowNegativeBalance),
       requestId,
       this.unbackedGuard(budget),
+      async (tx) => {
+        this.access.requireWriter(await requireAccessActor(tx, budget.workspaceId, userId));
+      },
     );
     if (!account) throw resourceNotFound();
-    return this.toView(account);
+    return (await this.toViews([account], budget, userId))[0]!;
   }
 
   async update(
@@ -109,7 +125,7 @@ export class AccountApplicationService {
     input: UpdateAccountInput,
     requestId?: string,
   ): Promise<AccountView> {
-    const budget = await this.requireOwnerBudget(userId, budgetId);
+    const budget = await this.requireBudget(userId, budgetId);
     const guard =
       input.startingBalance !== undefined || input.accountingStartDate !== undefined
         ? this.unbackedGuard(budget)
@@ -121,9 +137,13 @@ export class AccountApplicationService {
       this.updateData(input, budget.allowNegativeBalance),
       requestId,
       guard,
+      async (current, tx) => {
+        const actor = await requireAccessActor(tx, budget.workspaceId, userId);
+        this.access.requireObjectOwner(actor, current);
+      },
     );
     if (!account) throw resourceNotFound();
-    return this.toView(account);
+    return (await this.toViews([account], budget, userId))[0]!;
   }
 
   async archive(
@@ -132,7 +152,7 @@ export class AccountApplicationService {
     accountId: string,
     requestId?: string,
   ): Promise<AccountView> {
-    const budget = await this.requireOwnerBudget(userId, budgetId);
+    const budget = await this.requireBudget(userId, budgetId);
     const guard: AccountMutationGuard | undefined =
       budget.planModelVersion === 2
         ? {
@@ -152,9 +172,19 @@ export class AccountApplicationService {
             },
           }
         : undefined;
-    const account = await this.repository.archive(userId, budgetId, accountId, requestId, guard);
+    const account = await this.repository.archive(
+      userId,
+      budgetId,
+      accountId,
+      requestId,
+      guard,
+      async (current, tx) => {
+        const actor = await requireAccessActor(tx, budget.workspaceId, userId);
+        this.access.requireObjectOwner(actor, current);
+      },
+    );
     if (!account) throw resourceNotFound();
-    return this.toView(account);
+    return (await this.toViews([account], budget, userId))[0]!;
   }
 
   async restore(
@@ -163,7 +193,7 @@ export class AccountApplicationService {
     accountId: string,
     requestId?: string,
   ): Promise<AccountView> {
-    const budget = await this.requireOwnerBudget(userId, budgetId);
+    const budget = await this.requireBudget(userId, budgetId);
     if (budget.planModelVersion !== 2) {
       throw new ConflictException({
         code: 'MODEL_VERSION_MISMATCH',
@@ -172,18 +202,29 @@ export class AccountApplicationService {
     }
     const account = await this.repository.find(userId, budgetId, accountId);
     if (!account) throw resourceNotFound();
+    const role = budget.workspace.memberships[0]?.role;
+    this.access.requireObjectOwner({ userId, role: role!, isCreator: false }, account);
     if (!account.archivedAt) {
       throw new ConflictException({
         code: 'ACCOUNT_NOT_ARCHIVED',
         detail: 'Счёт не был архивирован, восстановление не требуется.',
       });
     }
-    const restored = await this.repository.restore(userId, budgetId, accountId, requestId);
+    const restored = await this.repository.restore(
+      userId,
+      budgetId,
+      accountId,
+      requestId,
+      async (current, tx) => {
+        const actor = await requireAccessActor(tx, budget.workspaceId, userId);
+        this.access.requireObjectOwner(actor, current);
+      },
+    );
     if (!restored) throw resourceNotFound();
-    return this.toView(restored);
+    return (await this.toViews([restored], budget, userId))[0]!;
   }
 
-  toView(account: AccountRecord): AccountView {
+  toView(account: AccountRecord): Omit<AccountView, 'owner' | 'canEdit'> {
     const startingBalanceMinor = formatMinorUnits(account.startingBalanceMinor);
     return {
       id: account.id,
@@ -200,6 +241,24 @@ export class AccountApplicationService {
       comment: account.comment,
       archivedAt: account.archivedAt?.toISOString() ?? null,
     };
+  }
+
+  private async toViews(
+    rows: AccountRecord[],
+    budget: BudgetWithRole,
+    userId: string,
+  ): Promise<AccountView[]> {
+    const people = await this.repository.personRefs(
+      budget.workspaceId,
+      rows.map((row) => row.ownerUserId),
+    );
+    const role = budget.workspace.memberships[0]?.role;
+    const actor: AccessActor | null = role ? { userId, role, isCreator: false } : null;
+    return rows.map((row) => ({
+      ...this.toView(row),
+      owner: personRefOf(people, row.ownerUserId),
+      canEdit: actor !== null && this.access.canEditObject(actor, row),
+    }));
   }
 
   // v2 invariant: a mutation must not increase the unbacked part of the
@@ -234,21 +293,21 @@ export class AccountApplicationService {
     };
   }
 
-  private async requireOwnerBudget(userId: string, budgetId: string) {
+  private async requireBudget(userId: string, budgetId: string): Promise<BudgetWithRole> {
     const budget = await this.repository.findAccessibleWithRole(userId, budgetId);
     if (!budget) throw resourceNotFound();
-    const role = budget.workspace.memberships[0]?.role;
-    if (!role || !this.rolePolicy.canManage(role)) throw forbidden();
     return budget;
   }
 
   private createData(
     budgetId: string,
+    ownerUserId: string,
     input: CreateAccountInput,
     allowNegativeBalance: boolean,
   ): AccountCreateData {
     return {
       budgetId,
+      ownerUserId,
       name: input.name,
       accountType: input.accountType,
       bankName: input.bankName ?? null,

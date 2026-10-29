@@ -23,6 +23,8 @@ const rent: PlansCalendarItem = {
   factOn: null,
   factMinor: null,
   factTransactionIds: [],
+  owner: { userId: 'user-1', displayName: 'Алия', isActiveMember: true },
+  canEdit: true,
 };
 const salary: PlansCalendarItem = {
   ...rent,
@@ -257,19 +259,44 @@ describe('PlanDayPanel', () => {
     }
   });
 
-  it('hides "Добавить план" and edit when canManage is false', () => {
-    const wrapper = mountPanel({ items: [rent, salary], canManage: false });
+  it('hides "Добавить план" when canCreate is false', () => {
+    const wrapper = mountPanel({ items: [rent, salary], canCreate: false });
 
     expect(wrapper.find('[data-testid="plan-add-for-day"]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="day-edit-occ-rent"]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="day-edit-occ-salary"]').exists()).toBe(false);
   });
 
-  it('hides pay, skip and record-income when canWrite is false', () => {
-    const wrapper = mountPanel({ items: [rent, salary], canWrite: false });
+  it('hides pay, skip, record-income and edit on items the server marked canEdit false', () => {
+    const foreignRent = { ...rent, canEdit: false };
+    const foreignSalary = { ...salary, canEdit: false };
+    const wrapper = mountPanel({ items: [foreignRent, foreignSalary] });
 
+    expect(wrapper.find('[data-testid="day-edit-occ-rent"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="day-pay-occ-rent"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="day-skip-occ-rent"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="day-record-occ-salary"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="day-edit-occ-salary"]').exists()).toBe(false);
+  });
+
+  it('keeps "Добавить план" for an editor and actions on own items', () => {
+    const wrapper = mountPanel({ items: [rent, salary], canCreate: true });
+
+    expect(wrapper.find('[data-testid="plan-add-for-day"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="day-pay-occ-rent"]').exists()).toBe(true);
+  });
+
+  it('shows owner captions only when the family has several members', () => {
+    const foreignSalary = {
+      ...salary,
+      owner: { userId: 'user-2', displayName: 'Борис', isActiveMember: true },
+    };
+    const wrapper = mountPanel({
+      items: [rent, foreignSalary],
+      showOwner: true,
+      userId: 'user-1',
+    });
+    expect(wrapper.get('[data-testid="day-meta-occ-rent"]').text()).toContain('Владелец: Мой');
+    expect(wrapper.get('[data-testid="day-meta-occ-salary"]').text()).toContain('Владелец: Борис');
+    const plain = mountPanel({ items: [rent, foreignSalary] });
+    expect(plain.text()).not.toContain('Владелец:');
   });
 });

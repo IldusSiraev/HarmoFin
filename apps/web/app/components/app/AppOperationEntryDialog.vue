@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { ArrowLeft, CircleCheck, Search, X } from '@lucide/vue';
+import { navigateTo } from '#imports';
 
 import {
   selectableCategories,
@@ -44,6 +45,9 @@ const props = withDefaults(
     open: boolean;
     initialType: EntryType;
     accounts: ReadonlyArray<PillOption>;
+    // Family-wide destination list: the member's own accounts plus the foreign
+    // ones captioned with their owner. Falls back to `accounts` when omitted.
+    familyAccounts?: ReadonlyArray<PillOption> | null;
     categories: ReadonlyArray<CategoryDto>;
     envelopes: ReadonlyArray<{ value: string; label: string }>;
     mandatoryEnvelopeIds?: ReadonlyArray<string>;
@@ -54,6 +58,7 @@ const props = withDefaults(
     initialSourceAccountId?: string;
   }>(),
   {
+    familyAccounts: null,
     mandatoryEnvelopeIds: () => [],
     currentPeriodEnvelopeIds: () => [],
     pending: false,
@@ -257,9 +262,23 @@ const visibleCategoryOptions = computed(() => {
 const transferSourceOptions = computed(() =>
   props.accounts.filter((account) => account.value !== transfer.destinationAccountId),
 );
+// Money may arrive on a family member's account, so the destination picker
+// takes the family list; the source stays strictly the member's own accounts.
 const transferDestinationOptions = computed(() =>
-  props.accounts.filter((account) => account.value !== transfer.sourceAccountId),
+  (props.familyAccounts && props.familyAccounts.length > 0
+    ? props.familyAccounts
+    : props.accounts
+  ).filter((account) => account.value !== transfer.sourceAccountId),
 );
+
+// Without a single account the member may spend from, no tab has anything to
+// submit — the dialog explains and routes to the accounts page instead.
+const hasOwnAccounts = computed(() => props.accounts.length > 0);
+
+async function goToAccounts(): Promise<void> {
+  emit('close');
+  await navigateTo('/app/accounts');
+}
 
 // An expense does not need an envelope; "" is the explicit "no assignment".
 const envelopeOptions = computed<PillOption[]>(() => [
@@ -406,6 +425,21 @@ function submitOneTime(): void {
       </UiButton>
     </div>
 
+    <div v-else-if="!hasOwnAccounts" class="entry-dialog__body" data-testid="entry-no-accounts">
+      <p class="entry-dialog__hint">
+        Чтобы записать операцию, нужен хотя бы один ваш счёт. Пока в семье есть только счета других
+        участников — их можно выбрать счётом зачисления при переводе.
+      </p>
+      <UiButton
+        class="entry-dialog__step-button"
+        full-width
+        data-testid="entry-create-account"
+        @click="goToAccounts"
+      >
+        Сначала добавьте свой счёт
+      </UiButton>
+    </div>
+
     <div v-else class="entry-dialog__body">
       <template v-if="activeType !== 'TRANSFER'">
         <!-- A plain block, not a grid cell of its own: the live region stays
@@ -525,7 +559,7 @@ function submitOneTime(): void {
     </div>
 
     <div
-      v-if="!oneTimeStep"
+      v-if="!oneTimeStep && hasOwnAccounts"
       class="entry-dialog__actions"
       :class="{ 'entry-dialog__actions--pair': canAddAnother }"
     >

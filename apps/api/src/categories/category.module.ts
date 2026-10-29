@@ -1,6 +1,5 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 
-import { RolePolicy } from '../common/policies/role-policy.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { CategoryApplicationService } from './category.application.service.js';
 import { CategoryController } from './category.controller.js';
@@ -13,7 +12,6 @@ export class CategoryModule {
       module: CategoryModule,
       controllers: [CategoryController],
       providers: [
-        RolePolicy,
         {
           provide: CategoryRepository,
           useFactory: (prisma: PrismaService) => new CategoryRepository(prisma),
@@ -21,9 +19,9 @@ export class CategoryModule {
         },
         {
           provide: CategoryApplicationService,
-          useFactory: (repository: CategoryRepository, rolePolicy: RolePolicy) =>
-            new CategoryApplicationService(repository, rolePolicy),
-          inject: [CategoryRepository, RolePolicy],
+          useFactory: (repository: CategoryRepository) =>
+            new CategoryApplicationService(repository),
+          inject: [CategoryRepository],
         },
       ],
     };

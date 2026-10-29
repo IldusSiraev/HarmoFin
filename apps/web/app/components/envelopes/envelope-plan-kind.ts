@@ -222,22 +222,27 @@ export function planBadge(
 }
 
 export type EnvelopeHistoryKind = 'ASSIGNMENT' | 'MOVEMENT' | 'SPENDING';
+export type EnvelopeHistoryDirection = 'IN' | 'OUT';
 
 // The server returns amountMinor as an unsigned magnitude for every history
-// kind; the sign shown to the user comes from the kind, not from arithmetic.
-// Assignment adds money to the envelope ("+"); spending leaves it ("−"). A
-// movement's direction relative to this envelope (source or destination) is
-// not in the record, so it stays unsigned and neutral in colour.
-export function historySign(kind: EnvelopeHistoryKind): '+' | '−' | null {
-  if (kind === 'ASSIGNMENT') return '+';
-  if (kind === 'SPENDING') return '−';
+// kind; the sign shown to the user comes from the record's direction relative
+// to this envelope, never from arithmetic or from the kind. A row without a
+// direction (older data) stays unsigned and neutral in colour.
+export function historySign(
+  direction: EnvelopeHistoryDirection | undefined | null,
+): '+' | '−' | null {
+  if (direction === 'IN') return '+';
+  if (direction === 'OUT') return '−';
   return null;
 }
 
 // Display text for a history row amount: a sign character prefixed to the
-// server's own formatted text, or no sign for a movement. No arithmetic.
-export function historyAmountText(kind: EnvelopeHistoryKind, amountMinor: string): string {
-  const sign = historySign(kind);
+// server's own formatted text, or no sign when the direction is unknown.
+export function historyAmountText(
+  direction: EnvelopeHistoryDirection | undefined | null,
+  amountMinor: string,
+): string {
+  const sign = historySign(direction);
   return `${sign ?? ''}${formatMoneyText(amountMinor)}`;
 }
 

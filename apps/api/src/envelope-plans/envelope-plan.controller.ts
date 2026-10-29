@@ -22,6 +22,7 @@ import {
   ApiHeader,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -64,6 +65,7 @@ import {
   createAssignmentSchema,
   createEnvelopeSchema,
   envelopeHistorySchema,
+  listEnvelopesSchema,
   putFundingRuleSchema,
   putFundingRulesBatchSchema,
   putPeriodTargetSchema,
@@ -72,6 +74,7 @@ import {
   type CreateAssignmentInput,
   type CreateEnvelopeInput,
   type EnvelopeHistoryQuery,
+  type ListEnvelopesInput,
   type PutFundingRuleInput,
   type PutFundingRulesBatchInput,
   type PutPeriodTargetInput,
@@ -108,14 +111,19 @@ export class EnvelopePlanController {
   ) {}
 
   @Get('envelopes')
+  @ApiQuery({ name: 'ownerUserId', required: false, type: String, format: 'uuid' })
   @ApiOkResponse({ type: EnvelopePlanListResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 403, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
-  async list(@Param('budgetId') budgetId: string, @Req() request: AuthenticatedRequest) {
-    return (await this.plans.list(contextOf(request).userId, budgetId)).body;
+  async list(
+    @Param('budgetId') budgetId: string,
+    @Query(new ZodValidationPipe(listEnvelopesSchema)) query: ListEnvelopesInput,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return (await this.plans.list(contextOf(request).userId, budgetId, query.ownerUserId)).body;
   }
 
   @Post('envelopes')
@@ -162,7 +170,12 @@ export class EnvelopePlanController {
   @ApiOkResponse({ type: EnvelopePlanResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
@@ -192,7 +205,12 @@ export class EnvelopePlanController {
   @ApiOkResponse({ type: EnvelopePlanResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
@@ -248,14 +266,20 @@ export class EnvelopePlanController {
   @ApiOperation({
     summary: 'Сохранить очередь и правила пополнения конвертов',
     description:
-      'Одна транзакция: правила конвертов, порядок очереди и предложение «категория дохода → конверт». Конверты вне тела не меняются. Распределения, остатки и цели периодов не меняются. Только OWNER; повтор с тем же Idempotency-Key возвращает тот же ответ.',
+      'Одна транзакция: правила конвертов, порядок очереди и предложение «категория дохода → конверт». Конверты вне тела не меняются. Распределения, остатки и цели периодов не меняются. Доступно writer (OWNER или EDITOR); правило чужого конверта, которое пакет создаёт, меняет или удаляет, даёт NOT_OBJECT_OWNER, изменение incomeSuggestion — только OWNER (FORBIDDEN). Повтор с тем же Idempotency-Key возвращает тот же ответ.',
   })
   @ApiHeader(idempotencyHeader)
   @ApiBody({ type: PutFundingRulesBatchRequest })
   @ApiOkResponse({ type: FundingRulesBatchResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description:
+      'FORBIDDEN — нет права записи либо изменение incomeSuggestion не владельцем бюджета; ' +
+      'NOT_OBJECT_OWNER — изменённое правило принадлежит чужому конверту.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
@@ -283,7 +307,12 @@ export class EnvelopePlanController {
   @ApiOkResponse({ type: FundingRuleResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
@@ -313,7 +342,12 @@ export class EnvelopePlanController {
   @ApiOkResponse({ type: PeriodTargetResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
@@ -345,7 +379,12 @@ export class EnvelopePlanController {
   @ApiOkResponse({ type: PeriodTargetResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   async confirmTarget(
@@ -372,7 +411,12 @@ export class EnvelopePlanController {
   @ApiOkResponse({ type: PeriodTargetResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — конверт принадлежит другому участнику.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   async rejectTarget(
@@ -399,7 +443,13 @@ export class EnvelopePlanController {
   @ApiCreatedResponse({ type: AssignmentResultResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description:
+      'FORBIDDEN — нет права записи; NOT_INCOME_AUTHOR — доход принадлежит другому участнику ' +
+      '(sourceKind=INCOME).',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
@@ -446,7 +496,12 @@ export class EnvelopePlanController {
   @ApiOkResponse({ type: AssignmentResultResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description:
+      'FORBIDDEN — нет права записи; NOT_OPERATION_AUTHOR — изменять может только автор распределения.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
@@ -476,7 +531,12 @@ export class EnvelopePlanController {
   @ApiOkResponse({ type: AssignmentResultResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description:
+      'FORBIDDEN — нет права записи; NOT_OPERATION_AUTHOR — отменить может только автор распределения.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })
@@ -504,7 +564,12 @@ export class EnvelopePlanController {
   @ApiCreatedResponse({ type: MovementResultResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — исходный конверт принадлежит другому участнику.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   @ApiResponse({ status: 422, type: ProblemDetailsResponse })

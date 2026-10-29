@@ -90,19 +90,35 @@ describe('v2 envelope movements: move', () => {
       },
     });
 
-    await createAccount(ctx.owner?.budgetId, 30_000_000n);
-    ownerSavingsEnvelope = await createEnvelope(ctx.owner?.budgetId, 'SAVINGS_GOAL', 'Накопление');
+    await createAccount(ctx.owner?.budgetId, ctx.owner?.userId, 30_000_000n);
+    ownerSavingsEnvelope = await createEnvelope(
+      ctx.owner?.budgetId,
+      ctx.owner?.userId,
+      'SAVINGS_GOAL',
+      'Накопление',
+    );
     ownerMandatoryEnvelope = await createEnvelope(
       ctx.owner?.budgetId,
+      ctx.owner?.userId,
       'MANDATORY_EXPENSES',
       'Обязательные',
     );
-    ownerPeriodEnvelope = await createEnvelope(ctx.owner?.budgetId, 'CUSTOM', 'Периодный');
+    ownerPeriodEnvelope = await createEnvelope(
+      ctx.owner?.budgetId,
+      ctx.owner?.userId,
+      'CUSTOM',
+      'Периодный',
+    );
     periodP1 = await createPeriod(ctx.owner?.budgetId, ownerPeriodEnvelope, d(-31), d(-1));
     periodP2 = await createPeriod(ctx.owner?.budgetId, ownerPeriodEnvelope, d(0), d(30));
 
-    await createAccount(ctx.outsider?.budgetId, 10_000_000n);
-    outsiderEnvelope = await createEnvelope(ctx.outsider?.budgetId, 'CUSTOM', 'Чужой');
+    await createAccount(ctx.outsider?.budgetId, ctx.outsider?.userId, 10_000_000n);
+    outsiderEnvelope = await createEnvelope(
+      ctx.outsider?.budgetId,
+      ctx.outsider?.userId,
+      'CUSTOM',
+      'Чужой',
+    );
     outsiderPeriod = await createPeriod(ctx.outsider?.budgetId, outsiderEnvelope, d(-31), d(-1));
 
     const prismaService = new PrismaService(databaseUrl);
@@ -445,12 +461,18 @@ async function register(email: string): Promise<RegisteredUser> {
   };
 }
 
-async function createAccount(budgetId: string | undefined, startingMinor: bigint): Promise<string> {
+async function createAccount(
+  budgetId: string | undefined,
+  ownerUserId: string | undefined,
+  startingMinor: bigint,
+): Promise<string> {
   if (!budgetId) throw new Error('Budget missing');
+  if (!ownerUserId) throw new Error('Owner missing');
   const account = await prisma.account.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: 'Основной счёт',
       accountType: 'BANK_ACCOUNT',
       startingBalanceMinor: startingMinor,
@@ -462,14 +484,17 @@ async function createAccount(budgetId: string | undefined, startingMinor: bigint
 
 async function createEnvelope(
   budgetId: string | undefined,
+  ownerUserId: string | undefined,
   envelopeType: 'SAVINGS_GOAL' | 'MANDATORY_EXPENSES' | 'CUSTOM',
   name: string,
 ): Promise<string> {
   if (!budgetId) throw new Error('Budget missing');
+  if (!ownerUserId) throw new Error('Owner missing');
   const envelope = await prisma.envelope.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name,
       envelopeType,
       startingBalanceMinor: 0n,

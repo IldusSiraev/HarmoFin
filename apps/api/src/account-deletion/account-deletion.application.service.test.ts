@@ -13,6 +13,20 @@ function setup(overrides: { passwordOk?: boolean; otherMembers?: number; claimed
       createMany: vi.fn().mockResolvedValue({ count: 1 }),
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
+    // transferMemberObjects (commit eb17a79) reads and reassigns owned objects in the same tx.
+    account: {
+      findMany: vi.fn().mockResolvedValue([]),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    envelope: {
+      findMany: vi.fn().mockResolvedValue([]),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    regularPlan: {
+      findMany: vi.fn().mockResolvedValue([]),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    auditEvent: { createMany: vi.fn().mockResolvedValue({ count: 0 }) },
   };
   const repository = {
     transaction: vi.fn((callback: (t: unknown) => unknown) => callback(tx)),

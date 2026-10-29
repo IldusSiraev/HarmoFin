@@ -168,4 +168,18 @@ describe('useOperationMutations (v2)', () => {
     expect(canEditTransaction({ ...transaction, status: 'CANCELLED' })).toBe(false);
     expect(canEditTransaction({ ...transaction, status: 'DELETED' })).toBe(false);
   });
+
+  it('allows editing through the author check only for the author itself', () => {
+    const withAuthor = {
+      ...transaction,
+      createdBy: { userId: 'author-id', displayName: 'Алия', isActiveMember: true },
+    } as unknown as typeof transaction;
+
+    expect(canEditTransaction(withAuthor, 'author-id')).toBe(true);
+    expect(canEditTransaction(withAuthor, 'someone-else')).toBe(false);
+    // A row without an author (older response) is never editable by anybody.
+    expect(canEditTransaction(transaction, 'author-id')).toBe(false);
+    // Without the author argument the helper keeps its status-only behaviour.
+    expect(canEditTransaction(withAuthor)).toBe(true);
+  });
 });

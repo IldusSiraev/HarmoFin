@@ -1,5 +1,7 @@
 import { ApiProperty, ApiSchema } from '@nestjs/swagger';
 
+import { PersonRefResponse } from '../common/people/person-ref.dto.js';
+
 export class EnvelopePeriodBalanceResponse {
   @ApiProperty({
     type: String,
@@ -73,6 +75,16 @@ export class EnvelopePlanResponse {
       'по возрастанию даты начала. Для конвертов без периодов — пустой список.',
   })
   periods!: EnvelopePeriodBalanceResponse[];
+
+  @ApiProperty({ type: PersonRefResponse })
+  owner!: PersonRefResponse;
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'Подсказка для интерфейса: текущий пользователь может изменять конверт. Право проверяет сервер.',
+  })
+  canEdit!: boolean;
 }
 
 export class AssignmentResultResponse {
@@ -319,6 +331,23 @@ export class EnvelopeHistoryItemResponse {
 
   @ApiProperty({ type: String, format: 'date', example: '2026-09-30' })
   effectiveOn!: string;
+
+  @ApiProperty({ type: String, enum: ['IN', 'OUT'], example: 'OUT' })
+  direction!: string;
+
+  @ApiProperty({ type: PersonRefResponse })
+  createdBy!: PersonRefResponse;
+
+  @ApiProperty({ type: String, nullable: true, example: 'Отпуск' })
+  counterpartName!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    enum: ['INCOME', 'OPENING', 'FREE'],
+    example: 'INCOME',
+  })
+  assignmentType!: string | null;
 }
 
 export class EnvelopeHistoryListResponse {

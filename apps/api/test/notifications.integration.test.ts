@@ -208,6 +208,7 @@ describe('internal notifications', () => {
       data: {
         id: accountId,
         budgetId: owner.budgetId,
+        ownerUserId: owner.userId,
         name: 'Минусовый счёт',
         accountType: 'CASH',
         startingBalanceMinor: -1_000n,
@@ -218,6 +219,7 @@ describe('internal notifications', () => {
       data: {
         id: envelopeId,
         budgetId: owner.budgetId,
+        ownerUserId: owner.userId,
         name: 'Обязательные уведомления',
         envelopeType: 'MANDATORY_EXPENSES',
         startingBalanceMinor: -50n,
@@ -263,6 +265,7 @@ describe('internal notifications', () => {
         id: planId,
         workspaceId: owner.workspaceId,
         budgetId: owner.budgetId,
+        ownerUserId: owner.userId,
         name: 'Платёж',
         planType: 'EXPENSE',
         amountMinor: 100n,

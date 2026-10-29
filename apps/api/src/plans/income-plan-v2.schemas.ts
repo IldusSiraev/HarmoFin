@@ -96,7 +96,10 @@ export const recordIncomeSchema = z
   .strict();
 
 export const listIncomePlansSchema = z
-  .object({ status: z.enum(['active', 'archived', 'all']).default('active') })
+  .object({
+    status: z.enum(['active', 'archived', 'all']).default('active'),
+    ownerUserId: uuid.optional(),
+  })
   .strict();
 
 export const listIncomeOccurrencesSchema = z

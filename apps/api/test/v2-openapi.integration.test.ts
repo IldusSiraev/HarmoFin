@@ -252,8 +252,8 @@ beforeAll(async () => {
 
   a = await v2World();
   b = await v2World();
-  await createEnvelope(a.budgetId, 'A envelope');
-  bEnvelopeId = await createEnvelope(b.budgetId, 'B envelope', 1_000_000n);
+  await createEnvelope(a.budgetId, a.userId, 'A envelope');
+  bEnvelopeId = await createEnvelope(b.budgetId, b.userId, 'B envelope', 1_000_000n);
   bAssignmentId = randomUUID();
   await prisma.envelopeAssignment.create({
     data: {
@@ -264,6 +264,7 @@ beforeAll(async () => {
       amountMinor: 500_000n,
       effectiveOn: day('2026-03-01'),
       status: 'CONFIRMED',
+      createdByUserId: b.userId,
     },
   });
   bPlanId = randomUUID();
@@ -272,6 +273,7 @@ beforeAll(async () => {
       id: bPlanId,
       workspaceId: b.workspaceId,
       budgetId: b.budgetId,
+      ownerUserId: b.userId,
       name: 'Чужая аренда',
       planType: 'EXPENSE',
       amountMinor: 5_000_000n,
@@ -739,8 +741,10 @@ describe('v2 OpenAPI contract (P06)', () => {
   it('v1 и v2 не делят DTO с конфликтующим смыслом', () => {
     const v1Names = reachable(v1Ops);
     const v2Names = reachable(v2Ops);
-    // Общими могут быть только нейтральные контракты ошибок.
-    const allowed = new Set(['ProblemDetailsResponse', 'FieldErrorResponse']);
+    // Общими могут быть только нейтральные контракты ошибок и ссылка на участника семьи
+    // (`PersonRefResponse`/`AuthorRefResponse`), которая намеренно живёт в `common/people`
+    // и переиспользуется v1 и v2 контроллерами (family access, этап B).
+    const allowed = new Set(['ProblemDetailsResponse', 'FieldErrorResponse', 'AuthorRefResponse']);
     const shared = [...v2Names].filter((name) => v1Names.has(name) && !allowed.has(name));
     expect(shared).toEqual([]);
   });
@@ -789,6 +793,7 @@ async function v2World(): Promise<World> {
     data: {
       id: randomUUID(),
       budgetId: registered.budgetId,
+      ownerUserId: registered.userId,
       name: 'Основной счёт',
       accountType: 'BANK_ACCOUNT',
       startingBalanceMinor: 1_000_000n,
@@ -800,6 +805,7 @@ async function v2World(): Promise<World> {
 
 async function createEnvelope(
   budgetId: string,
+  ownerUserId: string,
   name: string,
   targetAmountMinor?: bigint,
 ): Promise<string> {
@@ -807,6 +813,7 @@ async function createEnvelope(
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name,
       envelopeType: targetAmountMinor === undefined ? 'CURRENT_EXPENSES' : 'SAVINGS_GOAL',
       startingBalanceMinor: 0n,

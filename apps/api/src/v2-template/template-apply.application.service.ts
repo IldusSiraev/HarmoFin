@@ -13,7 +13,7 @@ import { IdempotencyService } from '../common/idempotency/idempotency.service.js
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
 import { parseDecimalToMinorUnits } from '../common/money/minor-units.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
-import { RolePolicy } from '../common/policies/role-policy.js';
+import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { forbidden } from '../common/reference-data/reference-data.errors.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { AssignmentRepository } from '../envelope-plans/assignment.repository.js';
@@ -135,7 +135,7 @@ export class TemplateApplyApplicationService {
   private readonly repository = new TemplateApplyRepository();
   private readonly assignments = new AssignmentRepository();
   private readonly rules = new FundingRuleRepository();
-  private readonly rolePolicy = new RolePolicy();
+  private readonly access = new BudgetAccessPolicy();
 
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
@@ -157,7 +157,9 @@ export class TemplateApplyApplicationService {
       model.workspaceId,
       userId,
     );
-    if (!early || !this.rolePolicy.canManage(early)) throw forbidden();
+    if (!early || !this.access.canManageBudgetSettings({ userId, role: early, isCreator: false })) {
+      throw forbidden();
+    }
 
     const requestHash = createHash('sha256').update(JSON.stringify(input)).digest('hex');
     const workspaceId = model.workspaceId;
@@ -175,7 +177,9 @@ export class TemplateApplyApplicationService {
         },
         async (): Promise<TemplateApplyResult> => {
           const role = await this.previewRepository.findMemberRole(tx, workspaceId, userId);
-          if (!role || !this.rolePolicy.canManage(role)) throw forbidden();
+          if (!role || !this.access.canManageBudgetSettings({ userId, role, isCreator: false })) {
+            throw forbidden();
+          }
 
           const current = await this.preview.compute(tx, { budgetId, workspaceId });
           if (current.body.previewHash !== input.previewHash) throw previewStale();
@@ -237,7 +241,7 @@ export class TemplateApplyApplicationService {
             let envelopeId: string;
             if (entry.mode === 'CREATE') {
               envelopeId = entry.id;
-              await this.repository.createEnvelope(tx, budgetId, {
+              await this.repository.createEnvelope(tx, budgetId, userId, {
                 id: entry.id,
                 templateKey: entry.templateKey,
                 name: entry.name,

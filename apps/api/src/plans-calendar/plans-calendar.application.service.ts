@@ -3,6 +3,9 @@ import { NotFoundException } from '@nestjs/common';
 
 import { formatMinorUnits } from '../common/money/minor-units.js';
 import type { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
+import { findPersonRefs, personRefOf } from '../common/people/person-ref.repository.js';
+import { findAccessActor } from '../common/policies/access-actor.repository.js';
+import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { todayInTimezone } from '../cycles/cycle-period.domain.js';
 import type { PrismaService } from '../database/prisma.service.js';
 import { computeUnpaidMinor } from '../obligations/obligation.application.service.js';
@@ -30,10 +33,18 @@ const dateValue = (value: string) => new Date(`${value}T00:00:00.000Z`);
 const isoDate = (value: Date) => value.toISOString().slice(0, 10);
 const OPEN: PlanOccurrenceStatus[] = ['PENDING', 'DUE'];
 
+export interface CalendarOwner {
+  id: string;
+  displayName: string | null;
+  isActiveMember: boolean;
+}
+
 export interface PlansCalendarItemView {
   kind: CalendarItemKind;
   occurrenceId: string;
   planId: string;
+  owner: CalendarOwner;
+  canEdit: boolean;
   name: string;
   scheduledOn: string;
   status: string;
@@ -77,6 +88,7 @@ type IncomeRow = Awaited<ReturnType<IncomePlanRepository['listOccurrences']>>[nu
 export class PlansCalendarApplicationService {
   private readonly obligations = new ObligationPlanRepository();
   private readonly incomes = new IncomePlanRepository();
+  private readonly access = new BudgetAccessPolicy();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -106,18 +118,27 @@ export class PlansCalendarApplicationService {
           });
         }
         const today = todayInTimezone(this.now(), budget.timezone);
-        const range = { from: dateValue(window.from), to: dateValue(window.to) };
+        const ownerFilter = query.ownerUserId ? { ownerUserId: query.ownerUserId } : {};
         const [obligationRows, incomeRows, overdueRows, facts, activePlanCount, completed] =
           await Promise.all([
-            this.obligations.listOccurrences(tx, budgetId, range),
-            this.incomes.listOccurrences(tx, budgetId, range),
+            this.obligations.listOccurrences(tx, budgetId, {
+              from: dateValue(window.from),
+              to: dateValue(window.to),
+              ...ownerFilter,
+            }),
+            this.incomes.listOccurrences(tx, budgetId, {
+              from: dateValue(window.from),
+              to: dateValue(window.to),
+              ...ownerFilter,
+            }),
             this.obligations.listOccurrences(tx, budgetId, {
               statuses: OPEN,
               to: dateValue(previousDay(today)),
+              ...ownerFilter,
             }),
             this.repository.factsByDay(tx, budgetId, window),
-            this.repository.countActivePlans(tx, budgetId),
-            this.repository.completedWithFacts(tx, budgetId, window),
+            this.repository.countActivePlans(tx, budgetId, query.ownerUserId),
+            this.repository.completedWithFacts(tx, budgetId, window, query.ownerUserId),
           ]);
 
         // A completed plan is shown once, on the date of the operation that settled it. One
@@ -136,14 +157,52 @@ export class PlansCalendarApplicationService {
             settlement.factOn <= window.to
           );
         });
+        // Obligation rows do not carry plan data: one map lookup for their owners. Income and
+        // completed rows carry the owner flat from the plan.
+        const ownerByPlan = await this.repository.planOwners(tx, budgetId, [
+          ...new Set([...obligationRows, ...overdueRows].map((row) => row.planId)),
+        ]);
+        const people = await findPersonRefs(tx, model.workspaceId, [
+          ...new Set([
+            ...incomeRows.map((row) => row.ownerUserId),
+            ...settledHere.map((row) => row.ownerUserId),
+            ...ownerByPlan.values(),
+          ]),
+        ]);
+        const access = await findAccessActor(tx, model.workspaceId, userId);
+        const ownerCache = new Map<string, CalendarOwner & { canEdit: boolean }>();
+        const ownerOf = (ownerUserId: string) => {
+          const cached = ownerCache.get(ownerUserId);
+          if (cached) return cached;
+          const person = personRefOf(people, ownerUserId);
+          const entry: CalendarOwner & { canEdit: boolean } = {
+            id: person.userId,
+            displayName: person.displayName,
+            isActiveMember: person.isActiveMember,
+            canEdit: access !== null && this.access.canEditObject(access, { ownerUserId }),
+          };
+          ownerCache.set(ownerUserId, entry);
+          return entry;
+        };
         const items = [
           ...obligationRows.map((row) =>
-            this.obligationItem(row, today, settlements.get(row.id) ?? null),
+            this.obligationItem(
+              row,
+              today,
+              settlements.get(row.id) ?? null,
+              ownerOf(ownerByPlan.get(row.planId)!),
+            ),
           ),
-          ...incomeRows.map((row) => this.incomeItem(row, settlements.get(row.id) ?? null)),
-          ...settledHere.map((row) => this.settledItem(row, settlements.get(row.id)!)),
+          ...incomeRows.map((row) =>
+            this.incomeItem(row, settlements.get(row.id) ?? null, ownerOf(row.ownerUserId)),
+          ),
+          ...settledHere.map((row) =>
+            this.settledItem(row, settlements.get(row.id)!, ownerOf(row.ownerUserId)),
+          ),
         ].sort(byDateThenName);
-        const overdue = overdueRows.map((row) => this.obligationItem(row, today, null));
+        const overdue = overdueRows.map((row) =>
+          this.obligationItem(row, today, null, ownerOf(ownerByPlan.get(row.planId)!)),
+        );
         const planned: PlannedItem[] = [
           ...obligationRows.map((row) => ({
             kind: 'OBLIGATION' as const,
@@ -187,12 +246,15 @@ export class PlansCalendarApplicationService {
     row: ObligationRow,
     today: string,
     settlement: Settlement | null,
+    owner: CalendarOwner & { canEdit: boolean },
   ): PlansCalendarItemView {
     const scheduledOn = isoDate(row.scheduledOn);
     return {
       kind: 'OBLIGATION',
       occurrenceId: row.id,
       planId: row.planId,
+      owner,
+      canEdit: owner.canEdit,
       name: row.planName,
       scheduledOn,
       status: row.status,
@@ -206,11 +268,17 @@ export class PlansCalendarApplicationService {
     };
   }
 
-  private incomeItem(row: IncomeRow, settlement: Settlement | null): PlansCalendarItemView {
+  private incomeItem(
+    row: IncomeRow,
+    settlement: Settlement | null,
+    owner: CalendarOwner & { canEdit: boolean },
+  ): PlansCalendarItemView {
     return {
       kind: 'INCOME_PLAN',
       occurrenceId: row.id,
       planId: row.planId,
+      owner,
+      canEdit: owner.canEdit,
       name: row.planName,
       scheduledOn: isoDate(row.scheduledOn),
       status: row.status,
@@ -224,12 +292,18 @@ export class PlansCalendarApplicationService {
     };
   }
 
-  private settledItem(row: CompletedOccurrenceRow, settlement: Settlement): PlansCalendarItemView {
+  private settledItem(
+    row: CompletedOccurrenceRow,
+    settlement: Settlement,
+    owner: CalendarOwner & { canEdit: boolean },
+  ): PlansCalendarItemView {
     const income = row.planType === 'INCOME';
     return {
       kind: income ? 'INCOME_PLAN' : 'OBLIGATION',
       occurrenceId: row.id,
       planId: row.planId,
+      owner,
+      canEdit: owner.canEdit,
       name: row.planName,
       scheduledOn: isoDate(row.scheduledOn),
       status: 'COMPLETED',

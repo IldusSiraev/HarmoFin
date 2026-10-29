@@ -6,6 +6,9 @@ const state = vi.hoisted(() => ({ role: 'OWNER' as 'OWNER' | 'EDITOR' | 'VIEWER'
 vi.mock('../../composables/useActiveWorkspace.js', () => ({
   useActiveWorkspace: () => ({ role: computed(() => state.role) }),
 }));
+vi.mock('../../composables/useAuth.js', () => ({
+  useAuth: () => ({ currentUser: { value: { id: 'user-id' } } }),
+}));
 
 import AccountDialog from './AccountDialog.vue';
 import type { AccountDto } from '../../composables/useBudgetReferenceData.js';
@@ -25,6 +28,8 @@ const account: AccountDto = {
   accountingStartDate: '2026-09-01',
   comment: 'Основная карта семьи',
   archivedAt: null,
+  owner: { userId: 'owner-id', displayName: 'Алия', isActiveMember: true },
+  canEdit: true,
 };
 
 const mountDialog = (overrides: Partial<AccountDto> = {}) =>
@@ -100,19 +105,37 @@ describe('AccountDialog', () => {
     wrapper.unmount();
   });
 
-  it('offers a transfer but not edit or archive for an editor', () => {
+  it('lets an editor edit and archive an account the server says they can edit', () => {
     state.role = 'EDITOR';
     const wrapper = mountDialog();
 
+    expect(wrapper.find('[data-testid="account-dialog-edit"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="account-dialog-archive"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="account-dialog-transfer"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('hides edit and archive for an account owned by another member and explains why', () => {
+    const wrapper = mountDialog({ canEdit: false });
+
     expect(wrapper.find('[data-testid="account-dialog-edit"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="account-dialog-archive"]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="account-dialog-transfer"]').exists()).toBe(true);
+    const notice = wrapper.get('[data-testid="account-dialog-owner-notice"]').text();
+    expect(notice).toContain('Принадлежит участнику «Алия»');
+    expect(notice).toContain('изменять может только владелец');
+    wrapper.unmount();
+  });
+
+  it('shows no owner notice for an account the reader can edit', () => {
+    const wrapper = mountDialog();
+
+    expect(wrapper.find('[data-testid="account-dialog-owner-notice"]').exists()).toBe(false);
     wrapper.unmount();
   });
 
   it('offers no edit, archive or transfer for a viewer', () => {
     state.role = 'VIEWER';
-    const wrapper = mountDialog();
+    const wrapper = mountDialog({ canEdit: false });
 
     expect(wrapper.find('[data-testid="account-dialog-edit"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="account-dialog-archive"]').exists()).toBe(false);

@@ -138,6 +138,36 @@ describe('FundingReviewSheet', () => {
     expect(second?.find('.envelope-type-icon--custom').exists()).toBe(true);
   });
 
+  it('строка чужого конверта — подпись владельца, своего — без подписи', () => {
+    const wrapper = mountSheet({
+      currentUserId: 'user-me',
+      previewLines: [
+        {
+          envelopeId: ENV_A,
+          periodId: null,
+          suggestedMinor: '100',
+          name: 'Обязательные',
+          owner: { userId: 'user-ilnura', displayName: 'Ильнура', isActiveMember: true },
+        },
+        {
+          envelopeId: ENV_B,
+          periodId: PERIOD,
+          suggestedMinor: '100',
+          name: 'Отпуск',
+          owner: { userId: 'user-me', displayName: 'Я', isActiveMember: true },
+        },
+      ],
+    });
+    const [first, second] = wrapper.findAll('[data-testid="funding-line"]');
+    expect(first?.get(`[data-testid="funding-line-owner-${ENV_A}"]`).text()).toBe('Ильнура');
+    expect(second?.find(`[data-testid="funding-line-owner-${ENV_B}"]`).exists()).toBe(false);
+  });
+
+  it('нет владельца у строк — никаких подписей (pre-family previews keep working)', () => {
+    const wrapper = mountSheet();
+    expect(wrapper.find('[data-testid^="funding-line-owner"]').exists()).toBe(false);
+  });
+
   it('пилюли подсказок видны под строкой, которая получила фокус', async () => {
     const wrapper = mountSheet();
     const actions = wrapper.get('[data-testid="funding-line"] .funding-sheet__line-actions');

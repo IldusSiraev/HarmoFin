@@ -17,6 +17,7 @@ import {
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -57,7 +58,9 @@ export class AccountController {
   ) {}
 
   @Get('budgets/:budgetId/accounts')
+  @ApiQuery({ name: 'ownerUserId', required: false, type: String, format: 'uuid' })
   @ApiOkResponse({ type: [AccountResponse] })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   list(
@@ -65,11 +68,13 @@ export class AccountController {
     @Query(new ZodValidationPipe(listAccountsSchema)) query: ListAccountsInput,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.service.list(contextOf(request).userId, budgetId, query.status);
+    return this.service.list(contextOf(request).userId, budgetId, query.status, query.ownerUserId);
   }
 
   @Get('budgets/:budgetId/accounts/summary')
+  @ApiQuery({ name: 'ownerUserId', required: false, type: String, format: 'uuid' })
   @ApiOkResponse({ type: AccountSummaryResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   summary(
@@ -77,7 +82,12 @@ export class AccountController {
     @Query(new ZodValidationPipe(accountSummarySchema)) query: AccountSummaryInput,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.service.summary(contextOf(request).userId, budgetId, query.status);
+    return this.service.summary(
+      contextOf(request).userId,
+      budgetId,
+      query.status,
+      query.ownerUserId,
+    );
   }
 
   @Post('budgets/:budgetId/accounts')
@@ -86,7 +96,11 @@ export class AccountController {
   @ApiCreatedResponse({ type: AccountResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description: 'FORBIDDEN — нет права записи (нужна роль OWNER или EDITOR).',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   create(
@@ -115,7 +129,12 @@ export class AccountController {
   @ApiOkResponse({ type: AccountResponse })
   @ApiResponse({ status: 400, type: ProblemDetailsResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — счёт принадлежит другому участнику.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   update(
@@ -132,7 +151,12 @@ export class AccountController {
   @UseGuards(CsrfGuard)
   @ApiOkResponse({ type: AccountResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — счёт принадлежит другому участнику.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   archive(
@@ -154,7 +178,12 @@ export class AccountController {
   })
   @ApiOkResponse({ type: AccountResponse })
   @ApiResponse({ status: 401, type: ProblemDetailsResponse })
-  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 403,
+    type: ProblemDetailsResponse,
+    description:
+      'FORBIDDEN — нет права записи; NOT_OBJECT_OWNER — счёт принадлежит другому участнику.',
+  })
   @ApiResponse({ status: 404, type: ProblemDetailsResponse })
   @ApiResponse({ status: 409, type: ProblemDetailsResponse })
   restore(

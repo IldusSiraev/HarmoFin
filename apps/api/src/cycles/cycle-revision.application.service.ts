@@ -13,7 +13,7 @@ import { Prisma } from '@prisma/client';
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { parseDecimalToMinorUnits } from '../common/money/minor-units.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
-import { RolePolicy } from '../common/policies/role-policy.js';
+import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { forbidden } from '../common/reference-data/reference-data.errors.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { AssignmentRepository } from '../envelope-plans/assignment.repository.js';
@@ -79,7 +79,7 @@ export class CycleRevisionApplicationService {
   private readonly repository = new CycleRevisionRepository();
   private readonly assignments = new AssignmentRepository();
   private readonly periods = new FundingRuleRepository();
-  private readonly rolePolicy = new RolePolicy();
+  private readonly access = new BudgetAccessPolicy();
 
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
@@ -350,6 +350,8 @@ export class CycleRevisionApplicationService {
     userId: string,
   ): Promise<void> {
     const role = await this.repository.findMemberRole(tx, workspaceId, userId);
-    if (!role || !this.rolePolicy.canManage(role)) throw forbidden();
+    if (!role || !this.access.canManageBudgetSettings({ userId, role, isCreator: false })) {
+      throw forbidden();
+    }
   }
 }

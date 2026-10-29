@@ -73,6 +73,7 @@ describe('v2 envelope ledger: assignment balance projection', () => {
       data: {
         id: randomUUID(),
         budgetId,
+        ownerUserId: ownerId,
         name: 'Основной счёт',
         accountType: 'BANK_ACCOUNT',
         startingBalanceMinor: 10_000_000n,
@@ -84,6 +85,7 @@ describe('v2 envelope ledger: assignment balance projection', () => {
       data: {
         id: randomUUID(),
         budgetId,
+        ownerUserId: ownerId,
         name: 'Второй счёт',
         accountType: 'CASH',
         startingBalanceMinor: 0n,
@@ -417,6 +419,7 @@ async function createEnvelope(name: string): Promise<string> {
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId: ownerId,
       name,
       envelopeType: 'CUSTOM',
       startingBalanceMinor: 0n,
@@ -457,6 +460,7 @@ async function createAssignment(input: {
       effectiveOn: at(input.effectiveOn),
       periodId: input.periodId ?? null,
       sourceIncomeTransactionId: input.sourceIncomeTransactionId ?? null,
+      createdByUserId: ownerId,
     },
   });
 }
@@ -477,6 +481,7 @@ async function createMovement(input: {
       destinationPeriodId: input.destinationPeriodId ?? null,
       amountMinor: input.amountMinor,
       effectiveOn: at(input.effectiveOn),
+      createdByUserId: ownerId,
     },
   });
 }

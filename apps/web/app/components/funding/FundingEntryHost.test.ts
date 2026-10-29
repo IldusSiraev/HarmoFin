@@ -9,10 +9,21 @@ const INCOME = '0190a000-0000-7000-8000-0000000000aa';
 const ENV = '0190a000-0000-7000-8000-0000000000e1';
 const PERIOD = '0190a000-0000-7000-8000-0000000000b1';
 
+type MockEnvelope = {
+  id: string;
+  name: string;
+  envelopeType: string;
+  owner?: { userId: string; displayName: string; isActiveMember: boolean };
+};
+
 const mocks = vi.hoisted(() => ({
   v2: { previewFunding: vi.fn(), confirmFunding: vi.fn() },
-  auth: { currentData: { value: null as unknown }, loadMe: vi.fn() },
-  reference: { load: vi.fn() },
+  auth: {
+    currentData: { value: null as unknown },
+    currentUser: { value: null as unknown },
+    loadMe: vi.fn(),
+  },
+  reference: { load: vi.fn(), envelopeList: [] as unknown[] },
 }));
 
 vi.mock('../../composables/useEnvelopePlanV2.js', () => ({ useEnvelopePlanV2: () => mocks.v2 }));
@@ -20,7 +31,7 @@ vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => mocks.auth }));
 vi.mock('../../composables/useOperationReferenceData.js', () => ({
   useOperationReferenceData: () => ({
     load: mocks.reference.load,
-    envelopePlans: ref([{ id: ENV, name: 'Обязательные', envelopeType: 'MANDATORY_EXPENSES' }]),
+    envelopePlans: ref(mocks.reference.envelopeList),
   }),
 }));
 
@@ -76,6 +87,9 @@ function click(testId: string): void {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.reference.envelopeList = [
+    { id: ENV, name: 'Обязательные', envelopeType: 'MANDATORY_EXPENSES' },
+  ] satisfies MockEnvelope[];
   setBudgetVersion(2);
   useFundingEntry().dismiss();
   mocks.reference.load.mockResolvedValue(undefined);
@@ -111,6 +125,27 @@ describe('FundingEntryHost', () => {
       wrapper.find('[data-testid="funding-line"] .envelope-type-icon--mandatory').exists(),
     ).toBe(true);
     expect(wrapper.get('[data-testid="funding-subtitle"]').text()).toBe('Источник: доход');
+  });
+
+  it('passes the envelope owner from the references into the sheet lines', async () => {
+    // The preview line has no owner; the caption must come from the envelope
+    // references, otherwise the foreign-owner signature on the offer is dead.
+    mocks.reference.envelopeList = [
+      {
+        id: ENV,
+        name: 'Обязательные',
+        envelopeType: 'MANDATORY_EXPENSES',
+        owner: { userId: 'member-1', displayName: 'Алия', isActiveMember: true },
+      },
+    ] satisfies MockEnvelope[];
+
+    const wrapper = mountHost();
+    useFundingEntry().offer({ sourceKind: 'INCOME', incomeTransactionId: INCOME });
+    await flushPromises();
+
+    const caption = wrapper.find(`[data-testid="funding-line-owner-${ENV}"]`);
+    expect(caption.exists()).toBe(true);
+    expect(caption.text()).toContain('Алия');
   });
 
   it('previews an opening source after an account is created', async () => {
@@ -304,6 +339,19 @@ describe('FundingEntryHost', () => {
       lines: [{ envelopeId: ENV, amount: '2500.00' }],
     });
     expect(second[2]).not.toBe(firstKey);
+  });
+
+  it('does not re-preview when a field is committed again with the amount already shown', async () => {
+    mountHost();
+    useFundingEntry().offer({ sourceKind: 'INCOME', incomeTransactionId: INCOME });
+    await flushPromises();
+    const calls = mocks.v2.previewFunding.mock.calls.length;
+
+    const input = document.querySelector<HTMLInputElement>(`[data-testid="funding-amount-${ENV}"]`);
+    input!.dispatchEvent(new Event('change', { bubbles: true }));
+    await flushPromises();
+
+    expect(mocks.v2.previewFunding.mock.calls.length).toBe(calls);
   });
 
   it('shows Refresh on PREVIEW_STALE and refresh requests a new preview', async () => {

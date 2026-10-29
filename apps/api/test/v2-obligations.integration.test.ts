@@ -128,6 +128,7 @@ async function occurrence(
       id: planId,
       workspaceId: owner().workspaceId,
       budgetId: owner().budgetId,
+      ownerUserId: owner().userId,
       name: `План ${planId.slice(0, 6)}`,
       planType: 'EXPENSE',
       amountMinor,
@@ -226,13 +227,17 @@ describe('v2 обязательства: оплата occurrence несколь�
       },
     });
     const b = owner().budgetId;
-    accountId = await createAccount(b, 100_000_000n);
-    smallAccountId = await createAccount(b, 10_000n);
+    accountId = await createAccount(b, owner().userId, 100_000_000n);
+    smallAccountId = await createAccount(b, owner().userId, 10_000n);
     expenseCategoryId = await createCategory(b, 'EXPENSE');
     incomeCategoryId = await createCategory(b, 'INCOME');
-    mandatoryEnvelopeId = await createEnvelope(b, 'MANDATORY_EXPENSES', null);
-    customEnvelopeId = await createEnvelope(b, 'CUSTOM', null);
-    outsiderAccountId = await createAccount(ctx.outsider!.budgetId, 100_000_000n);
+    mandatoryEnvelopeId = await createEnvelope(b, owner().userId, 'MANDATORY_EXPENSES', null);
+    customEnvelopeId = await createEnvelope(b, owner().userId, 'CUSTOM', null);
+    outsiderAccountId = await createAccount(
+      ctx.outsider!.budgetId,
+      ctx.outsider!.userId,
+      100_000_000n,
+    );
   });
 
   afterAll(async () => {
@@ -324,7 +329,12 @@ describe('v2 обязательства: оплата occurrence несколь�
   });
 
   it('конверт с достаточным назначением: предупреждения о дефиците нет', async () => {
-    const funded = await createEnvelope(owner().budgetId, 'MANDATORY_EXPENSES', null);
+    const funded = await createEnvelope(
+      owner().budgetId,
+      owner().userId,
+      'MANDATORY_EXPENSES',
+      null,
+    );
     await prisma.envelopeAssignment.create({
       data: {
         id: randomUUID(),
@@ -334,6 +344,7 @@ describe('v2 обязательства: оплата occurrence несколь�
         amountMinor: 1_000_000n,
         effectiveOn: d(-5),
         status: 'CONFIRMED',
+        createdByUserId: owner().userId,
       },
     });
     const id = await occurrence(100_000n, { envelopeId: funded });
@@ -676,6 +687,7 @@ describe('v2 обязательства: оплата occurrence несколь�
           id,
           workspaceId: over.workspaceId ?? owner().workspaceId,
           budgetId: over.budgetId ?? owner().budgetId,
+          ownerUserId: over.userId ?? owner().userId,
           name: `Plan ${id.slice(0, 6)}`,
           planType: over.planType ?? 'EXPENSE',
           amountMinor: over.amountMinor ?? 300_000n,
@@ -820,7 +832,12 @@ describe('v2 обязательства: оплата occurrence несколь�
 
     it('изоляция бюджетов: вызов для одного бюджета не материализует планы другого', async () => {
       const other = ctx.outsider!;
-      const otherEnvelope = await createEnvelope(other.budgetId, 'MANDATORY_EXPENSES', null);
+      const otherEnvelope = await createEnvelope(
+        other.budgetId,
+        other.userId,
+        'MANDATORY_EXPENSES',
+        null,
+      );
       const otherPlan = await plan({
         budgetId: other.budgetId,
         workspaceId: other.workspaceId,
@@ -862,11 +879,16 @@ async function register(email: string): Promise<User> {
   };
 }
 
-async function createAccount(budgetId: string, startingBalanceMinor: bigint): Promise<string> {
+async function createAccount(
+  budgetId: string,
+  ownerUserId: string,
+  startingBalanceMinor: bigint,
+): Promise<string> {
   const account = await prisma.account.create({
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Счёт ${randomUUID().slice(0, 8)}`,
       accountType: 'BANK_ACCOUNT',
       currency: 'RUB',
@@ -893,6 +915,7 @@ async function createCategory(budgetId: string, categoryType: 'INCOME' | 'EXPENS
 
 async function createEnvelope(
   budgetId: string,
+  ownerUserId: string,
   envelopeType: 'CURRENT_EXPENSES' | 'MANDATORY_EXPENSES' | 'CUSTOM',
   periodSlot: 'FIRST' | 'SECOND' | null,
 ): Promise<string> {
@@ -900,6 +923,7 @@ async function createEnvelope(
     data: {
       id: randomUUID(),
       budgetId,
+      ownerUserId,
       name: `Envelope ${randomUUID().slice(0, 8)}`,
       envelopeType,
       periodSlot,

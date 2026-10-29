@@ -55,13 +55,20 @@ function makePrisma(budgets: unknown[], tx: ReturnType<typeof makeTx>) {
 
 const now = new Date('2026-09-10T12:00:00.000Z');
 
-function occurrence(id: string, scheduledOn: string, amount: bigint, paid: bigint[] = []) {
+function occurrence(
+  id: string,
+  scheduledOn: string,
+  amount: bigint,
+  paid: bigint[] = [],
+  ownerId = 'owner-1',
+) {
   return {
     id,
     planName: 'Аренда',
     planType: 'EXPENSE',
     scheduledOn: new Date(`${scheduledOn}T00:00:00.000Z`),
     amountMinor: amount,
+    plan: { ownerUserId: ownerId },
     payments: paid.map((value) => ({ transaction: { amountMinor: value } })),
   };
 }
@@ -220,10 +227,11 @@ describe('NotificationRuleHandler', () => {
 
     await new NotificationRuleHandler(makePrisma([multiMember], tx) as never).execute(now);
 
+    // The occurrence belongs to owner-1, so only the plan owner is notified, not every writer.
     const createdFor = tx.notification.createMany.mock.calls.map(
       ([args]) => (args as { data: { userId: string } }).data.userId,
     );
-    expect(createdFor.sort()).toEqual(['editor-1', 'owner-1']);
+    expect(createdFor).toEqual(['owner-1']);
 
     expect(tx.notification.findMany).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -246,5 +254,45 @@ describe('NotificationRuleHandler', () => {
           (data.newValues as { state: string }).state === 'RESOLVED',
       ),
     ).toBe(true);
+  });
+
+  it('does not create a notification when the plan owner is not an active writer', async () => {
+    const tx = makeTx();
+    tx.planOccurrence.findMany.mockResolvedValue([
+      occurrence('occ-late', '2026-09-09', 100n, [], 'ex-member-1'),
+    ]);
+    await new NotificationRuleHandler(makePrisma([budget()], tx) as never).execute(now);
+
+    expect(tx.notification.createMany).not.toHaveBeenCalled();
+    expect(tx.auditEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('resolves open plan notifications of a writer who does not own the plan', async () => {
+    const tx = makeTx();
+    const multiMember = {
+      id: 'budget-1',
+      workspaceId: 'workspace-1',
+      timezone: 'UTC',
+      workspace: { memberships: [{ userId: 'owner-1' }, { userId: 'editor-1' }] },
+    };
+    tx.planOccurrence.findMany.mockResolvedValue([occurrence('occ-late', '2026-09-09', 100n)]);
+    tx.notification.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'n-non-owner',
+          userId: 'editor-1',
+          notificationType: 'PLAN_OVERDUE',
+          occurrenceId: 'occ-late',
+          actionPath: '/app/plans?occurrence=occ-late',
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    await new NotificationRuleHandler(makePrisma([multiMember], tx) as never).execute(now);
+
+    expect(tx.notification.updateMany).toHaveBeenCalledWith({
+      where: { id: 'n-non-owner', budgetId: 'budget-1', resolvedAt: null },
+      data: { resolvedAt: expect.any(Date) },
+    });
   });
 });
