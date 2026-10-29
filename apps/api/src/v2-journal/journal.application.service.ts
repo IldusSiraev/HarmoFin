@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import type { PrismaClient } from '@prisma/client';
 
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
-import { findPersonRefs, personRefOf } from '../common/people/person-ref.repository.js';
+import { personRefOf } from '../common/people/person-ref.repository.js';
 import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { forbidden, resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import { TransactionRepository } from '../transactions/transaction.repository.js';
@@ -40,7 +39,6 @@ export class JournalApplicationService {
     private readonly transactions: TransactionRepository,
     private readonly feed: JournalRepository,
     private readonly planModelPolicy: PlanModelPolicy,
-    private readonly prisma: PrismaClient,
   ) {}
 
   async list(userId: string, budgetId: string, input: ListJournalInput): Promise<JournalPage> {
@@ -82,7 +80,7 @@ export class JournalApplicationService {
         ...transferRows.map((row) => row.createdByUserId),
       ]),
     ];
-    const authors = await findPersonRefs(this.prisma, budget.workspaceId, authorUserIds);
+    const authors = await this.feed.personRefs(budget.workspaceId, authorUserIds);
     const authorOf = (userId: string): AuthorRef => personRefOf(authors, userId);
     const left: JournalItem[] = transactionRows.map((row) => ({
       kind: 'TRANSACTION' as const,

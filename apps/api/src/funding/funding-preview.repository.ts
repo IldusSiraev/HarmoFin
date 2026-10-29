@@ -31,6 +31,28 @@ export type PreviewRule = {
 
 /** Read-only queries of the funding preview. Every query filters budget_id. */
 export class FundingPreviewRepository {
+  /** Owners of the envelopes a confirm touches: named directly or through target period rows. */
+  async findEnvelopeOwners(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    envelopeIds: ReadonlySet<string>,
+    periodIds: readonly string[],
+  ): Promise<Array<{ ownerUserId: string }>> {
+    const guarded = new Set(envelopeIds);
+    if (periodIds.length > 0) {
+      const periods = await tx.envelopePeriod.findMany({
+        where: { budgetId, id: { in: [...periodIds] } },
+        select: { envelopeId: true },
+      });
+      for (const period of periods) guarded.add(period.envelopeId);
+    }
+    if (guarded.size === 0) return [];
+    return tx.envelope.findMany({
+      where: { budgetId, id: { in: [...guarded] } },
+      select: { ownerUserId: true },
+    });
+  }
+
   async findMemberRole(
     tx: Prisma.TransactionClient,
     workspaceId: string,

@@ -33,8 +33,8 @@ const envelopeOptions = ref<ReferenceOption[]>([]);
 // Envelope Plan v2.2 records (funded/spent/balance from the server).
 const envelopePlans = ref<EnvelopePlanDto[]>([]);
 const budgetId = ref<string | null>(null);
-// Which budget the cached lists belong to: a different budget — or a different
-// signed-in user — must never read another one's reference data.
+// Which budget and user the cached lists belong to: `canEdit` and the owner captions are
+// per user, so a different budget — or a different signed-in user — must never read them.
 let loadedFor: string | null = null;
 
 export function useOperationReferenceData(): {
@@ -64,7 +64,9 @@ export function useOperationReferenceData(): {
       forget();
       return;
     }
-    if (loadedFor === id) return;
+    const meId = auth.currentUser?.value?.id ?? null;
+    const cacheKey = `${id}:${meId ?? ''}`;
+    if (loadedFor === cacheKey) return;
     if (loadedFor !== null) forget();
 
     // Envelopes come from the v2 list; accounts and categories stay on the
@@ -83,7 +85,6 @@ export function useOperationReferenceData(): {
     envelopes.value = plans.map((envelope) => ({ value: envelope.id, label: envelope.name }));
     // The server owns the verdict; the client only filters by its `canEdit`
     // flag. Doubles without the flag stay out of the own lists, never in them.
-    const meId = auth.currentUser?.value?.id ?? null;
     ownAccounts.value = accountList
       .filter((account) => account.canEdit === true)
       .map((account) => ({ value: account.id, label: account.name }));
@@ -95,7 +96,7 @@ export function useOperationReferenceData(): {
       value: envelope.id,
       label: captioned(envelope.name, envelope.owner, meId),
     }));
-    loadedFor = id;
+    loadedFor = cacheKey;
   }
 
   function forget(): void {

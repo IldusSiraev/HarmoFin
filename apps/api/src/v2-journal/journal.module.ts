@@ -21,7 +21,6 @@ export class JournalModule {
               new TransactionRepository(prisma),
               new JournalRepository(prisma),
               new PlanModelPolicy(prisma),
-              prisma,
             ),
           inject: [PrismaService],
         },

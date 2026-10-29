@@ -163,6 +163,22 @@ describe('useOperationReferenceData', () => {
     expect(api.listAccounts).toHaveBeenLastCalledWith('other-budget-id', 'active');
   });
 
+  it('never serves one user the own-account list of another in the same budget', async () => {
+    const { load, ownAccounts } = useOperationReferenceData();
+    await load();
+    expect(ownAccounts.value).toEqual([{ value: 'account-id', label: 'Основная карта' }]);
+
+    auth.currentUser.value = { id: 'member-1', email: 'member@example.test' };
+    api.listAccounts.mockResolvedValue([
+      { ...OWN_ACCOUNT, canEdit: false },
+      { ...FOREIGN_ACCOUNT, canEdit: true },
+    ]);
+    await load();
+
+    expect(api.listAccounts).toHaveBeenCalledTimes(2);
+    expect(ownAccounts.value).toEqual([{ value: 'foreign-account', label: 'Копилка' }]);
+  });
+
   it('drops what it holds when nobody is signed in', async () => {
     const { load, accounts, ownAccounts, familyAccounts, envelopeOptions } =
       useOperationReferenceData();

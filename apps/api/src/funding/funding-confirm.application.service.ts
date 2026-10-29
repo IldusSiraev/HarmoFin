@@ -13,6 +13,7 @@ import { AssignmentBalanceRepository } from '../envelope-plans/assignment-balanc
 import { AssignmentRepository } from '../envelope-plans/assignment.repository.js';
 import { FundingRuleRepository } from '../envelope-plans/funding-rule.repository.js';
 import { FundingPreviewApplicationService } from './funding-preview.application.service.js';
+import { FundingPreviewRepository } from './funding-preview.repository.js';
 import { computePreviewHash } from './funding-state.js';
 import type { FundingConfirmRequestInput } from './funding.schemas.js';
 
@@ -80,6 +81,7 @@ export class FundingConfirmApplicationService {
   private readonly balances = new AssignmentBalanceRepository();
   private readonly rules = new FundingRuleRepository();
   private readonly access = new BudgetAccessPolicy();
+  private readonly previewRepository = new FundingPreviewRepository();
 
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
@@ -169,20 +171,13 @@ export class FundingConfirmApplicationService {
           const guardedEnvelopeIds = new Set<string>(
             input.sourceKind === 'OPENING' ? parsed.map((line) => line.envelopeId) : [],
           );
-          if (targetIds.length > 0) {
-            const periods = await tx.envelopePeriod.findMany({
-              where: { budgetId, id: { in: targetIds } },
-              select: { envelopeId: true },
-            });
-            for (const period of periods) guardedEnvelopeIds.add(period.envelopeId);
-          }
-          if (guardedEnvelopeIds.size > 0) {
-            const envelopes = await tx.envelope.findMany({
-              where: { budgetId, id: { in: [...guardedEnvelopeIds] } },
-              select: { ownerUserId: true },
-            });
-            for (const envelope of envelopes) this.access.requireObjectOwner(actor, envelope);
-          }
+          const owners = await this.previewRepository.findEnvelopeOwners(
+            tx,
+            budgetId,
+            guardedEnvelopeIds,
+            targetIds,
+          );
+          for (const envelope of owners) this.access.requireObjectOwner(actor, envelope);
 
           // Same inputs the preview used: lines are the overrides, targets are the selection.
           const { state } = await this.preview.compute(tx, {
