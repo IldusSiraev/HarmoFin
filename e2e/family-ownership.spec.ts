@@ -99,7 +99,18 @@ test('a family member funds the spouse envelope but cannot edit it', async ({ br
   await expect(offer.getByTestId('funding-remaining')).toContainText(/^40\s000,00/);
   await expect(offer.getByTestId('funding-confirm')).toBeEnabled();
   await offer.getByTestId('funding-confirm').click();
-  await expect(offer).toBeHidden();
+  // TEMP diagnostics: surface why the sheet stays open.
+  try {
+    await expect(offer).toBeHidden({ timeout: 8_000 });
+  } catch (cause) {
+    const sheetText = await offer.innerText();
+    const toasts = await creatorPage.getByTestId('toast-stack').innerText();
+    throw new Error(
+      `Sheet stayed open. Sheet: ${sheetText}
+Toasts: ${toasts}`,
+      { cause },
+    );
+  }
 
   // 5. The creator opens her envelope: read-only for him, he is in the history.
   await creatorPage.goto('/app/envelopes');
