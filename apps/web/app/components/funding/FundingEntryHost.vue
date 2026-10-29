@@ -271,10 +271,23 @@ async function reload(overrides?: FundingLineInput[], targets?: string[]): Promi
   }
 }
 
+// "10000" and "10000.00" are the same amount.
+function sameAmount(left: string, right: string): boolean {
+  const normalize = (value: string): string => {
+    const [whole = '', fraction = ''] = value.split('.');
+    return `${whole.replace(/^0+(?=d)/, '')}.${fraction.replace(/0+$/, '')}`;
+  };
+  return normalize(left) === normalize(right);
+}
+
 function changeLine(payload: FundingChangeLinePayload): void {
   const current = preview.value;
   if (!current) return;
   const key = lineKey(payload);
+  // Blur re-commits a field that Enter or the typing pause already sent. Recomputing the same
+  // amount would only disable "Распределить" for a moment and swallow the click that caused the blur.
+  const shown = linesToInputs(current.lines).find((line) => lineKey(line) === key);
+  if (shown && !error.value && sameAmount(shown.amount, payload.amount)) return;
   // Replace the edited row in place, matched by lineId, so the server's row
   // order and the identities of the untouched rows survive the recompute.
   void reload(

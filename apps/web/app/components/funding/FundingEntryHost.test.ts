@@ -341,6 +341,19 @@ describe('FundingEntryHost', () => {
     expect(second[2]).not.toBe(firstKey);
   });
 
+  it('does not re-preview when a field is committed again with the amount already shown', async () => {
+    mountHost();
+    useFundingEntry().offer({ sourceKind: 'INCOME', incomeTransactionId: INCOME });
+    await flushPromises();
+    const calls = mocks.v2.previewFunding.mock.calls.length;
+
+    const input = document.querySelector<HTMLInputElement>(`[data-testid="funding-amount-${ENV}"]`);
+    input!.dispatchEvent(new Event('change', { bubbles: true }));
+    await flushPromises();
+
+    expect(mocks.v2.previewFunding.mock.calls.length).toBe(calls);
+  });
+
   it('shows Refresh on PREVIEW_STALE and refresh requests a new preview', async () => {
     mountHost();
     useFundingEntry().offer({ sourceKind: 'INCOME', incomeTransactionId: INCOME });
