@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 
+import { findPersonRefs, type PersonRef } from '../common/people/person-ref.repository.js';
 import { transferRowSelect, type TransferRow } from '../v2-transfers/direct-transfer.repository.js';
 import type { FeedPosition } from './journal.merge.js';
 
@@ -77,6 +78,11 @@ const order = [{ occurredOn: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }] as
 
 export class JournalRepository {
   constructor(private readonly prisma: PrismaClient) {}
+
+  /** Authors of the page, resolved against the workspace the feed belongs to. */
+  personRefs(workspaceId: string, userIds: string[]): Promise<Map<string, PersonRef>> {
+    return findPersonRefs(this.prisma, workspaceId, userIds);
+  }
 
   includesTransactions(filter: FeedFilter): boolean {
     return filter.type !== 'TRANSFER';

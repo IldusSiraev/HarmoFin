@@ -202,8 +202,10 @@ export class AccountApplicationService {
     }
     const account = await this.repository.find(userId, budgetId, accountId);
     if (!account) throw resourceNotFound();
-    const role = budget.workspace.memberships[0]?.role;
-    this.access.requireObjectOwner({ userId, role: role!, isCreator: false }, account);
+    // Ownership comes before the state check so a foreign account never reveals whether it is archived.
+    const actor = this.actorOf(budget, userId);
+    if (!actor) throw resourceNotFound();
+    this.access.requireObjectOwner(actor, account);
     if (!account.archivedAt) {
       throw new ConflictException({
         code: 'ACCOUNT_NOT_ARCHIVED',
@@ -222,6 +224,11 @@ export class AccountApplicationService {
     );
     if (!restored) throw resourceNotFound();
     return (await this.toViews([restored], budget, userId))[0]!;
+  }
+
+  private actorOf(budget: BudgetWithRole, userId: string): AccessActor | null {
+    const role = budget.workspace.memberships[0]?.role;
+    return role ? { userId, role, isCreator: false } : null;
   }
 
   toView(account: AccountRecord): Omit<AccountView, 'owner' | 'canEdit'> {
@@ -252,8 +259,7 @@ export class AccountApplicationService {
       budget.workspaceId,
       rows.map((row) => row.ownerUserId),
     );
-    const role = budget.workspace.memberships[0]?.role;
-    const actor: AccessActor | null = role ? { userId, role, isCreator: false } : null;
+    const actor = this.actorOf(budget, userId);
     return rows.map((row) => ({
       ...this.toView(row),
       owner: personRefOf(people, row.ownerUserId),
