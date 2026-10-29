@@ -430,6 +430,22 @@ async function seedBudget(f: Fixture, withRule: boolean): Promise<void> {
       notificationKey: `reset-${randomUUID()}`,
     },
   });
+  const calendarEvent = id();
+  await prisma.calendarEvent.create({
+    data: {
+      id: calendarEvent,
+      workspaceId,
+      budgetId,
+      createdByUserId: userId,
+      title: 'Приём у врача',
+      allDay: true,
+      startsOn: day('2026-11-20'),
+      endsOn: day('2026-11-20'),
+    },
+  });
+  await prisma.calendarEventParticipant.create({
+    data: { eventId: calendarEvent, budgetId, userId },
+  });
   await prisma.auditEvent.create({
     data: {
       id: id(),

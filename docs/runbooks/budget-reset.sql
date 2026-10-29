@@ -72,6 +72,12 @@ BEGIN
   DELETE FROM plan_payments WHERE budget_id = v_budget_id;
   GET DIAGNOSTICS v_n = ROW_COUNT; v_counts := v_counts || jsonb_build_object('plan_payments', v_n);
 
+  DELETE FROM calendar_event_participants WHERE budget_id = v_budget_id;
+  GET DIAGNOSTICS v_n = ROW_COUNT; v_counts := v_counts || jsonb_build_object('calendar_event_participants', v_n);
+
+  DELETE FROM calendar_events WHERE budget_id = v_budget_id;
+  GET DIAGNOSTICS v_n = ROW_COUNT; v_counts := v_counts || jsonb_build_object('calendar_events', v_n);
+
   DELETE FROM notifications WHERE budget_id = v_budget_id;
   GET DIAGNOSTICS v_n = ROW_COUNT; v_counts := v_counts || jsonb_build_object('notifications', v_n);
 
