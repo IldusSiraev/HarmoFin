@@ -73,7 +73,7 @@ test('a family member funds the spouse envelope but cannot edit it', async ({ br
   if (envelopeId === '') throw new Error('Envelope row lost its data-testid');
 
   // 4. Creator funds her envelope from his income through the offer sheet.
-  await creatorPage.goto('/app');
+  await creatorPage.goto('/app/operations');
   await waitForHydration(creatorPage);
   const addTrigger = creatorPage
     .getByRole('complementary', { name: 'Основная навигация' })

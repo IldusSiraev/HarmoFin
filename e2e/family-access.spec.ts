@@ -91,7 +91,17 @@ test('creator invites a family member who records an expense', async ({ browser 
   await memberPage.getByRole('button', { name: 'Продолжить' }).click();
   await expect(memberPage).toHaveURL(/\/app$/);
 
-  // 5. Add an expense through the quick entry dialog.
+  // 5. Members spend only from their own accounts, so she sets one up first.
+  await memberPage.goto('/app/accounts');
+  await waitForHydration(memberPage);
+  await memberPage.getByRole('button', { name: 'Создать счёт' }).first().click();
+  await memberPage.getByLabel('Название счёта').fill('Карта Алии');
+  await memberPage.getByLabel('Начальный баланс').fill('5 000,00');
+  await memberPage.getByLabel('Дата начала учёта').pressSequentially('04092026');
+  await memberPage.getByRole('button', { name: 'Сохранить счёт' }).click();
+  await expect(memberPage.getByTestId('toast-stack')).toContainText('Счёт создан');
+
+  // Add an expense through the quick entry dialog.
   await memberPage.goto('/app/operations');
   await waitForHydration(memberPage);
   // The sidebar's «Добавить операцию или перевод» trigger also matches by

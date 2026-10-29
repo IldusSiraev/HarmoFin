@@ -14,6 +14,7 @@ import {
   type CycleSettings,
 } from '../src/cycles/cycle-period.domain.js';
 import { cycleAndPeriodAt } from '../src/cycles/cycle-settings-at.js';
+import { creationHorizonEnd } from '../src/plans/v2-occurrence-materializer.js';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -152,35 +153,16 @@ describe('v2: границы периода по версионной настр
       state.expenseCategoryId[name] = await createCategory(spend.budgetId, 'EXPENSE');
     }
 
-    // plans budget: a future revision starting at the next OLD period; pick new settings
-    // for which the materialization horizon visibly changes the monthly occurrence set.
+    // plans budget: a future revision starting at the next OLD period. Creation materializes
+    // up to the later of the next period end under the settings in force then and the worker
+    // horizon (today + 60), so the new settings only have to be valid and differ from OLD.
     const plans = user('plans');
     const oldCurrent = cycleAndPeriodFor(OLD, today).period;
     const nextStart = addIsoDays(oldCurrent.end, 1);
-    const oldTo = cycleAndPeriodFor(OLD, nextStart).period.end;
     let start = today;
     while (Number(start.slice(8)) > 28) start = addIsoDays(start, 1);
     state.planStart = start;
-    const monthly = (to: string) => {
-      let count = 0;
-      while (addMonthsIso(start, count) <= to) count += 1;
-      return count;
-    };
-    outer: for (let day = 1; day <= 28; day += 1) {
-      for (let offset = 1; offset <= 27; offset += 1) {
-        const candidate: CycleSettings = {
-          cycleStartDay: day,
-          periodBoundaryOffset: offset,
-          timezone: 'UTC',
-        };
-        const newTo = cycleAndPeriodFor(candidate, nextStart).period.end;
-        if (monthly(newTo) !== monthly(oldTo)) {
-          state.planNew = candidate;
-          break outer;
-        }
-      }
-    }
-    expect(state.planNew, 'нужны настройки, меняющие горизонт').toBeDefined();
+    state.planNew = { cycleStartDay: 5, periodBoundaryOffset: 10, timezone: 'UTC' };
     state.planEffectiveOn = nextStart;
     await prisma.budgetCycleRevision.create({
       data: revisionData(plans.budgetId, plans.userId, nextStart, state.planNew!),
@@ -430,7 +412,7 @@ function expectedMonthly(): string[] {
   const current = cycleAndPeriodFor(OLD, today).period;
   const nextStart = addIsoDays(current.end, 1);
   expect(nextStart).toBe(state.planEffectiveOn);
-  const to = cycleAndPeriodFor(state.planNew!, nextStart).period.end;
+  const to = creationHorizonEnd(today, cycleAndPeriodFor(state.planNew!, nextStart).period.end);
   const dates: string[] = [];
   for (let k = 0; addMonthsIso(state.planStart!, k) <= to; k += 1) {
     dates.push(addMonthsIso(state.planStart!, k));

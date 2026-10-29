@@ -86,7 +86,7 @@ export async function createPastLeftover(params: PastLeftoverParams): Promise<Pa
   try {
     const current = await prisma.envelopePeriod.findFirst({
       where: { id: params.currentPeriodId, budgetId: params.budgetId },
-      select: { envelopeId: true },
+      select: { envelopeId: true, envelope: { select: { ownerUserId: true } } },
     });
     if (!current) throw new Error('Current period row not found in this budget.');
 
@@ -106,6 +106,7 @@ export async function createPastLeftover(params: PastLeftoverParams): Promise<Pa
           id: assignmentId,
           budgetId: params.budgetId,
           envelopeId: current.envelopeId,
+          createdByUserId: current.envelope.ownerUserId,
           type: 'OPENING',
           amountMinor: params.amountMinor,
           effectiveOn: asDate(params.effectiveOn),
