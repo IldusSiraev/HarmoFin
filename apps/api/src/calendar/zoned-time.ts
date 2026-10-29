@@ -1,3 +1,4 @@
+// Copy of apps/worker/src/zoned-time.ts; both are checked against fixtures/calendar-recurrence/cases.json. Change them together.
 // Local wall-clock date/time of an IANA zone <-> UTC instants, with Intl only (no tz library).
 
 const formatters = new Map<string, Intl.DateTimeFormat>();

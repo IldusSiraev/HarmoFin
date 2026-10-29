@@ -1,3 +1,4 @@
+// Copy of apps/worker/src/calendar-recurrence.ts; both are checked against fixtures/calendar-recurrence/cases.json. Change them together.
 import { localToUtc, utcToLocal } from './zoned-time.js';
 
 export type CalendarRecurrence = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
