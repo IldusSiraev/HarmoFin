@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.8.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.7.1...v1.8.0) (2026-10-29)
+
+
+### Новое
+
+* **api:** владелец конверта, цели и правила наполнения только своих конвертов ([760a62b](https://github.com/IldusSiraev/HarmoFin/commit/760a62b19121db1f8397490c6e82cc161dfb45ff))
+* **api:** владелец счёта и права на изменение ([8cd80c9](https://github.com/IldusSiraev/HarmoFin/commit/8cd80c98c300960d9a74801d83d563224add81cc))
+* **api:** история конверта с автором, направлением и контрагентом ([9394983](https://github.com/IldusSiraev/HarmoFin/commit/9394983171483bc276a392b00ae0d76e159ff108))
+* **api:** операции и переводы только по своему счёту, правка только своих ([30b9869](https://github.com/IldusSiraev/HarmoFin/commit/30b98691716a91203883b6641f59e6b2692df006))
+* **api:** передача объектов создателю при выходе и удалении участника ([eb17a79](https://github.com/IldusSiraev/HarmoFin/commit/eb17a79656dd20f1c91a15f6bca6ffd6aefa1ff3))
+* **api:** планом управляет и записывает платежи и доходы его владелец ([4b0ec7e](https://github.com/IldusSiraev/HarmoFin/commit/4b0ec7e564889e30818fb543d3f87afa461e71da))
+* **api:** политика доступа семьи и общие ссылки на участников ([e92816b](https://github.com/IldusSiraev/HarmoFin/commit/e92816bd2aca388649d38dcae8028884f111e01a))
+* **api:** правила распределения и перемещения денег по владельцу и автору ([140cef9](https://github.com/IldusSiraev/HarmoFin/commit/140cef90e09aef912b9883e6eb42f587428f0b32))
+* **db:** владелец счетов, конвертов и планов, автор распределений и перемещений ([cddf0ef](https://github.com/IldusSiraev/HarmoFin/commit/cddf0ef0621d429faf537552e8e9193c5bc26c94))
+* **web:** владелец счёта, правка только своих счетов ([1a776c4](https://github.com/IldusSiraev/HarmoFin/commit/1a776c4a0e093aaae51839f56fa0282c8fd15137))
+* **web:** конверты по владельцу, история с авторами ([8cdf53f](https://github.com/IldusSiraev/HarmoFin/commit/8cdf53f6675303bbd56645301e919c74bbfd18eb))
+* **web:** операции по своим счетам, правка только своих операций ([15392c1](https://github.com/IldusSiraev/HarmoFin/commit/15392c10d8a19d46d8482103e939cde4053e76f2))
+* **web:** планы по владельцу, уведомление о переданных объектах ([9352137](https://github.com/IldusSiraev/HarmoFin/commit/93521378b1e7d778c2cdf044961c0f0f032d2b58))
+* **web:** подпись владельца и фильтр «Все / Мои» ([be1116d](https://github.com/IldusSiraev/HarmoFin/commit/be1116d554aaea699129098037e778ef8b100bc0))
+* **worker:** плановые уведомления получает владельца плана ([7a0d533](https://github.com/IldusSiraev/HarmoFin/commit/7a0d53356e4816c7cfceb320d6933a386578462f))
+* семейный доступ, этап B — владение объектами ([3f08471](https://github.com/IldusSiraev/HarmoFin/commit/3f08471b1072d280b2fbb7360c1f8a16ca8dbb2c))
+
+
+### Исправления
+
+* **ci:** e2e и integration после этапа B ([c4fb39b](https://github.com/IldusSiraev/HarmoFin/commit/c4fb39bc12d925770f5239ee87008267a5d6c3e6))
+* **e2e:** закрывать календарь после ввода даты в сценарии владения ([61f531b](https://github.com/IldusSiraev/HarmoFin/commit/61f531b0fbe60596bed0acf0a913d94915556831))
+* **web:** не пересчитывать распределение при повторной фиксации той же суммы ([dc66eae](https://github.com/IldusSiraev/HarmoFin/commit/dc66eae89e4b900d63d9ef56c24c913f692e13cf))
+* **web:** подпись владельца в оффере пополнения из ссылок на конверты ([1c3d028](https://github.com/IldusSiraev/HarmoFin/commit/1c3d0284189e14672f91d5508092cafa9ca6428d))
+
 ## [1.7.1](https://github.com/IldusSiraev/HarmoFin/compare/v1.7.0...v1.7.1) (2026-10-26)
 
 
