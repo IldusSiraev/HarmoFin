@@ -212,7 +212,10 @@ async function createCategoryUi(page: Page, name: string, type: string): Promise
 async function fillOperationDate(page: Page): Promise<void> {
   const now = new Date();
   const digits = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${now.getFullYear()}`;
-  await page.getByLabel('Дата').pressSequentially(digits);
+  const date = page.getByLabel('Дата');
+  await date.pressSequentially(digits);
+  // Leaving the field closes the date picker popup, which otherwise covers the pills.
+  await date.press('Tab');
 }
 
 async function selectPill(page: Page, group: string, option: string): Promise<void> {
