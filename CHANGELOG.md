@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.12.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.11.0...v1.12.0) (2026-10-30)
+
+
+### Новое
+
+* **web:** даты и подписи участников календаря ([4de0833](https://github.com/IldusSiraev/HarmoFin/commit/4de083382c7a6f333da806852dcfa683988fd29d))
+* **web:** месяц, повестка и панель дня календаря ([95e87f6](https://github.com/IldusSiraev/HarmoFin/commit/95e87f6cd567eebf7b7c909934d7b88b1ad2bee2))
+* **web:** страница семейного календаря и навигация ([d0ea6c7](https://github.com/IldusSiraev/HarmoFin/commit/d0ea6c7dcdba50bbd91c30d89138e7c9b6092900))
+* **web:** форма и карточки событий календаря ([fcfc425](https://github.com/IldusSiraev/HarmoFin/commit/fcfc425e5202300703972d3384d4ec8545c0140c))
+* интерфейс семейного календаря и документация ([935e6bd](https://github.com/IldusSiraev/HarmoFin/commit/935e6bdf325feb72107062d8b4c0521a73185f6a))
+
 ## [1.11.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.10.0...v1.11.0) (2026-10-30)
 
 
