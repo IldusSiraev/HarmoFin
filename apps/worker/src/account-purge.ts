@@ -6,6 +6,7 @@ import { Prisma } from '@prisma/client';
  * Legacy model-1 tables (transfer_parts, income_allocations, envelope_reallocations) are included.
  */
 export const BUDGET_TABLES_IN_DELETE_ORDER = [
+  'activity_feed_cursors',
   'plan_payments',
   'calendar_event_participants',
   'calendar_events',
@@ -47,6 +48,7 @@ export const USER_OWNED_TABLES = [
   'recovery_tokens',
   'workspace_memberships',
   'user_consents',
+  'activity_feed_cursors',
 ] as const;
 
 /**
@@ -148,6 +150,8 @@ export async function purgeUserData(tx: Prisma.TransactionClient, userId: string
   await tx.$executeRaw`DELETE FROM "recovery_tokens" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "workspace_memberships" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "user_consents" WHERE "user_id" = ${userId}::uuid`;
+  // The user's own "seen" markers in other families' feeds: personal state, not shared history.
+  await tx.$executeRaw`DELETE FROM "activity_feed_cursors" WHERE "user_id" = ${userId}::uuid`;
   // An invitation this user accepted into another owner's workspace stores their old email as PII;
   // the row itself (inviter's history) is retained, but the email is anonymized. PENDING/REVOKED/
   // EXPIRED invitations in other workspaces are the inviter's own data and are left untouched.
