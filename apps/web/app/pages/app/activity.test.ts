@@ -49,6 +49,13 @@ beforeEach(() => {
 });
 
 describe('activity page', () => {
+  it('marks the root as hydrated after mount', async () => {
+    feed.list.mockResolvedValue(page());
+    const wrapper = mount(ActivityPage);
+    await flushPromises();
+    expect(wrapper.attributes('data-hydrated')).toBe('true');
+  });
+
   it('splits new from earlier by the first boundary, then marks the feed seen', async () => {
     feed.list.mockResolvedValue(page());
     const wrapper = mount(ActivityPage);

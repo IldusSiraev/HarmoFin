@@ -143,11 +143,17 @@ function resetFilter(): void {
   void load();
 }
 
-onMounted(load);
+// E2E waits for this marker before interacting (same convention as the other app pages).
+const hydrated = ref(false);
+
+onMounted(() => {
+  hydrated.value = true;
+  void load();
+});
 </script>
 
 <template>
-  <div class="activity-page">
+  <div class="activity-page" :data-hydrated="hydrated ? 'true' : 'false'">
     <span class="activity-page__sr" role="status" aria-live="polite">{{ statusText }}</span>
     <header class="activity-page__header">
       <p class="activity-page__eyebrow">Семья</p>
