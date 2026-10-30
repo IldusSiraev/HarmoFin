@@ -45,6 +45,17 @@ describe('UiListRow', () => {
     expect(wrapper.emitted('select')).toHaveLength(1);
   });
 
+  it('renders a plain block without a button when not interactive', async () => {
+    const wrapper = mount(UiListRow, {
+      props: { label: 'Строка', interactive: false },
+      slots: { default: 'Текст' },
+    });
+    expect(wrapper.find('button').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="list-row-static"]').text()).toContain('Текст');
+    await wrapper.find('[data-testid="list-row-static"]').trigger('click');
+    expect(wrapper.emitted('select')).toBeUndefined();
+  });
+
   it('keeps actions outside the button so they do not select the row', async () => {
     const wrapper = mountRow();
     const action = wrapper.get('[data-testid="row-action"]');

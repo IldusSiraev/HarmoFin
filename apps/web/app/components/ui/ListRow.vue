@@ -8,8 +8,10 @@ const props = withDefaults(
     label: string;
     /** Hue of the leading tile; neutral when not set. */
     leadingTone?: 'income' | 'expense' | 'transfer' | undefined;
+    /** False renders the row as plain content: no button, no focus stop, no select event. */
+    interactive?: boolean;
   }>(),
-  { leadingTone: undefined },
+  { leadingTone: undefined, interactive: true },
 );
 
 const leadingClass = computed(() => [
@@ -22,6 +24,7 @@ defineEmits<{ select: [] }>();
 <template>
   <div class="ui-list-row">
     <button
+      v-if="interactive"
       type="button"
       class="ui-list-row__select"
       data-testid="list-row-select"
@@ -32,6 +35,15 @@ defineEmits<{ select: [] }>();
       <span class="ui-list-row__body"><slot /></span>
       <span v-if="$slots.trailing" class="ui-list-row__trailing"><slot name="trailing" /></span>
     </button>
+    <div
+      v-else
+      class="ui-list-row__select ui-list-row__select--static"
+      data-testid="list-row-static"
+    >
+      <span v-if="$slots.leading" :class="leadingClass"><slot name="leading" /></span>
+      <span class="ui-list-row__body"><slot /></span>
+      <span v-if="$slots.trailing" class="ui-list-row__trailing"><slot name="trailing" /></span>
+    </div>
 
     <div v-if="$slots.actions" class="ui-list-row__actions"><slot name="actions" /></div>
   </div>
@@ -66,6 +78,10 @@ defineEmits<{ select: [] }>();
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.ui-list-row__select--static {
+  cursor: default;
 }
 
 .ui-list-row__select:focus-visible {
