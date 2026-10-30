@@ -25,6 +25,7 @@ import { HealthModule } from './health/health.module.js';
 import { LegalModule } from './legal/legal.module.js';
 import { ReportModule } from './reports/report.module.js';
 import { PlansModule } from './plans/plans.module.js';
+import { CalendarModule } from './calendar/calendar.module.js';
 import { PlansCalendarModule } from './plans-calendar/plans-calendar.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
@@ -58,6 +59,7 @@ export class AppModule {
         FundingModule.register(),
         TemplateModule.register(),
         PlansModule.register(),
+        CalendarModule.register(),
         PlansCalendarModule.register(),
         NotificationsModule.register(),
         ReportModule.register(),

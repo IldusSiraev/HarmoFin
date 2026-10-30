@@ -105,3 +105,20 @@ describe('BudgetAccessPolicy require*', () => {
     expect(codeOf(() => policy.requireBudgetSettings(editor))).toBe('FORBIDDEN');
   });
 });
+
+describe('calendar events', () => {
+  it('lets the author edit their event', () => {
+    expect(policy.canEditEvent(editor, myRecord)).toBe(true);
+    expect(() => policy.requireEventAuthor(editor, myRecord)).not.toThrow();
+  });
+
+  it('refuses a foreign event even to the family creator', () => {
+    expect(policy.canEditEvent(creator, theirRecord)).toBe(false);
+    expect(codeOf(() => policy.requireEventAuthor(creator, theirRecord))).toBe('NOT_EVENT_AUTHOR');
+  });
+
+  it('refuses a viewer with FORBIDDEN before the author check', () => {
+    expect(policy.canEditEvent(viewer, myRecord)).toBe(false);
+    expect(codeOf(() => policy.requireEventAuthor(viewer, myRecord))).toBe('FORBIDDEN');
+  });
+});

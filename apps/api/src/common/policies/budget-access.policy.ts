@@ -3,6 +3,7 @@ import type { WorkspaceMembershipRole } from '@prisma/client';
 import { forbidden } from '../reference-data/reference-data.errors.js';
 import {
   notAccountOwner,
+  notEventAuthor,
   notIncomeAuthor,
   notObjectOwner,
   notOperationAuthor,
@@ -69,6 +70,10 @@ export class BudgetAccessPolicy {
     return this.canEditTransaction(actor, income);
   }
 
+  canEditEvent(actor: AccessActor, event: AuthoredRecord): boolean {
+    return WRITERS.has(actor.role) && event.createdByUserId === actor.userId;
+  }
+
   canAllocateFree(actor: AccessActor): boolean {
     return this.canCreateObjects(actor);
   }
@@ -115,5 +120,10 @@ export class BudgetAccessPolicy {
   requireOperationAuthor(actor: AccessActor, record: AuthoredRecord): void {
     this.requireWriter(actor);
     if (record.createdByUserId !== actor.userId) throw notOperationAuthor();
+  }
+
+  requireEventAuthor(actor: AccessActor, event: AuthoredRecord): void {
+    this.requireWriter(actor);
+    if (event.createdByUserId !== actor.userId) throw notEventAuthor();
   }
 }

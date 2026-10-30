@@ -421,6 +421,367 @@
         "required": ["id", "name", "primaryCurrency"],
         "type": "object"
       },
+      "CalendarEventBody": {
+        "properties": {
+          "allDay": {
+            "type": "boolean"
+          },
+          "date": {
+            "description": "Дата начала, локальная для бюджета.",
+            "example": "2026-11-03",
+            "format": "date",
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 2000,
+            "nullable": true,
+            "type": "string"
+          },
+          "endDate": {
+            "description": "Последний день события на весь день; по умолчанию — date.",
+            "format": "date",
+            "nullable": true,
+            "type": "string"
+          },
+          "endTime": {
+            "example": "18:30",
+            "nullable": true,
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "type": "string"
+          },
+          "interval": {
+            "default": 1,
+            "maximum": 99,
+            "minimum": 1,
+            "type": "number"
+          },
+          "participantUserIds": {
+            "description": "Активные члены семьи; прав не дают.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "recurrence": {
+            "enum": ["NONE", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"],
+            "type": "string"
+          },
+          "reminderMinutes": {
+            "description": "Минуты до начала; у события на весь день — от 09:00.",
+            "enum": [15, 60, 1440, 10080],
+            "nullable": true,
+            "type": "number"
+          },
+          "repeatUntil": {
+            "format": "date",
+            "nullable": true,
+            "type": "string"
+          },
+          "startTime": {
+            "description": "Локальное время бюджета; обязательно без allDay.",
+            "example": "17:00",
+            "nullable": true,
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "type": "string"
+          },
+          "title": {
+            "example": "Кружок рисования",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "weekdays": {
+            "description": "ISO-дни недели 1–7, только у WEEKLY.",
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          }
+        },
+        "required": ["title", "allDay", "date", "recurrence", "participantUserIds"],
+        "type": "object"
+      },
+      "CalendarEventResponse": {
+        "properties": {
+          "allDay": {
+            "type": "boolean"
+          },
+          "canEdit": {
+            "description": "Может ли текущий участник изменять и удалять событие (только автор).",
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
+          "date": {
+            "format": "date",
+            "type": "string"
+          },
+          "description": {
+            "nullable": true,
+            "type": "string"
+          },
+          "endDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "endTime": {
+            "example": "18:30",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "interval": {
+            "type": "number"
+          },
+          "participants": {
+            "items": {
+              "$ref": "#/components/schemas/AuthorRefResponse"
+            },
+            "type": "array"
+          },
+          "recurrence": {
+            "enum": ["NONE", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"],
+            "type": "string"
+          },
+          "reminderMinutes": {
+            "enum": [15, 60, 1440, 10080],
+            "nullable": true,
+            "type": "number"
+          },
+          "repeatUntil": {
+            "format": "date",
+            "nullable": true,
+            "type": "string"
+          },
+          "startTime": {
+            "example": "17:00",
+            "nullable": true,
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "weekdays": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "allDay",
+          "date",
+          "endDate",
+          "startTime",
+          "endTime",
+          "recurrence",
+          "interval",
+          "weekdays",
+          "repeatUntil",
+          "reminderMinutes",
+          "participants",
+          "createdBy",
+          "canEdit",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "CalendarFeedEventItemResponse": {
+        "properties": {
+          "allDay": {
+            "type": "boolean"
+          },
+          "canEdit": {
+            "description": "Может ли текущий участник изменять событие.",
+            "type": "boolean"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
+          "endDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "endTime": {
+            "example": "18:30",
+            "nullable": true,
+            "type": "string"
+          },
+          "endsAt": {
+            "description": "UTC.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["EVENT"],
+            "example": "EVENT",
+            "type": "string"
+          },
+          "occurrenceDate": {
+            "description": "Локальная дата начала вхождения — его идентификатор в серии.",
+            "format": "date",
+            "type": "string"
+          },
+          "participants": {
+            "items": {
+              "$ref": "#/components/schemas/AuthorRefResponse"
+            },
+            "type": "array"
+          },
+          "recurrence": {
+            "enum": ["NONE", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"],
+            "type": "string"
+          },
+          "startDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "startTime": {
+            "description": "Локальное время бюджета.",
+            "example": "17:00",
+            "nullable": true,
+            "type": "string"
+          },
+          "startsAt": {
+            "description": "UTC.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "eventId",
+          "occurrenceDate",
+          "title",
+          "allDay",
+          "startDate",
+          "endDate",
+          "startTime",
+          "endTime",
+          "startsAt",
+          "endsAt",
+          "recurrence",
+          "participants",
+          "createdBy",
+          "canEdit"
+        ],
+        "type": "object"
+      },
+      "CalendarFeedPlanItemResponse": {
+        "properties": {
+          "amountMinor": {
+            "description": "Ожидаемая сумма вхождения, minor units (как expectedMinor календаря планов).",
+            "example": "4500000",
+            "type": "string"
+          },
+          "isOverdue": {
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": ["PLAN"],
+            "example": "PLAN",
+            "type": "string"
+          },
+          "occurrenceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
+          "planId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "planKind": {
+            "enum": ["OBLIGATION", "INCOME_PLAN"],
+            "type": "string"
+          },
+          "scheduledOn": {
+            "format": "date",
+            "type": "string"
+          },
+          "status": {
+            "description": "Статус вхождения плана.",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "occurrenceId",
+          "planId",
+          "planKind",
+          "title",
+          "amountMinor",
+          "status",
+          "isOverdue",
+          "scheduledOn",
+          "owner"
+        ],
+        "type": "object"
+      },
+      "CalendarFeedResponse": {
+        "properties": {
+          "from": {
+            "format": "date",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "EVENT": "#/components/schemas/CalendarFeedEventItemResponse",
+                  "PLAN": "#/components/schemas/CalendarFeedPlanItemResponse"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/CalendarFeedEventItemResponse"
+                },
+                {
+                  "$ref": "#/components/schemas/CalendarFeedPlanItemResponse"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "to": {
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "required": ["from", "to", "items"],
+        "type": "object"
+      },
       "CancelAccountDeletionRequest": {
         "properties": {
           "token": {
@@ -10264,6 +10625,485 @@
           }
         ],
         "tags": ["envelope-plans (v2)"]
+      }
+    },
+    "/api/v2/budgets/{budgetId}/calendar": {
+      "get": {
+        "description": "Диапазон не больше 62 дней. События разворачиваются по правилу повторения в часовом поясе бюджета; startTime/endTime — локальное время, startsAt/endsAt — UTC. Платежи (kind = PLAN) — те же вхождения и суммы minor units, что у календаря планов, без отменённых и пропущенных; только просмотр. participantUserId — «Мои»: события, где пользователь автор или участник, и платежи его планов. includePlans=false скрывает платежи. Доступно любому активному участнику. Коды: 400 VALIDATION_FAILED, 401, 403, 404 RESOURCE_NOT_FOUND, 409 MODEL_VERSION_MISMATCH.",
+        "operationId": "CalendarController_feed_v2",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "includePlans",
+            "required": false,
+            "schema": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "participantUserId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarFeedResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Лента календаря: вхождения событий и платежи планов за диапазон",
+        "tags": ["calendar (v2)"]
+      }
+    },
+    "/api/v2/budgets/{budgetId}/calendar/events": {
+      "post": {
+        "description": "OWNER и EDITOR. Участники — активные члены семьи, прав не дают. Время — в часовом поясе бюджета. Коды: 400 VALIDATION_FAILED (fieldErrors), 401, 403 FORBIDDEN|CSRF_INVALID, 404, 409 IDEMPOTENCY_CONFLICT|MODEL_VERSION_MISMATCH, 422 PARTICIPANT_NOT_MEMBER.",
+        "operationId": "CalendarController_createEvent_v2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarEventBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarEventResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Создать событие календаря",
+        "tags": ["calendar (v2)"]
+      }
+    },
+    "/api/v2/budgets/{budgetId}/calendar/events/{eventId}": {
+      "delete": {
+        "description": "Логическое удаление, только автор. Уже созданные напоминания остаются. Коды: 400 VALIDATION_FAILED, 401, 403 FORBIDDEN|NOT_EVENT_AUTHOR|CSRF_INVALID, 404, 409 IDEMPOTENCY_CONFLICT|MODEL_VERSION_MISMATCH.",
+        "operationId": "CalendarController_deleteEvent_v2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Удалить событие и все его повторы",
+        "tags": ["calendar (v2)"]
+      },
+      "get": {
+        "description": "Дата и время — локальные для часового пояса бюджета. Доступно любому активному участнику; canEdit — только у автора. Коды: 400 VALIDATION_FAILED (некорректный id), 401, 403, 404 RESOURCE_NOT_FOUND (чужой бюджет или удалённое событие), 409 MODEL_VERSION_MISMATCH.",
+        "operationId": "CalendarController_getEvent_v2",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarEventResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Событие календаря с правилом повторения",
+        "tags": ["calendar (v2)"]
+      },
+      "patch": {
+        "description": "Тело полное, как при создании. Только автор. Коды: 400 VALIDATION_FAILED, 401, 403 FORBIDDEN|NOT_EVENT_AUTHOR|CSRF_INVALID, 404, 409 IDEMPOTENCY_CONFLICT|MODEL_VERSION_MISMATCH, 422 PARTICIPANT_NOT_MEMBER.",
+        "operationId": "CalendarController_updateEvent_v2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarEventBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarEventResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Изменить событие (всю серию)",
+        "tags": ["calendar (v2)"]
       }
     },
     "/api/v2/budgets/{budgetId}/cycle-change/confirm": {
