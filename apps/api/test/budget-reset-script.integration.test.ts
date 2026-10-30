@@ -446,6 +446,9 @@ async function seedBudget(f: Fixture, withRule: boolean): Promise<void> {
   await prisma.calendarEventParticipant.create({
     data: { eventId: calendarEvent, budgetId, userId },
   });
+  await prisma.activityFeedCursor.create({
+    data: { id: id(), workspaceId, budgetId, userId, seenAt: new Date() },
+  });
   await prisma.auditEvent.create({
     data: {
       id: id(),

@@ -212,6 +212,7 @@ export class FamilyTestApp {
       })
     ).map((budget) => budget.id);
     const byBudget = { budgetId: { in: budgetIds } };
+    await this.prisma.activityFeedCursor.deleteMany({ where: byBudget });
     await this.prisma.notification.deleteMany({ where: { workspaceId: { in: ids } } });
     await this.prisma.idempotencyRecord.deleteMany({ where: byBudget });
     await this.prisma.envelopeMovement.deleteMany({ where: byBudget });

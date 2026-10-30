@@ -223,6 +223,7 @@ model User {
   createdMovements     EnvelopeMovement[]   @relation("EnvelopeMovementCreator")
   calendarEventsCreated       CalendarEvent[]            @relation("CalendarEventAuthor")
   calendarEventParticipations CalendarEventParticipant[] @relation("CalendarEventParticipantUser")
+  activityFeedCursors         ActivityFeedCursor[]       @relation("ActivityFeedCursorUser")
 
   @@map("users")
 }
@@ -265,6 +266,7 @@ model Workspace {
   notifications Notification[]
   invitations   WorkspaceInvitation[]
   calendarEvents CalendarEvent[]
+  activityFeedCursors ActivityFeedCursor[]
 
   @@index([ownerId, status])
   @@map("workspaces")
@@ -352,6 +354,7 @@ model Budget {
     planPayments       PlanPayment[]
     notifications      Notification[]
     calendarEvents     CalendarEvent[]
+    activityFeedCursors ActivityFeedCursor[]
 
   @@unique([id, workspaceId])
   @@index([workspaceId, status])
@@ -932,6 +935,24 @@ model CalendarEventParticipant {
   @@id([eventId, userId])
   @@index([budgetId, userId])
   @@map("calendar_event_participants")
+}
+
+/// Per-member "seen" marker of the family activity feed. Not a financial record: no audit, no history.
+model ActivityFeedCursor {
+  id          String   @id @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  budgetId    String   @map("budget_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  seenAt      DateTime @map("seen_at") @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  budget    Budget    @relation(fields: [budgetId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Cascade)
+  user      User      @relation("ActivityFeedCursorUser", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([budgetId, userId])
+  @@map("activity_feed_cursors")
 }
 
 model WorkerJob {

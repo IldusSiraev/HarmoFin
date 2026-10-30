@@ -69,6 +69,8 @@ BEGIN
   RAISE NOTICE 'Бюджет % (workspace %) выбран для сброса, commit_changes=%', v_budget_id, v_workspace_id, commit_changes;
 
   -- 3. Удаление дочерних таблиц раньше родительских (все FK ON DELETE RESTRICT).
+  DELETE FROM activity_feed_cursors WHERE budget_id = v_budget_id;
+  GET DIAGNOSTICS v_n = ROW_COUNT; v_counts := v_counts || jsonb_build_object('activity_feed_cursors', v_n);
   DELETE FROM plan_payments WHERE budget_id = v_budget_id;
   GET DIAGNOSTICS v_n = ROW_COUNT; v_counts := v_counts || jsonb_build_object('plan_payments', v_n);
 

@@ -90,6 +90,8 @@ const EXPECTED_V2: Array<[Method, string]> = [
   ['get', '/api/v2/budgets/{budgetId}/calendar/events/{eventId}'],
   ['patch', '/api/v2/budgets/{budgetId}/calendar/events/{eventId}'],
   ['delete', '/api/v2/budgets/{budgetId}/calendar/events/{eventId}'],
+  ['get', '/api/v2/budgets/{budgetId}/activity'],
+  ['post', '/api/v2/budgets/{budgetId}/activity/seen'],
   ['post', '/api/v2/budgets/{budgetId}/obligations/one-time-pay'],
   ['post', '/api/v2/budgets/{budgetId}/obligations/{occurrenceId}/pay'],
   ['post', '/api/v2/budgets/{budgetId}/obligations/{occurrenceId}/skip'],
@@ -117,6 +119,8 @@ const PREVIEW_ONLY = new Set([
   'patch /api/v2/budgets/{budgetId}/model',
   'post /api/v2/budgets/{budgetId}/cycle-change/preview',
   'post /api/v2/budgets/{budgetId}/funding/preview',
+  // Not a preview, but also writes no financial record: a monotonic "seen" marker needs no key.
+  'post /api/v2/budgets/{budgetId}/activity/seen',
 ]);
 
 const PROBLEM_REF = '#/components/schemas/ProblemDetailsResponse';
@@ -870,6 +874,7 @@ async function cleanupUser(userId: string): Promise<void> {
   for (const { workspaceId } of memberships) {
     const where = { budget: { workspaceId } };
     await prisma.auditEvent.deleteMany({ where: { workspaceId } });
+    await prisma.activityFeedCursor.deleteMany({ where: { workspaceId } });
     await prisma.idempotencyRecord.deleteMany({ where });
     await prisma.envelopeMovement.deleteMany({ where });
     await prisma.envelopeAssignment.deleteMany({ where });
