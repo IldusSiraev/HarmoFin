@@ -216,14 +216,94 @@ describe('CalendarReminderHandler', () => {
     const tx = makeTx();
     tx.auditEvent.create.mockRejectedValue(new Error('audit insert failed'));
     const prisma = makePrisma([weeklyEvent()], tx);
+    const onFailure = vi.fn();
 
     await expect(
-      new CalendarReminderHandler(prisma as never).execute(new Date('2026-11-03T13:05:00Z')),
-    ).rejects.toThrow('audit insert failed');
+      new CalendarReminderHandler(prisma as never, onFailure).execute(
+        new Date('2026-11-03T13:05:00Z'),
+      ),
+    ).resolves.toBeUndefined();
 
     // The insert attempt happened inside the (now rejected) transaction, never on the root client.
     expect(tx.notification.createMany).toHaveBeenCalledTimes(1);
     expect(prisma.notification.createMany).not.toHaveBeenCalled();
     expect(prisma.auditEvent.create).not.toHaveBeenCalled();
+    expect(onFailure).toHaveBeenCalledWith({ eventId: 'event-1', errorName: 'Error' });
+  });
+
+  it('isolates a failing event: reports it without its text and still reminds the next event', async () => {
+    const failingTx = makeTx();
+    failingTx.notification.createMany.mockRejectedValue(new TypeError('insert failed'));
+    const tx = makeTx();
+    const prisma = makePrisma(
+      [
+        weeklyEvent({ id: 'event-a', title: 'Секретное событие' }),
+        weeklyEvent({ id: 'event-b', title: 'Кружок' }),
+      ],
+      tx,
+      {
+        $transaction: vi
+          .fn()
+          .mockImplementationOnce(async (callback: (client: unknown) => unknown) =>
+            callback(failingTx),
+          )
+          .mockImplementation(async (callback: (client: unknown) => unknown) => callback(tx)),
+      },
+    );
+    const onFailure = vi.fn();
+
+    await new CalendarReminderHandler(prisma as never, onFailure).execute(
+      new Date('2026-11-03T13:05:00Z'),
+    );
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(onFailure).toHaveBeenCalledTimes(1);
+    // Only the id and the error class name are reported: no title, description or message.
+    expect(onFailure).toHaveBeenCalledWith({ eventId: 'event-a', errorName: 'TypeError' });
+    const created = tx.notification.createMany.mock.calls.map(
+      ([args]) => (args as { data: Record<string, unknown> }).data,
+    );
+    expect(created).toHaveLength(2);
+    expect(created.every((data) => data.relatedEntityId === 'event-b')).toBe(true);
+    expect(tx.auditEvent.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('continues with the next event when the recipient lookup of one event fails', async () => {
+    const tx = makeTx();
+    const prisma = makePrisma(
+      [weeklyEvent({ id: 'event-a' }), weeklyEvent({ id: 'event-b' })],
+      tx,
+      {
+        workspaceMembership: {
+          findMany: vi
+            .fn()
+            .mockRejectedValueOnce(new Error('lookup failed'))
+            .mockResolvedValue([{ userId: 'user-a' }]),
+        },
+      },
+    );
+    const onFailure = vi.fn();
+
+    await new CalendarReminderHandler(prisma as never, onFailure).execute(
+      new Date('2026-11-03T13:05:00Z'),
+    );
+
+    expect(onFailure).toHaveBeenCalledWith({ eventId: 'event-a', errorName: 'Error' });
+    expect(tx.notification.createMany).toHaveBeenCalledTimes(1);
+    expect(tx.notification.createMany.mock.calls[0]?.[0]).toMatchObject({
+      data: { relatedEntityId: 'event-b', userId: 'user-a' },
+    });
+  });
+
+  it('still rejects when the event query itself fails, so the job is retried', async () => {
+    const prisma = makePrisma([], makeTx(), {
+      calendarEvent: { findMany: vi.fn().mockRejectedValue(new Error('query failed')) },
+    });
+
+    await expect(
+      new CalendarReminderHandler(prisma as never, vi.fn()).execute(
+        new Date('2026-11-03T13:05:00Z'),
+      ),
+    ).rejects.toThrow('query failed');
   });
 });
