@@ -1,7 +1,10 @@
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
-import type { CalendarFeedItem } from '../../composables/useFamilyCalendar.js';
+import type {
+  CalendarFeedItem,
+  CalendarFeedPlanItem,
+} from '../../composables/useFamilyCalendar.js';
 
 const DAY_MS = 86_400_000;
 const toUtc = (date: string): number => Date.parse(`${date}T00:00:00Z`);
@@ -109,4 +112,15 @@ export function groupByDay(items: readonly CalendarFeedItem[]): Map<string, Cale
     }
   }
   return new Map([...days.entries()].sort(([left], [right]) => left.localeCompare(right)));
+}
+
+export function planStatusLabel(item: CalendarFeedPlanItem): {
+  label: string;
+  tone: 'neutral' | 'success' | 'warning';
+} {
+  if (item.isOverdue) return { label: 'Просрочен', tone: 'warning' };
+  if (item.status === 'COMPLETED') {
+    return { label: item.planKind === 'INCOME_PLAN' ? 'Получен' : 'Оплачен', tone: 'success' };
+  }
+  return { label: 'Ожидается', tone: 'neutral' };
 }

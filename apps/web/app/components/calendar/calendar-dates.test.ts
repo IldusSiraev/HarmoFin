@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import type { CalendarFeedItem } from '../../composables/useFamilyCalendar.js';
+import type {
+  CalendarFeedItem,
+  CalendarFeedPlanItem,
+} from '../../composables/useFamilyCalendar.js';
 import {
   agendaRange,
   agendaTitle,
@@ -10,6 +13,7 @@ import {
   monthGrid,
   monthRange,
   monthTitle,
+  planStatusLabel,
   shiftMonth,
 } from './calendar-dates.js';
 
@@ -63,5 +67,37 @@ describe('calendar dates', () => {
       allDay: true,
     } as CalendarFeedItem;
     expect([...groupByDay([trip]).keys()]).toEqual(['2026-10-31', '2026-11-01', '2026-11-02']);
+  });
+});
+
+describe('planStatusLabel', () => {
+  const plan = (overrides: Partial<CalendarFeedPlanItem>): CalendarFeedPlanItem => ({
+    kind: 'PLAN',
+    occurrenceId: 'o',
+    planId: 'p',
+    planKind: 'OBLIGATION',
+    title: 'Школа',
+    amountMinor: '100',
+    status: 'PENDING',
+    isOverdue: false,
+    scheduledOn: '2026-10-30',
+    owner: { userId: 'u', displayName: 'Алия', isActiveMember: true },
+    ...overrides,
+  });
+
+  it('labels overdue, completed and pending payments', () => {
+    expect(planStatusLabel(plan({ isOverdue: true }))).toEqual({
+      label: 'Просрочен',
+      tone: 'warning',
+    });
+    expect(planStatusLabel(plan({ status: 'COMPLETED' }))).toEqual({
+      label: 'Оплачен',
+      tone: 'success',
+    });
+    expect(planStatusLabel(plan({ status: 'COMPLETED', planKind: 'INCOME_PLAN' }))).toEqual({
+      label: 'Получен',
+      tone: 'success',
+    });
+    expect(planStatusLabel(plan({}))).toEqual({ label: 'Ожидается', tone: 'neutral' });
   });
 });
