@@ -73,7 +73,7 @@ const SHORT_MONTHS = [
   'дек',
 ];
 // Fixed three-letter forms from the approved prototype («30 окт – 12 ноя»), not date-fns «нояб.».
-const shortMonth = (date: string): string =>
+export const shortMonth = (date: string): string =>
   `${Number(date.slice(8))} ${SHORT_MONTHS[Number(date.slice(5, 7)) - 1]}`;
 
 export function agendaTitle(range: { from: string; to: string }): string {
