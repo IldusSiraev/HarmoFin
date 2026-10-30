@@ -9,7 +9,9 @@ const props = withDefaults(
     id?: string | undefined;
     name: string;
     label: string;
-    type?: 'text' | 'email' | 'password' | 'search' | 'date';
+    type?: 'text' | 'email' | 'password' | 'search' | 'date' | 'time';
+    /** Step in seconds for `type="time"` (300 = five minutes). */
+    step?: number | undefined;
     autocomplete?: string | undefined;
     inputmode?: string | undefined;
     placeholder?: string | undefined;
@@ -26,6 +28,7 @@ const props = withDefaults(
   {
     id: undefined,
     type: 'text',
+    step: undefined,
     autocomplete: 'off',
     inputmode: undefined,
     placeholder: undefined,
@@ -50,7 +53,9 @@ function getInputId() {
   return props.id ?? `${props.name}-input`;
 }
 
+// A time field keeps the browser's own time control; a text input mode would override it.
 function getInputMode() {
+  if (props.type === 'time') return undefined;
   return props.inputmode as
     'none' | 'text' | 'tel' | 'url' | 'email' | 'numeric' | 'decimal' | 'search' | undefined;
 }
@@ -118,6 +123,7 @@ function handleInput(event: Event) {
         :type="type"
         :autocomplete="autocomplete"
         :inputmode="getInputMode()"
+        :step="step"
         :placeholder="placeholder"
         :minlength="minlength"
         :maxlength="maxlength"
