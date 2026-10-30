@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { watch } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import { navigateTo, useRoute } from '#imports';
 
+import { useActivityFeed } from '../../composables/useActivityFeed.js';
 import { useAuth } from '../../composables/useAuth.js';
+import { unseenLabel } from '../activity/activity-phrases.js';
 import AppWorkspaceSwitcher from './AppWorkspaceSwitcher.vue';
 
 defineOptions({ name: 'AppMobileMenu' });
@@ -17,6 +19,12 @@ const emit = defineEmits<{
 
 const { currentData, logout } = useAuth();
 const route = useRoute();
+const activity = useActivityFeed();
+// The count lives in shared state the server never rendered; show it only after hydration.
+const hydrated = ref(false);
+onMounted(() => {
+  hydrated.value = true;
+});
 
 // `/app` would otherwise match every nested section, so only it compares exactly.
 function currentPage(to: string): 'page' | undefined {
@@ -133,6 +141,23 @@ watch(
               @click="handleClose"
             >
               Календарь
+            </NuxtLink>
+            <NuxtLink
+              to="/app/activity"
+              class="mobile-menu__link"
+              active-class="mobile-menu__link--active"
+              :aria-current="currentPage('/app/activity')"
+              @click="handleClose"
+            >
+              Лента
+              <template v-if="hydrated && (activity.unseenCount.value ?? 0) > 0">
+                <span class="mobile-menu__badge" aria-hidden="true">{{
+                  activity.unseenCount.value
+                }}</span>
+                <span class="mobile-menu__sr"
+                  >, {{ unseenLabel(activity.unseenCount.value ?? 0) }}</span
+                >
+              </template>
             </NuxtLink>
             <NuxtLink
               to="/app/categories"
@@ -265,6 +290,7 @@ watch(
 
 .mobile-menu__link {
   display: flex;
+  position: relative;
   align-items: center;
   min-height: 2.75rem;
   padding: var(--hf-space-3) var(--hf-space-4);
@@ -288,6 +314,29 @@ watch(
   color: var(--hf-color-brand);
   background: var(--hf-color-brand-soft);
   font-weight: var(--hf-font-weight-semibold);
+}
+
+.mobile-menu__badge {
+  margin-left: auto;
+  min-width: 1.5rem;
+  padding: 0 var(--hf-space-1);
+  border-radius: var(--hf-radius-sm);
+  background: var(--hf-color-status-info-background);
+  color: var(--hf-color-status-info);
+  font-size: 0.75rem;
+  font-weight: var(--hf-font-weight-bold);
+  line-height: 1.5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.mobile-menu__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .mobile-menu__footer {

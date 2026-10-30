@@ -14,6 +14,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => mocks.auth }));
+const activity = vi.hoisted(() => ({
+  unseenCount: { value: null as number | null },
+  list: vi.fn().mockResolvedValue({}),
+}));
+vi.mock('../../composables/useActivityFeed.js', () => ({ useActivityFeed: () => activity }));
 vi.mock('#imports', () => ({
   navigateTo: vi.fn(),
   useRoute: () => mocks.route,
@@ -43,6 +48,8 @@ describe('AppSidebar', () => {
     vi.clearAllMocks();
     mocks.auth.currentData.value = { user: { email: 'owner@example.test' } };
     mocks.route.path = '/app';
+    activity.unseenCount.value = null;
+    activity.list.mockResolvedValue({});
     window.localStorage.clear();
     document.documentElement.removeAttribute('data-theme');
     mockMatchMedia(false);
@@ -92,6 +99,26 @@ describe('AppSidebar', () => {
     expect(
       wrapper.get('a.app-sidebar__link[href="/app/plans"]').attributes('aria-current'),
     ).toBeUndefined();
+  });
+
+  it('links to the feed with an accessible new-events count', async () => {
+    activity.unseenCount.value = 3;
+    const wrapper = mountSidebar();
+    await flushPromises();
+    const link = wrapper.get('a[href="/app/activity"]');
+    expect(link.text()).toContain('Лента');
+    expect(link.text()).toContain('3 новых события');
+    expect(activity.list).not.toHaveBeenCalled();
+  });
+
+  it('reads the count once when nothing loaded it yet', async () => {
+    mocks.auth.currentData.value = {
+      user: { email: 'owner@example.test' },
+      workspaces: [{ id: 'ws', isCreator: true, role: 'OWNER', budgets: [{ id: 'budget-id' }] }],
+    } as never;
+    mountSidebar();
+    await flushPromises();
+    expect(activity.list).toHaveBeenCalledWith('budget-id', { limit: 1 });
   });
 
   it('shows the signed-in email and logs out on click', async () => {
