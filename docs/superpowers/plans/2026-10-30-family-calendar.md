@@ -4801,7 +4801,11 @@ git add e2e/family-calendar.spec.ts docs/superpowers/specs/2026-08-30-family-bud
 | 4. Политика и схемы | готово | `a9186cd` | security, API, QA, final — APPROVE (после fix-раунда 1 по final) |
 | 5. CRUD событий | готово | `7487df6` | security, API, backend, QA, final — APPROVE (после fix-раунда 1 по QA) |
 | 6. Лента | готово | `45b10d9` | security, API, financial, QA, final — APPROVE (после fix-раунда 1 по API и QA) |
-| 7–13 | не начаты | — | — |
+| PR 2 | смерджен ([#80](https://github.com/IldusSiraev/HarmoFin/pull/80)) | `4d53766` | — |
+| 7. Напоминания | готово | `a47fc9b` | backend, security, QA, final — APPROVE (после fix-раунда 1 по транзакции) |
+| 8–13 | не начаты | — | — |
+
+Проверки PR 3 (ветка `feat/family-calendar-reminders`) на `a47fc9b`: `pnpm typecheck`, `pnpm lint` (0 ошибок; 123 предупреждения в `apps/web` — прежние), `pnpm format:check`, `pnpm test` (api 352, worker 83, web 1558), `pnpm test:integration` (66 файлов, 703 теста) — все зелёные.
 
 Проверки PR 2 (ветка `feat/family-calendar-api`) на `45b10d9`: `pnpm typecheck`, `pnpm lint` (0 ошибок; 123 предупреждения в `apps/web` — прежние), `pnpm format:check`, `pnpm test` (api 352, worker 69, web 1558), `pnpm test:integration` (66 файлов, 703 теста) — все зелёные.
 
@@ -4818,3 +4822,5 @@ git add e2e/family-calendar.spec.ts docs/superpowers/specs/2026-08-30-family-bud
 - Задача 5: `DELETE` тоже требует `Idempotency-Key`. Этого требует контрактный тест v2 OpenAPI для любой мутации, так же как у `DELETE` этапа B. **Клиент (задача 8) должен передавать ключ и при удалении.** Бывший участник на мутацию получает 404 `RESOURCE_NOT_FOUND`, а не 403, как в дизайне: `requireModel` отсекает его раньше транзакции, как во всех мутациях этапа B. `lockBudget` и запись audit находятся в `CalendarRepository`. Чтобы сохранить событие с участниками, приложение создаёт событие, затем `createMany` участников, затем перечитывает событие: вложенное создание не может задать `budgetId` составной связи. В audit не пишутся `title` и `description`. Для GET события в OpenAPI описан недостижимый 403: этого требует контрактный тест.
 - Задача 5, для задачи 11: `PATCH`, в теле которого остался вышедший участник, получает 422. Форма должна отправлять только активных членов семьи. `FamilyTestApp` не удаляет строки календаря — каждый интеграционный тест календаря чистит их сам в `afterAll`.
 - Задача 6: `PlansCalendarApplicationService` создаётся в фабрике `calendar.module.ts` (запасной вариант плана), поэтому `plans-calendar.module.ts` не менялся. Элементы ленты описаны в OpenAPI как `oneOf` с discriminator по `kind` (`CalendarFeedEventItemResponse` / `CalendarFeedPlanItemResponse`), так же как `JournalPageResponse`. У владельца плана поле `id` переименовано в `userId`. Суммы, статусы и просрочка передаются без изменений. События и платежи читаются в разных транзакциях (лента — не единый снимок), для просмотра это приемлемо.
+- Задача 7: `EVALUATE_CALENDAR_REMINDERS: 300_000` уже был в `job-runner.ts` с PR 1 — добавлен только тест. По образцу `NotificationRuleHandler` уведомления создаются по одному, и `AuditEvent` пишется только для реально вставленной строки. Все вставки и audit одного события выполняются в одной `$transaction`: иначе при сбое между вставкой и audit повторный запуск пропустил бы уведомление по ключу, и audit был бы потерян. В audit нет названия и текста.
+- Задача 7, отложено: одно повреждённое событие (например, неверный часовой пояс) роняет весь запуск задачи. Так же сейчас ведёт себя `NotificationRuleHandler`. Кандидат на отдельную доработку: изоляция ошибок по событию с логированием без персональных данных.

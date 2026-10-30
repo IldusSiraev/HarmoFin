@@ -115,6 +115,32 @@ describe('JobRunner', () => {
     );
   });
 
+  it('schedules calendar reminders five minutes later', async () => {
+    const repository = {
+      ensureRecurringJobs: vi.fn().mockResolvedValue(undefined),
+      claimDue: vi
+        .fn()
+        .mockResolvedValue([
+          { id: 'job-id', jobType: 'EVALUATE_CALENDAR_REMINDERS' as const, attempts: 1 },
+        ]),
+      completeRecurring: vi.fn().mockResolvedValue(undefined),
+      retry: vi.fn().mockResolvedValue(undefined),
+    };
+    const runner = new JobRunner(
+      repository as never,
+      { EVALUATE_CALENDAR_REMINDERS: { execute: vi.fn().mockResolvedValue(undefined) } },
+      { pollIntervalMs: 30_000, concurrency: 1, leaseSeconds: 300, now: () => now },
+    );
+
+    await runner.start();
+    await runner.stop();
+
+    expect(repository.completeRecurring).toHaveBeenCalledWith(
+      'job-id',
+      new Date('2026-09-08T12:05:00.000Z'),
+    );
+  });
+
   it('retries handler failure with sanitized error', async () => {
     const repository = {
       ensureRecurringJobs: vi.fn().mockResolvedValue(undefined),
