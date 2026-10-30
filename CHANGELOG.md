@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.10.0...v1.11.0) (2026-10-30)
+
+
+### Новое
+
+* напоминания о событиях семейного календаря ([2be0f95](https://github.com/IldusSiraev/HarmoFin/commit/2be0f95e492b228ca087269b6e884ce951c1bb94))
+
 ## [1.10.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.9.0...v1.10.0) (2026-10-30)
 
 
