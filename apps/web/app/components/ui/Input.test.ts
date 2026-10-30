@@ -70,4 +70,25 @@ describe('UiInput', () => {
     expect(icon.element.nextElementSibling).toBe(withIcon.get('input').element);
     expect(withIcon.get('input').classes()).toContain('ui-field__control--with-icon');
   });
+
+  it('renders a labelled time field with a step and no text input mode', async () => {
+    const wrapper = mount(UiInput, {
+      props: {
+        modelValue: '17:00',
+        name: 'start',
+        label: 'Начало',
+        type: 'time',
+        step: 300,
+        inputmode: 'numeric',
+      },
+    });
+    const input = wrapper.get('input[type="time"]');
+
+    expect(wrapper.get('label').text()).toBe('Начало');
+    expect(wrapper.get('label').attributes('for')).toBe(input.attributes('id'));
+    expect(input.attributes('step')).toBe('300');
+    expect(input.attributes('inputmode')).toBeUndefined();
+    await input.setValue('17:30');
+    expect(wrapper.emitted('update:modelValue')).toEqual([['17:30']]);
+  });
 });

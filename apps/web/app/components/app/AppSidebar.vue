@@ -5,6 +5,7 @@ import {
   BarChart3,
   Bell,
   CalendarClock,
+  CalendarDays,
   Home,
   Moon,
   PiggyBank,
@@ -105,6 +106,13 @@ async function handleLogout() {
           active-class="app-sidebar__link--active"
           :aria-current="currentPage('/app/plans')"
           ><CalendarClock :size="18" aria-hidden="true" />Планы</NuxtLink
+        >
+        <NuxtLink
+          to="/app/calendar"
+          class="app-sidebar__link"
+          active-class="app-sidebar__link--active"
+          :aria-current="currentPage('/app/calendar')"
+          ><CalendarDays :size="18" aria-hidden="true" />Календарь</NuxtLink
         >
       </AppSidebarSection>
       <AppSidebarSection label="Справочники">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { UserMinus, UserPlus, Users, UserX } from '@lucide/vue';
+import { Bell, UserMinus, UserPlus, Users, UserX } from '@lucide/vue';
 import type { Component } from 'vue';
 
 import type {
@@ -10,17 +10,28 @@ import type {
 const props = defineProps<{ notification: NotificationDto }>();
 defineEmits<{ open: [event: MouseEvent] }>();
 
-// Access-event types only: plan/financial notifications keep their plain
-// title/body with no icon.
+// Access events and calendar reminders: plan/financial notifications keep
+// their plain title/body with no icon.
 const MEMBER_EVENT_ICONS: Partial<Record<NotificationType, Component>> = {
   MEMBER_JOINED: UserPlus,
   MEMBER_LEFT: UserMinus,
   MEMBER_REMOVED: UserX,
   OBJECTS_TRANSFERRED: Users,
+  CALENDAR_REMINDER: Bell,
 };
 
 function stateText() {
   return props.notification.readAt ? 'Прочитано' : 'Новое';
+}
+
+function typeCaption(): string {
+  return props.notification.notificationType === 'CALENDAR_REMINDER' ? 'Календарь' : 'Семья';
+}
+
+function linkText(): string {
+  return props.notification.notificationType === 'CALENDAR_REMINDER'
+    ? 'Открыть в календаре'
+    : 'Открыть';
 }
 
 function memberEventIcon(): Component | null {
@@ -48,7 +59,7 @@ function memberEventIcon(): Component | null {
       class="notification-card__type"
       data-testid="notification-type-caption"
     >
-      Семья
+      {{ typeCaption() }}
     </p>
     <p>{{ notification.body }}</p>
     <NuxtLink
@@ -57,7 +68,7 @@ function memberEventIcon(): Component | null {
       data-action="notification-link"
       @click="$emit('open', $event)"
     >
-      Открыть
+      {{ linkText() }}
     </NuxtLink>
   </article>
 </template>

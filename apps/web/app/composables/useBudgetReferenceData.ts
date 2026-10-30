@@ -118,7 +118,8 @@ export type NotificationType =
   | 'MEMBER_JOINED'
   | 'MEMBER_LEFT'
   | 'MEMBER_REMOVED'
-  | 'OBJECTS_TRANSFERRED';
+  | 'OBJECTS_TRANSFERRED'
+  | 'CALENDAR_REMINDER';
 
 export interface NotificationDto {
   id: string;
