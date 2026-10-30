@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.12.1](https://github.com/IldusSiraev/HarmoFin/compare/v1.12.0...v1.12.1) (2026-10-30)
+
+
+### Исправления
+
+* **worker:** isolate calendar reminder failures per event ([76476ae](https://github.com/IldusSiraev/HarmoFin/commit/76476aed55e3b582b3421902902ca06a6bb1cd15))
+* **worker:** изоляция ошибок напоминаний календаря по событию ([83778cd](https://github.com/IldusSiraev/HarmoFin/commit/83778cd665a354d1d1a7458b67591231296724d6))
+
 ## [1.12.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.11.0...v1.12.0) (2026-10-30)
 
 
