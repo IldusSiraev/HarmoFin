@@ -7,6 +7,8 @@ import { Prisma } from '@prisma/client';
  */
 export const BUDGET_TABLES_IN_DELETE_ORDER = [
   'plan_payments',
+  'calendar_event_participants',
+  'calendar_events',
   'notifications',
   'envelope_assignments',
   'envelope_movements',
@@ -61,6 +63,10 @@ export const USER_RETAINED_OUTSIDE_SCOPE: Record<string, string> = {
     "deleted below by actor_user_id since they belong to no other owner's scope.",
   notifications:
     "user_id rows outside the owned workspace/budget scope belong to another owner's workspace and are retained.",
+  calendar_events:
+    "created_by_user_id rows outside the owned budget scope are another family's calendar and are retained; the user row is anonymized, not deleted.",
+  calendar_event_participants:
+    "user_id rows outside the owned budget scope belong to another family's events and are retained.",
   workspace_invitations:
     "rows in other owners' workspaces (invited_by/accepted_by this user) are that owner's history and are retained.",
 };
