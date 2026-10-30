@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.9.0...v1.10.0) (2026-10-30)
+
+
+### Новое
+
+* API событий и лента семейного календаря ([4d53766](https://github.com/IldusSiraev/HarmoFin/commit/4d53766677282e5eb8791ed5fa38ff32aa90f323))
+
 ## [1.9.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.8.0...v1.9.0) (2026-10-30)
 
 
