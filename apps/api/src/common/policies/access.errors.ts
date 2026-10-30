@@ -27,3 +27,10 @@ export function notOperationAuthor(): ForbiddenException {
     detail: 'Изменять операцию может только её автор.',
   });
 }
+
+export function notEventAuthor(): ForbiddenException {
+  return new ForbiddenException({
+    code: 'NOT_EVENT_AUTHOR',
+    detail: 'Изменять событие может только его автор.',
+  });
+}
