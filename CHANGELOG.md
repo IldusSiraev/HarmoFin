@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.9.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.8.0...v1.9.0) (2026-10-30)
+
+
+### Новое
+
+* **api:** разворачивание повторов событий календаря ([a97f578](https://github.com/IldusSiraev/HarmoFin/commit/a97f578fcd91b81b78e43d39fdc9db1e109a82be))
+* **db:** таблицы событий семейного календаря ([0de1768](https://github.com/IldusSiraev/HarmoFin/commit/0de1768528a069f0f8470dc4965ed7b329bc603c))
+* **worker:** копия разворачивания повторов для напоминаний ([743c67e](https://github.com/IldusSiraev/HarmoFin/commit/743c67ebd8a98c96f43fcb64b2e7f7b00fe98c77))
+* данные и повторения семейного календаря ([500e72a](https://github.com/IldusSiraev/HarmoFin/commit/500e72a339b2474c28e7f63976c8f9b4e1aef165))
+
 ## [1.8.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.7.1...v1.8.0) (2026-10-29)
 
 
