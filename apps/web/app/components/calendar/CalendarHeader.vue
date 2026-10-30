@@ -39,38 +39,14 @@ const OWNER_OPTIONS = [
       <h1 class="calendar-header__title">Календарь</h1>
     </div>
     <div class="calendar-header__controls">
-      <div class="calendar-header__toggles">
-        <UiButtonGroup
-          class="calendar-header__view"
-          :options="VIEW_OPTIONS"
-          :model-value="view"
-          label="Вид календаря"
-          testid-prefix="calendar-view"
-          @update:model-value="emit('update:view', $event as 'month' | 'agenda')"
-        />
-        <UiButtonGroup
-          v-if="showOwnerFilter"
-          class="calendar-header__owner"
-          :options="OWNER_OPTIONS"
-          :model-value="ownerFilter"
-          label="Чьи события"
-          testid-prefix="calendar-owner"
-          @update:model-value="emit('update:ownerFilter', $event as 'all' | 'mine')"
-        />
-        <button
-          type="button"
-          class="calendar-header__switch"
-          role="switch"
-          :aria-checked="showPlans"
-          data-testid="calendar-plans-toggle"
-          @click="emit('update:showPlans', !showPlans)"
-        >
-          <span class="calendar-header__switch-track" aria-hidden="true">
-            <span class="calendar-header__switch-thumb" />
-          </span>
-          Платежи
-        </button>
-      </div>
+      <UiButtonGroup
+        class="calendar-header__view"
+        :options="VIEW_OPTIONS"
+        :model-value="view"
+        label="Вид календаря"
+        testid-prefix="calendar-view"
+        @update:model-value="emit('update:view', $event as 'month' | 'agenda')"
+      />
       <div class="calendar-header__nav">
         <UiButton
           variant="tertiary"
@@ -82,7 +58,12 @@ const OWNER_OPTIONS = [
         >
           <ChevronLeft :size="18" aria-hidden="true" />
         </UiButton>
-        <span class="calendar-header__period" aria-live="polite" data-testid="calendar-period">
+        <span
+          class="calendar-header__period"
+          tabindex="-1"
+          aria-live="polite"
+          data-testid="calendar-period"
+        >
           {{ title }}
         </span>
         <UiButton
@@ -99,6 +80,28 @@ const OWNER_OPTIONS = [
           Сегодня
         </UiButton>
       </div>
+      <UiButtonGroup
+        v-if="showOwnerFilter"
+        class="calendar-header__owner"
+        :options="OWNER_OPTIONS"
+        :model-value="ownerFilter"
+        label="Чьи события"
+        testid-prefix="calendar-owner"
+        @update:model-value="emit('update:ownerFilter', $event as 'all' | 'mine')"
+      />
+      <button
+        type="button"
+        class="calendar-header__switch"
+        role="switch"
+        :aria-checked="showPlans"
+        data-testid="calendar-plans-toggle"
+        @click="emit('update:showPlans', !showPlans)"
+      >
+        <span class="calendar-header__switch-track" aria-hidden="true">
+          <span class="calendar-header__switch-thumb" />
+        </span>
+        Платежи
+      </button>
       <div v-if="canCreate" class="calendar-header__create">
         <UiButton
           aria-label="Новое событие"
@@ -147,17 +150,10 @@ const OWNER_OPTIONS = [
   letter-spacing: -0.04em;
 }
 
-/* Below 1024px: toggles on their own row, navigation (with an icon-only "+") under them. */
+/* DOM order is the visual order at every width (WCAG 2.4.3): view, navigation, owner filter,
+   payments switch, create. Below 1024px the view switch takes the first row, navigation the
+   next full row, the remaining switches and the icon-only "+" the row under it. */
 .calendar-header__controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--hf-space-3);
-  align-items: center;
-  width: 100%;
-  min-width: 0;
-}
-
-.calendar-header__toggles {
   display: flex;
   flex-wrap: wrap;
   gap: var(--hf-space-3);
@@ -168,7 +164,7 @@ const OWNER_OPTIONS = [
 
 .calendar-header__nav {
   display: flex;
-  flex: 1;
+  flex: 1 1 100%;
   flex-wrap: wrap;
   gap: var(--hf-space-1);
   align-items: center;
@@ -177,6 +173,7 @@ const OWNER_OPTIONS = [
 
 .calendar-header__period {
   min-width: 7.5rem;
+  border-radius: var(--hf-radius-sm);
   font-weight: var(--hf-font-weight-semibold);
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -196,6 +193,7 @@ const OWNER_OPTIONS = [
   cursor: pointer;
 }
 
+.calendar-header__period:focus-visible,
 .calendar-header__switch:focus-visible {
   outline: 2px solid var(--hf-color-focus-ring);
   outline-offset: 2px;
@@ -250,30 +248,9 @@ const OWNER_OPTIONS = [
     width: auto;
   }
 
-  .calendar-header__toggles {
-    display: contents;
-  }
-
-  .calendar-header__view {
-    order: 1;
-  }
-
   .calendar-header__nav {
     flex: 0 0 auto;
     flex-wrap: nowrap;
-    order: 2;
-  }
-
-  .calendar-header__owner {
-    order: 3;
-  }
-
-  .calendar-header__switch {
-    order: 4;
-  }
-
-  .calendar-header__create {
-    order: 5;
   }
 
   .calendar-header__create-label {

@@ -30,6 +30,24 @@ describe('CalendarHeader', () => {
     expect(mountHeader().get('[data-testid="calendar-period"]').text()).toBe('30 окт – 12 ноя');
   });
 
+  it('lets the page move focus to the period title', () => {
+    expect(mountHeader().get('[data-testid="calendar-period"]').attributes('tabindex')).toBe('-1');
+  });
+
+  it('keeps the tab order equal to the visual order of the controls', () => {
+    const controls = mountHeader().get('.calendar-header__controls').element;
+    const order = [...controls.children].map((child) => {
+      const element = child as HTMLElement;
+      if (element.querySelector('[data-testid^="calendar-view-"]')) return 'view';
+      if (element.querySelector('[data-testid="calendar-period"]')) return 'nav';
+      if (element.querySelector('[data-testid^="calendar-owner-"]')) return 'owner';
+      if (element.dataset.testid === 'calendar-plans-toggle') return 'plans';
+      if (element.querySelector('[data-testid="calendar-create"]')) return 'create';
+      return 'other';
+    });
+    expect(order).toEqual(['view', 'nav', 'owner', 'plans', 'create']);
+  });
+
   it('emits navigation events with labelled arrows', async () => {
     const wrapper = mountHeader();
     await wrapper.get('button[aria-label="Предыдущий период"]').trigger('click');

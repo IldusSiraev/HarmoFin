@@ -77,4 +77,29 @@ describe('NotificationCard', () => {
     // отформатированной суммы (FinanceMoney рисует знак валюты в тексте).
     expect(wrapper.text()).not.toMatch(/₽|€|\$|RUB/);
   });
+
+  it('shows a calendar reminder with its caption and a calendar link', () => {
+    const wrapper = mount(NotificationCard, {
+      props: {
+        notification: {
+          ...notification,
+          notificationType: 'CALENDAR_REMINDER',
+          title: 'Кружок рисования',
+          body: 'Сегодня в 17:00',
+          actionPath: '/app/calendar?date=2026-11-03',
+          occurrenceId: null,
+          relatedEntityType: 'calendar_event',
+          relatedEntityId: 'event-id',
+        },
+      },
+      global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } },
+    });
+
+    expect(wrapper.get('.notification-card__icon').attributes('aria-hidden')).toBe('true');
+    expect(wrapper.get('[data-testid="notification-type-caption"]').text()).toBe('Календарь');
+    expect(wrapper.get('.notification-card__title').text()).toBe('Кружок рисования');
+    expect(wrapper.text()).toContain('Сегодня в 17:00');
+    const link = wrapper.get('a[href="/app/calendar?date=2026-11-03"]');
+    expect(link.text()).toBe('Открыть в календаре');
+  });
 });

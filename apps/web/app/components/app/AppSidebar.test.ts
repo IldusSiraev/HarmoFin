@@ -10,9 +10,14 @@ const mocks = vi.hoisted(() => ({
     },
     logout: vi.fn(),
   },
+  route: { path: '/app', query: {} as Record<string, string> },
 }));
 
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => mocks.auth }));
+vi.mock('#imports', () => ({
+  navigateTo: vi.fn(),
+  useRoute: () => mocks.route,
+}));
 
 import AppSidebar from './AppSidebar.vue';
 
@@ -37,6 +42,7 @@ describe('AppSidebar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.auth.currentData.value = { user: { email: 'owner@example.test' } };
+    mocks.route.path = '/app';
     window.localStorage.clear();
     document.documentElement.removeAttribute('data-theme');
     mockMatchMedia(false);
@@ -51,6 +57,7 @@ describe('AppSidebar', () => {
         '/app',
         '/app/operations',
         '/app/plans',
+        '/app/calendar',
         '/app/accounts',
         '/app/envelopes',
         '/app/categories',
@@ -68,6 +75,22 @@ describe('AppSidebar', () => {
     expect(wrapper.get('a.app-sidebar__link[href="/app"]').attributes('aria-current')).toBe('page');
     expect(
       wrapper.get('a.app-sidebar__link[href="/app/accounts"]').attributes('aria-current'),
+    ).toBeUndefined();
+  });
+
+  it('links to the calendar right after plans and marks it current on its route', () => {
+    mocks.route.path = '/app/calendar';
+    const wrapper = mountSidebar();
+    const links = wrapper.findAll('a.app-sidebar__link');
+    const hrefs = links.map((link) => link.attributes('href'));
+    expect(hrefs.indexOf('/app/calendar')).toBe(hrefs.indexOf('/app/plans') + 1);
+
+    const calendar = wrapper.get('a.app-sidebar__link[href="/app/calendar"]');
+    expect(calendar.text()).toBe('Календарь');
+    expect(calendar.attributes('aria-current')).toBe('page');
+    expect(calendar.find('svg').attributes('aria-hidden')).toBe('true');
+    expect(
+      wrapper.get('a.app-sidebar__link[href="/app/plans"]').attributes('aria-current'),
     ).toBeUndefined();
   });
 

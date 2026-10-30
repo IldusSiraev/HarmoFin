@@ -126,6 +126,15 @@ watch(
               Планы
             </NuxtLink>
             <NuxtLink
+              to="/app/calendar"
+              class="mobile-menu__link"
+              active-class="mobile-menu__link--active"
+              :aria-current="currentPage('/app/calendar')"
+              @click="handleClose"
+            >
+              Календарь
+            </NuxtLink>
+            <NuxtLink
               to="/app/categories"
               class="mobile-menu__link"
               active-class="mobile-menu__link--active"
