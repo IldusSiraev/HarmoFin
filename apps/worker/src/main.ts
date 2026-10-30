@@ -28,7 +28,12 @@ const runner = new JobRunner(
   {
     MATERIALIZE_PLAN_OCCURRENCES: new PlanOccurrenceHandler(database),
     EVALUATE_BUDGET_NOTIFICATIONS: new NotificationRuleHandler(database),
-    EVALUATE_CALENDAR_REMINDERS: new CalendarReminderHandler(database),
+    EVALUATE_CALENDAR_REMINDERS: new CalendarReminderHandler(database, (failure) => {
+      logger.calendarReminderFailure(failure);
+      void errorReporter.report(new Error('Calendar reminder failed'), {
+        errorName: failure.errorName,
+      });
+    }),
     PURGE_DELETED_ACCOUNTS: new AccountPurgeHandler(database, (failure) => {
       logger.purgeFailure(failure);
       void errorReporter.report(new Error('Account purge failed'), {

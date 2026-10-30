@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
 
 import { expandOccurrences, type RecurringEvent } from './calendar-recurrence.js';
+import type { WorkerJobHandler } from './job-runner.js';
 import {
   isReminderDue,
   reminderBody,
@@ -13,6 +14,34 @@ import {
 import { utcToLocal } from './zoned-time.js';
 
 const isoDate = (value: Date): string => value.toISOString().slice(0, 10);
+
+export type CalendarReminderFailure = { eventId: string; errorName: string };
+
+const reminderEventSelect = {
+  id: true,
+  workspaceId: true,
+  budgetId: true,
+  createdByUserId: true,
+  title: true,
+  allDay: true,
+  startsOn: true,
+  endsOn: true,
+  startsAt: true,
+  endsAt: true,
+  recurrence: true,
+  interval: true,
+  weekdays: true,
+  repeatUntil: true,
+  reminderMinutes: true,
+  budget: { select: { timezone: true } },
+  participants: { select: { userId: true } },
+} satisfies Prisma.CalendarEventSelect;
+
+type ReminderEvent = Prisma.CalendarEventGetPayload<{ select: typeof reminderEventSelect }>;
+
+function errorName(error: unknown): string {
+  return error instanceof Error ? error.name : 'Unknown error';
+}
 
 type StoredRule = {
   allDay: boolean;
@@ -64,9 +93,19 @@ function toRule(event: StoredRule, timezone: string): RecurringEvent {
  * `skipDuplicates: true`), and an AuditEvent is written only for the insert that actually created a
  * row (`result.count === 1`), never for a duplicate that the unique key skipped. A failure anywhere
  * in the transaction rolls back every write for that event; nothing is committed half-written.
+ *
+ * Events are isolated from each other, as in AccountPurgeHandler: a failure while processing one
+ * event is reported through `onFailure` (event id and error class name only, never the title or
+ * description) and the run moves on to the next event. The job itself still completes, so one broken
+ * event cannot drive the recurring job into its terminal FAILED state; the next run retries that
+ * event and the notification key keeps the retry idempotent. A failure of the event query itself
+ * still rejects, so the job is retried as before.
  */
-export class CalendarReminderHandler {
-  constructor(private readonly prisma: PrismaClient) {}
+export class CalendarReminderHandler implements WorkerJobHandler {
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly onFailure?: (failure: CalendarReminderFailure) => void,
+  ) {}
 
   async execute(now: Date): Promise<void> {
     const events = await this.prisma.calendarEvent.findMany({
@@ -75,62 +114,52 @@ export class CalendarReminderHandler {
         reminderMinutes: { not: null },
         budget: { status: 'ACTIVE', planModelVersion: 2, workspace: { status: 'ACTIVE' } },
       },
-      select: {
-        id: true,
-        workspaceId: true,
-        budgetId: true,
-        createdByUserId: true,
-        title: true,
-        allDay: true,
-        startsOn: true,
-        endsOn: true,
-        startsAt: true,
-        endsAt: true,
-        recurrence: true,
-        interval: true,
-        weekdays: true,
-        repeatUntil: true,
-        reminderMinutes: true,
-        budget: { select: { timezone: true } },
-        participants: { select: { userId: true } },
-      },
+      select: reminderEventSelect,
     });
 
     for (const event of events) {
-      const minutes = event.reminderMinutes!;
-      const timezone = event.budget.timezone;
-      const due = expandOccurrences(
-        toRule(event, timezone),
-        reminderWindow(now, minutes, timezone),
-        timezone,
-      ).filter((occurrence) => isReminderDue(reminderMoment(occurrence, minutes, timezone), now));
-      if (due.length === 0) continue;
-
-      const candidates = [
-        ...new Set([event.createdByUserId, ...event.participants.map((item) => item.userId)]),
-      ];
-      const recipients = await this.prisma.workspaceMembership.findMany({
-        where: { workspaceId: event.workspaceId, userId: { in: candidates }, isActive: true },
-        select: { userId: true },
-      });
-      if (recipients.length === 0) continue;
-
-      await this.prisma.$transaction(async (tx) => {
-        for (const occurrence of due) {
-          const body = reminderBody(occurrence, now, timezone);
-          const notificationKey = reminderKey(event.id, occurrence.occurrenceDate, minutes);
-          const actionPath = `/app/calendar?date=${occurrence.startDate}`;
-          for (const { userId } of recipients) {
-            await this.createReminder(tx, event, {
-              userId,
-              body,
-              notificationKey,
-              actionPath,
-            });
-          }
-        }
-      });
+      try {
+        await this.remindEvent(event, now);
+      } catch (error) {
+        this.onFailure?.({ eventId: event.id, errorName: errorName(error) });
+      }
     }
+  }
+
+  private async remindEvent(event: ReminderEvent, now: Date): Promise<void> {
+    const minutes = event.reminderMinutes!;
+    const timezone = event.budget.timezone;
+    const due = expandOccurrences(
+      toRule(event, timezone),
+      reminderWindow(now, minutes, timezone),
+      timezone,
+    ).filter((occurrence) => isReminderDue(reminderMoment(occurrence, minutes, timezone), now));
+    if (due.length === 0) return;
+
+    const candidates = [
+      ...new Set([event.createdByUserId, ...event.participants.map((item) => item.userId)]),
+    ];
+    const recipients = await this.prisma.workspaceMembership.findMany({
+      where: { workspaceId: event.workspaceId, userId: { in: candidates }, isActive: true },
+      select: { userId: true },
+    });
+    if (recipients.length === 0) return;
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const occurrence of due) {
+        const body = reminderBody(occurrence, now, timezone);
+        const notificationKey = reminderKey(event.id, occurrence.occurrenceDate, minutes);
+        const actionPath = `/app/calendar?date=${occurrence.startDate}`;
+        for (const { userId } of recipients) {
+          await this.createReminder(tx, event, {
+            userId,
+            body,
+            notificationKey,
+            actionPath,
+          });
+        }
+      }
+    });
   }
 
   private async createReminder(
