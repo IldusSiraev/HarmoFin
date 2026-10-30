@@ -26,6 +26,7 @@ import { LegalModule } from './legal/legal.module.js';
 import { ReportModule } from './reports/report.module.js';
 import { PlansModule } from './plans/plans.module.js';
 import { CalendarModule } from './calendar/calendar.module.js';
+import { ActivityFeedModule } from './activity-feed/activity-feed.module.js';
 import { PlansCalendarModule } from './plans-calendar/plans-calendar.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
@@ -60,6 +61,7 @@ export class AppModule {
         TemplateModule.register(),
         PlansModule.register(),
         CalendarModule.register(),
+        ActivityFeedModule.register(),
         PlansCalendarModule.register(),
         NotificationsModule.register(),
         ReportModule.register(),

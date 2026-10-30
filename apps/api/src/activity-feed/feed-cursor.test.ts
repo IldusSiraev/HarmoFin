@@ -17,4 +17,12 @@ describe('feed cursor', () => {
     expect(decodeCursor(raw({ v: 1, createdAt: 'yesterday', id }))).toBeNull();
     expect(decodeCursor(raw({ v: 1, createdAt: '2026-10-30T00:00:00.000Z', id: 'x' }))).toBeNull();
   });
+
+  it('rejects base64url payloads that are valid JSON but not an object', () => {
+    const raw = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+    expect(decodeCursor(raw(null))).toBeNull();
+    expect(decodeCursor(raw(42))).toBeNull();
+    expect(decodeCursor(raw('cursor'))).toBeNull();
+    expect(decodeCursor(raw([{ v: 1, createdAt: '2026-10-30T00:00:00.000Z', id }]))).toBeNull();
+  });
 });

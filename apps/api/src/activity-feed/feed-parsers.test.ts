@@ -76,6 +76,35 @@ describe('parseAuditRow', () => {
     });
   });
 
+  it('transaction updated and restored read the state after the change', () => {
+    const updated = parseAuditRow(
+      row({
+        action: 'UPDATED',
+        oldValues: { ...transactionValues, amountMinor: '100000' },
+        newValues: { ...transactionValues, amountMinor: '150000' },
+      }),
+    );
+    expect(updated).toMatchObject({
+      kind: 'TRANSACTION_UPDATED',
+      amountMinor: 150000n,
+      title: { type: 'CATEGORY', id: ids.category },
+      link: { type: 'TRANSACTION', id: ids.entity },
+    });
+
+    const restored = parseAuditRow(
+      row({
+        action: 'RESTORED',
+        oldValues: { ...transactionValues, status: 'DELETED' },
+        newValues: { ...transactionValues, accountId: ids.account2, envelopeId: null },
+      }),
+    );
+    expect(restored).toMatchObject({
+      kind: 'TRANSACTION_RESTORED',
+      amountMinor: 120000n,
+      details: [{ type: 'ACCOUNT', id: ids.account2 }],
+    });
+  });
+
   it('transfer created and deleted: total and both accounts', () => {
     const created = parseAuditRow(
       row({

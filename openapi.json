@@ -157,6 +157,184 @@
         "required": ["currency", "scale", "totalMinor", "count"],
         "type": "object"
       },
+      "ActivityFeedResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityItemResponse"
+            },
+            "type": "array"
+          },
+          "newSince": {
+            "description": "Граница isNew: seenAt, а без отметки — время сервера минус 7 дней.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "nextCursor": {
+            "nullable": true,
+            "type": "string"
+          },
+          "people": {
+            "description": "Другие участники семьи, включая бывших.",
+            "items": {
+              "$ref": "#/components/schemas/AuthorRefResponse"
+            },
+            "type": "array"
+          },
+          "seenAt": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "unseenCount": {
+            "description": "Новые события с отметки (без отметки — за 7 дней); фильтр actorId не учитывается.",
+            "minimum": 0,
+            "type": "number"
+          }
+        },
+        "required": ["seenAt", "newSince", "unseenCount", "people", "items", "nextCursor"],
+        "type": "object"
+      },
+      "ActivityFeedSeenResponse": {
+        "properties": {
+          "seenAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": ["seenAt"],
+        "type": "object"
+      },
+      "ActivityItemResponse": {
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/AuthorRefResponse"
+          },
+          "amountMinor": {
+            "description": "Сумма в minor units из записи аудита; у оплаты платежа и событий семьи — null.",
+            "nullable": true,
+            "pattern": "^\\d+$",
+            "type": "string"
+          },
+          "currency": {
+            "example": "RUB",
+            "type": "string"
+          },
+          "details": {
+            "description": "Счета и конверты по порядку показа.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "description": "Идентификатор записи аудита.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "isNew": {
+            "description": "Событие позже отметки «просмотрено».",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "TRANSACTION_CREATED",
+              "TRANSACTION_UPDATED",
+              "TRANSACTION_DELETED",
+              "TRANSACTION_RESTORED",
+              "TRANSFER_CREATED",
+              "TRANSFER_DELETED",
+              "ENVELOPE_FUNDED",
+              "ENVELOPE_MOVED",
+              "PLAN_PAID",
+              "PLAN_CREATED",
+              "CALENDAR_EVENT_CREATED",
+              "CALENDAR_EVENT_UPDATED",
+              "CALENDAR_EVENT_DELETED",
+              "MEMBER_JOINED",
+              "MEMBER_LEFT",
+              "MEMBER_REMOVED"
+            ],
+            "type": "string"
+          },
+          "link": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ActivityLinkResponse"
+              }
+            ],
+            "description": "null, если объект удалён или открыть его нельзя.",
+            "nullable": true,
+            "type": "object"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "target": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AuthorRefResponse"
+              }
+            ],
+            "description": "Только для MEMBER_REMOVED: исключённый участник.",
+            "nullable": true,
+            "type": "object"
+          },
+          "title": {
+            "description": "Категория, конверт, план или событие; для отсутствующего объекта — нейтральная метка.",
+            "nullable": true,
+            "type": "string"
+          },
+          "transactionType": {
+            "enum": ["INCOME", "EXPENSE"],
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "occurredAt",
+          "kind",
+          "isNew",
+          "actor",
+          "amountMinor",
+          "currency",
+          "transactionType",
+          "title",
+          "details",
+          "target",
+          "link"
+        ],
+        "type": "object"
+      },
+      "ActivityLinkResponse": {
+        "properties": {
+          "date": {
+            "description": "Только для событий календаря: дата начала в часовом поясе бюджета.",
+            "format": "date",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "TRANSACTION",
+              "TRANSFER",
+              "ENVELOPE",
+              "PLAN_OCCURRENCE",
+              "PLAN",
+              "CALENDAR_EVENT"
+            ],
+            "type": "string"
+          }
+        },
+        "required": ["type", "id", "date"],
+        "type": "object"
+      },
       "AssignmentResultResponse": {
         "properties": {
           "amountMinor": {
@@ -10322,6 +10500,188 @@
           }
         ],
         "tags": ["family"]
+      }
+    },
+    "/api/v2/budgets/{budgetId}/activity": {
+      "get": {
+        "description": "Записи аудита бюджета по белому списку (операции, переводы, конверты, платежи и планы, календарь, состав семьи), без собственных действий и действий без автора; сортировка от новых к старым. isNew и unseenCount считаются от отметки «просмотрено», без отметки — за 7 дней. Суммы — minor units из записей аудита, без пересчёта. Доступно любому активному участнику. Коды: 400 VALIDATION_FAILED (limit, actorId, cursor), 401, 403, 404 RESOURCE_NOT_FOUND, 409 MODEL_VERSION_MISMATCH.",
+        "operationId": "ActivityFeedController_list_v2",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 512,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actorId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 30,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityFeedResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Лента семьи: что сделали другие участники за 30 дней",
+        "tags": ["activity (v2)"]
+      }
+    },
+    "/api/v2/budgets/{budgetId}/activity/seen": {
+      "post": {
+        "description": "Ставит отметку текущего пользователя на время сервера; отметка только растёт. Повтор безопасен, Idempotency-Key не нужен: запрос не создаёт финансовых записей. Доступно любому активному участнику, включая наблюдателя. Коды: 400 VALIDATION_FAILED (некорректный budgetId), 401, 403 CSRF_INVALID, 404 RESOURCE_NOT_FOUND, 409 MODEL_VERSION_MISMATCH.",
+        "operationId": "ActivityFeedController_seen_v2",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityFeedSeenResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Отметить ленту просмотренной",
+        "tags": ["activity (v2)"]
       }
     },
     "/api/v2/budgets/{budgetId}/assignments": {
