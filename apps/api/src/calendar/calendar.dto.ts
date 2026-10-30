@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiExtraModels, ApiProperty, ApiPropertyOptional, getSchemaPath } from '@nestjs/swagger';
 
 import { PersonRefResponse } from '../common/people/person-ref.dto.js';
 
@@ -129,4 +129,123 @@ export class CalendarEventResponse {
 
   @ApiProperty({ type: String, format: 'date-time' })
   updatedAt!: string;
+}
+
+export class CalendarFeedEventItemResponse {
+  @ApiProperty({ type: String, enum: ['EVENT'], example: 'EVENT' })
+  kind!: 'EVENT';
+
+  @ApiProperty({ type: String, format: 'uuid' })
+  eventId!: string;
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    description: 'Локальная дата начала вхождения — его идентификатор в серии.',
+  })
+  occurrenceDate!: string;
+
+  @ApiProperty({ type: String })
+  title!: string;
+
+  @ApiProperty({ type: Boolean })
+  allDay!: boolean;
+
+  @ApiProperty({ type: String, format: 'date' })
+  startDate!: string;
+
+  @ApiProperty({ type: String, format: 'date' })
+  endDate!: string;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: '17:00',
+    description: 'Локальное время бюджета.',
+  })
+  startTime!: string | null;
+
+  @ApiProperty({ type: String, nullable: true, example: '18:30' })
+  endTime!: string | null;
+
+  @ApiProperty({ type: String, nullable: true, format: 'date-time', description: 'UTC.' })
+  startsAt!: string | null;
+
+  @ApiProperty({ type: String, nullable: true, format: 'date-time', description: 'UTC.' })
+  endsAt!: string | null;
+
+  @ApiProperty({ type: String, enum: RECURRENCES })
+  recurrence!: string;
+
+  @ApiProperty({ type: [PersonRefResponse] })
+  participants!: PersonRefResponse[];
+
+  @ApiProperty({ type: PersonRefResponse })
+  createdBy!: PersonRefResponse;
+
+  @ApiProperty({ type: Boolean, description: 'Может ли текущий участник изменять событие.' })
+  canEdit!: boolean;
+}
+
+export class CalendarFeedPlanItemResponse {
+  @ApiProperty({ type: String, enum: ['PLAN'], example: 'PLAN' })
+  kind!: 'PLAN';
+
+  @ApiProperty({ type: String, format: 'uuid' })
+  occurrenceId!: string;
+
+  @ApiProperty({ type: String, format: 'uuid' })
+  planId!: string;
+
+  @ApiProperty({ type: String, enum: ['OBLIGATION', 'INCOME_PLAN'] })
+  planKind!: 'OBLIGATION' | 'INCOME_PLAN';
+
+  @ApiProperty({ type: String })
+  title!: string;
+
+  @ApiProperty({
+    type: String,
+    example: '4500000',
+    description: 'Ожидаемая сумма вхождения, minor units (как expectedMinor календаря планов).',
+  })
+  amountMinor!: string;
+
+  @ApiProperty({ type: String, description: 'Статус вхождения плана.' })
+  status!: string;
+
+  @ApiProperty({ type: Boolean })
+  isOverdue!: boolean;
+
+  @ApiProperty({ type: String, format: 'date' })
+  scheduledOn!: string;
+
+  @ApiProperty({ type: PersonRefResponse })
+  owner!: PersonRefResponse;
+}
+
+@ApiExtraModels(CalendarFeedEventItemResponse, CalendarFeedPlanItemResponse)
+export class CalendarFeedResponse {
+  @ApiProperty({ type: String, format: 'date' })
+  from!: string;
+
+  @ApiProperty({ type: String, format: 'date' })
+  to!: string;
+
+  @ApiProperty({
+    type: 'array',
+    items: {
+      oneOf: [
+        { $ref: getSchemaPath(CalendarFeedEventItemResponse) },
+        { $ref: getSchemaPath(CalendarFeedPlanItemResponse) },
+      ],
+      discriminator: {
+        propertyName: 'kind',
+        mapping: {
+          EVENT: getSchemaPath(CalendarFeedEventItemResponse),
+          PLAN: getSchemaPath(CalendarFeedPlanItemResponse),
+        },
+      },
+    },
+  })
+  items!: Array<CalendarFeedEventItemResponse | CalendarFeedPlanItemResponse>;
 }

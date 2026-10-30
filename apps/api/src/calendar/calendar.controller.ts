@@ -10,6 +10,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -22,6 +23,7 @@ import {
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -32,11 +34,13 @@ import type { RequestContext } from '../common/request-context/request-context.j
 import { CsrfGuard } from '../common/security/csrf.guard.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import { CalendarApplicationService } from './calendar.application.service.js';
-import { CalendarEventBody, CalendarEventResponse } from './calendar.dto.js';
+import { CalendarEventBody, CalendarEventResponse, CalendarFeedResponse } from './calendar.dto.js';
 import {
   calendarEventInputSchema,
+  calendarFeedQuerySchema,
   calendarUuidSchema,
   type CalendarEventInput,
+  type CalendarFeedQuery,
 } from './calendar.schemas.js';
 
 type AuthenticatedRequest = FastifyRequest & { authContext?: RequestContext };
@@ -76,6 +80,38 @@ export class CalendarController {
   constructor(
     @Inject(CalendarApplicationService) private readonly service: CalendarApplicationService,
   ) {}
+
+  @Get()
+  @ApiOperation({
+    summary: 'Лента календаря: вхождения событий и платежи планов за диапазон',
+    description:
+      'Диапазон не больше 62 дней. События разворачиваются по правилу повторения в часовом поясе бюджета; startTime/endTime — локальное время, startsAt/endsAt — UTC. Платежи (kind = PLAN) — те же вхождения и суммы minor units, что у календаря планов, без отменённых и пропущенных; только просмотр. participantUserId — «Мои»: события, где пользователь автор или участник, и платежи его планов. includePlans=false скрывает платежи. Доступно любому активному участнику. Коды: 400 VALIDATION_FAILED, 401, 403, 404 RESOURCE_NOT_FOUND, 409 MODEL_VERSION_MISMATCH.',
+  })
+  @ApiQuery({ name: 'from', required: true, schema: { type: 'string', format: 'date' } })
+  @ApiQuery({ name: 'to', required: true, schema: { type: 'string', format: 'date' } })
+  @ApiQuery({
+    name: 'participantUserId',
+    required: false,
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiQuery({
+    name: 'includePlans',
+    required: false,
+    schema: { type: 'boolean', default: true },
+  })
+  @ApiOkResponse({ type: CalendarFeedResponse })
+  @ApiResponse({ status: 400, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 401, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 403, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 404, type: ProblemDetailsResponse })
+  @ApiResponse({ status: 409, type: ProblemDetailsResponse })
+  feed(
+    @Param('budgetId', idPipe) budgetId: string,
+    @Query(new ZodValidationPipe(calendarFeedQuerySchema)) query: CalendarFeedQuery,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.feed(contextOf(request).userId, budgetId, query);
+  }
 
   @Get('events/:eventId')
   @ApiOperation({

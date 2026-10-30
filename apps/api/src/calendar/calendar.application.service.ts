@@ -11,10 +11,19 @@ import { findAccessActor, requireAccessActor } from '../common/policies/access-a
 import { BudgetAccessPolicy, type AccessActor } from '../common/policies/budget-access.policy.js';
 import { resourceNotFound } from '../common/reference-data/reference-data.errors.js';
 import type { PrismaService } from '../database/prisma.service.js';
-import { toEventData, toLocalFields } from './calendar-event.mapper.js';
+import type { PlansCalendarApplicationService } from '../plans-calendar/plans-calendar.application.service.js';
+import { toEventData, toLocalFields, toRecurringEvent } from './calendar-event.mapper.js';
+import {
+  monthsOf,
+  sortFeed,
+  type CalendarFeedEventItem,
+  type CalendarFeedItem,
+  type CalendarFeedPlanItem,
+} from './calendar-feed.js';
+import { expandOccurrences } from './calendar-recurrence.js';
 import { participantNotMember } from './calendar.errors.js';
 import { CalendarRepository, type StoredCalendarEvent } from './calendar.repository.js';
-import type { CalendarEventInput } from './calendar.schemas.js';
+import type { CalendarEventInput, CalendarFeedQuery } from './calendar.schemas.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -73,7 +82,83 @@ export class CalendarApplicationService {
     protected readonly prisma: PrismaService,
     private readonly idempotency: IdempotencyService,
     protected readonly planModelPolicy: PlanModelPolicy,
+    private readonly plansCalendar: PlansCalendarApplicationService,
   ) {}
+
+  /**
+   * Event occurrences of the window plus plan payments. Payment amounts and statuses are passed
+   * through from the plans calendar as-is; the feed computes no money.
+   */
+  async feed(
+    userId: string,
+    budgetId: string,
+    query: CalendarFeedQuery,
+  ): Promise<{ from: string; to: string; items: CalendarFeedItem[] }> {
+    const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
+    const window = { from: query.from, to: query.to };
+    const person = query.participantUserId;
+
+    const events = await this.prisma.$transaction(async (tx) => {
+      const actor = await findAccessActor(tx, model.workspaceId, userId);
+      if (!actor) throw resourceNotFound();
+      const timezone = await this.repository.budgetTimezone(tx, budgetId);
+      const rows = (await this.repository.listForWindow(tx, budgetId, window)).filter(
+        (row) =>
+          !person || row.createdByUserId === person || row.participantUserIds.includes(person),
+      );
+      const people = await this.repository.personRefs(
+        tx,
+        model.workspaceId,
+        rows.flatMap((row) => [row.createdByUserId, ...row.participantUserIds]),
+      );
+      return rows.flatMap((row) =>
+        expandOccurrences(toRecurringEvent(row, timezone), window, timezone).map(
+          (occurrence): CalendarFeedEventItem => ({
+            kind: 'EVENT',
+            eventId: row.id,
+            title: row.title,
+            allDay: row.allDay,
+            recurrence: row.recurrence,
+            ...occurrence,
+            participants: row.participantUserIds.map((id) => personRefOf(people, id)),
+            createdBy: personRefOf(people, row.createdByUserId),
+            canEdit: this.access.canEditEvent(actor, row),
+          }),
+        ),
+      );
+    });
+
+    const plans: CalendarFeedPlanItem[] = [];
+    if (query.includePlans !== false) {
+      for (const month of monthsOf(window)) {
+        const calendar = await this.plansCalendar.calendar(userId, budgetId, {
+          month,
+          ...(person ? { ownerUserId: person } : {}),
+        });
+        for (const item of calendar.items) {
+          if (item.scheduledOn < window.from || item.scheduledOn > window.to) continue;
+          if (item.status === 'CANCELLED' || item.status === 'SKIPPED') continue;
+          plans.push({
+            kind: 'PLAN',
+            occurrenceId: item.occurrenceId,
+            planId: item.planId,
+            planKind: item.kind,
+            title: item.name,
+            amountMinor: item.expectedMinor,
+            status: item.status,
+            isOverdue: item.overdue,
+            scheduledOn: item.scheduledOn,
+            owner: {
+              userId: item.owner.id,
+              displayName: item.owner.displayName,
+              isActiveMember: item.owner.isActiveMember,
+            },
+          });
+        }
+      }
+    }
+    return { from: window.from, to: window.to, items: sortFeed([...events, ...plans]) };
+  }
 
   async getEvent(userId: string, budgetId: string, eventId: string): Promise<CalendarEventView> {
     const model = await this.planModelPolicy.requireModel(userId, budgetId, 2);
