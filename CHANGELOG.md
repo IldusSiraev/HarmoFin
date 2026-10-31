@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.1](https://github.com/IldusSiraev/HarmoFin/compare/v1.13.0...v1.13.1) (2026-10-31)
+
+
+### Исправления
+
+* **deps:** node-forge 1.4.2 закрывает advisories аудита и trivy ([7a87888](https://github.com/IldusSiraev/HarmoFin/commit/7a878885eba395d090f70e53cc884704ab4a4c73))
+* **deps:** node-forge 1.4.2 закрывает advisories аудита и trivy ([d9af20f](https://github.com/IldusSiraev/HarmoFin/commit/d9af20f18df9a4dc230aec955a77de31e737ad27))
+
 ## [1.13.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.12.1...v1.13.0) (2026-10-30)
 
 
