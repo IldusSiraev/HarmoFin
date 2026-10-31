@@ -68,7 +68,7 @@ test('confirms the address from a Mailpit letter and enables email notifications
   await page.getByRole('option', { name: 'Раз в неделю' }).click();
   // Consent guard rolls back input.checked, so check() would see "state did not
   // change"; a plain click opens the dialog and the confirm sets the state.
-  await page.getByLabel('Показывать суммы в письмах').click();
+  await page.getByRole('checkbox', { name: 'Показывать суммы в письмах' }).click();
   await expect(page.getByRole('dialog', { name: 'Показывать суммы в письмах?' })).toBeVisible();
   await page.getByRole('button', { name: 'Согласен' }).click();
   await page.getByRole('button', { name: 'Сохранить' }).click();
@@ -76,7 +76,7 @@ test('confirms the address from a Mailpit letter and enables email notifications
 
   await page.reload();
   await expect(page.getByLabel('Присылать уведомления на почту')).toBeChecked();
-  await expect(page.getByLabel('Показывать суммы в письмах')).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Показывать суммы в письмах' })).toBeChecked();
 });
 
 test('the unsubscribe page changes nothing until the button is pressed', async ({ page }) => {
