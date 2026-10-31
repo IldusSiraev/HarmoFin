@@ -82,8 +82,25 @@ export class DeliverNotificationsHandler implements WorkerJobHandler {
     }
     await this.repository.prepareToken(delivery.id, hashUnsubscribeToken(token));
     await this.mailer.send({ to: facts.user!.email, ...mail });
-    await this.repository.markSent(delivery.id, now);
+    await this.markSentAfterSend(delivery.id, now);
     return 'sent';
+  }
+
+  /**
+   * The letter is already out: a failing status write must not schedule a retry, or the recipient
+   * gets a duplicate and the first letter's unsubscribe link is overwritten. One more write is
+   * tried; if that fails too, the failure is reported and the row is left to its lease.
+   */
+  private async markSentAfterSend(id: string, now: Date): Promise<void> {
+    try {
+      await this.repository.markSent(id, now);
+    } catch {
+      try {
+        await this.repository.markSent(id, now);
+      } catch (error) {
+        this.hooks.onFailure?.({ deliveryId: id, errorName: errorName(error) });
+      }
+    }
   }
 
   private async render(

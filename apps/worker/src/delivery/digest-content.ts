@@ -41,6 +41,7 @@ export async function loadDigestContent(
   const rows = await prisma.auditEvent.groupBy({
     by: ['actorUserId', 'entityType', 'action'],
     where: {
+      workspaceId: delivery.workspaceId,
       budgetId: delivery.budgetId,
       createdAt: { gte: start, lt: end },
       AND: [{ actorUserId: { not: null } }, { actorUserId: { not: delivery.userId } }],
@@ -82,6 +83,7 @@ export async function loadDigestContent(
   const today = utcToLocal(end, budget.timezone).date;
   const occurrences = await prisma.planOccurrence.findMany({
     where: {
+      workspaceId: delivery.workspaceId,
       budgetId: delivery.budgetId,
       scheduledOn: new Date(`${today}T00:00:00.000Z`),
       status: { in: ['PENDING', 'DUE'] },

@@ -54,6 +54,7 @@ export class UnsubscribeRequest {
   @ApiProperty({
     type: String,
     description: 'Токен из ссылки «Отписаться» в письме.',
+    minLength: 1,
     maxLength: 256,
   })
   token!: string;

@@ -48,6 +48,7 @@ async function submit() {
     subtitle="HarmoFin перестанет присылать уведомления на эту почту. Уведомления в приложении останутся."
     :submit-label="done ? 'Готово' : 'Отписаться'"
     :loading="loading"
+    :submit-disabled="done"
     :summary="summary"
     :summary-tone="done ? 'success' : 'error'"
     :on-submit="submit"

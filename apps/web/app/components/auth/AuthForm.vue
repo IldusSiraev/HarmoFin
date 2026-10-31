@@ -51,15 +51,17 @@ function submit(): void | Promise<void> {
         <h2 id="auth-title">{{ props.title }}</h2>
         <p class="form-subtitle">{{ props.subtitle }}</p>
         <form @submit.prevent="submit">
-          <p
-            v-if="props.summary"
-            class="form-summary"
-            :class="{ 'form-summary--success': props.summaryTone === 'success' }"
-            :role="props.summaryTone === 'success' ? undefined : 'alert'"
-            :aria-live="props.summaryTone === 'success' ? 'polite' : 'assertive'"
-          >
-            {{ props.summary }}
-          </p>
+          <!-- The live region is always in the DOM: screen readers skip regions inserted with their text. -->
+          <div aria-live="polite" aria-atomic="true">
+            <p
+              v-if="props.summary"
+              class="form-summary"
+              :class="{ 'form-summary--success': props.summaryTone === 'success' }"
+              :role="props.summaryTone === 'success' ? undefined : 'alert'"
+            >
+              {{ props.summary }}
+            </p>
+          </div>
           <slot />
           <UiButton
             class="primary-action"

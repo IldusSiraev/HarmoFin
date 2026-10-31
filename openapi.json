@@ -7048,6 +7048,7 @@
           "token": {
             "description": "Токен из ссылки «Отписаться» в письме.",
             "maxLength": 256,
+            "minLength": 1,
             "type": "string"
           }
         },

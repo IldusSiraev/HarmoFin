@@ -285,6 +285,25 @@ describe('DELIVER_NOTIFICATIONS', () => {
     expect(row).toMatchObject({ status: 'FAILED', attempts: 5, lastError: 'ECONNECTION' });
   });
 
+  it('does not retry a letter that was sent when the status write fails', async () => {
+    await enableEmail(anna);
+    const id = await queue(anna, { notificationId: await overdueNotification(anna) });
+    const repository = new DeliveryRepository(env.prisma);
+    repository.markSent = () => Promise.reject(new Error('db down'));
+    const before = sent.length;
+    const failures: string[] = [];
+    const run = new DeliverNotificationsHandler(env.prisma, repository, mailer, origin, {
+      onFailure: (failure) => failures.push(failure.deliveryId),
+    });
+    await run.execute(new Date(), anna.budgetId);
+    const row = await env.prisma.notificationDelivery.findUniqueOrThrow({ where: { id } });
+    expect(sent.length).toBe(before + 1);
+    expect(failures).toEqual([id]);
+    expect(row.status).toBe('PENDING');
+    expect(row.lastError).toBeNull();
+    expect(row.unsubscribeTokenHash).not.toBeNull();
+  });
+
   it('never hands the same letter to two concurrent runs', async () => {
     await enableEmail(anna);
     await queue(anna, { notificationId: await overdueNotification(anna) });
