@@ -6,7 +6,7 @@ import fastifyCookie from '@fastify/cookie';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyRateLimit from '@fastify/rate-limit';
 import { VersioningType } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, Reflector } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -53,7 +53,7 @@ export async function createApiApp(config: ApiConfig): Promise<NestFastifyApplic
       config.nodeEnv !== 'production',
     ),
   );
-  app.useGlobalGuards(new OriginGuard(config));
+  app.useGlobalGuards(new OriginGuard(config, app.get(Reflector)));
   registerObservabilityHooks(app.getHttpAdapter().getInstance(), app.get(MetricsRegistry), logger);
   registerMetricsRoute(app.getHttpAdapter().getInstance(), app.get(MetricsRegistry));
   app.enableShutdownHooks();
