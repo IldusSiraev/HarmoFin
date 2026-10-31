@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.14.0...v1.15.0) (2026-10-31)
+
+
+### Новое
+
+* уведомления на почту (подтверждение адреса, срочные письма, дайджест) ([a65afdc](https://github.com/IldusSiraev/HarmoFin/commit/a65afdc1fff94e5a7f431f11c49aa4ad7ceee601))
+
 ## [1.14.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.13.1...v1.14.0) (2026-10-31)
 
 
