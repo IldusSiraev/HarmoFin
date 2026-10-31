@@ -6037,6 +6037,48 @@
         "required": ["url", "expiresAt"],
         "type": "object"
       },
+      "TelegramNotificationSettingsResponse": {
+        "properties": {
+          "amountsConsentAt": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "available": {
+            "description": "Бот настроен на сервере.",
+            "type": "boolean"
+          },
+          "digestFrequency": {
+            "description": "В 08:00 по часовому поясу бюджета.",
+            "enum": ["OFF", "DAILY", "WEEKLY"],
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "includeAmounts": {
+            "type": "boolean"
+          },
+          "linked": {
+            "description": "Личный чат привязан; без этого канал не включить.",
+            "type": "boolean"
+          },
+          "urgentEnabled": {
+            "description": "Просроченный платёж и напоминание календаря.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "available",
+          "linked",
+          "enabled",
+          "urgentEnabled",
+          "digestFrequency",
+          "includeAmounts",
+          "amountsConsentAt"
+        ],
+        "type": "object"
+      },
       "TemplateAdoptedEnvelopeDto": {
         "properties": {
           "id": {
@@ -7265,6 +7307,29 @@
           }
         },
         "required": ["displayName"],
+        "type": "object"
+      },
+      "UpdateTelegramNotificationSettingsRequest": {
+        "properties": {
+          "amountsConsent": {
+            "description": "Обязательно true, когда includeAmounts включается впервые.",
+            "type": "boolean"
+          },
+          "digestFrequency": {
+            "enum": ["OFF", "DAILY", "WEEKLY"],
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "includeAmounts": {
+            "type": "boolean"
+          },
+          "urgentEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": ["enabled", "urgentEnabled", "digestFrequency", "includeAmounts"],
         "type": "object"
       },
       "UpdateTransactionV2Body": {
@@ -9998,6 +10063,126 @@
           }
         ],
         "summary": "Изменить настройки уведомлений на почту",
+        "tags": ["notification-settings"]
+      }
+    },
+    "/api/v1/me/notification-settings/telegram": {
+      "get": {
+        "description": "Настройки текущего пользователя; если не сохранялись — значения по умолчанию (выключено). available — бот настроен на сервере, linked — чат привязан. Коды: 401.",
+        "operationId": "TelegramSettingsController_get_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramNotificationSettingsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Настройки уведомлений в Telegram",
+        "tags": ["notification-settings"]
+      },
+      "put": {
+        "description": "Включить канал можно только с привязанным чатом. Включение сумм требует amountsConsent: true (своё согласие, не общее с почтой). Коды: 400 VALIDATION_FAILED, 401, 403 CSRF_INVALID, 409 TELEGRAM_NOT_LINKED, 422 AMOUNTS_CONSENT_REQUIRED.",
+        "operationId": "TelegramSettingsController_update_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTelegramNotificationSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramNotificationSettingsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Изменить настройки уведомлений в Telegram",
         "tags": ["notification-settings"]
       }
     },

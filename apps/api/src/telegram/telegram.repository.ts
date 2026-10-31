@@ -1,4 +1,4 @@
-import type { Prisma, UserStatus } from '@prisma/client';
+import type { DigestFrequency, Prisma, UserStatus } from '@prisma/client';
 
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
 import type { PrismaService } from '../database/prisma.service.js';
@@ -7,6 +7,25 @@ type Tx = Prisma.TransactionClient;
 
 export type UnlinkReason = 'web' | 'stop' | 'blocked' | 'replaced';
 export type TelegramAuditSource = 'API' | 'TELEGRAM';
+
+export type TelegramSettingValues = {
+  enabled: boolean;
+  urgentEnabled: boolean;
+  digestFrequency: DigestFrequency;
+  includeAmounts: boolean;
+  amountsConsentAt: Date | null;
+};
+
+export type StoredTelegramSetting = TelegramSettingValues & { id: string };
+
+const SETTING_SELECT = {
+  id: true,
+  enabled: true,
+  urgentEnabled: true,
+  digestFrequency: true,
+  includeAmounts: true,
+  amountsConsentAt: true,
+} as const;
 
 /**
  * Telegram link, one-time link codes and (task 4) Telegram channel settings. The chat id never
@@ -106,6 +125,26 @@ export class TelegramRepository {
       ...(entry.requestId ? { requestId: entry.requestId } : {}),
     });
     return true;
+  }
+
+  findTelegramSetting(tx: Tx, userId: string): Promise<StoredTelegramSetting | null> {
+    return tx.notificationChannelSetting.findUnique({
+      where: { userId_channel: { userId, channel: 'TELEGRAM' } },
+      select: SETTING_SELECT,
+    });
+  }
+
+  upsertTelegramSetting(
+    tx: Tx,
+    userId: string,
+    values: TelegramSettingValues,
+  ): Promise<StoredTelegramSetting> {
+    return tx.notificationChannelSetting.upsert({
+      where: { userId_channel: { userId, channel: 'TELEGRAM' } },
+      create: { id: createUuidV7(), userId, channel: 'TELEGRAM', ...values },
+      update: values,
+      select: SETTING_SELECT,
+    });
   }
 
   async audit(
