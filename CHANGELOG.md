@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.13.1...v1.14.0) (2026-10-31)
+
+
+### Новое
+
+* **web:** лента семьи, карточка на главной и счётчик в меню ([fdcfd2c](https://github.com/IldusSiraev/HarmoFin/commit/fdcfd2ce9f238dd4513653e38be572ec91826abc))
+
 ## [1.13.1](https://github.com/IldusSiraev/HarmoFin/compare/v1.13.0...v1.13.1) (2026-10-31)
 
 
