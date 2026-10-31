@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -17,6 +17,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => mocks.auth }));
+const activity = vi.hoisted(() => ({
+  unseenCount: { value: null as number | null },
+  list: vi.fn().mockResolvedValue({}),
+}));
+vi.mock('../../composables/useActivityFeed.js', () => ({ useActivityFeed: () => activity }));
 vi.mock('#imports', () => ({
   navigateTo: vi.fn(),
   useRoute: () => mocks.route,
@@ -40,6 +45,7 @@ describe('AppMobileMenu', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.route.path = '/app';
+    activity.unseenCount.value = null;
   });
 
   it('links to the calendar right after plans', () => {
@@ -58,6 +64,27 @@ describe('AppMobileMenu', () => {
     expect(
       wrapper.get('a.mobile-menu__link[href="/app/plans"]').attributes('aria-current'),
     ).toBeUndefined();
+  });
+
+  it('links to the feed with an accessible new-events count', async () => {
+    activity.unseenCount.value = 3;
+    const wrapper = mountMenu();
+    await flushPromises();
+    const link = wrapper.get('a.mobile-menu__link[href="/app/activity"]');
+    expect(link.text()).toContain('Лента');
+    expect(link.text()).toContain('3 новых события');
+    expect(activity.list).not.toHaveBeenCalled();
+  });
+
+  it('hides the feed badge for a zero or unknown count', async () => {
+    for (const count of [0, null]) {
+      activity.unseenCount.value = count;
+      const wrapper = mountMenu();
+      await flushPromises();
+      const link = wrapper.get('a.mobile-menu__link[href="/app/activity"]');
+      expect(link.find('.mobile-menu__badge').exists()).toBe(false);
+      expect(link.text()).toBe('Лента');
+    }
   });
 
   it('closes after a navigation link is followed', async () => {

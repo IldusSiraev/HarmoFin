@@ -29,6 +29,13 @@ const auth = {
 
 vi.mock('#imports', () => ({ definePageMeta: vi.fn(), navigateTo: vi.fn() }));
 vi.mock('../../composables/useAuth.js', () => ({ useAuth: () => auth }));
+vi.mock('../../components/dashboard/FamilyActivityCard.vue', () => ({
+  default: {
+    name: 'FamilyActivityCard',
+    props: ['budgetId'],
+    template: '<div data-testid="family-activity-stub" />',
+  },
+}));
 const v2Api = vi.hoisted(() => ({
   getDashboard: vi.fn(),
   listTransactions: vi.fn(),
@@ -233,6 +240,7 @@ describe('dashboard page', () => {
     expect(text).toContain('Ремонт');
     expect(text).toContain('533 002,43 ₽');
     expect(wrapper.get('[data-code="FREE_MONEY"]')).toBeTruthy();
+    expect(wrapper.find('[data-testid="family-activity-stub"]').exists()).toBe(true);
   });
 
   it('hides the unassigned row when no money is free', async () => {

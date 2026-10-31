@@ -9,6 +9,7 @@ import { accountSubtitle } from '../../components/accounts/account-type.js';
 import AvailableBudgetCard from '../../components/dashboard/AvailableBudgetCard.vue';
 import DashboardOverviewPanel from '../../components/dashboard/DashboardOverviewPanel.vue';
 import BalanceList from '../../components/dashboard/BalanceList.vue';
+import FamilyActivityCard from '../../components/dashboard/FamilyActivityCard.vue';
 import UpcomingObligations from '../../components/dashboard/UpcomingObligations.vue';
 import DashboardWarnings from '../../components/dashboard/DashboardWarnings.vue';
 import OnboardingChecklist from '../../components/dashboard/OnboardingChecklist.vue';
@@ -247,6 +248,7 @@ async function loadDashboard() {
         />
 
         <UpcomingObligations :items="dashboardV2.nearestObligations" />
+        <FamilyActivityCard v-if="activeBudget" :budget-id="activeBudget.id" />
 
         <div class="dashboard-lists-row">
           <BalanceList

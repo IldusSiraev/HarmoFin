@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue';
 import { navigateTo, useRoute } from '#imports';
 import {
+  Activity,
   BarChart3,
   Bell,
   CalendarClock,
@@ -16,8 +17,11 @@ import {
   Wallet,
 } from '@lucide/vue';
 
+import { useActiveWorkspace } from '../../composables/useActiveWorkspace.js';
+import { useActivityFeed } from '../../composables/useActivityFeed.js';
 import { useAuth } from '../../composables/useAuth.js';
 import { useColorScheme } from '../../composables/useColorScheme.js';
+import { unseenLabel } from '../activity/activity-phrases.js';
 import UiButton from '../ui/Button.vue';
 import AppAddMenu from './AppAddMenu.vue';
 import AppSidebarSection from './AppSidebarSection.vue';
@@ -28,6 +32,8 @@ defineOptions({ name: 'AppSidebar' });
 const { currentData, logout } = useAuth();
 const { resolved, toggle } = useColorScheme();
 const route = useRoute();
+const { budgetId } = useActiveWorkspace();
+const activity = useActivityFeed();
 
 // The auth middleware skips the server (it has no session to forward) and
 // resolves on the client before the app mounts, so `currentData` is already
@@ -51,6 +57,10 @@ function userEmail() {
 
 onMounted(() => {
   hydrated.value = true;
+  // One read per app load when neither the dashboard card nor the feed page has filled the count.
+  if (activity.unseenCount.value === null && budgetId.value) {
+    void activity.list(budgetId.value, { limit: 1 }).catch(() => undefined);
+  }
 });
 
 async function handleLogout() {
@@ -147,6 +157,21 @@ async function handleLogout() {
           ><BarChart3 :size="18" aria-hidden="true" />Аналитика</NuxtLink
         >
         <NuxtLink
+          to="/app/activity"
+          class="app-sidebar__link"
+          active-class="app-sidebar__link--active"
+          :aria-current="currentPage('/app/activity')"
+          ><Activity :size="18" aria-hidden="true" />Лента<template
+            v-if="hydrated && (activity.unseenCount.value ?? 0) > 0"
+            ><span class="app-sidebar__badge" aria-hidden="true">{{
+              activity.unseenCount.value
+            }}</span
+            ><span class="app-sidebar__sr"
+              >, {{ unseenLabel(activity.unseenCount.value ?? 0) }}</span
+            ></template
+          ></NuxtLink
+        >
+        <NuxtLink
           to="/app/notifications"
           class="app-sidebar__link"
           active-class="app-sidebar__link--active"
@@ -227,6 +252,7 @@ async function handleLogout() {
 
 .app-sidebar__link {
   display: flex;
+  position: relative;
   gap: var(--hf-space-3);
   align-items: center;
   min-height: 2.75rem;
@@ -257,6 +283,29 @@ async function handleLogout() {
   background: var(--hf-color-brand-soft);
   color: var(--hf-color-brand);
   font-weight: var(--hf-font-weight-semibold);
+}
+
+.app-sidebar__badge {
+  margin-left: auto;
+  min-width: 1.5rem;
+  padding: 0 var(--hf-space-1);
+  border-radius: var(--hf-radius-sm);
+  background: var(--hf-color-status-info-background);
+  color: var(--hf-color-status-info);
+  font-size: 0.75rem;
+  font-weight: var(--hf-font-weight-bold);
+  line-height: 1.5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-sidebar__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .app-sidebar__footer {
