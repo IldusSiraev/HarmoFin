@@ -64,9 +64,11 @@ test('confirms the address from a Mailpit letter and enables email notifications
   await page.getByLabel('Присылать уведомления на почту').check();
   // UiSelect is a custom combobox, selectOption() does not apply: open it and
   // pick the option, like in other specs.
-  await page.getByLabel('Дайджест событий семьи').click();
+  await page.getByRole('combobox', { name: 'Дайджест событий семьи' }).click();
   await page.getByRole('option', { name: 'Раз в неделю' }).click();
-  await page.getByLabel('Показывать суммы в письмах').check();
+  // Consent guard rolls back input.checked, so check() would see "state did not
+  // change"; a plain click opens the dialog and the confirm sets the state.
+  await page.getByLabel('Показывать суммы в письмах').click();
   await expect(page.getByRole('dialog', { name: 'Показывать суммы в письмах?' })).toBeVisible();
   await page.getByRole('button', { name: 'Согласен' }).click();
   await page.getByRole('button', { name: 'Сохранить' }).click();
