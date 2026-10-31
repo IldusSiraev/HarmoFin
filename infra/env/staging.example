@@ -29,6 +29,11 @@ SMTP_USER=<provided-at-runtime>
 SMTP_PASSWORD=<provided-at-runtime>
 MAIL_FROM=<provided-at-runtime>
 WEB_BASE_URL=https://<environment-domain>
+# Telegram bot: one bot per environment (separate bot for staging). Optional; empty disables Telegram.
+# TELEGRAM_WEBHOOK_SECRET: 32-256 characters of A-Z, a-z, 0-9, _ and - (openssl rand -hex 32).
+TELEGRAM_BOT_TOKEN=<optional-provided-at-runtime>
+TELEGRAM_BOT_USERNAME=<optional-bot-username>
+TELEGRAM_WEBHOOK_SECRET=<optional-provided-at-runtime>
 LOG_LEVEL=info
 TRUST_PROXY=true
 ERROR_REPORTING_ENDPOINT=<optional-error-reporting-endpoint>

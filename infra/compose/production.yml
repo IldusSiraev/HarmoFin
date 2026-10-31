@@ -111,6 +111,9 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:?MAIL_FROM is required}
       WEB_BASE_URL: ${WEB_BASE_URL:?WEB_BASE_URL is required}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
     expose:
       - '${API_PORT:-3001}'
     networks:
@@ -166,6 +169,7 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:?MAIL_FROM is required}
       WEB_BASE_URL: ${WEB_BASE_URL:?WEB_BASE_URL is required}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
     expose:
       - '3002'
     networks:
