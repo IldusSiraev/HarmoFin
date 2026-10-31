@@ -1,10 +1,13 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 
+import type { DeliveryChannel } from './channel-sender.js';
+
 export type ClaimedDelivery = {
   id: string;
   workspaceId: string;
   budgetId: string;
   userId: string;
+  channel: DeliveryChannel;
   kind: 'URGENT' | 'DIGEST';
   notificationId: string | null;
   digestPeriodStart: Date | null;
@@ -31,10 +34,18 @@ export class DeliveryRepository {
    * Claims due letters with SKIP LOCKED, like worker_jobs: two workers never take the same row.
    * The attempt is counted and the row is leased by pushing next_attempt_at forward. `budgetId`
    * narrows the claim to one budget, as NotificationRuleHandler does (used by tests).
+   * `channels` limits the claim to channels this worker can send; other rows wait in the queue.
    */
-  claim(limit: number, now: Date, budgetId?: string): Promise<ClaimedDelivery[]> {
+  claim(
+    limit: number,
+    now: Date,
+    budgetId?: string,
+    channels: readonly DeliveryChannel[] = ['EMAIL'],
+  ): Promise<ClaimedDelivery[]> {
     const scope = budgetId ? Prisma.sql`AND "budget_id" = ${budgetId}::uuid` : Prisma.empty;
     const leaseUntil = new Date(now.getTime() + DELIVERY_LEASE_MS);
+    if (channels.length === 0) return Promise.resolve([]);
+    const channelFilter = Prisma.join(channels.map((channel) => Prisma.sql`${channel}`));
     return this.prisma.$transaction(
       (tx) =>
         tx.$queryRaw<ClaimedDelivery[]>`
@@ -42,7 +53,7 @@ export class DeliveryRepository {
           SELECT "id"
           FROM "notification_deliveries"
           WHERE "status" = 'PENDING'
-            AND "channel" = 'EMAIL'
+            AND "channel"::text IN (${channelFilter})
             AND "next_attempt_at" <= ${now}
             ${scope}
           ORDER BY "next_attempt_at" ASC, "id" ASC
@@ -61,6 +72,7 @@ export class DeliveryRepository {
           delivery."workspace_id" AS "workspaceId",
           delivery."budget_id" AS "budgetId",
           delivery."user_id" AS "userId",
+          delivery."channel"::text AS "channel",
           delivery."kind"::text AS "kind",
           delivery."notification_id" AS "notificationId",
           delivery."digest_period_start" AS "digestPeriodStart",
@@ -104,5 +116,20 @@ export class DeliveryRepository {
           : { nextAttemptAt: new Date(now.getTime() + delay), lastError: error.slice(0, 200) },
     });
     return delay === null;
+  }
+
+  /** Moves the next attempt to `at` and gives back the attempt the claim counted. */
+  async postpone(id: string, at: Date, error: string): Promise<void> {
+    await this.prisma.notificationDelivery.updateMany({
+      where: { id, status: 'PENDING' },
+      data: { nextAttemptAt: at, attempts: { decrement: 1 }, lastError: error.slice(0, 200) },
+    });
+  }
+
+  async fail(id: string, error: string): Promise<void> {
+    await this.prisma.notificationDelivery.updateMany({
+      where: { id, status: 'PENDING' },
+      data: { status: 'FAILED', lastError: error.slice(0, 200) },
+    });
   }
 }

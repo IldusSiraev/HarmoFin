@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { DeliveryRepository } from '../../worker/src/delivery/delivery.repository.js';
 import { DeliverNotificationsHandler } from '../../worker/src/delivery/deliver.handler.js';
+import { EmailSender } from '../../worker/src/delivery/email-sender.js';
 import type { MailMessage } from '../../worker/src/mail/mailer.js';
 import { FamilyTestApp, type FamilyActor } from './helpers/family-app.js';
 
@@ -15,8 +16,12 @@ let anna: FamilyActor;
 let boris: FamilyActor;
 let stranger: FamilyActor;
 
-const handler = () =>
-  new DeliverNotificationsHandler(env.prisma, new DeliveryRepository(env.prisma), mailer, origin);
+const handler = () => {
+  const repository = new DeliveryRepository(env.prisma);
+  return new DeliverNotificationsHandler(env.prisma, repository, {
+    EMAIL: new EmailSender(env.prisma, repository, mailer, origin),
+  });
+};
 
 async function enableEmail(actor: FamilyActor, includeAmounts = false) {
   await env.prisma.user.update({
@@ -266,14 +271,18 @@ describe('DELIVER_NOTIFICATIONS', () => {
   it('retries a failing letter and gives up after five attempts', async () => {
     await enableEmail(anna);
     const id = await queue(anna, { notificationId: await overdueNotification(anna) });
-    const broken = new DeliverNotificationsHandler(
-      env.prisma,
-      new DeliveryRepository(env.prisma),
-      {
-        send: async () => Promise.reject(Object.assign(new Error('down'), { code: 'ECONNECTION' })),
-      },
-      origin,
-    );
+    const brokenRepository = new DeliveryRepository(env.prisma);
+    const broken = new DeliverNotificationsHandler(env.prisma, brokenRepository, {
+      EMAIL: new EmailSender(
+        env.prisma,
+        brokenRepository,
+        {
+          send: async () =>
+            Promise.reject(Object.assign(new Error('down'), { code: 'ECONNECTION' })),
+        },
+        origin,
+      ),
+    });
     for (let attempt = 1; attempt <= 5; attempt += 1) {
       await env.prisma.notificationDelivery.update({
         where: { id },
@@ -292,9 +301,12 @@ describe('DELIVER_NOTIFICATIONS', () => {
     repository.markSent = () => Promise.reject(new Error('db down'));
     const before = sent.length;
     const failures: string[] = [];
-    const run = new DeliverNotificationsHandler(env.prisma, repository, mailer, origin, {
-      onFailure: (failure) => failures.push(failure.deliveryId),
-    });
+    const run = new DeliverNotificationsHandler(
+      env.prisma,
+      repository,
+      { EMAIL: new EmailSender(env.prisma, repository, mailer, origin) },
+      { onFailure: (failure) => failures.push(failure.deliveryId) },
+    );
     await run.execute(new Date(), anna.budgetId);
     const row = await env.prisma.notificationDelivery.findUniqueOrThrow({ where: { id } });
     expect(sent.length).toBe(before + 1);

@@ -3,28 +3,42 @@ import { randomUUID } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 
 import type { WorkerJobHandler } from '../job-runner.js';
+import type { DeliveryChannel } from './channel-sender.js';
 import { digestDedupeKey, digestSlot, digestWindowStart } from './digest-schedule.js';
 
 export const DELIVERY_RETENTION_MS = 90 * 86_400_000;
 
 /**
- * Queues one digest per user and budget per slot. The unique dedupe key makes reruns and overlapping
+ * Queues one digest per user, budget and channel per slot. The unique dedupe key makes reruns and overlapping
  * runs no-ops. Only the window is stored; the content is built when the letter is sent. Also drops
  * finished queue rows older than 90 days (their unsubscribe links expire with them). `budgetId`
  * narrows the run to one budget (tests); the cleanup then runs for that budget only.
  */
 export class BuildEmailDigestsHandler implements WorkerJobHandler {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly channels: readonly DeliveryChannel[] = ['EMAIL'],
+  ) {}
 
   async execute(now: Date, budgetId?: string): Promise<void> {
+    const reachable = {
+      EMAIL: {
+        channel: 'EMAIL' as const,
+        user: { status: 'ACTIVE' as const, emailVerifiedAt: { not: null } },
+      },
+      TELEGRAM: {
+        channel: 'TELEGRAM' as const,
+        user: { status: 'ACTIVE' as const, telegramLink: { isNot: null } },
+      },
+    };
+    if (this.channels.length === 0) return;
     const settings = await this.prisma.notificationChannelSetting.findMany({
       where: {
-        channel: 'EMAIL',
         enabled: true,
         digestFrequency: { not: 'OFF' },
-        user: { status: 'ACTIVE', emailVerifiedAt: { not: null } },
+        OR: this.channels.map((channel) => reachable[channel]),
       },
-      select: { userId: true, digestFrequency: true },
+      select: { userId: true, channel: true, digestFrequency: true },
     });
 
     for (const setting of settings) {
@@ -55,6 +69,7 @@ export class BuildEmailDigestsHandler implements WorkerJobHandler {
             where: {
               userId: setting.userId,
               budgetId: budget.id,
+              channel: setting.channel,
               kind: 'DIGEST',
               status: { in: ['SENT', 'CANCELLED'] },
             },
@@ -67,7 +82,7 @@ export class BuildEmailDigestsHandler implements WorkerJobHandler {
               workspaceId: membership.workspaceId,
               budgetId: budget.id,
               userId: setting.userId,
-              channel: 'EMAIL',
+              channel: setting.channel,
               kind: 'DIGEST',
               digestPeriodStart: digestWindowStart(
                 now,

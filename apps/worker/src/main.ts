@@ -15,6 +15,7 @@ import { AccountPurgeHandler } from './account-purge.handler.js';
 import { DeliverNotificationsHandler } from './delivery/deliver.handler.js';
 import { BuildEmailDigestsHandler } from './delivery/build-digests.handler.js';
 import { DeliveryRepository } from './delivery/delivery.repository.js';
+import { EmailSender } from './delivery/email-sender.js';
 import { SmtpMailer } from './mail/mailer.js';
 import { WorkerRuntime } from './runtime.js';
 
@@ -32,8 +33,14 @@ const mailHandlers = config.mail
       DELIVER_NOTIFICATIONS: new DeliverNotificationsHandler(
         database,
         new DeliveryRepository(database),
-        new SmtpMailer(config.mail),
-        config.mail.webBaseUrl,
+        {
+          EMAIL: new EmailSender(
+            database,
+            new DeliveryRepository(database),
+            new SmtpMailer(config.mail),
+            config.mail.webBaseUrl,
+          ),
+        },
         {
           onOutcome: (kind, outcome) => metrics.recordDelivery(kind, outcome),
           onFailure: (failure) => {

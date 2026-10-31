@@ -301,7 +301,9 @@ describe('NotificationRuleHandler', () => {
   it('queues an urgent letter for a new overdue notification only', async () => {
     const tx = makeTx({
       notificationChannelSetting: {
-        findUnique: vi.fn().mockResolvedValue({ enabled: true, urgentEnabled: true }),
+        findUnique: vi.fn(async ({ where }: { where: { userId_channel: { channel: string } } }) =>
+          where.userId_channel.channel === 'EMAIL' ? { enabled: true, urgentEnabled: true } : null,
+        ),
       },
       notificationDelivery: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
     });

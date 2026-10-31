@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
 
 import { expandOccurrences, type RecurringEvent } from './calendar-recurrence.js';
-import { enqueueUrgentEmail } from './delivery/enqueue.js';
+import { enqueueUrgent } from './delivery/enqueue.js';
 import type { WorkerJobHandler } from './job-runner.js';
 import {
   isReminderDue,
@@ -194,7 +194,7 @@ export class CalendarReminderHandler implements WorkerJobHandler {
       skipDuplicates: true,
     });
     if (result.count !== 1) return;
-    await enqueueUrgentEmail(tx, {
+    await enqueueUrgent(tx, {
       notificationId,
       workspaceId: event.workspaceId,
       budgetId: event.budgetId,

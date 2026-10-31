@@ -8,6 +8,7 @@ const ok: DeliveryFacts = {
   activeMember: true,
   budgetActive: true,
   notification: { resolvedAt: null, readAt: null },
+  telegramLinked: false,
 };
 
 describe('cancelReason', () => {
@@ -36,5 +37,13 @@ describe('cancelReason', () => {
     expect(
       cancelReason('DIGEST', { ...ok, setting: { ...ok.setting!, urgentEnabled: false } }),
     ).toBeNull();
+  });
+
+  it('checks the address only for email and the link only for telegram', () => {
+    const unverified = { ...ok, user: { ...ok.user!, emailVerifiedAt: null } };
+    expect(cancelReason('DIGEST', unverified, 'TELEGRAM')).toBe('TELEGRAM_NOT_LINKED');
+    expect(cancelReason('DIGEST', { ...unverified, telegramLinked: true }, 'TELEGRAM')).toBeNull();
+    expect(cancelReason('DIGEST', { ...ok, telegramLinked: true }, 'EMAIL')).toBeNull();
+    expect(cancelReason('DIGEST', unverified, 'EMAIL')).toBe('EMAIL_NOT_VERIFIED');
   });
 });

@@ -1,27 +1,19 @@
-import { createHash, randomBytes } from 'node:crypto';
-
 import type { PrismaClient } from '@prisma/client';
 
 import type { WorkerJobHandler } from '../job-runner.js';
-import type { Mailer } from '../mail/mailer.js';
 import {
-  renderDigest,
-  renderUrgent,
-  type MailLinks,
-  type RenderedMail,
-} from '../mail/templates.js';
+  PermanentSendError,
+  RetryLaterError,
+  type ChannelSenders,
+  type DeliveryChannel,
+} from './channel-sender.js';
 import type { ClaimedDelivery, DeliveryRepository } from './delivery.repository.js';
-import { loadDigestContent } from './digest-content.js';
 import { cancelReason, loadDeliveryFacts } from './eligibility.js';
-import { loadUrgentContent } from './urgent-content.js';
+
+export { hashUnsubscribeToken } from './email-sender.js';
 
 export type DeliveryOutcome = 'sent' | 'cancelled' | 'retried' | 'failed';
 export type DeliveryFailure = { deliveryId: string; errorName: string };
-
-/** Same digest as apps/api/src/notification-settings/unsubscribe-token.ts. */
-export function hashUnsubscribeToken(rawToken: string): string {
-  return createHash('sha256').update(rawToken).digest('hex');
-}
 
 function errorName(error: unknown): string {
   const code = (error as { code?: unknown } | null)?.code;
@@ -30,66 +22,85 @@ function errorName(error: unknown): string {
 }
 
 /**
- * Sends the email outbox. Every letter is re-checked right before sending, its text (and amounts,
- * only with consent) is built at that moment and never stored. A failure of one letter schedules a
- * retry for that letter only and the run moves on; the job itself completes. Only the delivery id
- * and the error class reach logs.
+ * Sends the outbox through the sender of each row's channel. Only channels with a configured sender
+ * are claimed. Every message is re-checked right before sending; its text (and amounts, only with
+ * consent) is built at that moment and never stored. A failure of one message schedules a retry for
+ * that message only and the run moves on. Only the delivery id and the error class reach logs.
  */
 export class DeliverNotificationsHandler implements WorkerJobHandler {
+  private readonly channels: DeliveryChannel[];
+
   constructor(
     private readonly prisma: PrismaClient,
     private readonly repository: DeliveryRepository,
-    private readonly mailer: Mailer,
-    private readonly webBaseUrl: string,
+    private readonly senders: ChannelSenders,
     private readonly hooks: {
       onOutcome?: (kind: string, outcome: DeliveryOutcome) => void;
       onFailure?: (failure: DeliveryFailure) => void;
     } = {},
     private readonly batchSize = 20,
-  ) {}
+  ) {
+    this.channels = (['EMAIL', 'TELEGRAM'] as const).filter((channel) => senders[channel]);
+  }
 
   async execute(now: Date, budgetId?: string): Promise<void> {
-    const batch = await this.repository.claim(this.batchSize, now, budgetId);
+    if (this.channels.length === 0) return;
+    const batch = await this.repository.claim(this.batchSize, now, budgetId, this.channels);
     for (const delivery of batch) {
       try {
         const outcome = await this.deliver(delivery, now);
         this.hooks.onOutcome?.(delivery.kind, outcome);
       } catch (error) {
-        const name = errorName(error);
-        const failed = await this.repository.retryOrFail(delivery.id, delivery.attempts, now, name);
-        this.hooks.onOutcome?.(delivery.kind, failed ? 'failed' : 'retried');
-        this.hooks.onFailure?.({ deliveryId: delivery.id, errorName: name });
+        const outcome = await this.handleError(delivery, error, now);
+        this.hooks.onOutcome?.(delivery.kind, outcome);
       }
     }
   }
 
   private async deliver(delivery: ClaimedDelivery, now: Date): Promise<'sent' | 'cancelled'> {
+    const sender = this.senders[delivery.channel];
+    if (!sender) {
+      await this.repository.cancel(delivery.id, 'CHANNEL_UNAVAILABLE');
+      return 'cancelled';
+    }
     const facts = await loadDeliveryFacts(this.prisma, delivery);
-    const reason = cancelReason(delivery.kind, facts);
+    const reason = cancelReason(delivery.kind, facts, delivery.channel);
     if (reason) {
       await this.repository.cancel(delivery.id, reason);
       return 'cancelled';
     }
-    const token = randomBytes(32).toString('base64url');
-    const links: MailLinks = { webBaseUrl: this.webBaseUrl, unsubscribeToken: token };
-    const mail = await this.render(delivery, facts.setting!.includeAmounts, links);
-    if (!mail) {
-      await this.repository.cancel(
-        delivery.id,
-        delivery.kind === 'DIGEST' ? 'DIGEST_EMPTY' : 'NOTIFICATION_MISSING',
-      );
+    const result = await sender.send(delivery, facts, now);
+    if (result.outcome === 'cancelled') {
+      await this.repository.cancel(delivery.id, result.reason);
       return 'cancelled';
     }
-    await this.repository.prepareToken(delivery.id, hashUnsubscribeToken(token));
-    await this.mailer.send({ to: facts.user!.email, ...mail });
     await this.markSentAfterSend(delivery.id, now);
     return 'sent';
   }
 
+  private async handleError(
+    delivery: ClaimedDelivery,
+    error: unknown,
+    now: Date,
+  ): Promise<DeliveryOutcome> {
+    const name = errorName(error);
+    if (error instanceof RetryLaterError) {
+      await this.repository.postpone(delivery.id, error.retryAt, name);
+      return 'retried';
+    }
+    this.hooks.onFailure?.({ deliveryId: delivery.id, errorName: name });
+    if (error instanceof PermanentSendError) {
+      await this.repository.fail(delivery.id, name);
+      return 'failed';
+    }
+    const failed = await this.repository.retryOrFail(delivery.id, delivery.attempts, now, name);
+    return failed ? 'failed' : 'retried';
+  }
+
   /**
-   * The letter is already out: a failing status write must not schedule a retry, or the recipient
-   * gets a duplicate and the first letter's unsubscribe link is overwritten. One more write is
-   * tried; if that fails too, the failure is reported and the row is left to its lease.
+   * The message is already out: a failing status write must not schedule a retry, or the recipient
+   * gets a duplicate (and for email the first letter's unsubscribe link is overwritten). One more
+   * write is tried; if that fails too, the failure is reported and the row is left to its lease.
    */
   private async markSentAfterSend(id: string, now: Date): Promise<void> {
     try {
@@ -101,18 +112,5 @@ export class DeliverNotificationsHandler implements WorkerJobHandler {
         this.hooks.onFailure?.({ deliveryId: id, errorName: errorName(error) });
       }
     }
-  }
-
-  private async render(
-    delivery: ClaimedDelivery,
-    includeAmounts: boolean,
-    links: MailLinks,
-  ): Promise<RenderedMail | null> {
-    if (delivery.kind === 'URGENT') {
-      const content = await loadUrgentContent(this.prisma, delivery, includeAmounts);
-      return content ? renderUrgent(content, links) : null;
-    }
-    const content = await loadDigestContent(this.prisma, delivery, includeAmounts);
-    return content ? renderDigest(content, links) : null;
   }
 }
