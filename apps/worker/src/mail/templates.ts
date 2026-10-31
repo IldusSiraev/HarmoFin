@@ -1,7 +1,8 @@
 import { escapeHtml, pluralRu } from './format.js';
 import type { MailMessage } from './mailer.js';
 
-export type DigestGroup = 'operations' | 'transfers' | 'envelopes' | 'plans' | 'calendar' | 'family';
+export type DigestGroup =
+  'operations' | 'transfers' | 'envelopes' | 'plans' | 'calendar' | 'family';
 export type DigestPerson = { name: string; counts: Partial<Record<DigestGroup, number>> };
 export type DigestPayment = { name: string; amount: string | null };
 export type DigestContent = {

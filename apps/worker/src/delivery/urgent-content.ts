@@ -14,7 +14,10 @@ type UrgentSource = {
 };
 
 /** Only the title, body and date the in-app notification already shows; the amount only with consent. */
-export function urgentContentOf(source: UrgentSource, includeAmounts: boolean): UrgentContent | null {
+export function urgentContentOf(
+  source: UrgentSource,
+  includeAmounts: boolean,
+): UrgentContent | null {
   const actionPath = source.actionPath ?? '/app/notifications';
   if (source.notificationType === 'PLAN_OVERDUE') {
     const name = source.occurrence?.planName ?? source.title;

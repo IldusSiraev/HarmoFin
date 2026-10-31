@@ -12,9 +12,11 @@ export function personName(displayName: string | null, isActiveMember: boolean):
 }
 
 export function dayLabel(instant: Date, timezone: string): string {
-  return new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', timeZone: timezone }).format(
-    instant,
-  );
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    timeZone: timezone,
+  }).format(instant);
 }
 
 /**
@@ -57,7 +59,10 @@ export async function loadDigestContent(
   }
   const actorIds = [...counts.keys()];
   const [users, members] = await Promise.all([
-    prisma.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, displayName: true } }),
+    prisma.user.findMany({
+      where: { id: { in: actorIds } },
+      select: { id: true, displayName: true },
+    }),
     prisma.workspaceMembership.findMany({
       where: { workspaceId: delivery.workspaceId, userId: { in: actorIds }, isActive: true },
       select: { userId: true },
@@ -68,7 +73,10 @@ export async function loadDigestContent(
   const total = (value: Partial<Record<DigestGroup, number>>) =>
     Object.values(value).reduce((sum, count) => sum + (count ?? 0), 0);
   const people: DigestPerson[] = actorIds
-    .map((id) => ({ name: personName(names.get(id) ?? null, active.has(id)), counts: counts.get(id)! }))
+    .map((id) => ({
+      name: personName(names.get(id) ?? null, active.has(id)),
+      counts: counts.get(id)!,
+    }))
     .sort((a, b) => total(b.counts) - total(a.counts) || a.name.localeCompare(b.name, 'ru'));
 
   const today = utcToLocal(end, budget.timezone).date;

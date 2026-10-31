@@ -30,6 +30,8 @@ describe('pluralRu', () => {
 
 describe('escapeHtml', () => {
   it('escapes markup characters', () => {
-    expect(escapeHtml(`<b a="1">'&'</b>`)).toBe('&lt;b a=&quot;1&quot;&gt;&#39;&amp;&#39;&lt;/b&gt;');
+    expect(escapeHtml(`<b a="1">'&'</b>`)).toBe(
+      '&lt;b a=&quot;1&quot;&gt;&#39;&amp;&#39;&lt;/b&gt;',
+    );
   });
 });

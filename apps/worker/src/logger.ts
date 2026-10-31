@@ -63,7 +63,10 @@ class PinoWorkerLogger implements WorkerEventLogger {
   }
 
   deliveryFailure(fields: { deliveryId: string; errorName: string }): void {
-    this.logger.error({ event: 'notification_delivery_failure', ...fields }, 'Letter delivery failed');
+    this.logger.error(
+      { event: 'notification_delivery_failure', ...fields },
+      'Letter delivery failed',
+    );
   }
 
   mailDisabled(): void {

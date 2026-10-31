@@ -207,7 +207,12 @@ describe('DELIVER_NOTIFICATIONS', () => {
   it('builds a digest from others actions only, inside the budget and the window', async () => {
     await enableEmail(anna);
     const start = new Date(Date.now() - 3_600_000);
-    const audit = (actor: FamilyActor | null, budget: FamilyActor, at: Date, entityType = 'transaction') =>
+    const audit = (
+      actor: FamilyActor | null,
+      budget: FamilyActor,
+      at: Date,
+      entityType = 'transaction',
+    ) =>
       env.prisma.auditEvent.create({
         data: {
           id: randomUUID(),
@@ -264,7 +269,9 @@ describe('DELIVER_NOTIFICATIONS', () => {
     const broken = new DeliverNotificationsHandler(
       env.prisma,
       new DeliveryRepository(env.prisma),
-      { send: async () => Promise.reject(Object.assign(new Error('down'), { code: 'ECONNECTION' })) },
+      {
+        send: async () => Promise.reject(Object.assign(new Error('down'), { code: 'ECONNECTION' })),
+      },
       origin,
     );
     for (let attempt = 1; attempt <= 5; attempt += 1) {

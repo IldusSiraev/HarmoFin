@@ -89,7 +89,9 @@ describe('BUILD_EMAIL_DIGESTS', () => {
     });
     const tuesday = new Date('2026-11-03T08:30:00.000Z');
     await new BuildEmailDigestsHandler(env.prisma).execute(tuesday, anna.budgetId);
-    const second = (await digests(anna)).find((row) => row.dedupeKey === 'digest:DAILY:2026-11-03')!;
+    const second = (await digests(anna)).find(
+      (row) => row.dedupeKey === 'digest:DAILY:2026-11-03',
+    )!;
     expect(second.digestPeriodStart).toEqual(first!.digestPeriodEnd);
   });
 
