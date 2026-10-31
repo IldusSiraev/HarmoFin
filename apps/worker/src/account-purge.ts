@@ -54,6 +54,8 @@ export const USER_OWNED_TABLES = [
   'notification_channel_settings',
   'email_verification_tokens',
   'notification_deliveries',
+  'telegram_links',
+  'telegram_link_codes',
 ] as const;
 
 /**
@@ -162,6 +164,8 @@ export async function purgeUserData(tx: Prisma.TransactionClient, userId: string
   await tx.$executeRaw`DELETE FROM "notification_deliveries" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "notification_channel_settings" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "email_verification_tokens" WHERE "user_id" = ${userId}::uuid`;
+  await tx.$executeRaw`DELETE FROM "telegram_links" WHERE "user_id" = ${userId}::uuid`;
+  await tx.$executeRaw`DELETE FROM "telegram_link_codes" WHERE "user_id" = ${userId}::uuid`;
   // An invitation this user accepted into another owner's workspace stores their old email as PII;
   // the row itself (inviter's history) is retained, but the email is anonymized. PENDING/REVOKED/
   // EXPIRED invitations in other workspaces are the inviter's own data and are left untouched.
