@@ -212,6 +212,7 @@ export class FamilyTestApp {
       })
     ).map((budget) => budget.id);
     const byBudget = { budgetId: { in: budgetIds } };
+    await this.prisma.notificationDelivery.deleteMany({ where: { workspaceId: { in: ids } } });
     await this.prisma.activityFeedCursor.deleteMany({ where: byBudget });
     await this.prisma.notification.deleteMany({ where: { workspaceId: { in: ids } } });
     await this.prisma.idempotencyRecord.deleteMany({ where: byBudget });
@@ -238,6 +239,9 @@ export class FamilyTestApp {
     await this.prisma.category.deleteMany({ where: byBudget });
     await this.prisma.budget.deleteMany({ where: { id: { in: budgetIds } } });
     for (const userId of this.userIds) {
+      await this.prisma.notificationDelivery.deleteMany({ where: { userId } });
+      await this.prisma.notificationChannelSetting.deleteMany({ where: { userId } });
+      await this.prisma.emailVerificationToken.deleteMany({ where: { userId } });
       await this.prisma.session.deleteMany({ where: { userId } });
       await this.prisma.recoveryToken.deleteMany({ where: { userId } });
       await this.prisma.userConsent.deleteMany({ where: { userId } });

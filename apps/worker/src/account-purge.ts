@@ -10,6 +10,7 @@ export const BUDGET_TABLES_IN_DELETE_ORDER = [
   'plan_payments',
   'calendar_event_participants',
   'calendar_events',
+  'notification_deliveries',
   'notifications',
   'envelope_assignments',
   'envelope_movements',
@@ -33,6 +34,7 @@ export const BUDGET_SCOPE_EXTRA_TABLES = ['categories', 'accounts'] as const;
 
 /** Owned-workspace scope: deleted by workspace_id for the workspaces this user owns. */
 export const WORKSPACE_SCOPE_TABLES = [
+  'notification_deliveries',
   'notifications',
   'audit_events',
   'workspace_invitations',
@@ -49,6 +51,9 @@ export const USER_OWNED_TABLES = [
   'workspace_memberships',
   'user_consents',
   'activity_feed_cursors',
+  'notification_channel_settings',
+  'email_verification_tokens',
+  'notification_deliveries',
 ] as const;
 
 /**
@@ -132,6 +137,7 @@ export async function purgeUserData(tx: Prisma.TransactionClient, userId: string
   }
 
   if (workspaceIds.length > 0) {
+    await tx.$executeRaw`DELETE FROM "notification_deliveries" WHERE "workspace_id" = ANY(${workspaceIds}::uuid[])`;
     await tx.$executeRaw`DELETE FROM "notifications" WHERE "workspace_id" = ANY(${workspaceIds}::uuid[])`;
     await tx.$executeRaw`DELETE FROM "audit_events" WHERE "workspace_id" = ANY(${workspaceIds}::uuid[])`;
     await tx.$executeRaw`DELETE FROM "workspace_invitations" WHERE "workspace_id" = ANY(${workspaceIds}::uuid[])`;
@@ -152,6 +158,10 @@ export async function purgeUserData(tx: Prisma.TransactionClient, userId: string
   await tx.$executeRaw`DELETE FROM "user_consents" WHERE "user_id" = ${userId}::uuid`;
   // The user's own "seen" markers in other families' feeds: personal state, not shared history.
   await tx.$executeRaw`DELETE FROM "activity_feed_cursors" WHERE "user_id" = ${userId}::uuid`;
+  // The user's own mail queue and email settings: personal state, never shared history.
+  await tx.$executeRaw`DELETE FROM "notification_deliveries" WHERE "user_id" = ${userId}::uuid`;
+  await tx.$executeRaw`DELETE FROM "notification_channel_settings" WHERE "user_id" = ${userId}::uuid`;
+  await tx.$executeRaw`DELETE FROM "email_verification_tokens" WHERE "user_id" = ${userId}::uuid`;
   // An invitation this user accepted into another owner's workspace stores their old email as PII;
   // the row itself (inviter's history) is retained, but the email is anonymized. PENDING/REVOKED/
   // EXPIRED invitations in other workspaces are the inviter's own data and are left untouched.
