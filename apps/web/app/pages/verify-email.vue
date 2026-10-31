@@ -49,6 +49,7 @@ async function submit() {
     :submit-label="confirmed ? 'Перейти к настройкам' : 'Подтвердить'"
     :loading="loading"
     :summary="summary"
+    :summary-tone="confirmed ? 'success' : 'error'"
     :on-submit="submit"
   >
     <template #footer>

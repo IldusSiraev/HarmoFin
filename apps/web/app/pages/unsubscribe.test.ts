@@ -15,9 +15,9 @@ import UnsubscribePage from './unsubscribe.vue';
 const stubs = {
   NuxtLink: { template: '<a><slot /></a>' },
   AuthForm: {
-    props: ['title', 'subtitle', 'submitLabel', 'onSubmit', 'summary'],
+    props: ['title', 'subtitle', 'submitLabel', 'onSubmit', 'summary', 'summaryTone'],
     template:
-      '<main><h1>{{ title }}</h1><p role="status">{{ summary }}</p><form @submit.prevent="onSubmit()"><button type="submit">{{ submitLabel }}</button></form><slot name="footer" /></main>',
+      '<main><h1>{{ title }}</h1><p role="status" :data-tone="summaryTone || \'error\'">{{ summary }}</p><form @submit.prevent="onSubmit()"><button type="submit">{{ submitLabel }}</button></form><slot name="footer" /></main>',
   },
 };
 
@@ -41,6 +41,7 @@ describe('unsubscribe page', () => {
     await flushPromises();
     expect(mocks.unsubscribe).toHaveBeenCalledWith('raw-token');
     expect(wrapper.text()).toContain('Письма больше не будут приходить.');
+    expect(wrapper.get('p[role="status"]').attributes('data-tone')).toBe('success');
     expect(wrapper.text()).toContain('Включить снова можно в настройках');
   });
 
@@ -50,6 +51,7 @@ describe('unsubscribe page', () => {
     await wrapper.get('form').trigger('submit');
     await flushPromises();
     expect(mocks.unsubscribe).not.toHaveBeenCalled();
+    expect(wrapper.get('p[role="status"]').attributes('data-tone')).toBe('error');
     expect(wrapper.text()).toContain('Ссылка недействительна или устарела.');
   });
 });

@@ -18,9 +18,9 @@ import VerifyEmailPage from './verify-email.vue';
 const stubs = {
   NuxtLink: { template: '<a><slot /></a>' },
   AuthForm: {
-    props: ['title', 'subtitle', 'submitLabel', 'onSubmit', 'summary'],
+    props: ['title', 'subtitle', 'submitLabel', 'onSubmit', 'summary', 'summaryTone'],
     template:
-      '<main><h1>{{ title }}</h1><p role="status">{{ summary }}</p><form @submit.prevent="onSubmit()"><button type="submit">{{ submitLabel }}</button></form><slot name="footer" /></main>',
+      '<main><h1>{{ title }}</h1><p role="status" :data-tone="summaryTone || \'error\'">{{ summary }}</p><form @submit.prevent="onSubmit()"><button type="submit">{{ submitLabel }}</button></form><slot name="footer" /></main>',
   },
 };
 
@@ -45,6 +45,7 @@ describe('verify email page', () => {
     await flushPromises();
     expect(mocks.confirmEmailVerification).toHaveBeenCalledWith('raw-token');
     expect(wrapper.text()).toContain('Почта подтверждена.');
+    expect(wrapper.get('p[role="status"]').attributes('data-tone')).toBe('success');
     expect(wrapper.get('button').text()).toBe('Перейти к настройкам');
 
     await wrapper.get('form').trigger('submit');
@@ -63,6 +64,7 @@ describe('verify email page', () => {
     await wrapper.get('form').trigger('submit');
     await flushPromises();
     expect(wrapper.text()).toContain('Запросите новую в настройках');
+    expect(wrapper.get('p[role="status"]').attributes('data-tone')).toBe('error');
   });
 
   it('reports a link without a token without calling the API', async () => {
@@ -71,6 +73,7 @@ describe('verify email page', () => {
     await wrapper.get('form').trigger('submit');
     await flushPromises();
     expect(mocks.confirmEmailVerification).not.toHaveBeenCalled();
+    expect(wrapper.get('p[role="status"]').attributes('data-tone')).toBe('error');
     expect(wrapper.text()).toContain('Ссылка недействительна или устарела.');
   });
 });

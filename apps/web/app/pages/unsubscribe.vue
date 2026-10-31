@@ -49,6 +49,7 @@ async function submit() {
     :submit-label="done ? 'Готово' : 'Отписаться'"
     :loading="loading"
     :summary="summary"
+    :summary-tone="done ? 'success' : 'error'"
     :on-submit="submit"
   >
     <template #footer>

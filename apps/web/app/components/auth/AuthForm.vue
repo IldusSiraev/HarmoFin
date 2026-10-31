@@ -3,17 +3,21 @@ import { onMounted, ref } from 'vue';
 
 import UiButton from '../ui/Button.vue';
 
-const props = defineProps<{
-  title: string;
-  subtitle: string;
-  submitLabel: string;
-  loadingLabel?: string | undefined;
-  onSubmit: () => void | Promise<void>;
-  loading?: boolean;
-  summary?: string;
-  submitDisabled?: boolean;
-  submitDescribedBy?: string | undefined;
-}>();
+const props = withDefaults(
+  defineProps<{
+    title: string;
+    subtitle: string;
+    submitLabel: string;
+    loadingLabel?: string | undefined;
+    onSubmit: () => void | Promise<void>;
+    loading?: boolean;
+    summary?: string;
+    summaryTone?: 'error' | 'success';
+    submitDisabled?: boolean;
+    submitDescribedBy?: string | undefined;
+  }>(),
+  { summaryTone: 'error' },
+);
 
 const hydrated = ref(false);
 
@@ -47,7 +51,13 @@ function submit(): void | Promise<void> {
         <h2 id="auth-title">{{ props.title }}</h2>
         <p class="form-subtitle">{{ props.subtitle }}</p>
         <form @submit.prevent="submit">
-          <p v-if="props.summary" class="form-summary" role="alert" aria-live="assertive">
+          <p
+            v-if="props.summary"
+            class="form-summary"
+            :class="{ 'form-summary--success': props.summaryTone === 'success' }"
+            :role="props.summaryTone === 'success' ? undefined : 'alert'"
+            :aria-live="props.summaryTone === 'success' ? 'polite' : 'assertive'"
+          >
             {{ props.summary }}
           </p>
           <slot />
@@ -200,6 +210,14 @@ h2 {
   border-left: 3px solid var(--hf-color-action-danger);
   background: var(--hf-color-status-danger-background);
   font-size: 0.9rem;
+}
+
+/* Success summary: red is reserved for danger, so confirmations use the
+   success tokens instead of the danger defaults above. */
+.form-summary--success {
+  color: var(--hf-color-text-success);
+  border-left-color: var(--hf-color-status-success);
+  background: var(--hf-color-status-success-background);
 }
 
 /* UiButton renders its own root (tooltip wrapper), so the class lands below
