@@ -100,9 +100,25 @@ describe('BUILD_EMAIL_DIGESTS', () => {
     await env.prisma.notificationChannelSetting.create({
       data: { id: randomUUID(), userId: dave.user.id, channel: 'EMAIL', enabled: true },
     });
+    // Verified, digest on, but the e-mail channel is switched off.
+    const eve = await env.join(anna, await env.register(), 'EDITOR');
+    await env.prisma.user.update({
+      where: { id: eve.user.id },
+      data: { emailVerifiedAt: new Date() },
+    });
+    await env.prisma.notificationChannelSetting.create({
+      data: {
+        id: randomUUID(),
+        userId: eve.user.id,
+        channel: 'EMAIL',
+        enabled: false,
+        digestFrequency: 'DAILY',
+      },
+    });
     await new BuildEmailDigestsHandler(env.prisma).execute(mondayMorning, anna.budgetId);
     expect(await digests(carol)).toHaveLength(0);
     expect(await digests(dave)).toHaveLength(0);
+    expect(await digests(eve)).toHaveLength(0);
   });
 
   it('drops finished rows older than 90 days', async () => {
@@ -160,8 +176,5 @@ describe('urgent letters', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]!.notification?.relatedEntityId).toBe(eventId);
     expect(rows[0]!.dedupeKey).toBe(`urgent:${rows[0]!.notificationId}`);
-
-    // calendar_events references budgets with RESTRICT; remove the event before env.stop().
-    await env.prisma.calendarEvent.deleteMany({ where: { workspaceId: anna.workspaceId } });
   });
 });

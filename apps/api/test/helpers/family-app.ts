@@ -228,6 +228,9 @@ export class FamilyTestApp {
     await this.prisma.envelopeFundingRule.deleteMany({ where: byBudget });
     await this.prisma.envelopePeriod.deleteMany({ where: byBudget });
     await this.prisma.budgetCycleRevision.deleteMany({ where: byBudget });
+    // calendar_events references budgets with onDelete: Restrict; children first.
+    await this.prisma.calendarEventParticipant.deleteMany({ where: byBudget });
+    await this.prisma.calendarEvent.deleteMany({ where: byBudget });
     await this.prisma.workspaceInvitation.deleteMany({ where: { workspaceId: { in: ids } } });
     await this.prisma.auditEvent.deleteMany({ where: { workspaceId: { in: ids } } });
     await this.prisma.budget.updateMany({
