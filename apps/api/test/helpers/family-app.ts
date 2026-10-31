@@ -30,7 +30,7 @@ export class FamilyTestApp {
   private app!: NestFastifyApplication;
   private readonly userIds = new Set<string>();
 
-  async start(): Promise<void> {
+  async start(overrides: Record<string, string> = {}): Promise<void> {
     this.app = await createApiApp(
       loadApiConfig({
         ...process.env,
@@ -43,6 +43,7 @@ export class FamilyTestApp {
         MAIL_FROM: 'no-reply@harmofin.test',
         WEB_BASE_URL: origin,
         LOG_LEVEL: 'silent',
+        ...overrides,
       }),
     );
     await this.app.init();
