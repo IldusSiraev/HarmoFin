@@ -32,13 +32,17 @@ describe('telegram_links', () => {
     await expect(
       env.prisma.telegramLink.create({ data: link(anna.user.id, chatId()) }),
     ).rejects.toThrow();
-    await expect(env.prisma.telegramLink.create({ data: link(boris.user.id, chat) })).rejects.toThrow();
+    await expect(
+      env.prisma.telegramLink.create({ data: link(boris.user.id, chat) }),
+    ).rejects.toThrow();
   });
 
   it('stores chat ids beyond 32 bits', async () => {
     const big = 9_007_199_254_740_000n;
     await env.prisma.telegramLink.create({ data: link(boris.user.id, big) });
-    const row = await env.prisma.telegramLink.findUniqueOrThrow({ where: { userId: boris.user.id } });
+    const row = await env.prisma.telegramLink.findUniqueOrThrow({
+      where: { userId: boris.user.id },
+    });
     expect(row.chatId).toBe(big);
   });
 });
