@@ -59,10 +59,12 @@ describe('TelegramSettingsApplicationService', () => {
   it('allows switching the channel off without a link', async () => {
     const repository = makeRepository({ findLinkByUser: vi.fn().mockResolvedValue(null) });
     const service = new TelegramSettingsApplicationService(repository as never, true);
-    await expect(service.update('user-1', { ...input, enabled: false }, {})).resolves.toMatchObject({
-      enabled: false,
-      linked: false,
-    });
+    await expect(service.update('user-1', { ...input, enabled: false }, {})).resolves.toMatchObject(
+      {
+        enabled: false,
+        linked: false,
+      },
+    );
   });
 
   it('asks for consent before amounts and audits the grant', async () => {
@@ -78,7 +80,9 @@ describe('TelegramSettingsApplicationService', () => {
       {},
     );
     expect(saved.amountsConsentAt).not.toBeNull();
-    const actions = repository.audit.mock.calls.map((call) => (call[2] as { action: string }).action);
+    const actions = repository.audit.mock.calls.map(
+      (call) => (call[2] as { action: string }).action,
+    );
     expect(actions).toEqual(['UPDATED', 'AMOUNTS_CONSENT_GRANTED']);
     expect((repository.audit.mock.calls[0]![2] as { values: object }).values).toMatchObject({
       channel: 'TELEGRAM',
@@ -99,7 +103,9 @@ describe('TelegramSettingsApplicationService', () => {
     const service = new TelegramSettingsApplicationService(repository as never, true);
     const saved = await service.update('user-1', input, {});
     expect(saved.amountsConsentAt).toBeNull();
-    const actions = repository.audit.mock.calls.map((call) => (call[2] as { action: string }).action);
+    const actions = repository.audit.mock.calls.map(
+      (call) => (call[2] as { action: string }).action,
+    );
     expect(actions).toEqual(['UPDATED', 'AMOUNTS_CONSENT_REVOKED']);
   });
 });
