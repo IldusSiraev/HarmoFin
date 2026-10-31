@@ -245,6 +245,8 @@ export class FamilyTestApp {
       await this.prisma.session.deleteMany({ where: { userId } });
       await this.prisma.recoveryToken.deleteMany({ where: { userId } });
       await this.prisma.userConsent.deleteMany({ where: { userId } });
+      // Account-level audits (e.g. notification settings) have no workspaceId.
+      await this.prisma.auditEvent.deleteMany({ where: { actorUserId: userId } });
     }
     await this.prisma.workspaceMembership.deleteMany({ where: { workspaceId: { in: ids } } });
     await this.prisma.workspace.deleteMany({ where: { id: { in: ids } } });
