@@ -49,6 +49,24 @@ describe('renderDigest', () => {
   });
 });
 
+describe('link origin guard', () => {
+  const urgent = (actionPath: string) =>
+    renderUrgent({ subject: 's', lines: ['l'], actionPath }, links);
+
+  it('accepts a relative path on the web origin', () => {
+    expect(urgent('/app/plans').text).toContain('https://app.example.test/app/plans');
+  });
+
+  it('rejects an absolute URL on a foreign origin', () => {
+    expect(() => urgent('https://evil.example.test/phishing')).toThrow(/web origin/u);
+  });
+
+  it('rejects protocol-relative and javascript: targets', () => {
+    expect(() => urgent('//evil.example.test/x')).toThrow(/web origin/u);
+    expect(() => urgent('javascript:alert(1)')).toThrow(/web origin/u);
+  });
+});
+
 describe('renderUrgent', () => {
   it('links to the notification target', () => {
     const mail = renderUrgent(

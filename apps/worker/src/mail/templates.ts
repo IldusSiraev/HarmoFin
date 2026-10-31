@@ -93,7 +93,15 @@ export function renderUrgent(content: UrgentContent, links: MailLinks): Rendered
 }
 
 function absolute(path: string, links: MailLinks): string {
-  return new URL(path, links.webBaseUrl).toString();
+  const base = new URL(links.webBaseUrl);
+  if (!path.startsWith('/')) {
+    throw new Error(`Mail link must be a path on the web origin: ${path.slice(0, 40)}`);
+  }
+  const url = new URL(path, base);
+  if (url.origin !== base.origin) {
+    throw new Error(`Mail link leaves the web origin: ${path.slice(0, 40)}`);
+  }
+  return url.toString();
 }
 
 function compose(mail: {

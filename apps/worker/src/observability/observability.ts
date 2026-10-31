@@ -47,6 +47,10 @@ export class MetricsRegistry {
     this.increment('worker_jobs_total', { job_type: jobType, outcome });
   }
 
+  recordDelivery(kind: string, outcome: 'sent' | 'cancelled' | 'retried' | 'failed'): void {
+    this.increment('worker_deliveries_total', { kind, outcome });
+  }
+
   setBacklog(value: number): void {
     this.gauges.set('worker_backlog', Number.isFinite(value) && value >= 0 ? value : 0);
   }
