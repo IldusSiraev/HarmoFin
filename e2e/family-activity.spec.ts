@@ -39,7 +39,7 @@ test('the creator sees a member event in the feed and the counter clears', async
   // Opening the feed shows it under «Новое» and clears the counter in the sidebar.
   // The sidebar is the aside labelled «Основная навигация»; other navigation regions exist on the page.
   const nav = creatorPage.getByRole('complementary', { name: 'Основная навигация' });
-  await expect(nav.getByRole('link', { name: /Лентаs*,s*2 новых события/ })).toBeVisible();
+  await expect(nav.getByRole('link', { name: /Лента\s*,\s*2 новых события/ })).toBeVisible();
   await card.getByRole('link', { name: 'Все события' }).click();
   await waitForHydration(creatorPage);
   await expect(creatorPage.getByTestId('activity-new')).toContainText('Родительское собрание');
