@@ -22,6 +22,7 @@ POSTGRES_USER=<provided-at-runtime>
 POSTGRES_PASSWORD=<provided-at-runtime>
 WEB_ORIGIN=https://<environment-domain>
 AUTH_TOKEN_HASH_SECRET=<provided-at-runtime>
+# SMTP is shared by api and worker (worker sends notification letters).
 SMTP_HOST=<provided-at-runtime>
 SMTP_PORT=587
 SMTP_USER=<provided-at-runtime>

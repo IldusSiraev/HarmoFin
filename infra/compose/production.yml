@@ -160,6 +160,12 @@ services:
       RELEASE_SHA: ${IMAGE_TAG:?IMAGE_TAG is required}
       ERROR_REPORTING_ENDPOINT: ${ERROR_REPORTING_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      SMTP_HOST: ${SMTP_HOST:?SMTP_HOST is required}
+      SMTP_PORT: ${SMTP_PORT:?SMTP_PORT is required}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:?MAIL_FROM is required}
+      WEB_BASE_URL: ${WEB_BASE_URL:?WEB_BASE_URL is required}
     expose:
       - '3002'
     networks:
