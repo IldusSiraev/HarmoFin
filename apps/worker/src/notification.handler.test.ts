@@ -42,6 +42,8 @@ function makeTx(overrides: Record<string, unknown> = {}) {
     account: { findMany: vi.fn().mockResolvedValue([]) },
     envelope: { findMany: vi.fn().mockResolvedValue([]) },
     auditEvent: { create: vi.fn().mockResolvedValue({}) },
+    notificationChannelSetting: { findUnique: vi.fn().mockResolvedValue(null) },
+    notificationDelivery: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
     ...overrides,
   };
 }
@@ -294,5 +296,37 @@ describe('NotificationRuleHandler', () => {
       where: { id: 'n-non-owner', budgetId: 'budget-1', resolvedAt: null },
       data: { resolvedAt: expect.any(Date) },
     });
+  });
+
+  it('queues an urgent letter for a new overdue notification only', async () => {
+    const tx = makeTx({
+      notificationChannelSetting: {
+        findUnique: vi.fn().mockResolvedValue({ enabled: true, urgentEnabled: true }),
+      },
+      notificationDelivery: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    });
+    tx.planOccurrence.findMany.mockResolvedValue([
+      occurrence('occ-late', '2026-09-09', 100n),
+      occurrence('occ-today', '2026-09-10', 100n),
+    ]);
+    const handler = new NotificationRuleHandler(makePrisma([budget()], tx) as never);
+    await handler.execute(now);
+
+    // PLAN_TODAY is not urgent: one letter, for the overdue occurrence.
+    expect(tx.notificationDelivery.createMany).toHaveBeenCalledTimes(1);
+    expect(tx.notificationDelivery.createMany.mock.calls[0]![0]).toMatchObject({
+      data: { kind: 'URGENT', userId: 'owner-1', budgetId: 'budget-1' },
+    });
+
+    tx.notification.createMany.mockResolvedValue({ count: 0 });
+    await handler.execute(now);
+    expect(tx.notificationDelivery.createMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('queues nothing when the owner has not subscribed', async () => {
+    const tx = makeTx();
+    tx.planOccurrence.findMany.mockResolvedValue([occurrence('occ-late', '2026-09-09', 100n)]);
+    await new NotificationRuleHandler(makePrisma([budget()], tx) as never).execute(now);
+    expect(tx.notificationDelivery.createMany).not.toHaveBeenCalled();
   });
 });

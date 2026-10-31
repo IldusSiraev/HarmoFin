@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
 
 import { expandOccurrences, type RecurringEvent } from './calendar-recurrence.js';
+import { enqueueUrgentEmail } from './delivery/enqueue.js';
 import type { WorkerJobHandler } from './job-runner.js';
 import {
   isReminderDue,
@@ -100,6 +101,9 @@ function toRule(event: StoredRule, timezone: string): RecurringEvent {
  * event cannot drive the recurring job into its terminal FAILED state; the next run retries that
  * event and the notification key keeps the retry idempotent. A failure of the event query itself
  * still rejects, so the job is retried as before.
+ *
+ * Срочное письмо ставится в очередь в той же транзакции, только для только что созданного
+ * уведомления.
  */
 export class CalendarReminderHandler implements WorkerJobHandler {
   constructor(
@@ -190,6 +194,13 @@ export class CalendarReminderHandler implements WorkerJobHandler {
       skipDuplicates: true,
     });
     if (result.count !== 1) return;
+    await enqueueUrgentEmail(tx, {
+      notificationId,
+      workspaceId: event.workspaceId,
+      budgetId: event.budgetId,
+      userId: values.userId,
+      now: new Date(),
+    });
     await tx.auditEvent.create({
       data: {
         id: randomUUID(),

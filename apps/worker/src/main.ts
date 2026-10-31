@@ -13,6 +13,7 @@ import { NotificationRuleHandler } from './notification.handler.js';
 import { CalendarReminderHandler } from './calendar-reminder.handler.js';
 import { AccountPurgeHandler } from './account-purge.handler.js';
 import { DeliverNotificationsHandler } from './delivery/deliver.handler.js';
+import { BuildEmailDigestsHandler } from './delivery/build-digests.handler.js';
 import { DeliveryRepository } from './delivery/delivery.repository.js';
 import { SmtpMailer } from './mail/mailer.js';
 import { WorkerRuntime } from './runtime.js';
@@ -43,6 +44,7 @@ const mailHandlers = config.mail
           },
         },
       ),
+      BUILD_EMAIL_DIGESTS: new BuildEmailDigestsHandler(database),
     }
   : {};
 if (!config.mail) logger.mailDisabled();

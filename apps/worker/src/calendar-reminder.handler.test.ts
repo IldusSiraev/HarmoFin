@@ -50,6 +50,8 @@ function makeTx(overrides: Record<string, unknown> = {}) {
   return {
     notification: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
     auditEvent: { create: vi.fn().mockResolvedValue({}) },
+    notificationChannelSetting: { findUnique: vi.fn().mockResolvedValue(null) },
+    notificationDelivery: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
     ...overrides,
   };
 }
@@ -305,5 +307,36 @@ describe('CalendarReminderHandler', () => {
         new Date('2026-11-03T13:05:00Z'),
       ),
     ).rejects.toThrow('query failed');
+  });
+
+  it('queues an urgent letter for each newly created reminder of a subscriber', async () => {
+    const tx = makeTx({
+      notificationChannelSetting: {
+        findUnique: vi.fn().mockResolvedValue({ enabled: true, urgentEnabled: true }),
+      },
+      notificationDelivery: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    });
+    const prisma = makePrisma([weeklyEvent()], tx);
+    await new CalendarReminderHandler(prisma as never).execute(new Date('2026-11-03T13:05:00Z'));
+
+    expect(tx.notificationDelivery.createMany).toHaveBeenCalledTimes(2);
+    expect(tx.notificationDelivery.createMany.mock.calls[0]![0]).toMatchObject({
+      data: { kind: 'URGENT', channel: 'EMAIL', budgetId: 'budget-1', workspaceId: 'workspace-1' },
+      skipDuplicates: true,
+    });
+  });
+
+  it('queues nothing for a reminder the unique key skipped', async () => {
+    const tx = makeTx({
+      notification: { createMany: vi.fn().mockResolvedValue({ count: 0 }) },
+      notificationChannelSetting: {
+        findUnique: vi.fn().mockResolvedValue({ enabled: true, urgentEnabled: true }),
+      },
+      notificationDelivery: { createMany: vi.fn() },
+    });
+    const prisma = makePrisma([weeklyEvent()], tx);
+    await new CalendarReminderHandler(prisma as never).execute(new Date('2026-11-03T13:05:00Z'));
+
+    expect(tx.notificationDelivery.createMany).not.toHaveBeenCalled();
   });
 });

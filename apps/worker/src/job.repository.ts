@@ -14,6 +14,7 @@ const recurringJobs: Array<{ jobKey: string; jobType: WorkerJobType }> = [
   { jobKey: 'accounts:purge-deleted-v1', jobType: 'PURGE_DELETED_ACCOUNTS' },
   { jobKey: 'calendar:reminders-v1', jobType: 'EVALUATE_CALENDAR_REMINDERS' },
   { jobKey: 'notifications:deliver-email-v1', jobType: 'DELIVER_NOTIFICATIONS' },
+  { jobKey: 'notifications:build-email-digests-v1', jobType: 'BUILD_EMAIL_DIGESTS' },
 ];
 
 export class WorkerJobRepository {
