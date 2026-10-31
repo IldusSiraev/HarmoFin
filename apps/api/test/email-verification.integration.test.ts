@@ -9,6 +9,7 @@ const env = new FamilyTestApp();
 const tokens = new TokenService('test-only-secret-with-at-least-32-bytes');
 const origin = 'http://localhost:3000';
 let actor: FamilyActor;
+let revoked: FamilyActor | undefined;
 
 async function plantToken(userId: string, raw: string, expiresInMs = 60_000) {
   await env.prisma.emailVerificationToken.create({
@@ -36,8 +37,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // Auth-scoped audit rows have no workspace, so the helper's workspace cleanup cannot reach them.
-  if (actor) {
-    await env.prisma.auditEvent.deleteMany({ where: { actorUserId: actor.user.id } });
+  const actorIds = [actor, revoked].filter((item): item is FamilyActor => Boolean(item));
+  for (const person of actorIds) {
+    await env.prisma.auditEvent.deleteMany({ where: { actorUserId: person.user.id } });
   }
   await env.stop();
 });
@@ -60,6 +62,21 @@ describe('email verification', () => {
     });
     expect(rows).toHaveLength(1);
     expect(rows[0]!.tokenHash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('voids the previous unused token when a new letter is requested', async () => {
+    revoked = await env.register();
+    await plantToken(revoked.user.id, 'stale-raw-token');
+    const response = await env.inject('POST', '/api/v1/me/email-verification', revoked);
+    expect(response.statusCode).toBe(204);
+
+    const stale = await confirm('stale-raw-token');
+    expect(stale.statusCode).toBe(422);
+    expect(stale.json()).toMatchObject({ code: 'EMAIL_VERIFICATION_TOKEN_INVALID' });
+    const active = await env.prisma.emailVerificationToken.count({
+      where: { userId: revoked.user.id, consumedAt: null },
+    });
+    expect(active).toBe(1);
   });
 
   it('confirms with a valid token once', async () => {

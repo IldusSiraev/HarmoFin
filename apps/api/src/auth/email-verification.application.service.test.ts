@@ -51,7 +51,10 @@ describe('EmailVerificationApplicationService.request', () => {
     expect(created.tokenHash).toBe(tokens.digest(raw));
     expect(created.tokenHash).not.toContain(raw);
     expect(created.expiresAt.getTime() - Date.now()).toBeGreaterThan(23 * 3_600_000);
-    expect(tx.emailVerificationToken.updateMany).toHaveBeenCalled();
+    expect(tx.emailVerificationToken.updateMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1', consumedAt: null, expiresAt: { gt: expect.any(Date) } },
+      data: { consumedAt: expect.any(Date) },
+    });
     expect(tx.auditEvent.create.mock.calls[0]![0].data).toMatchObject({
       action: 'EMAIL_VERIFICATION_REQUESTED',
       entityType: 'auth',

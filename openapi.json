@@ -2202,6 +2202,7 @@
           "token": {
             "description": "Токен из ссылки письма подтверждения.",
             "maxLength": 256,
+            "minLength": 1,
             "type": "string"
           }
         },
