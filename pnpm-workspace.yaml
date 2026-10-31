@@ -22,3 +22,4 @@ overrides:
   launch-editor@<2.14.2: 2.14.2
   vite@>=8.2.0 <8.2.4: 8.3.4
   undici@>=8.0.0 <8.12.2: 8.12.3
+  node-forge@<1.4.1: 1.4.2

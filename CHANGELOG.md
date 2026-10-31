@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.13.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.12.1...v1.13.0) (2026-10-30)
+
+
+### Новое
+
+* **api:** лента семьи и отметка просмотра ([4628251](https://github.com/IldusSiraev/HarmoFin/commit/46282519164855252b20ce6d289258fee96c753c))
+* **api:** лента семьи и отметка просмотра ([df44181](https://github.com/IldusSiraev/HarmoFin/commit/df4418111a77a901855d67fd84e088f6065bf06a))
+* **api:** разбор записей аудита для ленты семьи ([20de5a7](https://github.com/IldusSiraev/HarmoFin/commit/20de5a75df35f7333cee5ee4758e80e94b2ccf52))
+* **db:** отметка просмотра ленты семьи ([0ea6681](https://github.com/IldusSiraev/HarmoFin/commit/0ea6681b8caf974e970580ad2577ffd63187da0f))
+
 ## [1.12.1](https://github.com/IldusSiraev/HarmoFin/compare/v1.12.0...v1.12.1) (2026-10-30)
 
 
