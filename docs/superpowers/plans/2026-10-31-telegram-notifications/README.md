@@ -90,3 +90,4 @@ git status --short
 
 | Задача | Коммит | Проверки | Отступления и решения |
 |---|---|---|---|
+| 1 | 134899e | `pnpm test:integration` PASS (752 теста, telegram-schema 4/4); worker tests PASS (account-purge.coverage 3/3); `prisma migrate diff` пустой; `pnpm typecheck` PASS. Review: backend, security, QA, final (субагенты) — все APPROVE | Среда (вне кода): на этой машине Prisma engine резолвит `localhost` в IPv6 и даёт P1001; проверки прогнаны через `127.0.0.1` (та же `harmofin_v22_test`). Отступлений в коде нет |
