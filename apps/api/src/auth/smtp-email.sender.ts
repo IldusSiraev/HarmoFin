@@ -63,4 +63,18 @@ export class SmtpEmailSender implements EmailSender {
       ].join('\n'),
     });
   }
+
+  async sendEmailVerification(input: { recipient: string; verifyUrl: string }): Promise<void> {
+    await this.transporter.sendMail({
+      from: this.config.mail.from,
+      to: input.recipient,
+      subject: 'Подтвердите почту в HarmoFin',
+      text: [
+        'Чтобы получать уведомления HarmoFin на эту почту, подтвердите адрес по ссылке:',
+        input.verifyUrl,
+        '',
+        'Ссылка действует 24 часа. Если вы не запрашивали подтверждение, просто проигнорируйте письмо.',
+      ].join('\n'),
+    });
+  }
 }

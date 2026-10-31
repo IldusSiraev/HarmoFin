@@ -51,4 +51,21 @@ describe('SmtpEmailSender', () => {
     expect(text).toContain('Участник');
     expect(text).toContain('http://localhost:3000/invite#token=abc');
   });
+
+  it('sends the email verification letter with the verify link', async () => {
+    await new SmtpEmailSender(config).sendEmailVerification({
+      recipient: 'anna@harmofin.test',
+      verifyUrl: 'http://localhost:3000/verify-email?token=abc',
+    });
+
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: 'no-reply@harmofin.test',
+        to: 'anna@harmofin.test',
+        subject: 'Подтвердите почту в HarmoFin',
+      }),
+    );
+    const text = (sendMail.mock.calls.at(-1)![0] as { text: string }).text;
+    expect(text).toContain('http://localhost:3000/verify-email?token=abc');
+  });
 });

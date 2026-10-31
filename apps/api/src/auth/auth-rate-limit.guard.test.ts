@@ -64,6 +64,31 @@ describe('AuthRateLimitGuard', () => {
     expectRateLimited(() => guard.canActivate(accept));
   });
 
+  it('limits email verification confirm and unsubscribe with the recovery budget', () => {
+    const guard = new AuthRateLimitGuard({
+      rateLimit: { windowSeconds: 900, loginMax: 10, recoveryMax: 5 },
+    } as never);
+    const confirm = contextFor({
+      method: 'POST',
+      url: '/api/v1/auth/email-verification/confirm',
+      ip: '127.0.0.1',
+    });
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      expect(guard.canActivate(confirm)).toBe(true);
+    }
+    expectRateLimited(() => guard.canActivate(confirm));
+
+    const unsubscribe = contextFor({
+      method: 'POST',
+      url: '/api/v1/notifications/unsubscribe',
+      ip: '127.0.0.1',
+    });
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      expect(guard.canActivate(unsubscribe)).toBe(true);
+    }
+    expectRateLimited(() => guard.canActivate(unsubscribe));
+  });
+
   it('limits creating and resending workspace invitations with the login budget, but not listing', () => {
     const guard = new AuthRateLimitGuard({
       rateLimit: { windowSeconds: 900, loginMax: 1, recoveryMax: 1 },

@@ -2197,6 +2197,17 @@
         ],
         "type": "object"
       },
+      "EmailVerificationConfirmRequest": {
+        "properties": {
+          "token": {
+            "description": "Токен из ссылки письма подтверждения.",
+            "maxLength": 256,
+            "type": "string"
+          }
+        },
+        "required": ["token"],
+        "type": "object"
+      },
       "EnvelopeHistoryItemResponse": {
         "properties": {
           "amountMinor": {
@@ -7478,6 +7489,70 @@
         "tags": ["auth"]
       }
     },
+    "/api/v1/auth/email-verification/confirm": {
+      "post": {
+        "description": "Публичный: открывается из письма, возможно без входа. Без сессии и CSRF; глобальный OriginGuard требует origin веба. Коды: 400 VALIDATION_FAILED, 403 ORIGIN_REQUIRED, 422 EMAIL_VERIFICATION_TOKEN_INVALID, 429 AUTH_RATE_LIMITED.",
+        "operationId": "EmailVerificationController_confirm_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailVerificationConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Почта подтверждена."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Подтвердить почту по ссылке из письма",
+        "tags": ["auth"]
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "operationId": "AuthController_login_v1",
@@ -9651,6 +9726,55 @@
             "session": []
           }
         ],
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/me/email-verification": {
+      "post": {
+        "description": "Гасит прежние неиспользованные ссылки и отправляет новую на 24 часа. Если почта уже подтверждена — 204 без письма. Коды: 401, 403 CSRF_INVALID/ORIGIN_REQUIRED, 429 AUTH_RATE_LIMITED.",
+        "operationId": "EmailVerificationController_request_v1",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Запрос принят."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Отправить письмо подтверждения почты",
         "tags": ["auth"]
       }
     },

@@ -12,6 +12,7 @@ export interface EmailSender {
     workspaceName: string;
     roleLabel: string;
   }): Promise<void>;
+  sendEmailVerification(input: { recipient: string; verifyUrl: string }): Promise<void>;
 }
 
 export const EMAIL_SENDER = Symbol('EMAIL_SENDER');
