@@ -8,8 +8,10 @@ import { AuthApplicationService } from './auth.application.service.js';
 import { AuthController } from './auth.controller.js';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard.js';
 import { AuthRepository } from './auth.repository.js';
+import { EmailVerificationApplicationService } from './email-verification.application.service.js';
+import { EmailVerificationController } from './email-verification.controller.js';
 import { MetricsRegistry } from '../observability/observability.js';
-import { EMAIL_SENDER } from './email-sender.js';
+import { EMAIL_SENDER, type EmailSender } from './email-sender.js';
 import { PasswordService } from './password.service.js';
 import { PrismaSessionStore } from './prisma-session.store.js';
 import { SessionAuthGuard } from './session-auth.guard.js';
@@ -23,7 +25,7 @@ export class AuthModule {
   static register(config: ApiConfig): DynamicModule {
     return {
       module: AuthModule,
-      controllers: [AuthController],
+      controllers: [AuthController, EmailVerificationController],
       providers: [
         { provide: API_CONFIG, useValue: config },
         PasswordService,
@@ -45,6 +47,12 @@ export class AuthModule {
           inject: [PrismaService],
         },
         { provide: EMAIL_SENDER, useFactory: () => new SmtpEmailSender(config) },
+        {
+          provide: EmailVerificationApplicationService,
+          useFactory: (prisma: PrismaService, tokens: TokenService, emailSender: EmailSender) =>
+            new EmailVerificationApplicationService(prisma, tokens, emailSender, config),
+          inject: [PrismaService, TokenService, EMAIL_SENDER],
+        },
         {
           provide: AuthApplicationService,
           useFactory: (

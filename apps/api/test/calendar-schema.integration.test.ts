@@ -13,8 +13,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await env.prisma.calendarEventParticipant.deleteMany({ where: { budgetId: creator.budgetId } });
-  await env.prisma.calendarEvent.deleteMany({ where: { budgetId: creator.budgetId } });
   await env.stop();
 });
 

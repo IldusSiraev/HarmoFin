@@ -164,6 +164,8 @@ enum WorkerJobType {
   EVALUATE_BUDGET_NOTIFICATIONS
   PURGE_DELETED_ACCOUNTS
   EVALUATE_CALENDAR_REMINDERS
+  DELIVER_NOTIFICATIONS
+  BUILD_EMAIL_DIGESTS
 }
 
 enum WorkerJobStatus {
@@ -187,6 +189,28 @@ enum NotificationType {
   CALENDAR_REMINDER
 }
 
+enum NotificationChannel {
+  EMAIL
+}
+
+enum DigestFrequency {
+  OFF
+  DAILY
+  WEEKLY
+}
+
+enum DeliveryKind {
+  URGENT
+  DIGEST
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
 enum LegalDocumentType {
   TERMS
   PRIVACY_POLICY
@@ -203,43 +227,46 @@ model User {
   createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  sessions           Session[]
-  memberships        WorkspaceMembership[]
-  ownedWorkspaces    Workspace[]           @relation("WorkspaceOwner")
-  recoveryTokens     RecoveryToken[]
-  auditEvents          AuditEvent[]          @relation("AuditActor")
-  idempotencyRecords   IdempotencyRecord[]
-  createdRegularPlans  RegularPlan[]          @relation("RegularPlanCreator")
-  updatedRegularPlans  RegularPlan[]          @relation("RegularPlanUpdater")
-  actedPlanOccurrences PlanOccurrence[]       @relation("PlanOccurrenceActor")
-  notifications        Notification[]
-  consents             UserConsent[]
-  sentInvitations     WorkspaceInvitation[] @relation("InvitationInviter")
-  acceptedInvitations WorkspaceInvitation[] @relation("InvitationAcceptor")
-  ownedAccounts        Account[]            @relation("AccountOwner")
-  ownedEnvelopes       Envelope[]           @relation("EnvelopeOwner")
-  ownedRegularPlans    RegularPlan[]        @relation("RegularPlanOwner")
-  createdAssignments   EnvelopeAssignment[] @relation("EnvelopeAssignmentCreator")
-  createdMovements     EnvelopeMovement[]   @relation("EnvelopeMovementCreator")
-  calendarEventsCreated       CalendarEvent[]            @relation("CalendarEventAuthor")
-  calendarEventParticipations CalendarEventParticipant[] @relation("CalendarEventParticipantUser")
-  activityFeedCursors         ActivityFeedCursor[]       @relation("ActivityFeedCursorUser")
+  sessions                    Session[]
+  memberships                 WorkspaceMembership[]
+  ownedWorkspaces             Workspace[]                  @relation("WorkspaceOwner")
+  recoveryTokens              RecoveryToken[]
+  auditEvents                 AuditEvent[]                 @relation("AuditActor")
+  idempotencyRecords          IdempotencyRecord[]
+  createdRegularPlans         RegularPlan[]                @relation("RegularPlanCreator")
+  updatedRegularPlans         RegularPlan[]                @relation("RegularPlanUpdater")
+  actedPlanOccurrences        PlanOccurrence[]             @relation("PlanOccurrenceActor")
+  notifications               Notification[]
+  notificationChannelSettings NotificationChannelSetting[]
+  notificationDeliveries      NotificationDelivery[]
+  emailVerificationTokens     EmailVerificationToken[]
+  consents                    UserConsent[]
+  sentInvitations             WorkspaceInvitation[]        @relation("InvitationInviter")
+  acceptedInvitations         WorkspaceInvitation[]        @relation("InvitationAcceptor")
+  ownedAccounts               Account[]                    @relation("AccountOwner")
+  ownedEnvelopes              Envelope[]                   @relation("EnvelopeOwner")
+  ownedRegularPlans           RegularPlan[]                @relation("RegularPlanOwner")
+  createdAssignments          EnvelopeAssignment[]         @relation("EnvelopeAssignmentCreator")
+  createdMovements            EnvelopeMovement[]           @relation("EnvelopeMovementCreator")
+  calendarEventsCreated       CalendarEvent[]              @relation("CalendarEventAuthor")
+  calendarEventParticipations CalendarEventParticipant[]   @relation("CalendarEventParticipantUser")
+  activityFeedCursors         ActivityFeedCursor[]         @relation("ActivityFeedCursorUser")
 
   @@map("users")
 }
 
 model Session {
-  id               String              @id @db.Uuid
-  userId           String              @map("user_id") @db.Uuid
-  tokenHash        String              @unique @map("token_hash") @db.Char(64)
-  csrfTokenHash    String              @unique @map("csrf_token_hash") @db.Char(64)
-  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  lastSeenAt       DateTime            @default(now()) @map("last_seen_at") @db.Timestamptz(3)
-  idleExpiresAt    DateTime            @map("idle_expires_at") @db.Timestamptz(3)
-  absoluteExpiresAt DateTime           @map("absolute_expires_at") @db.Timestamptz(3)
-  revokedAt        DateTime?           @map("revoked_at") @db.Timestamptz(3)
-  revokedReason    SessionRevokeReason? @map("revoked_reason")
-  userAgent        String?             @map("user_agent") @db.VarChar(512)
+  id                String               @id @db.Uuid
+  userId            String               @map("user_id") @db.Uuid
+  tokenHash         String               @unique @map("token_hash") @db.Char(64)
+  csrfTokenHash     String               @unique @map("csrf_token_hash") @db.Char(64)
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastSeenAt        DateTime             @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  idleExpiresAt     DateTime             @map("idle_expires_at") @db.Timestamptz(3)
+  absoluteExpiresAt DateTime             @map("absolute_expires_at") @db.Timestamptz(3)
+  revokedAt         DateTime?            @map("revoked_at") @db.Timestamptz(3)
+  revokedReason     SessionRevokeReason? @map("revoked_reason")
+  userAgent         String?              @map("user_agent") @db.VarChar(512)
 
   user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
@@ -249,39 +276,40 @@ model Session {
 }
 
 model Workspace {
-  id          String          @id @db.Uuid
-  ownerId     String          @map("owner_id") @db.Uuid
-  name        String          @db.VarChar(120)
-  timezone    String          @default("Europe/Moscow") @db.VarChar(64)
-  status      WorkspaceStatus @default(ACTIVE)
-  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id        String          @id @db.Uuid
+  ownerId   String          @map("owner_id") @db.Uuid
+  name      String          @db.VarChar(120)
+  timezone  String          @default("Europe/Moscow") @db.VarChar(64)
+  status    WorkspaceStatus @default(ACTIVE)
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  owner        User                 @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  memberships  WorkspaceMembership[]
-  budgets      Budget[]
-  auditEvents  AuditEvent[]
-  regularPlans RegularPlan[]
-  occurrences  PlanOccurrence[]
-  notifications Notification[]
-  invitations   WorkspaceInvitation[]
-  calendarEvents CalendarEvent[]
-  activityFeedCursors ActivityFeedCursor[]
+  owner                  User                   @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  memberships            WorkspaceMembership[]
+  budgets                Budget[]
+  auditEvents            AuditEvent[]
+  regularPlans           RegularPlan[]
+  occurrences            PlanOccurrence[]
+  notifications          Notification[]
+  notificationDeliveries NotificationDelivery[]
+  invitations            WorkspaceInvitation[]
+  calendarEvents         CalendarEvent[]
+  activityFeedCursors    ActivityFeedCursor[]
 
   @@index([ownerId, status])
   @@map("workspaces")
 }
 
 model WorkspaceMembership {
-  id          String                  @id @db.Uuid
-  workspaceId String                  @map("workspace_id") @db.Uuid
-  userId      String                  @map("user_id") @db.Uuid
-  role        WorkspaceMembershipRole
-  isActive    Boolean                 @default(true) @map("is_active")
-  removedAt   DateTime?               @map("removed_at") @db.Timestamptz(3)
-  lastSelectedAt DateTime?            @map("last_selected_at") @db.Timestamptz(3)
-  createdAt   DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id             String                  @id @db.Uuid
+  workspaceId    String                  @map("workspace_id") @db.Uuid
+  userId         String                  @map("user_id") @db.Uuid
+  role           WorkspaceMembershipRole
+  isActive       Boolean                 @default(true) @map("is_active")
+  removedAt      DateTime?               @map("removed_at") @db.Timestamptz(3)
+  lastSelectedAt DateTime?               @map("last_selected_at") @db.Timestamptz(3)
+  createdAt      DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -334,27 +362,28 @@ model Budget {
   createdAt                        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  workspace          Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  auditEvents        AuditEvent[]
-  accounts           Account[]
-  categories         Category[]
-  envelopes          Envelope[]
-  transactions       Transaction[]
-  incomeAllocations  IncomeAllocation[]
-  transfers          Transfer[]
-    envelopeReallocations EnvelopeReallocation[]
-    envelopePeriods      EnvelopePeriod[]
-    envelopeFundingRules EnvelopeFundingRule[]
-    envelopeAssignments   EnvelopeAssignment[]
-    envelopeMovements     EnvelopeMovement[]
-    budgetCycleRevisions BudgetCycleRevision[]
-    idempotencyRecords IdempotencyRecord[]
-    regularPlans       RegularPlan[]
-    occurrences        PlanOccurrence[]
-    planPayments       PlanPayment[]
-    notifications      Notification[]
-    calendarEvents     CalendarEvent[]
-    activityFeedCursors ActivityFeedCursor[]
+  workspace              Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  auditEvents            AuditEvent[]
+  accounts               Account[]
+  categories             Category[]
+  envelopes              Envelope[]
+  transactions           Transaction[]
+  incomeAllocations      IncomeAllocation[]
+  transfers              Transfer[]
+  envelopeReallocations  EnvelopeReallocation[]
+  envelopePeriods        EnvelopePeriod[]
+  envelopeFundingRules   EnvelopeFundingRule[]
+  envelopeAssignments    EnvelopeAssignment[]
+  envelopeMovements      EnvelopeMovement[]
+  budgetCycleRevisions   BudgetCycleRevision[]
+  idempotencyRecords     IdempotencyRecord[]
+  regularPlans           RegularPlan[]
+  occurrences            PlanOccurrence[]
+  planPayments           PlanPayment[]
+  notifications          Notification[]
+  notificationDeliveries NotificationDelivery[]
+  calendarEvents         CalendarEvent[]
+  activityFeedCursors    ActivityFeedCursor[]
 
   @@unique([id, workspaceId])
   @@index([workspaceId, status])
@@ -378,16 +407,16 @@ model Account {
   createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt            DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  budget                     Budget             @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  owner                      User               @relation("AccountOwner", fields: [ownerUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  transactions               Transaction[]
-  incomeAllocations          IncomeAllocation[]
-  transferPartsAsSource      TransferPart[]     @relation("TransferPartSourceAccount")
-  transferPartsAsDestination TransferPart[]     @relation("TransferPartDestinationAccount")
-  directTransfersAsSource    Transfer[]         @relation("TransferSourceAccount")
-  directTransfersAsDestination Transfer[]       @relation("TransferDestinationAccount")
-  regularPlans               RegularPlan[]      @relation("RegularPlanDefaultAccount")
-  occurrenceSnapshots        PlanOccurrence[]   @relation("PlanOccurrenceDefaultAccount")
+  budget                       Budget             @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  owner                        User               @relation("AccountOwner", fields: [ownerUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  transactions                 Transaction[]
+  incomeAllocations            IncomeAllocation[]
+  transferPartsAsSource        TransferPart[]     @relation("TransferPartSourceAccount")
+  transferPartsAsDestination   TransferPart[]     @relation("TransferPartDestinationAccount")
+  directTransfersAsSource      Transfer[]         @relation("TransferSourceAccount")
+  directTransfersAsDestination Transfer[]         @relation("TransferDestinationAccount")
+  regularPlans                 RegularPlan[]      @relation("RegularPlanDefaultAccount")
+  occurrenceSnapshots          PlanOccurrence[]   @relation("PlanOccurrenceDefaultAccount")
 
   @@unique([id, budgetId])
   @@index([budgetId, archivedAt])
@@ -409,12 +438,12 @@ model Category {
   createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  budget       Budget        @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  parent       Category?     @relation("CategoryParent", fields: [parentId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  budget              Budget           @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  parent              Category?        @relation("CategoryParent", fields: [parentId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
   children            Category[]       @relation("CategoryParent")
   transactions        Transaction[]
-  regularPlans        RegularPlan[]     @relation("RegularPlanCategory")
-  occurrenceSnapshots PlanOccurrence[]  @relation("PlanOccurrenceCategory")
+  regularPlans        RegularPlan[]    @relation("RegularPlanCategory")
+  occurrenceSnapshots PlanOccurrence[] @relation("PlanOccurrenceCategory")
 
   @@unique([id, budgetId])
   @@index([budgetId, categoryType, archivedAt])
@@ -441,21 +470,21 @@ model Envelope {
   createdAt                 DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                 DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  budget                     Budget             @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  owner                      User               @relation("EnvelopeOwner", fields: [ownerUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  transactions               Transaction[]
-  incomeAllocations          IncomeAllocation[]
-  transferPartsAsSource      TransferPart[]        @relation("TransferPartSourceEnvelope")
-  transferPartsAsDestination TransferPart[]        @relation("TransferPartDestinationEnvelope")
+  budget                             Budget                 @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  owner                              User                   @relation("EnvelopeOwner", fields: [ownerUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  transactions                       Transaction[]
+  incomeAllocations                  IncomeAllocation[]
+  transferPartsAsSource              TransferPart[]         @relation("TransferPartSourceEnvelope")
+  transferPartsAsDestination         TransferPart[]         @relation("TransferPartDestinationEnvelope")
   envelopeReallocationsAsSource      EnvelopeReallocation[] @relation("EnvelopeReallocationSource")
   envelopeReallocationsAsDestination EnvelopeReallocation[] @relation("EnvelopeReallocationDestination")
-  envelopePeriods            EnvelopePeriod[]      @relation("EnvelopePeriodEnvelope")
-  envelopeFundingRules       EnvelopeFundingRule[] @relation("EnvelopeFundingRuleEnvelope")
-  regularPlans               RegularPlan[]         @relation("RegularPlanEnvelope")
-  occurrenceSnapshots        PlanOccurrence[]      @relation("PlanOccurrenceEnvelope")
-  envelopeAssignments        EnvelopeAssignment[]
-  movementsAsSource          EnvelopeMovement[]  @relation("MovementSourceEnvelope")
-  movementsAsDestination     EnvelopeMovement[]  @relation("MovementDestinationEnvelope")
+  envelopePeriods                    EnvelopePeriod[]       @relation("EnvelopePeriodEnvelope")
+  envelopeFundingRules               EnvelopeFundingRule[]  @relation("EnvelopeFundingRuleEnvelope")
+  regularPlans                       RegularPlan[]          @relation("RegularPlanEnvelope")
+  occurrenceSnapshots                PlanOccurrence[]       @relation("PlanOccurrenceEnvelope")
+  envelopeAssignments                EnvelopeAssignment[]
+  movementsAsSource                  EnvelopeMovement[]     @relation("MovementSourceEnvelope")
+  movementsAsDestination             EnvelopeMovement[]     @relation("MovementDestinationEnvelope")
 
   @@unique([id, budgetId])
   @@index([budgetId, archivedAt])
@@ -464,39 +493,39 @@ model Envelope {
 }
 
 model Transaction {
-  id                String            @id @db.Uuid
-  budgetId          String            @map("budget_id") @db.Uuid
-  transactionType   TransactionType   @map("transaction_type")
-  status            TransactionStatus @default(DRAFT)
-  accountingModelVersion Int          @default(1) @map("accounting_model_version")
-  amountMinor       BigInt            @map("amount_minor")
-  currency          String            @default("RUB") @db.Char(3)
-  scale             Int               @default(2) @db.SmallInt
-  occurredOn        DateTime          @map("occurred_on") @db.Date
-  accountId         String            @map("account_id") @db.Uuid
-  categoryId        String            @map("category_id") @db.Uuid
-  envelopeId        String?           @map("envelope_id") @db.Uuid
-  sourceDescription String?           @map("source_description") @db.VarChar(250)
-  merchantName      String?           @map("merchant_name") @db.VarChar(250)
-  isPlanned         Boolean           @default(false) @map("is_planned")
-  comment           String?           @db.VarChar(500)
-  confirmedAt       DateTime?         @map("confirmed_at") @db.Timestamptz(3)
-  cancelledAt       DateTime?         @map("cancelled_at") @db.Timestamptz(3)
-  deletedAt         DateTime?         @map("deleted_at") @db.Timestamptz(3)
-  preDeleteStatus   TransactionStatus? @map("pre_delete_status")
-  createdByUserId   String            @map("created_by_user_id") @db.Uuid
-  updatedByUserId   String            @map("updated_by_user_id") @db.Uuid
-  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                     String             @id @db.Uuid
+  budgetId               String             @map("budget_id") @db.Uuid
+  transactionType        TransactionType    @map("transaction_type")
+  status                 TransactionStatus  @default(DRAFT)
+  accountingModelVersion Int                @default(1) @map("accounting_model_version")
+  amountMinor            BigInt             @map("amount_minor")
+  currency               String             @default("RUB") @db.Char(3)
+  scale                  Int                @default(2) @db.SmallInt
+  occurredOn             DateTime           @map("occurred_on") @db.Date
+  accountId              String             @map("account_id") @db.Uuid
+  categoryId             String             @map("category_id") @db.Uuid
+  envelopeId             String?            @map("envelope_id") @db.Uuid
+  sourceDescription      String?            @map("source_description") @db.VarChar(250)
+  merchantName           String?            @map("merchant_name") @db.VarChar(250)
+  isPlanned              Boolean            @default(false) @map("is_planned")
+  comment                String?            @db.VarChar(500)
+  confirmedAt            DateTime?          @map("confirmed_at") @db.Timestamptz(3)
+  cancelledAt            DateTime?          @map("cancelled_at") @db.Timestamptz(3)
+  deletedAt              DateTime?          @map("deleted_at") @db.Timestamptz(3)
+  preDeleteStatus        TransactionStatus? @map("pre_delete_status")
+  createdByUserId        String             @map("created_by_user_id") @db.Uuid
+  updatedByUserId        String             @map("updated_by_user_id") @db.Uuid
+  createdAt              DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  budget      Budget             @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  account     Account            @relation(fields: [accountId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
-  category    Category           @relation(fields: [categoryId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
-  envelope       Envelope?          @relation(fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
-  allocations    IncomeAllocation[]
+  budget              Budget               @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  account             Account              @relation(fields: [accountId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  category            Category             @relation(fields: [categoryId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  envelope            Envelope?            @relation(fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  allocations         IncomeAllocation[]
   envelopeAssignments EnvelopeAssignment[]
-  planOccurrence PlanOccurrence?    @relation("PlanOccurrenceTransaction")
-  planPayments   PlanPayment[]      @relation("PlanPaymentTransaction")
+  planOccurrence      PlanOccurrence?      @relation("PlanOccurrenceTransaction")
+  planPayments        PlanPayment[]        @relation("PlanPaymentTransaction")
 
   @@unique([id, budgetId])
   @@index([budgetId, occurredOn, createdAt])
@@ -508,23 +537,23 @@ model Transaction {
 }
 
 model IncomeAllocation {
-  id                  String                 @id @db.Uuid
-  budgetId            String                 @map("budget_id") @db.Uuid
-  incomeTransactionId String                 @map("income_transaction_id") @db.Uuid
-  status              IncomeAllocationStatus @default(CONFIRMED)
-  amountMinor         BigInt                 @map("amount_minor")
-  currency            String                 @default("RUB") @db.Char(3)
-  scale               Int                    @default(2) @db.SmallInt
-  occurredOn          DateTime               @map("occurred_on") @db.Date
-  accountId           String                 @map("account_id") @db.Uuid
-  envelopeId          String                 @map("envelope_id") @db.Uuid
-  comment             String?                @db.VarChar(500)
-  deletedAt           DateTime?              @map("deleted_at") @db.Timestamptz(3)
+  id                  String                  @id @db.Uuid
+  budgetId            String                  @map("budget_id") @db.Uuid
+  incomeTransactionId String                  @map("income_transaction_id") @db.Uuid
+  status              IncomeAllocationStatus  @default(CONFIRMED)
+  amountMinor         BigInt                  @map("amount_minor")
+  currency            String                  @default("RUB") @db.Char(3)
+  scale               Int                     @default(2) @db.SmallInt
+  occurredOn          DateTime                @map("occurred_on") @db.Date
+  accountId           String                  @map("account_id") @db.Uuid
+  envelopeId          String                  @map("envelope_id") @db.Uuid
+  comment             String?                 @db.VarChar(500)
+  deletedAt           DateTime?               @map("deleted_at") @db.Timestamptz(3)
   preDeleteStatus     IncomeAllocationStatus? @map("pre_delete_status")
-  createdByUserId     String                 @map("created_by_user_id") @db.Uuid
-  updatedByUserId     String                 @map("updated_by_user_id") @db.Uuid
-  createdAt           DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt           DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdByUserId     String                  @map("created_by_user_id") @db.Uuid
+  updatedByUserId     String                  @map("updated_by_user_id") @db.Uuid
+  createdAt           DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   budget            Budget      @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   incomeTransaction Transaction @relation(fields: [incomeTransactionId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
@@ -538,24 +567,24 @@ model IncomeAllocation {
 }
 
 model Transfer {
-  id                 String         @id @db.Uuid
-  budgetId           String         @map("budget_id") @db.Uuid
-  status             TransferStatus @default(DRAFT)
-  mode               TransferMode   @default(LEGACY_PARTS)
-  totalMinor         BigInt         @map("total_minor")
-  currency           String         @default("RUB") @map("currency") @db.Char(3)
-  scale              Int            @default(2) @db.SmallInt
-  occurredOn         DateTime       @map("occurred_on") @db.Date
-  comment            String?        @db.VarChar(500)
-  confirmedAt        DateTime?      @map("confirmed_at") @db.Timestamptz(3)
-  cancelledAt        DateTime?      @map("cancelled_at") @db.Timestamptz(3)
-  deletedAt          DateTime?      @map("deleted_at") @db.Timestamptz(3)
-  sourceAccountId    String?        @map("source_account_id") @db.Uuid
-  destinationAccountId String?      @map("destination_account_id") @db.Uuid
-  createdByUserId    String         @map("created_by_user_id") @db.Uuid
-  updatedByUserId    String         @map("updated_by_user_id") @db.Uuid
-  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                   String         @id @db.Uuid
+  budgetId             String         @map("budget_id") @db.Uuid
+  status               TransferStatus @default(DRAFT)
+  mode                 TransferMode   @default(LEGACY_PARTS)
+  totalMinor           BigInt         @map("total_minor")
+  currency             String         @default("RUB") @map("currency") @db.Char(3)
+  scale                Int            @default(2) @db.SmallInt
+  occurredOn           DateTime       @map("occurred_on") @db.Date
+  comment              String?        @db.VarChar(500)
+  confirmedAt          DateTime?      @map("confirmed_at") @db.Timestamptz(3)
+  cancelledAt          DateTime?      @map("cancelled_at") @db.Timestamptz(3)
+  deletedAt            DateTime?      @map("deleted_at") @db.Timestamptz(3)
+  sourceAccountId      String?        @map("source_account_id") @db.Uuid
+  destinationAccountId String?        @map("destination_account_id") @db.Uuid
+  createdByUserId      String         @map("created_by_user_id") @db.Uuid
+  updatedByUserId      String         @map("updated_by_user_id") @db.Uuid
+  createdAt            DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   budget             Budget         @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   parts              TransferPart[]
@@ -661,8 +690,8 @@ model EnvelopePeriod {
   envelope Envelope @relation("EnvelopePeriodEnvelope", fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
 
   assignments            EnvelopeAssignment[]
-  movementsAsSource      EnvelopeMovement[] @relation("MovementSourcePeriod")
-  movementsAsDestination EnvelopeMovement[] @relation("MovementDestinationPeriod")
+  movementsAsSource      EnvelopeMovement[]   @relation("MovementSourcePeriod")
+  movementsAsDestination EnvelopeMovement[]   @relation("MovementDestinationPeriod")
 
   @@unique([id, budgetId])
   @@unique([id, budgetId, envelopeId])
@@ -693,24 +722,24 @@ model EnvelopeFundingRule {
 }
 
 model EnvelopeAssignment {
-  id                        String               @id @db.Uuid
-  budgetId                  String               @map("budget_id") @db.Uuid
-  envelopeId                String               @map("envelope_id") @db.Uuid
+  id                        String                 @id @db.Uuid
+  budgetId                  String                 @map("budget_id") @db.Uuid
+  envelopeId                String                 @map("envelope_id") @db.Uuid
   type                      EnvelopeAssignmentType
-  amountMinor               BigInt               @map("amount_minor")
-  effectiveOn               DateTime             @map("effective_on") @db.Date
-  periodId                  String?              @map("period_id") @db.Uuid
-  sourceIncomeTransactionId String?              @map("source_income_transaction_id") @db.Uuid
-  status                    EnvelopeLedgerStatus @default(CONFIRMED)
-  createdByUserId           String               @map("created_by_user_id") @db.Uuid
-  createdAt                 DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt                 DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  amountMinor               BigInt                 @map("amount_minor")
+  effectiveOn               DateTime               @map("effective_on") @db.Date
+  periodId                  String?                @map("period_id") @db.Uuid
+  sourceIncomeTransactionId String?                @map("source_income_transaction_id") @db.Uuid
+  status                    EnvelopeLedgerStatus   @default(CONFIRMED)
+  createdByUserId           String                 @map("created_by_user_id") @db.Uuid
+  createdAt                 DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  budget                  Budget        @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  envelope                Envelope      @relation(fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  budget                  Budget          @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  envelope                Envelope        @relation(fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
   period                  EnvelopePeriod? @relation(fields: [periodId, budgetId, envelopeId], references: [id, budgetId, envelopeId], onDelete: Restrict, onUpdate: Cascade)
-  sourceIncomeTransaction Transaction?  @relation(fields: [sourceIncomeTransactionId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
-  createdBy               User          @relation("EnvelopeAssignmentCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  sourceIncomeTransaction Transaction?    @relation(fields: [sourceIncomeTransactionId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  createdBy               User            @relation("EnvelopeAssignmentCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([id, budgetId])
   @@index([budgetId, envelopeId, effectiveOn])
@@ -734,12 +763,12 @@ model EnvelopeMovement {
   createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  budget                Budget          @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  sourceEnvelope        Envelope        @relation("MovementSourceEnvelope", fields: [sourceEnvelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
-  sourcePeriod          EnvelopePeriod? @relation("MovementSourcePeriod", fields: [sourcePeriodId, budgetId, sourceEnvelopeId], references: [id, budgetId, envelopeId], onDelete: Restrict, onUpdate: Cascade)
-  destinationEnvelope   Envelope?       @relation("MovementDestinationEnvelope", fields: [destinationEnvelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
-  destinationPeriod     EnvelopePeriod? @relation("MovementDestinationPeriod", fields: [destinationPeriodId, budgetId, destinationEnvelopeId], references: [id, budgetId, envelopeId], onDelete: Restrict, onUpdate: Cascade)
-  createdBy             User            @relation("EnvelopeMovementCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  budget              Budget          @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  sourceEnvelope      Envelope        @relation("MovementSourceEnvelope", fields: [sourceEnvelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  sourcePeriod        EnvelopePeriod? @relation("MovementSourcePeriod", fields: [sourcePeriodId, budgetId, sourceEnvelopeId], references: [id, budgetId, envelopeId], onDelete: Restrict, onUpdate: Cascade)
+  destinationEnvelope Envelope?       @relation("MovementDestinationEnvelope", fields: [destinationEnvelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  destinationPeriod   EnvelopePeriod? @relation("MovementDestinationPeriod", fields: [destinationPeriodId, budgetId, destinationEnvelopeId], references: [id, budgetId, envelopeId], onDelete: Restrict, onUpdate: Cascade)
+  createdBy           User            @relation("EnvelopeMovementCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([id, budgetId])
   @@index([budgetId, sourceEnvelopeId, effectiveOn])
@@ -769,41 +798,41 @@ model BudgetCycleRevision {
 }
 
 model RegularPlan {
-  id               String          @id @db.Uuid
-  workspaceId      String          @map("workspace_id") @db.Uuid
-  budgetId         String          @map("budget_id") @db.Uuid
-  ownerUserId      String          @map("owner_user_id") @db.Uuid
-  name             String          @db.VarChar(120)
-  planType         RegularPlanType @map("plan_type")
-  amountMinor      BigInt          @map("amount_minor")
-  currency         String          @default("RUB") @db.Char(3)
-  scale            Int             @default(2) @db.SmallInt
-  anchorOn         DateTime        @map("anchor_on") @db.Date
-  startOn          DateTime        @map("start_on") @db.Date
-  endOn            DateTime?       @map("end_on") @db.Date
-  recurrence       PlanRecurrence
-  intervalMonths   Int?            @map("interval_months") @db.SmallInt
-  accountId        String?         @map("account_id") @db.Uuid
-  categoryId       String?         @map("category_id") @db.Uuid
-  envelopeId       String?         @map("envelope_id") @db.Uuid
-  comment          String?         @db.VarChar(500)
-  isActive         Boolean         @default(true) @map("is_active")
-  disabledAt       DateTime?       @map("disabled_at") @db.Timestamptz(3)
-  deletedAt        DateTime?       @map("deleted_at") @db.Timestamptz(3)
-  createdByUserId  String          @map("created_by_user_id") @db.Uuid
-  updatedByUserId  String          @map("updated_by_user_id") @db.Uuid
-  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id              String          @id @db.Uuid
+  workspaceId     String          @map("workspace_id") @db.Uuid
+  budgetId        String          @map("budget_id") @db.Uuid
+  ownerUserId     String          @map("owner_user_id") @db.Uuid
+  name            String          @db.VarChar(120)
+  planType        RegularPlanType @map("plan_type")
+  amountMinor     BigInt          @map("amount_minor")
+  currency        String          @default("RUB") @db.Char(3)
+  scale           Int             @default(2) @db.SmallInt
+  anchorOn        DateTime        @map("anchor_on") @db.Date
+  startOn         DateTime        @map("start_on") @db.Date
+  endOn           DateTime?       @map("end_on") @db.Date
+  recurrence      PlanRecurrence
+  intervalMonths  Int?            @map("interval_months") @db.SmallInt
+  accountId       String?         @map("account_id") @db.Uuid
+  categoryId      String?         @map("category_id") @db.Uuid
+  envelopeId      String?         @map("envelope_id") @db.Uuid
+  comment         String?         @db.VarChar(500)
+  isActive        Boolean         @default(true) @map("is_active")
+  disabledAt      DateTime?       @map("disabled_at") @db.Timestamptz(3)
+  deletedAt       DateTime?       @map("deleted_at") @db.Timestamptz(3)
+  createdByUserId String          @map("created_by_user_id") @db.Uuid
+  updatedByUserId String          @map("updated_by_user_id") @db.Uuid
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  workspace      Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  budget         Budget     @relation(fields: [budgetId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Cascade)
-  account        Account?   @relation("RegularPlanDefaultAccount", fields: [accountId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
-  category       Category?  @relation("RegularPlanCategory", fields: [categoryId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
-  envelope       Envelope?  @relation("RegularPlanEnvelope", fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
-  owner          User       @relation("RegularPlanOwner", fields: [ownerUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  createdBy      User       @relation("RegularPlanCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  updatedBy      User       @relation("RegularPlanUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  occurrences    PlanOccurrence[]
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  budget      Budget           @relation(fields: [budgetId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Cascade)
+  account     Account?         @relation("RegularPlanDefaultAccount", fields: [accountId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  category    Category?        @relation("RegularPlanCategory", fields: [categoryId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  envelope    Envelope?        @relation("RegularPlanEnvelope", fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  owner       User             @relation("RegularPlanOwner", fields: [ownerUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy   User             @relation("RegularPlanCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  updatedBy   User             @relation("RegularPlanUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  occurrences PlanOccurrence[]
 
   @@unique([id, budgetId])
   @@index([budgetId, isActive, deletedAt])
@@ -813,40 +842,40 @@ model RegularPlan {
 }
 
 model PlanOccurrence {
-  id                 String                           @id @db.Uuid
-  workspaceId        String                           @map("workspace_id") @db.Uuid
-  budgetId           String                           @map("budget_id") @db.Uuid
-  planId             String                           @map("plan_id") @db.Uuid
-  scheduledOn        DateTime                         @map("scheduled_on") @db.Date
-  planName           String                           @map("plan_name") @db.VarChar(120)
-  planType           RegularPlanType                  @map("plan_type")
-  amountMinor        BigInt                           @map("amount_minor")
-  currency           String                           @default("RUB") @db.Char(3)
-  scale              Int                              @default(2) @db.SmallInt
-  accountId          String?                          @map("account_id") @db.Uuid
-  categoryId         String?                          @map("category_id") @db.Uuid
-  envelopeId         String?                          @map("envelope_id") @db.Uuid
-  comment            String?                          @db.VarChar(500)
-  status             PlanOccurrenceStatus             @default(PENDING)
-  transactionId      String?                          @map("transaction_id") @db.Uuid
-  skippedAt          DateTime?                        @map("skipped_at") @db.Timestamptz(3)
-  completedAt        DateTime?                        @map("completed_at") @db.Timestamptz(3)
-  cancelledAt        DateTime?                        @map("cancelled_at") @db.Timestamptz(3)
+  id                 String                            @id @db.Uuid
+  workspaceId        String                            @map("workspace_id") @db.Uuid
+  budgetId           String                            @map("budget_id") @db.Uuid
+  planId             String                            @map("plan_id") @db.Uuid
+  scheduledOn        DateTime                          @map("scheduled_on") @db.Date
+  planName           String                            @map("plan_name") @db.VarChar(120)
+  planType           RegularPlanType                   @map("plan_type")
+  amountMinor        BigInt                            @map("amount_minor")
+  currency           String                            @default("RUB") @db.Char(3)
+  scale              Int                               @default(2) @db.SmallInt
+  accountId          String?                           @map("account_id") @db.Uuid
+  categoryId         String?                           @map("category_id") @db.Uuid
+  envelopeId         String?                           @map("envelope_id") @db.Uuid
+  comment            String?                           @db.VarChar(500)
+  status             PlanOccurrenceStatus              @default(PENDING)
+  transactionId      String?                           @map("transaction_id") @db.Uuid
+  skippedAt          DateTime?                         @map("skipped_at") @db.Timestamptz(3)
+  completedAt        DateTime?                         @map("completed_at") @db.Timestamptz(3)
+  cancelledAt        DateTime?                         @map("cancelled_at") @db.Timestamptz(3)
   cancellationReason PlanOccurrenceCancellationReason? @map("cancellation_reason")
-  actedByUserId      String?                          @map("acted_by_user_id") @db.Uuid
-  createdAt          DateTime                         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  actedByUserId      String?                           @map("acted_by_user_id") @db.Uuid
+  createdAt          DateTime                          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                          @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  budget         Budget         @relation(fields: [budgetId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Cascade)
-  plan           RegularPlan    @relation(fields: [planId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
-  account        Account?       @relation("PlanOccurrenceDefaultAccount", fields: [accountId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
-  category       Category?      @relation("PlanOccurrenceCategory", fields: [categoryId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
-  envelope       Envelope?      @relation("PlanOccurrenceEnvelope", fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
-  transaction    Transaction?   @relation("PlanOccurrenceTransaction", fields: [transactionId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
-  actedBy        User?          @relation("PlanOccurrenceActor", fields: [actedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  notifications  Notification[] @relation("OccurrenceNotifications")
-  payments       PlanPayment[]
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  budget        Budget         @relation(fields: [budgetId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Cascade)
+  plan          RegularPlan    @relation(fields: [planId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  account       Account?       @relation("PlanOccurrenceDefaultAccount", fields: [accountId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  category      Category?      @relation("PlanOccurrenceCategory", fields: [categoryId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  envelope      Envelope?      @relation("PlanOccurrenceEnvelope", fields: [envelopeId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  transaction   Transaction?   @relation("PlanOccurrenceTransaction", fields: [transactionId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  actedBy       User?          @relation("PlanOccurrenceActor", fields: [actedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  notifications Notification[] @relation("OccurrenceNotifications")
+  payments      PlanPayment[]
 
   @@unique([id, budgetId])
   @@unique([transactionId, budgetId])
@@ -873,15 +902,66 @@ model Notification {
   createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  workspace  Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  budget     Budget          @relation(fields: [budgetId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Cascade)
-  user       User            @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  occurrence PlanOccurrence? @relation("OccurrenceNotifications", fields: [occurrenceId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  workspace  Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  budget     Budget                 @relation(fields: [budgetId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Cascade)
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  occurrence PlanOccurrence?        @relation("OccurrenceNotifications", fields: [occurrenceId, budgetId], references: [id, budgetId], onDelete: Restrict, onUpdate: Cascade)
+  deliveries NotificationDelivery[]
 
   @@unique([budgetId, userId, notificationKey])
   @@index([budgetId, userId, readAt, createdAt])
   @@index([budgetId, occurrenceId, notificationType])
   @@map("notifications")
+}
+
+model NotificationChannelSetting {
+  id               String              @id @db.Uuid
+  userId           String              @map("user_id") @db.Uuid
+  channel          NotificationChannel
+  enabled          Boolean             @default(false)
+  urgentEnabled    Boolean             @default(true) @map("urgent_enabled")
+  digestFrequency  DigestFrequency     @default(DAILY) @map("digest_frequency")
+  includeAmounts   Boolean             @default(false) @map("include_amounts")
+  amountsConsentAt DateTime?           @map("amounts_consent_at") @db.Timestamptz(3)
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([userId, channel])
+  @@index([channel, enabled])
+  @@map("notification_channel_settings")
+}
+
+model NotificationDelivery {
+  id                   String              @id @db.Uuid
+  workspaceId          String              @map("workspace_id") @db.Uuid
+  budgetId             String              @map("budget_id") @db.Uuid
+  userId               String              @map("user_id") @db.Uuid
+  channel              NotificationChannel
+  kind                 DeliveryKind
+  notificationId       String?             @map("notification_id") @db.Uuid
+  digestPeriodStart    DateTime?           @map("digest_period_start") @db.Timestamptz(3)
+  digestPeriodEnd      DateTime?           @map("digest_period_end") @db.Timestamptz(3)
+  dedupeKey            String              @map("dedupe_key") @db.VarChar(255)
+  status               DeliveryStatus      @default(PENDING)
+  attempts             Int                 @default(0)
+  nextAttemptAt        DateTime            @map("next_attempt_at") @db.Timestamptz(3)
+  sentAt               DateTime?           @map("sent_at") @db.Timestamptz(3)
+  lastError            String?             @map("last_error") @db.VarChar(200)
+  unsubscribeTokenHash String?             @unique @map("unsubscribe_token_hash") @db.Char(64)
+  createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  budget       Budget        @relation(fields: [budgetId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  notification Notification? @relation(fields: [notificationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([budgetId, userId, channel, dedupeKey])
+  @@index([status, nextAttemptAt])
+  @@index([userId, budgetId, kind, digestPeriodEnd])
+  @@map("notification_deliveries")
 }
 
 enum CalendarRecurrence {
@@ -956,20 +1036,20 @@ model ActivityFeedCursor {
 }
 
 model WorkerJob {
-  id              String          @id @db.Uuid
-  jobType         WorkerJobType   @map("job_type")
-  payload         Json
-  jobKey          String          @unique @map("job_key") @db.VarChar(128)
-  status          WorkerJobStatus @default(PENDING)
-  attempts        Int             @default(0)
-  runAt           DateTime        @map("run_at") @db.Timestamptz(3)
-  lockedAt        DateTime?       @map("locked_at") @db.Timestamptz(3)
-  leaseExpiresAt  DateTime?       @map("lease_expires_at") @db.Timestamptz(3)
-  lastRunAt       DateTime?       @map("last_run_at") @db.Timestamptz(3)
-  completedAt     DateTime?       @map("completed_at") @db.Timestamptz(3)
-  lastError       String?         @map("last_error") @db.VarChar(500)
-  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id             String          @id @db.Uuid
+  jobType        WorkerJobType   @map("job_type")
+  payload        Json
+  jobKey         String          @unique @map("job_key") @db.VarChar(128)
+  status         WorkerJobStatus @default(PENDING)
+  attempts       Int             @default(0)
+  runAt          DateTime        @map("run_at") @db.Timestamptz(3)
+  lockedAt       DateTime?       @map("locked_at") @db.Timestamptz(3)
+  leaseExpiresAt DateTime?       @map("lease_expires_at") @db.Timestamptz(3)
+  lastRunAt      DateTime?       @map("last_run_at") @db.Timestamptz(3)
+  completedAt    DateTime?       @map("completed_at") @db.Timestamptz(3)
+  lastError      String?         @map("last_error") @db.VarChar(500)
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@index([status, runAt])
   @@index([status, leaseExpiresAt])
@@ -1009,6 +1089,20 @@ model RecoveryToken {
   @@map("recovery_tokens")
 }
 
+model EmailVerificationToken {
+  id         String    @id @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash") @db.Char(64)
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(3)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([userId, consumedAt, expiresAt])
+  @@map("email_verification_tokens")
+}
+
 // No FK to users: the row is the non-personal trace of a deletion and must outlive the purge.
 model AccountDeletion {
   id                       String    @id @db.Uuid
@@ -1042,22 +1136,22 @@ model UserConsent {
 }
 
 model AuditEvent {
-  id           String    @id @db.Uuid
-  actorUserId  String?   @map("actor_user_id") @db.Uuid
-  workspaceId  String?   @map("workspace_id") @db.Uuid
-  budgetId     String?   @map("budget_id") @db.Uuid
-  entityType   String    @map("entity_type") @db.VarChar(64)
-  entityId     String?   @map("entity_id") @db.Uuid
-  action       String    @db.VarChar(64)
-  oldValues    Json?     @map("old_values")
-  newValues    Json?     @map("new_values")
-  source       String    @db.VarChar(32)
-  requestId    String?   @map("request_id") @db.VarChar(128)
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  id          String   @id @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  workspaceId String?  @map("workspace_id") @db.Uuid
+  budgetId    String?  @map("budget_id") @db.Uuid
+  entityType  String   @map("entity_type") @db.VarChar(64)
+  entityId    String?  @map("entity_id") @db.Uuid
+  action      String   @db.VarChar(64)
+  oldValues   Json?    @map("old_values")
+  newValues   Json?    @map("new_values")
+  source      String   @db.VarChar(32)
+  requestId   String?  @map("request_id") @db.VarChar(128)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  actor    User?      @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  actor     User?      @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  budget   Budget?    @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  budget    Budget?    @relation(fields: [budgetId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([workspaceId, createdAt])
   @@index([budgetId, createdAt])

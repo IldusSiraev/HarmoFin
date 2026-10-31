@@ -29,6 +29,7 @@ import { CalendarModule } from './calendar/calendar.module.js';
 import { ActivityFeedModule } from './activity-feed/activity-feed.module.js';
 import { PlansCalendarModule } from './plans-calendar/plans-calendar.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
+import { NotificationSettingsModule } from './notification-settings/notification-settings.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
 import { WorkspaceModule } from './workspaces/workspace.module.js';
 
@@ -64,6 +65,7 @@ export class AppModule {
         ActivityFeedModule.register(),
         PlansCalendarModule.register(),
         NotificationsModule.register(),
+        NotificationSettingsModule.register(),
         ReportModule.register(),
         ExportsModule.register(),
         ObservabilityModule.register(config),

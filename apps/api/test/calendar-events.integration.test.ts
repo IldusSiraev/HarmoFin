@@ -33,10 +33,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  for (const actor of [creator, stranger]) {
-    await env.prisma.calendarEventParticipant.deleteMany({ where: { budgetId: actor.budgetId } });
-    await env.prisma.calendarEvent.deleteMany({ where: { budgetId: actor.budgetId } });
-  }
+  // Calendar events are removed by FamilyTestApp.cleanup().
   await env.stop();
 });
 

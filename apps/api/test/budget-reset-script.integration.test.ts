@@ -417,9 +417,10 @@ async function seedBudget(f: Fixture, withRule: boolean): Promise<void> {
   await prisma.planPayment.create({
     data: { id: id(), budgetId, occurrenceId: occPending, transactionId: expenseV2 },
   });
+  const notificationId = id();
   await prisma.notification.create({
     data: {
-      id: id(),
+      id: notificationId,
       workspaceId,
       budgetId,
       userId,
@@ -428,6 +429,19 @@ async function seedBudget(f: Fixture, withRule: boolean): Promise<void> {
       title: 'Скоро платёж',
       body: 'Интернет',
       notificationKey: `reset-${randomUUID()}`,
+    },
+  });
+  await prisma.notificationDelivery.create({
+    data: {
+      id: id(),
+      workspaceId,
+      budgetId,
+      userId,
+      channel: 'EMAIL',
+      kind: 'DIGEST',
+      notificationId,
+      dedupeKey: `reset-digest-${randomUUID()}`,
+      nextAttemptAt: new Date(),
     },
   });
   const calendarEvent = id();

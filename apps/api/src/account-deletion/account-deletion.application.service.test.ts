@@ -76,6 +76,7 @@ function setup(overrides: { passwordOk?: boolean; otherMembers?: number; claimed
     sendPasswordRecovery: vi.fn(),
     sendAccountDeletionScheduled: vi.fn().mockResolvedValue(undefined),
     sendFamilyInvitation: vi.fn().mockResolvedValue(undefined),
+    sendEmailVerification: vi.fn(),
   };
   const config = { mail: { webBaseUrl: 'http://localhost:3000' } };
   const service = new AccountDeletionApplicationService(

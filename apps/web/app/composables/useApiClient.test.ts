@@ -89,6 +89,48 @@ describe('createApiClient', () => {
     );
   });
 
+  it('confirms email verification without a session-bound CSRF token', async () => {
+    const fetcher = vi.fn<Fetcher>(async () => new Response(null, { status: 204 }));
+    const client = createApiClient(fetcher, 'http://localhost:3001', 'http://localhost:3000');
+
+    await expect(
+      client.request('/api/v1/auth/email-verification/confirm', {
+        method: 'POST',
+        body: JSON.stringify({ token: 'raw-token' }),
+      }),
+    ).resolves.toBeUndefined();
+
+    // Opened from the letter, possibly signed out: /auth/csrf would answer 401.
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+      'http://localhost:3001/api/v1/auth/email-verification/confirm',
+    );
+    expect(
+      new Headers((fetcher.mock.calls[0]?.[1] as RequestInit).headers).has('X-CSRF-Token'),
+    ).toBe(false);
+  });
+
+  it('unsubscribes from a letter without a session-bound CSRF token', async () => {
+    const fetcher = vi.fn<Fetcher>(async () => new Response(null, { status: 204 }));
+    const client = createApiClient(fetcher, 'http://localhost:3001', 'http://localhost:3000');
+
+    await expect(
+      client.request('/api/v1/notifications/unsubscribe', {
+        method: 'POST',
+        body: JSON.stringify({ token: 'raw-token' }),
+      }),
+    ).resolves.toBeUndefined();
+
+    // Opened from a letter, possibly signed out: the token in the body is enough.
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+      'http://localhost:3001/api/v1/notifications/unsubscribe',
+    );
+    expect(
+      new Headers((fetcher.mock.calls[0]?.[1] as RequestInit).headers).has('X-CSRF-Token'),
+    ).toBe(false);
+  });
+
   it('downloads Blob with session policy and parses Problem Details errors', async () => {
     const successFetcher = vi.fn<Fetcher>(async () => new Response('csv', { status: 200 }));
     const successClient = createApiClient(

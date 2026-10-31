@@ -30,7 +30,6 @@ type Feed = {
 };
 
 const env = new FamilyTestApp();
-const budgets: string[] = [];
 const MINUTE = 60_000;
 const DAY = 86_400_000;
 
@@ -39,10 +38,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  for (const budgetId of budgets) {
-    await env.prisma.calendarEventParticipant.deleteMany({ where: { budgetId } });
-    await env.prisma.calendarEvent.deleteMany({ where: { budgetId } });
-  }
   await env.stop();
 });
 
@@ -50,7 +45,6 @@ async function family() {
   const creator = await env.register();
   const editor = await env.join(creator, await env.register(), 'EDITOR');
   const viewer = await env.join(creator, await env.register(), 'VIEWER');
-  budgets.push(creator.budgetId);
   return { creator, editor, viewer };
 }
 
@@ -319,7 +313,6 @@ describe('activity feed: access', () => {
   it('any member reads and marks; a stranger gets 404 and other budgets never leak', async () => {
     const { creator, viewer } = await family();
     const stranger = await env.register();
-    budgets.push(stranger.budgetId);
     const foreign = await auditRow(stranger, new Date(), { actorUserId: stranger.user.id });
 
     expect((await env.inject('GET', feedUrl(creator), stranger)).statusCode).toBe(404);

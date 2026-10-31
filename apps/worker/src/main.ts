@@ -12,6 +12,10 @@ import { PlanOccurrenceHandler } from './plan-occurrence.handler.js';
 import { NotificationRuleHandler } from './notification.handler.js';
 import { CalendarReminderHandler } from './calendar-reminder.handler.js';
 import { AccountPurgeHandler } from './account-purge.handler.js';
+import { DeliverNotificationsHandler } from './delivery/deliver.handler.js';
+import { BuildEmailDigestsHandler } from './delivery/build-digests.handler.js';
+import { DeliveryRepository } from './delivery/delivery.repository.js';
+import { SmtpMailer } from './mail/mailer.js';
 import { WorkerRuntime } from './runtime.js';
 
 const config = loadWorkerConfig(process.env);
@@ -23,6 +27,27 @@ const metrics = new MetricsRegistry({
 });
 const errorReporter = createWorkerErrorReporter(config.errorReportingEndpoint);
 const logger = createWorkerLogger(config);
+const mailHandlers = config.mail
+  ? {
+      DELIVER_NOTIFICATIONS: new DeliverNotificationsHandler(
+        database,
+        new DeliveryRepository(database),
+        new SmtpMailer(config.mail),
+        config.mail.webBaseUrl,
+        {
+          onOutcome: (kind, outcome) => metrics.recordDelivery(kind, outcome),
+          onFailure: (failure) => {
+            logger.deliveryFailure(failure);
+            void errorReporter.report(new Error('Letter delivery failed'), {
+              errorName: failure.errorName,
+            });
+          },
+        },
+      ),
+      BUILD_EMAIL_DIGESTS: new BuildEmailDigestsHandler(database),
+    }
+  : {};
+if (!config.mail) logger.mailDisabled();
 const runner = new JobRunner(
   new WorkerJobRepository(database),
   {
@@ -40,6 +65,7 @@ const runner = new JobRunner(
         errorName: failure.errorName,
       });
     }),
+    ...mailHandlers,
   },
   {
     pollIntervalMs: config.pollIntervalMs,

@@ -57,6 +57,11 @@ export class AuthRateLimitGuard implements CanActivate {
       method === 'POST'
     )
       return this.config.rateLimit.loginMax;
+    if (url.startsWith('/api/v1/me/email-verification')) return this.config.rateLimit.recoveryMax;
+    if (url.startsWith('/api/v1/auth/email-verification/confirm'))
+      return this.config.rateLimit.recoveryMax;
+    if (url.startsWith('/api/v1/notifications/unsubscribe'))
+      return this.config.rateLimit.recoveryMax;
     return null;
   }
 }

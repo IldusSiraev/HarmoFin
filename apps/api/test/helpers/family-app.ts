@@ -212,6 +212,7 @@ export class FamilyTestApp {
       })
     ).map((budget) => budget.id);
     const byBudget = { budgetId: { in: budgetIds } };
+    await this.prisma.notificationDelivery.deleteMany({ where: { workspaceId: { in: ids } } });
     await this.prisma.activityFeedCursor.deleteMany({ where: byBudget });
     await this.prisma.notification.deleteMany({ where: { workspaceId: { in: ids } } });
     await this.prisma.idempotencyRecord.deleteMany({ where: byBudget });
@@ -227,6 +228,9 @@ export class FamilyTestApp {
     await this.prisma.envelopeFundingRule.deleteMany({ where: byBudget });
     await this.prisma.envelopePeriod.deleteMany({ where: byBudget });
     await this.prisma.budgetCycleRevision.deleteMany({ where: byBudget });
+    // calendar_events references budgets with onDelete: Restrict; children first.
+    await this.prisma.calendarEventParticipant.deleteMany({ where: byBudget });
+    await this.prisma.calendarEvent.deleteMany({ where: byBudget });
     await this.prisma.workspaceInvitation.deleteMany({ where: { workspaceId: { in: ids } } });
     await this.prisma.auditEvent.deleteMany({ where: { workspaceId: { in: ids } } });
     await this.prisma.budget.updateMany({
@@ -238,9 +242,14 @@ export class FamilyTestApp {
     await this.prisma.category.deleteMany({ where: byBudget });
     await this.prisma.budget.deleteMany({ where: { id: { in: budgetIds } } });
     for (const userId of this.userIds) {
+      await this.prisma.notificationDelivery.deleteMany({ where: { userId } });
+      await this.prisma.notificationChannelSetting.deleteMany({ where: { userId } });
+      await this.prisma.emailVerificationToken.deleteMany({ where: { userId } });
       await this.prisma.session.deleteMany({ where: { userId } });
       await this.prisma.recoveryToken.deleteMany({ where: { userId } });
       await this.prisma.userConsent.deleteMany({ where: { userId } });
+      // Account-level audits (e.g. notification settings) have no workspaceId.
+      await this.prisma.auditEvent.deleteMany({ where: { actorUserId: userId } });
     }
     await this.prisma.workspaceMembership.deleteMany({ where: { workspaceId: { in: ids } } });
     await this.prisma.workspace.deleteMany({ where: { id: { in: ids } } });

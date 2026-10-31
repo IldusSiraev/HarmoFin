@@ -30,6 +30,11 @@ const optionalHttpUrl = z
   .transform(() => undefined)
   .or(httpUrl.optional());
 
+const optionalNonEmpty = z
+  .literal('')
+  .transform(() => undefined)
+  .or(z.string().min(1).optional());
+
 const workerEnvironmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: postgresUrl,
@@ -42,9 +47,24 @@ const workerEnvironmentSchema = z.object({
   RELEASE_SHA: z.string().min(1).default('dev'),
   ERROR_REPORTING_ENDPOINT: optionalHttpUrl,
   OTEL_EXPORTER_OTLP_ENDPOINT: optionalHttpUrl,
+  SMTP_HOST: optionalNonEmpty,
+  SMTP_PORT: z.coerce.number().int().min(1).max(65_535).optional(),
+  SMTP_USER: optionalNonEmpty,
+  SMTP_PASSWORD: optionalNonEmpty,
+  MAIL_FROM: optionalNonEmpty,
+  WEB_BASE_URL: optionalHttpUrl,
 });
 
 type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
+
+export interface WorkerMailConfig {
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser?: string;
+  smtpPassword?: string;
+  from: string;
+  webBaseUrl: string;
+}
 
 export interface WorkerConfig {
   nodeEnv: 'development' | 'test' | 'production';
@@ -58,6 +78,7 @@ export interface WorkerConfig {
   releaseSha: string;
   errorReportingEndpoint: string | undefined;
   otelExporterOtlpEndpoint: string | undefined;
+  mail: WorkerMailConfig | undefined;
 }
 
 export function loadWorkerConfig(input: NodeJS.ProcessEnv): WorkerConfig {
@@ -82,5 +103,25 @@ export function loadWorkerConfig(input: NodeJS.ProcessEnv): WorkerConfig {
     releaseSha: result.data.RELEASE_SHA,
     errorReportingEndpoint: result.data.ERROR_REPORTING_ENDPOINT,
     otelExporterOtlpEndpoint: result.data.OTEL_EXPORTER_OTLP_ENDPOINT,
+    mail: mailConfig(result.data),
+  };
+}
+
+/** Mail is optional: without SMTP_HOST the worker skips the delivery and digest jobs entirely. */
+function mailConfig(data: z.infer<typeof workerEnvironmentSchema>): WorkerMailConfig | undefined {
+  if (!data.SMTP_HOST) return undefined;
+  const missing = [
+    data.SMTP_PORT ? null : 'SMTP_PORT',
+    data.MAIL_FROM ? null : 'MAIL_FROM',
+    data.WEB_BASE_URL ? null : 'WEB_BASE_URL',
+    Boolean(data.SMTP_USER) === Boolean(data.SMTP_PASSWORD) ? null : 'SMTP_USER, SMTP_PASSWORD',
+  ].filter((item): item is string => item !== null);
+  if (missing.length > 0) throw new Error(`Invalid worker configuration: ${missing.join(', ')}`);
+  return {
+    smtpHost: data.SMTP_HOST,
+    smtpPort: data.SMTP_PORT!,
+    ...(data.SMTP_USER ? { smtpUser: data.SMTP_USER, smtpPassword: data.SMTP_PASSWORD! } : {}),
+    from: data.MAIL_FROM!,
+    webBaseUrl: data.WEB_BASE_URL!,
   };
 }

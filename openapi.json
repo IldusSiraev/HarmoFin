@@ -2197,6 +2197,60 @@
         ],
         "type": "object"
       },
+      "EmailNotificationSettingsResponse": {
+        "properties": {
+          "amountsConsentAt": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "digestFrequency": {
+            "description": "В 08:00 по часовому поясу бюджета.",
+            "enum": ["OFF", "DAILY", "WEEKLY"],
+            "type": "string"
+          },
+          "email": {
+            "description": "Адрес аккаунта, частично скрыт: a***@example.com.",
+            "type": "string"
+          },
+          "emailVerified": {
+            "description": "Адрес подтверждён; без этого канал не включить.",
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "includeAmounts": {
+            "type": "boolean"
+          },
+          "urgentEnabled": {
+            "description": "Просроченный платёж и напоминание календаря.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "email",
+          "emailVerified",
+          "enabled",
+          "urgentEnabled",
+          "digestFrequency",
+          "includeAmounts",
+          "amountsConsentAt"
+        ],
+        "type": "object"
+      },
+      "EmailVerificationConfirmRequest": {
+        "properties": {
+          "token": {
+            "description": "Токен из ссылки письма подтверждения.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": ["token"],
+        "type": "object"
+      },
       "EnvelopeHistoryItemResponse": {
         "properties": {
           "amountMinor": {
@@ -6989,6 +7043,18 @@
         ],
         "type": "object"
       },
+      "UnsubscribeRequest": {
+        "properties": {
+          "token": {
+            "description": "Токен из ссылки «Отписаться» в письме.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": ["token"],
+        "type": "object"
+      },
       "UpdateAccountRequest": {
         "properties": {
           "accountType": {
@@ -7127,6 +7193,29 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "UpdateEmailNotificationSettingsRequest": {
+        "properties": {
+          "amountsConsent": {
+            "description": "Обязательно true, когда includeAmounts включается впервые.",
+            "type": "boolean"
+          },
+          "digestFrequency": {
+            "enum": ["OFF", "DAILY", "WEEKLY"],
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "includeAmounts": {
+            "type": "boolean"
+          },
+          "urgentEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": ["enabled", "urgentEnabled", "digestFrequency", "includeAmounts"],
         "type": "object"
       },
       "UpdateEnvelopePlanRequest": {
@@ -7475,6 +7564,70 @@
             "description": ""
           }
         },
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/auth/email-verification/confirm": {
+      "post": {
+        "description": "Публичный: открывается из письма, возможно без входа. Без сессии и CSRF; глобальный OriginGuard требует origin веба. Коды: 400 VALIDATION_FAILED, 403 ORIGIN_REQUIRED, 422 EMAIL_VERIFICATION_TOKEN_INVALID, 429 AUTH_RATE_LIMITED.",
+        "operationId": "EmailVerificationController_confirm_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailVerificationConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Почта подтверждена."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Подтвердить почту по ссылке из письма",
         "tags": ["auth"]
       }
     },
@@ -9652,6 +9805,229 @@
           }
         ],
         "tags": ["auth"]
+      }
+    },
+    "/api/v1/me/email-verification": {
+      "post": {
+        "description": "Гасит прежние неиспользованные ссылки и отправляет новую на 24 часа. Если почта уже подтверждена — 204 без письма. Коды: 401, 403 CSRF_INVALID/ORIGIN_REQUIRED, 429 AUTH_RATE_LIMITED.",
+        "operationId": "EmailVerificationController_request_v1",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Запрос принят."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Отправить письмо подтверждения почты",
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/me/notification-settings/email": {
+      "get": {
+        "description": "Настройки текущего пользователя; если не сохранялись — значения по умолчанию (выключено). Адрес частично скрыт. Коды: 401.",
+        "operationId": "NotificationSettingsController_get_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailNotificationSettingsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Настройки уведомлений на почту",
+        "tags": ["notification-settings"]
+      },
+      "put": {
+        "description": "Включить канал можно только с подтверждённой почтой. Включение сумм требует amountsConsent: true; время согласия сохраняется, при выключении сбрасывается. Коды: 400 VALIDATION_FAILED, 401, 403 CSRF_INVALID, 409 EMAIL_NOT_VERIFIED, 422 AMOUNTS_CONSENT_REQUIRED.",
+        "operationId": "NotificationSettingsController_update_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEmailNotificationSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailNotificationSettingsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Изменить настройки уведомлений на почту",
+        "tags": ["notification-settings"]
+      }
+    },
+    "/api/v1/notifications/unsubscribe": {
+      "post": {
+        "description": "Публичный: открывается из письма без входа. Без сессии и CSRF; глобальный OriginGuard требует origin веба. Выключает канал получателю письма. Неизвестный токен — тот же ответ 204. Коды: 400 VALIDATION_FAILED, 403 ORIGIN_REQUIRED, 429 AUTH_RATE_LIMITED.",
+        "operationId": "NotificationSettingsController_unsubscribe_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnsubscribeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Готово."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Отписаться от писем по ссылке",
+        "tags": ["notification-settings"]
       }
     },
     "/api/v1/workspaces": {

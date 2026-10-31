@@ -2,6 +2,12 @@ import { randomUUID } from 'node:crypto';
 
 import { Prisma, PrismaClient } from '@prisma/client';
 
+import { enqueueUrgentEmail } from './delivery/enqueue.js';
+
+/**
+ * Срочное письмо ставится в очередь в той же транзакции, только для только что созданного
+ * уведомления.
+ */
 export class NotificationRuleHandler {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -191,6 +197,15 @@ async function createOccurrenceNotification(
     skipDuplicates: true,
   });
   if (result.count === 0) return;
+  if (type === 'PLAN_OVERDUE') {
+    await enqueueUrgentEmail(tx, {
+      notificationId,
+      workspaceId: budget.workspaceId,
+      budgetId: budget.id,
+      userId,
+      now: new Date(),
+    });
+  }
   await createNotificationAudit(tx, budget, userId, notificationId, {
     notificationType: type,
     occurrenceId: occurrence.id,

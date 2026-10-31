@@ -7,6 +7,8 @@ export interface WorkerEventLogger extends WorkerLogger {
   jobOutcome(fields: { jobType: string; outcome: 'completed' | 'failed' | 'retried' }): void;
   purgeFailure(fields: { deletionId: string; errorName: string }): void;
   calendarReminderFailure(fields: { eventId: string; errorName: string }): void;
+  deliveryFailure(fields: { deliveryId: string; errorName: string }): void;
+  mailDisabled(): void;
 }
 
 export function createWorkerLogger(config: WorkerConfig): WorkerEventLogger {
@@ -28,6 +30,7 @@ export function createWorkerLogger(config: WorkerConfig): WorkerEventLogger {
         'amountMinor',
         'jobPayload',
         'financialPayload',
+        'smtpPassword',
       ],
     }),
   );
@@ -57,5 +60,16 @@ class PinoWorkerLogger implements WorkerEventLogger {
       { event: 'calendar_reminder_failure', ...fields },
       'Calendar reminder failed for event',
     );
+  }
+
+  deliveryFailure(fields: { deliveryId: string; errorName: string }): void {
+    this.logger.error(
+      { event: 'notification_delivery_failure', ...fields },
+      'Letter delivery failed',
+    );
+  }
+
+  mailDisabled(): void {
+    this.logger.info({ event: 'mail_disabled' }, 'SMTP is not configured: letters are not sent');
   }
 }

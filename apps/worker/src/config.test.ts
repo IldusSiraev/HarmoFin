@@ -21,6 +21,7 @@ describe('loadWorkerConfig', () => {
       releaseSha: 'dev',
       errorReportingEndpoint: undefined,
       otelExporterOtlpEndpoint: undefined,
+      mail: undefined,
     });
   });
 
@@ -68,5 +69,58 @@ describe('loadWorkerConfig', () => {
         WORKER_HEALTH_PORT: '65536',
       }),
     ).toThrow(/WORKER_HEALTH_PORT/);
+  });
+
+  it('enables mail only with a complete SMTP configuration', () => {
+    expect(
+      loadWorkerConfig({
+        NODE_ENV: 'test',
+        DATABASE_URL: 'postgresql://worker:worker@localhost:5432/harmofin',
+        SMTP_HOST: 'smtp.example.test',
+        SMTP_PORT: '587',
+        SMTP_USER: 'mailer',
+        SMTP_PASSWORD: 'secret',
+        MAIL_FROM: 'no-reply@example.test',
+        WEB_BASE_URL: 'https://app.example.test',
+      }).mail,
+    ).toEqual({
+      smtpHost: 'smtp.example.test',
+      smtpPort: 587,
+      smtpUser: 'mailer',
+      smtpPassword: 'secret',
+      from: 'no-reply@example.test',
+      webBaseUrl: 'https://app.example.test',
+    });
+  });
+
+  it('keeps mail off without SMTP_HOST, including an empty value', () => {
+    expect(
+      loadWorkerConfig({
+        NODE_ENV: 'test',
+        DATABASE_URL: 'postgresql://worker:worker@localhost:5432/harmofin',
+        SMTP_HOST: '',
+      }).mail,
+    ).toBeUndefined();
+  });
+
+  it('rejects a partial SMTP configuration', () => {
+    expect(() =>
+      loadWorkerConfig({
+        NODE_ENV: 'test',
+        DATABASE_URL: 'postgresql://worker:worker@localhost:5432/harmofin',
+        SMTP_HOST: 'smtp.example.test',
+      }),
+    ).toThrow(/SMTP_PORT, MAIL_FROM, WEB_BASE_URL/);
+    expect(() =>
+      loadWorkerConfig({
+        NODE_ENV: 'test',
+        DATABASE_URL: 'postgresql://worker:worker@localhost:5432/harmofin',
+        SMTP_HOST: 'smtp.example.test',
+        SMTP_PORT: '587',
+        SMTP_USER: 'mailer',
+        MAIL_FROM: 'no-reply@example.test',
+        WEB_BASE_URL: 'https://app.example.test',
+      }),
+    ).toThrow(/SMTP_USER, SMTP_PASSWORD/);
   });
 });
