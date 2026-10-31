@@ -5,6 +5,7 @@ import type { PrismaClient } from '@prisma/client';
 import type { WorkerJobHandler } from '../job-runner.js';
 import type { DeliveryChannel } from './channel-sender.js';
 import { digestDedupeKey, digestSlot, digestWindowStart } from './digest-schedule.js';
+import { purgeStaleLinkCodes } from '../telegram/link-codes.js';
 
 export const DELIVERY_RETENTION_MS = 90 * 86_400_000;
 
@@ -106,5 +107,8 @@ export class BuildEmailDigestsHandler implements WorkerJobHandler {
         ...(budgetId ? { budgetId } : {}),
       },
     });
+
+    // Codes have no budget: a run scoped to one budget (tests) leaves them alone.
+    if (!budgetId) await purgeStaleLinkCodes(this.prisma, now);
   }
 }
