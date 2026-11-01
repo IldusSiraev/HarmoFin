@@ -51,6 +51,7 @@ export function useAuth() {
     password: string;
     workspaceName?: string;
     budgetName?: string;
+    timezone?: string;
     consents?: Consent[];
     invitationToken?: string;
   }) {

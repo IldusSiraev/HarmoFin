@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   register: vi.fn(),
   navigateTo: vi.fn(),
   loadDocuments: vi.fn(),
+  browserTimezone: vi.fn(),
   route: { query: {} as Record<string, string> },
 }));
 
@@ -15,6 +16,9 @@ vi.mock('../composables/useAuth.js', async () => {
   );
   return { ...actual, useAuth: () => ({ register: mocks.register }) };
 });
+vi.mock('../composables/browserTimezone.js', () => ({
+  browserTimezone: mocks.browserTimezone,
+}));
 vi.mock('../composables/useLegal.js', () => ({
   useLegal: () => ({ loadDocuments: mocks.loadDocuments }),
 }));
@@ -42,6 +46,7 @@ describe('register page', () => {
     mocks.register.mockReset().mockResolvedValue({ user: { id: 'u1' } });
     mocks.navigateTo.mockReset();
     mocks.loadDocuments.mockReset().mockResolvedValue(documents);
+    mocks.browserTimezone.mockReset().mockReturnValue(null);
     mocks.route.query = {};
     sessionStorage.clear();
   });
@@ -74,6 +79,7 @@ describe('register page', () => {
     expect(mocks.register).toHaveBeenCalledWith({
       email: 'user@harmofin.test',
       password: 'correct-password-10',
+      timezone: 'Europe/Moscow',
       consents: [
         { document: 'TERMS', version: '2026-10-18' },
         { document: 'PRIVACY_POLICY', version: '2026-10-18' },
@@ -112,6 +118,27 @@ describe('register page', () => {
     expect(mocks.register.mock.calls[0]?.[0]).not.toHaveProperty('workspaceName');
   });
 
+  it('prefills the timezone from the browser and sends it', async () => {
+    mocks.browserTimezone.mockReturnValue('Asia/Yekaterinburg');
+    const wrapper = mountPage();
+    await flushPromises();
+    expect(wrapper.text()).toContain('Часовой пояс');
+    expect(wrapper.get('input[name="timezone"]').element).toHaveProperty(
+      'value',
+      'Asia/Yekaterinburg',
+    );
+    await wrapper.get('#email').setValue('user@harmofin.test');
+    await wrapper.get('#password').setValue('correct-password-10');
+    await wrapper.get('[name="consent-terms"]').setValue(true);
+    await wrapper.get('[name="consent-pd"]').setValue(true);
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(mocks.register).toHaveBeenCalledWith(
+      expect.objectContaining({ timezone: 'Asia/Yekaterinburg' }),
+    );
+  });
+
   it('does not register when the document versions failed to load', async () => {
     mocks.loadDocuments.mockRejectedValue(new Error('offline'));
     const wrapper = mountPage();
@@ -145,6 +172,8 @@ describe('register page', () => {
         expect.objectContaining({ invitationToken: 'invite-token-value' }),
       );
       expect(mocks.register.mock.calls[0]?.[0]).not.toHaveProperty('budgetName');
+      expect(mocks.register.mock.calls[0]?.[0]).not.toHaveProperty('timezone');
+      expect(wrapper.find('input[name="timezone"]').exists()).toBe(false);
     });
 
     it('clears the stored token and goes to /invite to ask for a name after success', async () => {

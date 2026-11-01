@@ -4,6 +4,8 @@ import { navigateTo, useRoute } from '#app';
 
 import ConsentCheckboxes from '../components/auth/ConsentCheckboxes.vue';
 import UiInput from '../components/ui/Input.vue';
+import UiSelect from '../components/ui/Select.vue';
+import { browserTimezone } from '../composables/browserTimezone.js';
 import { ApiRequestError } from '../composables/useApiClient.js';
 import { errorMessage, useAuth } from '../composables/useAuth.js';
 import { INVITE_TOKEN_KEY } from '../composables/useInvitation.js';
@@ -28,6 +30,7 @@ const route = useRoute();
 const email = ref('');
 const password = ref('');
 const budgetName = ref('');
+const timezone = ref('Europe/Moscow');
 const loading = ref(false);
 const summary = ref('');
 const fieldErrors = ref<Record<string, string>>({});
@@ -47,11 +50,20 @@ const acceptTerms = ref(false);
 const acceptPd = ref(false);
 const documents = ref<LegalDocument[]>([]);
 const { loadDocuments } = useLegal();
+const timezoneOptions = computed(() => {
+  const zones =
+    typeof Intl.supportedValuesOf === 'function'
+      ? Intl.supportedValuesOf('timeZone')
+      : ['Europe/Moscow'];
+  return zones.map((zone) => ({ value: zone, label: zone }));
+});
 const consentsReady = computed(
   () => acceptTerms.value && acceptPd.value && documents.value.length === 3,
 );
 
 onMounted(async () => {
+  // Client-only so SSR markup matches the first client render.
+  timezone.value = browserTimezone() ?? 'Europe/Moscow';
   try {
     documents.value = await loadDocuments();
   } catch {
@@ -70,9 +82,10 @@ async function submit() {
       password: password.value,
       ...(invitationToken.value
         ? { invitationToken: invitationToken.value }
-        : budgetName.value
-          ? { budgetName: budgetName.value }
-          : {}),
+        : {
+            ...(budgetName.value ? { budgetName: budgetName.value } : {}),
+            timezone: timezone.value,
+          }),
       consents: documents.value.map(({ document, version }) => ({ document, version })),
     });
     if (invitationToken.value) {
@@ -158,6 +171,16 @@ async function submit() {
       placeholder="Например, Семья Ивановых"
       hint="Необязательно. Можно изменить в настройках."
       :error="fieldErrors.budgetName"
+    />
+    <UiSelect
+      v-if="!invitationToken"
+      v-model="timezone"
+      name="timezone"
+      label="Часовой пояс"
+      searchable
+      :options="timezoneOptions"
+      tooltip="Нужен для писем и напоминаний. Позже его можно изменить в настройках."
+      :error="fieldErrors.timezone"
     />
     <ConsentCheckboxes class="consent-wrapper" v-model:terms="acceptTerms" v-model:pd="acceptPd" />
     <p v-if="!acceptTerms || !acceptPd" id="consent-hint" class="consent-hint">
