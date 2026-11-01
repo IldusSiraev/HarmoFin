@@ -36,6 +36,6 @@ describe('HelpPage', () => {
     expect(text).toContain('Ожидаемый доход не входит в «На счетах»');
     expect(text).toContain('Учитываются ближайшие обязательные платежи');
     expect(text).toContain('будущего периода');
-    expect(text).toContain('TIMEZONE_CHANGE_REQUIRES_RECONCILIATION');
+    expect(text).toContain('Как изменить часовой пояс?');
   });
 });

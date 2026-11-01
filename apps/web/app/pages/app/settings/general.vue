@@ -24,6 +24,7 @@ import {
   useEnvelopePlanV2,
 } from '../../../composables/useEnvelopePlanV2.js';
 import { v2ErrorMessage } from '../../../composables/useV2Error.js';
+import { browserTimezone } from '../../../composables/browserTimezone.js';
 
 defineOptions({ name: 'AppSettingsGeneralPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
@@ -115,6 +116,16 @@ function attemptKey(fingerprint: string): string {
   return attempt.key;
 }
 
+const timedEvents = ref<'KEEP_WALL_CLOCK' | 'KEEP_INSTANT'>('KEEP_WALL_CLOCK');
+const timezoneChanged = computed(
+  () => budget.value !== null && form.timezone !== budget.value.timezone,
+);
+// Offer the browser zone only to those who can change it, and only when it differs.
+const hintZone = computed(() => {
+  const zone = browserTimezone();
+  return canManage.value && zone && budget.value && zone !== budget.value.timezone ? zone : null;
+});
+
 const timezoneOptions = computed(() => {
   const zones =
     typeof Intl.supportedValuesOf === 'function'
@@ -186,13 +197,21 @@ function validateCycle(): { cycleStartDay: number; periodBoundaryOffset: number 
 
 function settingsPatch() {
   const current = budget.value;
-  const patch: { name?: string; allowNegativeAccountBalance?: boolean; timezone?: string } = {};
+  const patch: {
+    name?: string;
+    allowNegativeAccountBalance?: boolean;
+    timezone?: string;
+    timedEvents?: 'KEEP_WALL_CLOCK' | 'KEEP_INSTANT';
+  } = {};
   if (!current) return patch;
   if (form.name !== current.name) patch.name = form.name;
   if (form.allowNegativeBalance !== current.allowNegativeBalance) {
     patch.allowNegativeAccountBalance = form.allowNegativeBalance;
   }
-  if (form.timezone !== current.timezone) patch.timezone = form.timezone;
+  if (form.timezone !== current.timezone) {
+    patch.timezone = form.timezone;
+    patch.timedEvents = timedEvents.value;
+  }
   return patch;
 }
 
@@ -205,7 +224,8 @@ function applyV2Error(error: unknown) {
   const message = v2ErrorMessage(error, 'Не удалось сохранить настройки. Повторите попытку.');
   if (
     error instanceof ApiRequestError &&
-    error.problem.code === 'TIMEZONE_CHANGE_REQUIRES_RECONCILIATION'
+    (error.problem.code === 'TIMEZONE_CHANGE_WOULD_FUTURE_DATE_FACTS' ||
+      error.problem.code === 'TIMED_EVENTS_MODE_REQUIRED')
   ) {
     fieldErrors.value = { timezone: message };
   }
@@ -410,11 +430,41 @@ onMounted(() => {
             label="Часовой пояс"
             searchable
             :options="timezoneOptions"
-            tooltip="Часовой пояс используется для расчёта границ финансового месяца и определения «сегодня» на дашборде, в отчётах и планах."
+            tooltip="Часовой пояс используется для расчёта границ финансового месяца и определения «сегодня» на дашборде, в отчётах и планах. Прошлые записи не меняются."
             :error="getFieldError('timezone')"
             :disabled="!canManage"
             required
           />
+          <div
+            v-if="hintZone"
+            class="general-settings-form__hint"
+            data-testid="browser-timezone-hint"
+          >
+            <p class="general-settings-form__hint-text">Ваш браузер в {{ hintZone }}.</p>
+            <UiButton variant="secondary" size="sm" type="button" @click="form.timezone = hintZone">
+              Использовать этот пояс
+            </UiButton>
+          </div>
+          <fieldset v-if="timezoneChanged && canManage" class="general-settings-form__fieldset">
+            <legend>События календаря со временем</legend>
+            <label class="general-settings-form__radio">
+              <input
+                v-model="timedEvents"
+                type="radio"
+                name="timedEvents"
+                value="KEEP_WALL_CLOCK"
+              />
+              <span>Сохранить время на часах (рекомендуется)</span>
+            </label>
+            <label class="general-settings-form__radio">
+              <input v-model="timedEvents" type="radio" name="timedEvents" value="KEEP_INSTANT" />
+              <span>Сохранить момент</span>
+            </label>
+            <p class="general-settings-form__note">
+              Прошлые операции и даты не изменятся. Письма и напоминания будут приходить по новому
+              времени.
+            </p>
+          </fieldset>
           <label class="general-settings-form__checkbox">
             <input v-model="form.allowNegativeBalance" type="checkbox" :disabled="!canManage" />
             <span>Разрешить уходить в минус</span>
@@ -504,6 +554,55 @@ onMounted(() => {
   margin: 0;
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-small);
+}
+
+.general-settings-form__hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hf-space-3);
+  padding: var(--hf-space-3) var(--hf-space-4);
+  border: 1px solid var(--hf-color-border);
+  border-radius: var(--hf-radius-md);
+  background: var(--hf-color-surface-subtle);
+}
+
+.general-settings-form__hint-text {
+  margin: 0;
+  color: var(--hf-color-text);
+}
+
+.general-settings-form__fieldset {
+  display: grid;
+  gap: var(--hf-space-3);
+  margin: 0;
+  padding: var(--hf-space-4);
+  border: 1px solid var(--hf-color-border);
+  border-radius: var(--hf-radius-md);
+}
+
+.general-settings-form__fieldset legend {
+  padding: 0 var(--hf-space-2);
+  color: var(--hf-color-text);
+  font-weight: 600;
+}
+
+.general-settings-form__radio {
+  display: flex;
+  align-items: center;
+  gap: var(--hf-space-3);
+  min-height: var(--hf-control-height-sm);
+  color: var(--hf-color-text);
+}
+
+.general-settings-form__radio input {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.general-settings-form__radio input:focus-visible {
+  outline: 2px solid var(--hf-color-brand);
+  outline-offset: 2px;
 }
 
 .general-settings-form__effect {

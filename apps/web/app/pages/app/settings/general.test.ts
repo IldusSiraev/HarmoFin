@@ -12,8 +12,12 @@ const mocks = vi.hoisted(() => {
       confirmCycleChange: vi.fn(),
       updateBudgetSettings: vi.fn(),
     },
+    browserTimezone: vi.fn<() => string | null>(),
   };
 });
+vi.mock('../../../composables/browserTimezone.js', () => ({
+  browserTimezone: mocks.browserTimezone,
+}));
 vi.mock('../../../composables/useEnvelopePlanV2.js', () => ({
   useEnvelopePlanV2: () => mocks.planV2,
 }));
@@ -69,6 +73,7 @@ describe('settings general page', () => {
     };
     mocks.auth.loadMe.mockResolvedValue(mocks.auth.currentData.value);
     mocks.api.getBudget.mockResolvedValue(budget);
+    mocks.browserTimezone.mockReturnValue(null);
   });
 
   it('saves only the changed settings through the settings endpoint', async () => {
@@ -92,7 +97,7 @@ describe('settings general page', () => {
   it('shows a Russian error and marks the timezone field when a timezone change is blocked', async () => {
     mocks.planV2.updateBudgetSettings.mockRejectedValue(
       new ApiRequestError(409, {
-        code: 'TIMEZONE_CHANGE_REQUIRES_RECONCILIATION',
+        code: 'TIMEZONE_CHANGE_WOULD_FUTURE_DATE_FACTS',
         detail: 'technical',
       }),
     );
@@ -103,7 +108,129 @@ describe('settings general page', () => {
     await flushPromises();
 
     expect(wrapper.get('[data-testid="summary-status"]').text()).not.toContain('technical');
+    expect(wrapper.get('[data-testid="summary-status"]').text()).toContain(
+      'Повторите после полуночи по новому поясу',
+    );
     expect(wrapper.get('[name="timezone"]').attributes('aria-invalid')).toBe('true');
+  });
+
+  describe('timezone change', () => {
+    function pickZone(wrapper: ReturnType<typeof mountPage>, zone: string) {
+      wrapper.findComponent({ name: 'UiSelect' }).vm.$emit('update:modelValue', zone);
+    }
+
+    it('hides the timed events fieldset until the timezone changes', async () => {
+      const wrapper = mountPage();
+      await flushPromises();
+      expect(wrapper.find('fieldset').exists()).toBe(false);
+
+      pickZone(wrapper, 'Asia/Tokyo');
+      await flushPromises();
+      const fieldset = wrapper.get('fieldset');
+      expect(fieldset.get('legend').text()).toBe('События календаря со временем');
+      expect(fieldset.text()).toContain('Сохранить время на часах (рекомендуется)');
+      expect(fieldset.text()).toContain('Сохранить момент');
+      const radios = fieldset.findAll('input[type="radio"]');
+      expect(radios).toHaveLength(2);
+      expect((radios[0]!.element as HTMLInputElement).checked).toBe(true);
+    });
+
+    it('sends the default timed events mode with a changed timezone', async () => {
+      mocks.planV2.updateBudgetSettings.mockResolvedValue(budget);
+      const wrapper = mountPage();
+      await flushPromises();
+      pickZone(wrapper, 'Asia/Tokyo');
+      await flushPromises();
+      await wrapper.get('form').trigger('submit');
+      await flushPromises();
+
+      expect(mocks.planV2.updateBudgetSettings).toHaveBeenCalledWith(
+        'budget-id',
+        { timezone: 'Asia/Tokyo', timedEvents: 'KEEP_WALL_CLOCK' },
+        expect.any(String),
+      );
+    });
+
+    it('sends KEEP_INSTANT when the owner picks it', async () => {
+      mocks.planV2.updateBudgetSettings.mockResolvedValue(budget);
+      const wrapper = mountPage();
+      await flushPromises();
+      pickZone(wrapper, 'Asia/Tokyo');
+      await flushPromises();
+      await wrapper.get('input[type="radio"][value="KEEP_INSTANT"]').setValue(true);
+      await wrapper.get('form').trigger('submit');
+      await flushPromises();
+
+      expect(mocks.planV2.updateBudgetSettings.mock.calls[0]![1]).toEqual({
+        timezone: 'Asia/Tokyo',
+        timedEvents: 'KEEP_INSTANT',
+      });
+    });
+
+    it('does not send timedEvents when the timezone is unchanged', async () => {
+      mocks.planV2.updateBudgetSettings.mockResolvedValue(budget);
+      const wrapper = mountPage();
+      await flushPromises();
+      await wrapper.get('[name="name"]').setValue('Новое имя');
+      await wrapper.get('form').trigger('submit');
+      await flushPromises();
+
+      expect(mocks.planV2.updateBudgetSettings.mock.calls[0]![1]).toEqual({ name: 'Новое имя' });
+    });
+
+    it('shows the mode error on the timezone field', async () => {
+      mocks.planV2.updateBudgetSettings.mockRejectedValue(
+        new ApiRequestError(422, { code: 'TIMED_EVENTS_MODE_REQUIRED', detail: 'technical' }),
+      );
+      const wrapper = mountPage();
+      await flushPromises();
+      pickZone(wrapper, 'Asia/Tokyo');
+      await flushPromises();
+      await wrapper.get('form').trigger('submit');
+      await flushPromises();
+
+      expect(wrapper.text()).toContain('Выберите, как сдвинуть события календаря со временем.');
+      expect(wrapper.get('[name="timezone"]').attributes('aria-invalid')).toBe('true');
+    });
+
+    it('offers the browser timezone when it differs and applies it to the form', async () => {
+      mocks.browserTimezone.mockReturnValue('Asia/Tokyo');
+      mocks.planV2.updateBudgetSettings.mockResolvedValue(budget);
+      const wrapper = mountPage();
+      await flushPromises();
+
+      const hint = wrapper.get('[data-testid="browser-timezone-hint"]');
+      expect(hint.text()).toContain('Ваш браузер в Asia/Tokyo.');
+      await hint.get('button').trigger('click');
+      await flushPromises();
+      expect(wrapper.find('fieldset').exists()).toBe(true);
+      await wrapper.get('form').trigger('submit');
+      await flushPromises();
+      expect(mocks.planV2.updateBudgetSettings.mock.calls[0]![1]).toEqual({
+        timezone: 'Asia/Tokyo',
+        timedEvents: 'KEEP_WALL_CLOCK',
+      });
+    });
+
+    it('hides the browser hint when zones match, are unknown, or the user cannot manage', async () => {
+      mocks.browserTimezone.mockReturnValue('Europe/Moscow');
+      let wrapper = mountPage();
+      await flushPromises();
+      expect(wrapper.find('[data-testid="browser-timezone-hint"]').exists()).toBe(false);
+
+      mocks.browserTimezone.mockReturnValue(null);
+      wrapper = mountPage();
+      await flushPromises();
+      expect(wrapper.find('[data-testid="browser-timezone-hint"]').exists()).toBe(false);
+
+      mocks.browserTimezone.mockReturnValue('Asia/Tokyo');
+      (
+        mocks.auth.currentData.value as { workspaces: Array<{ role: string }> }
+      ).workspaces[0]!.role = 'VIEWER';
+      wrapper = mountPage();
+      await flushPromises();
+      expect(wrapper.find('[data-testid="browser-timezone-hint"]').exists()).toBe(false);
+    });
   });
 
   describe('budget model v2 cycle change', () => {
@@ -256,7 +383,7 @@ describe('settings general page', () => {
 
     it('explains the timezone restriction without retrying or rewriting history', async () => {
       mocks.planV2.updateBudgetSettings.mockRejectedValue(
-        problem(409, 'TIMEZONE_CHANGE_REQUIRES_RECONCILIATION'),
+        problem(409, 'TIMEZONE_CHANGE_WOULD_FUTURE_DATE_FACTS'),
       );
       const wrapper = mountPage();
       await flushPromises();
@@ -264,7 +391,7 @@ describe('settings general page', () => {
       await wrapper.get('form').trigger('submit');
       await flushPromises();
 
-      expect(wrapper.text()).toContain('Часовой пояс нельзя менять после подтверждённых операций');
+      expect(wrapper.text()).toContain('Часовой пояс сейчас менять нельзя');
       expect(mocks.planV2.updateBudgetSettings).toHaveBeenCalledTimes(1);
       expect(mocks.planV2.confirmCycleChange).not.toHaveBeenCalled();
     });
@@ -278,7 +405,7 @@ describe('settings general page', () => {
 
       expect(mocks.planV2.updateBudgetSettings).toHaveBeenCalledWith(
         'budget-id',
-        { timezone: 'Asia/Tokyo' },
+        { timezone: 'Asia/Tokyo', timedEvents: 'KEEP_WALL_CLOCK' },
         expect.any(String),
       );
       expect(mocks.planV2.previewCycleChange).not.toHaveBeenCalled();
@@ -330,7 +457,7 @@ describe('settings general page', () => {
 
     it('applies settings before the cycle and does not confirm when the timezone is blocked', async () => {
       mocks.planV2.updateBudgetSettings.mockRejectedValue(
-        problem(409, 'TIMEZONE_CHANGE_REQUIRES_RECONCILIATION'),
+        problem(409, 'TIMEZONE_CHANGE_WOULD_FUTURE_DATE_FACTS'),
       );
       const wrapper = mountPage();
       await flushPromises();
@@ -340,7 +467,7 @@ describe('settings general page', () => {
       await confirmButton(wrapper).trigger('click');
       await flushPromises();
 
-      expect(wrapper.text()).toContain('Часовой пояс нельзя менять после подтверждённых операций');
+      expect(wrapper.text()).toContain('Часовой пояс сейчас менять нельзя');
       expect(mocks.planV2.confirmCycleChange).not.toHaveBeenCalled();
       expect(confirmButton(wrapper).attributes('disabled')).toBeUndefined();
     });
