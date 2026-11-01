@@ -14,6 +14,11 @@ const testEnvironment = {
   SMTP_HOST: '127.0.0.1',
   SMTP_PORT: '1025',
   MAIL_FROM: 'no-reply@harmofin.test',
+  TELEGRAM_BOT_TOKEN: '123456:e2e-only-token',
+  TELEGRAM_BOT_USERNAME: 'harmofin_e2e_bot',
+  TELEGRAM_WEBHOOK_SECRET: 'e2e-only-webhook-secret-with-32-chars',
+  // Closed port: the bot's replies fail fast and never leave the CI runner.
+  TELEGRAM_API_BASE_URL: 'http://127.0.0.1:9',
 };
 
 export default defineConfig({

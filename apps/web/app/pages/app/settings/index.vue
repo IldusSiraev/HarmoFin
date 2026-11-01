@@ -172,6 +172,10 @@ onMounted(() => {
             <span>Уведомления на почту</span>
             <span class="settings-page__row-link">Настроить →</span>
           </NuxtLink>
+          <NuxtLink to="/app/settings/telegram" class="settings-page__row">
+            <span>Уведомления в Telegram</span>
+            <span class="settings-page__row-link">Настроить →</span>
+          </NuxtLink>
           <NuxtLink to="/app/settings/delete-account" class="settings-page__row">
             <span>Удаление аккаунта</span>
             <span class="settings-page__row-link">Перейти →</span>

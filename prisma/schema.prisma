@@ -191,6 +191,7 @@ enum NotificationType {
 
 enum NotificationChannel {
   EMAIL
+  TELEGRAM
 }
 
 enum DigestFrequency {
@@ -240,6 +241,8 @@ model User {
   notificationChannelSettings NotificationChannelSetting[]
   notificationDeliveries      NotificationDelivery[]
   emailVerificationTokens     EmailVerificationToken[]
+  telegramLink                TelegramLink?
+  telegramLinkCodes           TelegramLinkCode[]
   consents                    UserConsent[]
   sentInvitations             WorkspaceInvitation[]        @relation("InvitationInviter")
   acceptedInvitations         WorkspaceInvitation[]        @relation("InvitationAcceptor")
@@ -1101,6 +1104,35 @@ model EmailVerificationToken {
 
   @@index([userId, consumedAt, expiresAt])
   @@map("email_verification_tokens")
+}
+
+model TelegramLink {
+  id          String   @id @db.Uuid
+  userId      String   @unique @map("user_id") @db.Uuid
+  chatId      BigInt   @unique @map("chat_id")
+  consentedAt DateTime @map("consented_at") @db.Timestamptz(3)
+  linkedAt    DateTime @map("linked_at") @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@map("telegram_links")
+}
+
+model TelegramLinkCode {
+  id          String    @id @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  codeHash    String    @unique @map("code_hash") @db.Char(64)
+  consentedAt DateTime  @map("consented_at") @db.Timestamptz(3)
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(3)
+  consumedAt  DateTime? @map("consumed_at") @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([userId, consumedAt, expiresAt])
+  @@map("telegram_link_codes")
 }
 
 // No FK to users: the row is the non-personal trace of a deletion and must outlive the purge.

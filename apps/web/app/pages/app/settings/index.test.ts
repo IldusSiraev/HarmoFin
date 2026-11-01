@@ -101,6 +101,16 @@ describe('settings hub page', () => {
     wrapper.unmount();
   });
 
+  it('links to the telegram notifications page from the account card', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const link = wrapper.find('a[href="/app/settings/telegram"]');
+    expect(link.exists()).toBe(true);
+    expect(link.text()).toContain('Уведомления в Telegram');
+    wrapper.unmount();
+  });
+
   it('keeps a link to the help page', async () => {
     const wrapper = mountPage();
     await flushPromises();

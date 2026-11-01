@@ -224,4 +224,20 @@ captured_expected_revision="$(
 )"
 assert_equal "run_deploy_smoke expects the deployed revision" "abc1234" "$captured_expected_revision"
 
+# run_deploy keeps a healthy release when the Telegram webhook registration fails.
+webhook_status="$(
+  WEB_IMAGE=registry.invalid/web API_IMAGE=registry.invalid/api WORKER_IMAGE=registry.invalid/worker \
+    MIGRATE_IMAGE=registry.invalid/migrate DATABASE_URL=postgresql://u:p@db.invalid/h IMAGE_TAG=abc1234 \
+    bash -c 'source infra/scripts/deploy.sh
+      current_release_tag() { :; }
+      run_migration() { return 0; }
+      reconcile_services() { return 0; }
+      wait_for_services_healthy() { return 0; }
+      run_deploy_smoke() { return 0; }
+      remove_old_release_images() { return 0; }
+      run_telegram_webhook() { return 1; }
+      run_deploy >/dev/null 2>&1; echo $?'
+)"
+assert_equal "run_deploy succeeds when the Telegram webhook registration fails" "0" "$webhook_status"
+
 report_results

@@ -53,6 +53,8 @@ const workerEnvironmentSchema = z.object({
   SMTP_PASSWORD: optionalNonEmpty,
   MAIL_FROM: optionalNonEmpty,
   WEB_BASE_URL: optionalHttpUrl,
+  TELEGRAM_BOT_TOKEN: optionalNonEmpty,
+  TELEGRAM_API_BASE_URL: httpUrl.default('https://api.telegram.org'),
 });
 
 type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
@@ -63,6 +65,12 @@ export interface WorkerMailConfig {
   smtpUser?: string;
   smtpPassword?: string;
   from: string;
+  webBaseUrl: string;
+}
+
+export interface WorkerTelegramConfig {
+  botToken: string;
+  apiBaseUrl: string;
   webBaseUrl: string;
 }
 
@@ -79,6 +87,7 @@ export interface WorkerConfig {
   errorReportingEndpoint: string | undefined;
   otelExporterOtlpEndpoint: string | undefined;
   mail: WorkerMailConfig | undefined;
+  telegram: WorkerTelegramConfig | undefined;
 }
 
 export function loadWorkerConfig(input: NodeJS.ProcessEnv): WorkerConfig {
@@ -104,6 +113,7 @@ export function loadWorkerConfig(input: NodeJS.ProcessEnv): WorkerConfig {
     errorReportingEndpoint: result.data.ERROR_REPORTING_ENDPOINT,
     otelExporterOtlpEndpoint: result.data.OTEL_EXPORTER_OTLP_ENDPOINT,
     mail: mailConfig(result.data),
+    telegram: telegramConfig(result.data),
   };
 }
 
@@ -123,5 +133,18 @@ function mailConfig(data: z.infer<typeof workerEnvironmentSchema>): WorkerMailCo
     ...(data.SMTP_USER ? { smtpUser: data.SMTP_USER, smtpPassword: data.SMTP_PASSWORD! } : {}),
     from: data.MAIL_FROM!,
     webBaseUrl: data.WEB_BASE_URL!,
+  };
+}
+
+/** Telegram is optional: without a bot token the worker sends no Telegram messages. */
+function telegramConfig(
+  data: z.infer<typeof workerEnvironmentSchema>,
+): WorkerTelegramConfig | undefined {
+  if (!data.TELEGRAM_BOT_TOKEN) return undefined;
+  if (!data.WEB_BASE_URL) throw new Error('Invalid worker configuration: WEB_BASE_URL');
+  return {
+    botToken: data.TELEGRAM_BOT_TOKEN,
+    apiBaseUrl: data.TELEGRAM_API_BASE_URL.replace(/\/+$/, ''),
+    webBaseUrl: data.WEB_BASE_URL,
   };
 }

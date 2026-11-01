@@ -15,6 +15,10 @@ import { AccountPurgeHandler } from './account-purge.handler.js';
 import { DeliverNotificationsHandler } from './delivery/deliver.handler.js';
 import { BuildEmailDigestsHandler } from './delivery/build-digests.handler.js';
 import { DeliveryRepository } from './delivery/delivery.repository.js';
+import { EmailSender } from './delivery/email-sender.js';
+import type { ChannelSenders } from './delivery/channel-sender.js';
+import { TelegramBotApi } from './telegram/bot-api.js';
+import { TelegramSender } from './telegram/telegram-sender.js';
 import { SmtpMailer } from './mail/mailer.js';
 import { WorkerRuntime } from './runtime.js';
 
@@ -27,26 +31,50 @@ const metrics = new MetricsRegistry({
 });
 const errorReporter = createWorkerErrorReporter(config.errorReportingEndpoint);
 const logger = createWorkerLogger(config);
-const mailHandlers = config.mail
-  ? {
-      DELIVER_NOTIFICATIONS: new DeliverNotificationsHandler(
-        database,
-        new DeliveryRepository(database),
-        new SmtpMailer(config.mail),
-        config.mail.webBaseUrl,
-        {
-          onOutcome: (kind, outcome) => metrics.recordDelivery(kind, outcome),
-          onFailure: (failure) => {
-            logger.deliveryFailure(failure);
-            void errorReporter.report(new Error('Letter delivery failed'), {
-              errorName: failure.errorName,
-            });
+const deliveryRepository = new DeliveryRepository(database);
+const senders: ChannelSenders = {
+  ...(config.mail
+    ? {
+        EMAIL: new EmailSender(
+          database,
+          deliveryRepository,
+          new SmtpMailer(config.mail),
+          config.mail.webBaseUrl,
+        ),
+      }
+    : {}),
+  ...(config.telegram
+    ? {
+        TELEGRAM: new TelegramSender(
+          database,
+          new TelegramBotApi(config.telegram.botToken, config.telegram.apiBaseUrl),
+          config.telegram.webBaseUrl,
+        ),
+      }
+    : {}),
+};
+const deliveryChannels = (['EMAIL', 'TELEGRAM'] as const).filter((channel) => senders[channel]);
+// Without any configured channel the delivery and digest jobs are not registered at all.
+const deliveryHandlers =
+  deliveryChannels.length > 0
+    ? {
+        DELIVER_NOTIFICATIONS: new DeliverNotificationsHandler(
+          database,
+          deliveryRepository,
+          senders,
+          {
+            onOutcome: (kind, outcome) => metrics.recordDelivery(kind, outcome),
+            onFailure: (failure) => {
+              logger.deliveryFailure(failure);
+              void errorReporter.report(new Error('Notification delivery failed'), {
+                errorName: failure.errorName,
+              });
+            },
           },
-        },
-      ),
-      BUILD_EMAIL_DIGESTS: new BuildEmailDigestsHandler(database),
-    }
-  : {};
+        ),
+        BUILD_EMAIL_DIGESTS: new BuildEmailDigestsHandler(database, deliveryChannels),
+      }
+    : {};
 if (!config.mail) logger.mailDisabled();
 const runner = new JobRunner(
   new WorkerJobRepository(database),
@@ -65,7 +93,7 @@ const runner = new JobRunner(
         errorName: failure.errorName,
       });
     }),
-    ...mailHandlers,
+    ...deliveryHandlers,
   },
   {
     pollIntervalMs: config.pollIntervalMs,

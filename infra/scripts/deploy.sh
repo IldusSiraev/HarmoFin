@@ -10,6 +10,8 @@ deploy_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$deploy_script_dir/lib.sh"
 # shellcheck source=smoke.sh
 source "$deploy_script_dir/smoke.sh"
+# shellcheck source=telegram-webhook.sh
+source "$deploy_script_dir/telegram-webhook.sh"
 
 readonly REQUIRED_DEPLOY_VARS=(WEB_IMAGE API_IMAGE WORKER_IMAGE MIGRATE_IMAGE IMAGE_TAG DATABASE_URL)
 
@@ -65,6 +67,13 @@ wait_for_services_healthy() {
 run_deploy_smoke() {
   local base_url="${SMOKE_BASE_URL:?SMOKE_BASE_URL is required}"
   EXPECTED_REVISION="${IMAGE_TAG:-}" run_smoke_checks "$base_url"
+}
+
+# run_telegram_webhook
+# Registers the Telegram webhook when a bot token is configured. Overridable
+# in tests.
+run_telegram_webhook() {
+  register_telegram_webhook
 }
 
 # current_release_tag
@@ -146,6 +155,12 @@ run_deploy() {
   if ! run_deploy_smoke; then
     echo "Smoke checks failed after deployment." >&2
     return 1
+  fi
+
+  # A failed registration must not fail a healthy release: the previous webhook
+  # registration keeps working, and the next deploy retries.
+  if ! run_telegram_webhook; then
+    echo "Warning: Telegram webhook registration failed; deployment continues." >&2
   fi
 
   echo "Removing old release images (keeping ${IMAGE_TAG}${previous_tag:+ and ${previous_tag}})..."

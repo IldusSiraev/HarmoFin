@@ -1347,6 +1347,16 @@
         "required": ["email", "role"],
         "type": "object"
       },
+      "CreateTelegramLinkRequest": {
+        "properties": {
+          "consent": {
+            "description": "Согласие на отправку уведомлений через серверы Telegram (сторонний сервис). Должно быть true.",
+            "type": "boolean"
+          }
+        },
+        "required": ["consent"],
+        "type": "object"
+      },
       "CreateTransactionV2Body": {
         "properties": {
           "accountId": {
@@ -6012,6 +6022,63 @@
         "required": ["id", "createdAt", "lastSeenAt", "idleExpiresAt", "absoluteExpiresAt"],
         "type": "object"
       },
+      "TelegramLinkResponse": {
+        "properties": {
+          "expiresAt": {
+            "description": "Через 15 минут после выдачи.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "url": {
+            "description": "Ссылка https://t.me/<бот>?start=<код>. Код одноразовый.",
+            "type": "string"
+          }
+        },
+        "required": ["url", "expiresAt"],
+        "type": "object"
+      },
+      "TelegramNotificationSettingsResponse": {
+        "properties": {
+          "amountsConsentAt": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "available": {
+            "description": "Бот настроен на сервере.",
+            "type": "boolean"
+          },
+          "digestFrequency": {
+            "description": "В 08:00 по часовому поясу бюджета.",
+            "enum": ["OFF", "DAILY", "WEEKLY"],
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "includeAmounts": {
+            "type": "boolean"
+          },
+          "linked": {
+            "description": "Личный чат привязан; без этого канал не включить.",
+            "type": "boolean"
+          },
+          "urgentEnabled": {
+            "description": "Просроченный платёж и напоминание календаря.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "available",
+          "linked",
+          "enabled",
+          "urgentEnabled",
+          "digestFrequency",
+          "includeAmounts",
+          "amountsConsentAt"
+        ],
+        "type": "object"
+      },
       "TemplateAdoptedEnvelopeDto": {
         "properties": {
           "id": {
@@ -7240,6 +7307,29 @@
           }
         },
         "required": ["displayName"],
+        "type": "object"
+      },
+      "UpdateTelegramNotificationSettingsRequest": {
+        "properties": {
+          "amountsConsent": {
+            "description": "Обязательно true, когда includeAmounts включается впервые.",
+            "type": "boolean"
+          },
+          "digestFrequency": {
+            "enum": ["OFF", "DAILY", "WEEKLY"],
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "includeAmounts": {
+            "type": "boolean"
+          },
+          "urgentEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": ["enabled", "urgentEnabled", "digestFrequency", "includeAmounts"],
         "type": "object"
       },
       "UpdateTransactionV2Body": {
@@ -9976,6 +10066,259 @@
         "tags": ["notification-settings"]
       }
     },
+    "/api/v1/me/notification-settings/telegram": {
+      "get": {
+        "description": "Настройки текущего пользователя; если не сохранялись — значения по умолчанию (выключено). available — бот настроен на сервере, linked — чат привязан. Коды: 401.",
+        "operationId": "TelegramSettingsController_get_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramNotificationSettingsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Настройки уведомлений в Telegram",
+        "tags": ["notification-settings"]
+      },
+      "put": {
+        "description": "Включить канал можно только с привязанным чатом. Включение сумм требует amountsConsent: true (своё согласие, не общее с почтой). Коды: 400 VALIDATION_FAILED, 401, 403 CSRF_INVALID, 409 TELEGRAM_NOT_LINKED, 422 AMOUNTS_CONSENT_REQUIRED.",
+        "operationId": "TelegramSettingsController_update_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTelegramNotificationSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramNotificationSettingsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Изменить настройки уведомлений в Telegram",
+        "tags": ["notification-settings"]
+      }
+    },
+    "/api/v1/me/telegram/link": {
+      "delete": {
+        "description": "Удаляет привязку чата, выключает канал Telegram и отменяет неотправленные сообщения. Без привязки — тоже 204. Коды: 401, 403 CSRF_INVALID.",
+        "operationId": "TelegramLinkController_remove_v1",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Готово."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Отвязать Telegram",
+        "tags": ["telegram"]
+      },
+      "post": {
+        "description": "Выдаёт одноразовую ссылку на бота на 15 минут и гасит прежние неиспользованные. Требует согласия. Коды: 400 VALIDATION_FAILED, 401, 403 CSRF_INVALID, 409 TELEGRAM_UNAVAILABLE, 422 TELEGRAM_CONSENT_REQUIRED, 429 AUTH_RATE_LIMITED.",
+        "operationId": "TelegramLinkController_create_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTelegramLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramLinkResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Получить ссылку привязки Telegram",
+        "tags": ["telegram"]
+      }
+    },
     "/api/v1/notifications/unsubscribe": {
       "post": {
         "description": "Публичный: открывается из письма без входа. Без сессии и CSRF; глобальный OriginGuard требует origin веба. Выключает канал получателю письма. Неизвестный токен — тот же ответ 204. Коды: 400 VALIDATION_FAILED, 403 ORIGIN_REQUIRED, 429 AUTH_RATE_LIMITED.",
@@ -10028,6 +10371,60 @@
         },
         "summary": "Отписаться от писем по ссылке",
         "tags": ["notification-settings"]
+      }
+    },
+    "/api/v1/telegram/webhook": {
+      "post": {
+        "description": "Вызывается серверами Telegram без сессии, CSRF и Origin; вызывающий проверяется заголовком X-Telegram-Bot-Api-Secret-Token. Нераспознанные обновления тоже получают 200. Коды: 401 TELEGRAM_WEBHOOK_UNAUTHORIZED, 404 RESOURCE_NOT_FOUND (бот не настроен).",
+        "operationId": "TelegramWebhookController_receive_v1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Telegram-Bot-Api-Secret-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Update из Telegram Bot API.",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Обновление принято."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Webhook Telegram-бота",
+        "tags": ["telegram"]
       }
     },
     "/api/v1/workspaces": {

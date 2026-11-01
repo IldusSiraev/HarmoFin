@@ -55,9 +55,36 @@ const apiEnvironmentSchema = z.object({
   RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(900),
   RATE_LIMIT_LOGIN_MAX: z.coerce.number().int().positive().default(10),
   RATE_LIMIT_RECOVERY_MAX: z.coerce.number().int().positive().default(5),
+  TELEGRAM_BOT_TOKEN: optionalNonEmptyString,
+  TELEGRAM_BOT_USERNAME: z
+    .literal('')
+    .transform(() => undefined)
+    .or(
+      z
+        .string()
+        .regex(/^[A-Za-z0-9_]{5,32}$/)
+        .optional(),
+    ),
+  TELEGRAM_WEBHOOK_SECRET: z
+    .literal('')
+    .transform(() => undefined)
+    .or(
+      z
+        .string()
+        .regex(/^[A-Za-z0-9_-]{32,256}$/)
+        .optional(),
+    ),
+  TELEGRAM_API_BASE_URL: httpUrl.default('https://api.telegram.org'),
 });
 
 type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
+
+export interface ApiTelegramConfig {
+  botToken: string;
+  botUsername: string;
+  webhookSecret: string;
+  apiBaseUrl: string;
+}
 
 export interface ApiConfig {
   nodeEnv: 'development' | 'test' | 'production';
@@ -90,6 +117,8 @@ export interface ApiConfig {
     loginMax: number;
     recoveryMax: number;
   };
+  /** Present only when the bot token, username and webhook secret are all set. */
+  telegram?: ApiTelegramConfig;
 }
 
 export function loadApiConfig(input: NodeJS.ProcessEnv): ApiConfig {
@@ -119,6 +148,16 @@ export function loadApiConfig(input: NodeJS.ProcessEnv): ApiConfig {
     Boolean(environment.SMTP_USER) !== Boolean(environment.SMTP_PASSWORD)
   ) {
     throw new Error('Invalid API configuration: SMTP_USER, SMTP_PASSWORD');
+  }
+
+  const telegramValues = [
+    ['TELEGRAM_BOT_TOKEN', environment.TELEGRAM_BOT_TOKEN],
+    ['TELEGRAM_BOT_USERNAME', environment.TELEGRAM_BOT_USERNAME],
+    ['TELEGRAM_WEBHOOK_SECRET', environment.TELEGRAM_WEBHOOK_SECRET],
+  ] as const;
+  const missingTelegram = telegramValues.filter(([, value]) => !value).map(([name]) => name);
+  if (missingTelegram.length > 0 && missingTelegram.length < telegramValues.length) {
+    throw new Error(`Invalid API configuration: ${missingTelegram.join(', ')}`);
   }
 
   return {
@@ -157,5 +196,15 @@ export function loadApiConfig(input: NodeJS.ProcessEnv): ApiConfig {
       loginMax: environment.RATE_LIMIT_LOGIN_MAX,
       recoveryMax: environment.RATE_LIMIT_RECOVERY_MAX,
     },
+    ...(missingTelegram.length === 0
+      ? {
+          telegram: {
+            botToken: environment.TELEGRAM_BOT_TOKEN!,
+            botUsername: environment.TELEGRAM_BOT_USERNAME!,
+            webhookSecret: environment.TELEGRAM_WEBHOOK_SECRET!,
+            apiBaseUrl: environment.TELEGRAM_API_BASE_URL.replace(/\/+$/, ''),
+          },
+        }
+      : {}),
   };
 }
