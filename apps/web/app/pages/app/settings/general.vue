@@ -120,10 +120,10 @@ const timedEvents = ref<'KEEP_WALL_CLOCK' | 'KEEP_INSTANT'>('KEEP_WALL_CLOCK');
 const timezoneChanged = computed(
   () => budget.value !== null && form.timezone !== budget.value.timezone,
 );
-// Offer the browser zone only to those who can change it, and only when it differs.
+// Offer the browser zone only to those who can change it, and only while the form lacks it.
 const hintZone = computed(() => {
   const zone = browserTimezone();
-  return canManage.value && zone && budget.value && zone !== budget.value.timezone ? zone : null;
+  return canManage.value && zone && budget.value && zone !== form.timezone ? zone : null;
 });
 
 const timezoneOptions = computed(() => {

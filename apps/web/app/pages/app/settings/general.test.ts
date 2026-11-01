@@ -203,6 +203,7 @@ describe('settings general page', () => {
       expect(hint.text()).toContain('Ваш браузер в Asia/Tokyo.');
       await hint.get('button').trigger('click');
       await flushPromises();
+      expect(wrapper.find('[data-testid="browser-timezone-hint"]').exists()).toBe(false);
       expect(wrapper.find('fieldset').exists()).toBe(true);
       await wrapper.get('form').trigger('submit');
       await flushPromises();

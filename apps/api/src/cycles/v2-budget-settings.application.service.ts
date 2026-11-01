@@ -16,7 +16,7 @@ import { PrismaService } from '../database/prisma.service.js';
 import { AssignmentRepository } from '../envelope-plans/assignment.repository.js';
 import { resetUnconfirmedPeriods } from '../envelope-plans/reset-unconfirmed-periods.js';
 import { todayInTimezone } from './cycle-period.domain.js';
-import { shiftWallClock } from './timezone-change.js';
+import { shiftTimedEvent } from './timezone-change.js';
 import {
   V2BudgetSettingsRepository,
   type V2BudgetSettingsView,
@@ -38,7 +38,9 @@ function budgetNotFound(): NotFoundException {
  * onto the Budget fields and never replan. The timezone changes at any time except when a stored
  * fact date would land after "today" in the new zone; unreferenced UNSET/DRAFT period rows are
  * dropped (rebuilt lazily in the new zone) and timed calendar events are shifted per `timedEvents`
- * in the same transaction. Stored dates are never rewritten.
+ * in the same transaction, and Workspace.timezone follows. Stored dates are never rewritten.
+ * BudgetCycleRevision.effectiveOn is intentionally not part of the fact guard: pending revisions
+ * are legitimately future-dated.
  */
 @Injectable()
 export class V2BudgetSettingsApplicationService {
@@ -97,7 +99,7 @@ export class V2BudgetSettingsApplicationService {
           let shiftedEvents = 0;
           if (timezoneChanges && input.timezone) {
             const newToday = todayInTimezone(new Date(), input.timezone);
-            if (await this.repository.hasFactsAfter(tx, budgetId, newToday)) {
+            if (await this.repository.hasFactsAfter(tx, workspaceId, budgetId, newToday)) {
               throw new ConflictException({
                 code: 'TIMEZONE_CHANGE_WOULD_FUTURE_DATE_FACTS',
                 detail:
@@ -113,16 +115,21 @@ export class V2BudgetSettingsApplicationService {
             }
             if (input.timedEvents === 'KEEP_WALL_CLOCK') {
               for (const event of events) {
-                if (!event.startsAt) continue;
+                // endsAt is non-null for timed events (DB CHECK); leave the row alone if it is not.
+                if (!event.startsAt || !event.endsAt) continue;
+                const shifted = shiftTimedEvent(
+                  event.startsAt,
+                  event.endsAt,
+                  before.timezone,
+                  input.timezone,
+                );
                 await this.repository.updateEventInstants(
                   tx,
                   workspaceId,
                   budgetId,
                   event.id,
-                  shiftWallClock(event.startsAt, before.timezone, input.timezone),
-                  event.endsAt
-                    ? shiftWallClock(event.endsAt, before.timezone, input.timezone)
-                    : null,
+                  shifted.startsAt,
+                  shifted.endsAt,
                 );
                 shiftedEvents += 1;
               }
@@ -144,6 +151,9 @@ export class V2BudgetSettingsApplicationService {
 
           const after = await this.repository.update(tx, workspaceId, budgetId, patch);
           if (!after) throw budgetNotFound();
+          if (timezoneChanges && input.timezone) {
+            await this.repository.syncWorkspaceTimezone(tx, workspaceId, input.timezone);
+          }
           const changedKeys = AUDITED_KEYS.filter((key) => before[key] !== after[key]);
           const pick = (view: V2BudgetSettingsView) =>
             Object.fromEntries(changedKeys.map((key) => [key, view[key]]));

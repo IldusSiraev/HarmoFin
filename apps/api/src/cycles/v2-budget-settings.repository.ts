@@ -67,24 +67,42 @@ export class V2BudgetSettingsRepository {
   /** True when a server-stamped or confirmed fact date lies after `date` (ISO YYYY-MM-DD). */
   async hasFactsAfter(
     tx: Prisma.TransactionClient,
+    workspaceId: string,
     budgetId: string,
     date: string,
   ): Promise<boolean> {
     const limit = new Date(`${date}T00:00:00.000Z`);
     const [transactions, assignments, movements, budget] = await Promise.all([
       tx.transaction.count({
-        where: { budgetId, status: 'CONFIRMED', occurredOn: { gt: limit } },
+        where: {
+          budgetId,
+          budget: { workspaceId },
+          status: 'CONFIRMED',
+          occurredOn: { gt: limit },
+        },
         take: 1,
       }),
       tx.envelopeAssignment.count({
-        where: { budgetId, status: 'CONFIRMED', effectiveOn: { gt: limit } },
+        where: {
+          budgetId,
+          budget: { workspaceId },
+          status: 'CONFIRMED',
+          effectiveOn: { gt: limit },
+        },
         take: 1,
       }),
       tx.envelopeMovement.count({
-        where: { budgetId, status: 'CONFIRMED', effectiveOn: { gt: limit } },
+        where: {
+          budgetId,
+          budget: { workspaceId },
+          status: 'CONFIRMED',
+          effectiveOn: { gt: limit },
+        },
         take: 1,
       }),
-      tx.budget.count({ where: { id: budgetId, planModelActivatedOn: { gt: limit } } }),
+      tx.budget.count({
+        where: { id: budgetId, workspaceId, planModelActivatedOn: { gt: limit } },
+      }),
     ]);
     return transactions + assignments + movements + budget > 0;
   }
@@ -132,6 +150,14 @@ export class V2BudgetSettingsRepository {
     });
     if (result.count === 0) return null;
     return this.find(tx, workspaceId, budgetId);
+  }
+
+  async syncWorkspaceTimezone(
+    tx: Prisma.TransactionClient,
+    workspaceId: string,
+    timezone: string,
+  ): Promise<void> {
+    await tx.workspace.updateMany({ where: { id: workspaceId }, data: { timezone } });
   }
 
   async createAudit(

@@ -175,6 +175,7 @@ async function submit() {
     <UiSelect
       v-if="!invitationToken"
       v-model="timezone"
+      class="field"
       name="timezone"
       label="Часовой пояс"
       searchable

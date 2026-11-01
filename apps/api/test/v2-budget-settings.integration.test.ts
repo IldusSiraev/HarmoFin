@@ -280,6 +280,9 @@ describe('v2 budget settings (T02b)', () => {
     expect(response.json<SettingsBody>().timezone).toBe('Asia/Yekaterinburg');
     const budget = await prisma.budget.findUniqueOrThrow({ where: { id: budgetId } });
     expect(budget.timezone).toBe('Asia/Yekaterinburg');
+    expect(
+      (await prisma.workspace.findUniqueOrThrow({ where: { id: budget.workspaceId } })).timezone,
+    ).toBe('Asia/Yekaterinburg');
     expect(budget.cycleStartDay).toBe(1);
     expect(await prisma.envelopePeriod.count({ where: { budgetId } })).toBe(0);
     const account = await prisma.account.findUniqueOrThrow({ where: { id: state.accountId! } });
@@ -380,8 +383,22 @@ describe('v2 budget settings (T02b)', () => {
     expect(await startsAt()).toBe('2026-12-05T13:00:00.000Z');
   });
 
+  it('KEEP_WALL_CLOCK сохраняет длительность при пропуске часа в целевом поясе', async () => {
+    const budgetId = user('target').budgetId;
+    await patch('target', { timezone: 'UTC' });
+    const event = await seedTimedEvent(budgetId, '2027-03-28T02:30:00.000Z', 30 * 60_000);
+    const response = await patch('target', {
+      timezone: 'Europe/Berlin',
+      timedEvents: 'KEEP_WALL_CLOCK',
+    });
+    expect(response.statusCode).toBe(200);
+    const row = await prisma.calendarEvent.findUniqueOrThrow({ where: { id: event } });
+    expect(row.endsAt!.getTime() - row.startsAt!.getTime()).toBe(30 * 60_000);
+  });
+
   it('аудит смены пояса содержит новый пояс и режим событий', async () => {
     const budgetId = user('owner').budgetId;
+    await patch('owner', { timezone: 'Asia/Yekaterinburg' });
     const response = await patch('owner', { timezone: 'Europe/Berlin' });
     expect(response.statusCode).toBe(200);
     const audit = await prisma.auditEvent.findFirstOrThrow({
@@ -449,7 +466,11 @@ async function seedAssignmentStamp(budgetId: string, effectiveOn: Date): Promise
   return id;
 }
 
-async function seedTimedEvent(budgetId: string, startsAtIso: string): Promise<string> {
+async function seedTimedEvent(
+  budgetId: string,
+  startsAtIso: string,
+  durationMs = 3_600_000,
+): Promise<string> {
   const budget = await prisma.budget.findUniqueOrThrow({ where: { id: budgetId } });
   const owner = await prisma.workspaceMembership.findFirstOrThrow({
     where: { workspaceId: budget.workspaceId, role: 'OWNER' },
@@ -465,7 +486,7 @@ async function seedTimedEvent(budgetId: string, startsAtIso: string): Promise<st
       title: 'Встреча',
       allDay: false,
       startsAt,
-      endsAt: new Date(startsAt.getTime() + 3_600_000),
+      endsAt: new Date(startsAt.getTime() + durationMs),
     },
   });
   return id;

@@ -5194,6 +5194,12 @@
             "minLength": 10,
             "type": "string"
           },
+          "timezone": {
+            "description": "Часовой пояс IANA; по умолчанию Europe/Moscow. Игнорируется при регистрации по приглашению.",
+            "example": "Asia/Yekaterinburg",
+            "maxLength": 64,
+            "type": "string"
+          },
           "workspaceName": {
             "example": "Мой бюджет",
             "maxLength": 120,
@@ -7211,9 +7217,14 @@
             "minLength": 1,
             "type": "string"
           },
+          "timedEvents": {
+            "description": "Только вместе с timezone. Как сдвинуть события календаря со временем: сохранить настенное время (KEEP_WALL_CLOCK) или момент (KEEP_INSTANT). Обязательно, если такие события есть, иначе 422 TIMED_EVENTS_MODE_REQUIRED.",
+            "enum": ["KEEP_WALL_CLOCK", "KEEP_INSTANT"],
+            "type": "string"
+          },
           "timezone": {
-            "description": "Часовой пояс IANA. Меняется только пока нет подтверждённых операций, назначений, движений, CONFIRMED целей и ревизий цикла.",
-            "example": "Europe/Moscow",
+            "description": "Часовой пояс IANA. Меняется в любое время; сохранённые даты не меняются. 409 TIMEZONE_CHANGE_WOULD_FUTURE_DATE_FACTS, если после смены какая-то дата факта окажется позже «сегодня» нового пояса.",
+            "example": "Asia/Yekaterinburg",
             "maxLength": 64,
             "type": "string"
           }
@@ -15649,7 +15660,7 @@
     },
     "/api/v2/budgets/{budgetId}/settings": {
       "patch": {
-        "description": "Хотя бы одно поле. Имя и allowNegativeAccountBalance не вызывают перепланирования и не меняют правило отрицательного виртуального конверта. timezone меняется только пока нет подтверждённых операций, назначений, движений, CONFIRMED целей и ревизий цикла; тогда в той же транзакции удаляются несвязанные UNSET/DRAFT периоды (перестраиваются лениво). Иначе 409 TIMEZONE_CHANGE_REQUIRES_RECONCILIATION без изменений. Повтор с тем же Idempotency-Key возвращает тот же ответ. Только OWNER. Коды: 400 VALIDATION_FAILED, 401, 403 FORBIDDEN|CSRF_INVALID, 404 бюджет, 409 TIMEZONE_CHANGE_REQUIRES_RECONCILIATION|IDEMPOTENCY_CONFLICT|MODEL_VERSION_MISMATCH.",
+        "description": "Хотя бы одно поле. Имя и allowNegativeAccountBalance не вызывают перепланирования и не меняют правило отрицательного виртуального конверта. timezone меняется в любое время: сохранённые даты не меняются, в той же транзакции удаляются несвязанные UNSET/DRAFT периоды (перестраиваются лениво). Если после смены дата какого-либо факта окажется позже «сегодня» нового пояса, 409 TIMEZONE_CHANGE_WOULD_FUTURE_DATE_FACTS без изменений. События календаря со временем сдвигаются по timedEvents (KEEP_WALL_CLOCK|KEEP_INSTANT); если такие события есть, а режим не передан, 422 TIMED_EVENTS_MODE_REQUIRED. Повтор с тем же Idempotency-Key возвращает тот же ответ. Только OWNER. Коды: 400 VALIDATION_FAILED, 401, 403 FORBIDDEN|CSRF_INVALID, 404 бюджет, 409 TIMEZONE_CHANGE_WOULD_FUTURE_DATE_FACTS|IDEMPOTENCY_CONFLICT|MODEL_VERSION_MISMATCH, 422 TIMED_EVENTS_MODE_REQUIRED.",
         "operationId": "V2BudgetSettingsController_update_v2",
         "parameters": [
           {
@@ -15732,7 +15743,7 @@
                 }
               }
             },
-            "description": "TIMEZONE_CHANGE_REQUIRES_RECONCILIATION, IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH."
+            "description": "TIMEZONE_CHANGE_WOULD_FUTURE_DATE_FACTS, IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH."
           },
           "422": {
             "content": {
@@ -15742,7 +15753,7 @@
                 }
               }
             },
-            "description": ""
+            "description": "TIMED_EVENTS_MODE_REQUIRED."
           }
         },
         "security": [
