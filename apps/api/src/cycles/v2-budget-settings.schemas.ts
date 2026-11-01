@@ -1,15 +1,8 @@
 import { z } from 'zod';
 
-export const uuidParamSchema = z.string().uuid();
+import { isValidTimezone } from '../common/timezone.js';
 
-function isValidTimezone(value: string): boolean {
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: value });
-    return true;
-  } catch {
-    return false;
-  }
-}
+export const uuidParamSchema = z.string().uuid();
 
 export const v2BudgetSettingsSchema = z
   .object({

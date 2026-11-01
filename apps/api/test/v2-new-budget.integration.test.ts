@@ -91,6 +91,54 @@ describe('M04: new budgets are created in plan model 2', () => {
     );
   });
 
+  it('defaults the timezone to Europe/Moscow without the field', async () => {
+    const row = await prisma.budget.findUniqueOrThrow({ where: { id: budgetId } });
+    const ws = await prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId } });
+    expect(row.timezone).toBe('Europe/Moscow');
+    expect(ws.timezone).toBe('Europe/Moscow');
+  });
+
+  it('registers with a chosen timezone and rejects an unknown one', async () => {
+    const tzEmail = `v2-new-budget-tz-${randomUUID()}@harmofin.test`;
+    const bad = await server.inject({
+      method: 'POST',
+      url: '/api/v1/auth/register',
+      headers: { origin },
+      payload: { email: `bad-${tzEmail}`, password, timezone: 'Mars/Phobos' },
+    });
+    expect(bad.statusCode).toBe(400);
+    expect(bad.json<{ code: string }>().code).toBe('VALIDATION_FAILED');
+
+    const before = new Date();
+    const ok = await server.inject({
+      method: 'POST',
+      url: '/api/v1/auth/register',
+      headers: { origin },
+      payload: { email: tzEmail, password, timezone: 'Asia/Yekaterinburg' },
+    });
+    expect(ok.statusCode).toBe(201);
+    const body = ok.json<{
+      user: { id: string };
+      workspace: { id: string };
+      budget: { id: string };
+    }>();
+    try {
+      const row = await prisma.budget.findUniqueOrThrow({ where: { id: body.budget.id } });
+      const ws = await prisma.workspace.findUniqueOrThrow({ where: { id: body.workspace.id } });
+      expect(row.timezone).toBe('Asia/Yekaterinburg');
+      expect(ws.timezone).toBe('Asia/Yekaterinburg');
+      const expected = [before, new Date()].map((d) => todayInTimezone(d, 'Asia/Yekaterinburg'));
+      expect(expected).toContain(row.planModelActivatedOn?.toISOString().slice(0, 10));
+    } finally {
+      await prisma.auditEvent.deleteMany({ where: { actorUserId: body.user.id } });
+      await prisma.session.deleteMany({ where: { userId: body.user.id } });
+      await prisma.workspaceMembership.deleteMany({ where: { userId: body.user.id } });
+      await prisma.budget.deleteMany({ where: { workspaceId: body.workspace.id } });
+      await prisma.workspace.deleteMany({ where: { id: body.workspace.id } });
+      await prisma.user.deleteMany({ where: { id: body.user.id } });
+    }
+  });
+
   it('shows the version in /api/v1/me', async () => {
     const me = await server.inject({
       method: 'GET',

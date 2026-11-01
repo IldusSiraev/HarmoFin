@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { isValidTimezone } from '../common/timezone.js';
 import { consentListSchema } from '../legal/legal.schemas.js';
 
 const emailSchema = z.string().trim().toLowerCase().email().max(320);
@@ -14,6 +15,13 @@ export const registerSchema = z
     budgetName: optionalNameSchema,
     consents: consentListSchema.optional(),
     invitationToken: z.string().min(16).max(128).optional(),
+    timezone: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .refine(isValidTimezone, { message: 'Укажите корректный часовой пояс IANA.' })
+      .optional(),
   })
   .strict();
 

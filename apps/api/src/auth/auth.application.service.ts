@@ -97,6 +97,7 @@ export class AuthApplicationService {
         const personal = await createPersonalWorkspace(tx, user.id, now, requestMeta.requestId, {
           workspaceName: input.workspaceName ?? 'Мой бюджет',
           budgetName: input.budgetName ?? 'Семейный бюджет',
+          timezone: input.timezone,
         });
         workspace = { id: personal.workspace.id, name: personal.workspace.name };
         budget = personal.budget;
