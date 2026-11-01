@@ -446,7 +446,7 @@ onMounted(() => {
             </UiButton>
           </div>
           <fieldset v-if="timezoneChanged && canManage" class="general-settings-form__fieldset">
-            <legend>События календаря со временем</legend>
+            <legend>Как изменить время событий в календаре</legend>
             <label class="general-settings-form__radio">
               <input
                 v-model="timedEvents"
@@ -454,11 +454,23 @@ onMounted(() => {
                 name="timedEvents"
                 value="KEEP_WALL_CLOCK"
               />
-              <span>Сохранить время на часах (рекомендуется)</span>
+              <span class="general-settings-form__radio-text">
+                <span>Оставить то же время на часах (рекомендуется)</span>
+                <small>
+                  Событие в 18:00 останется в 18:00 по новому поясу. Подходит, если пояс был указан
+                  неверно.
+                </small>
+              </span>
             </label>
             <label class="general-settings-form__radio">
               <input v-model="timedEvents" type="radio" name="timedEvents" value="KEEP_INSTANT" />
-              <span>Сохранить момент</span>
+              <span class="general-settings-form__radio-text">
+                <span>Пересчитать на новый пояс</span>
+                <small>
+                  Событие в 18:00 по старому поясу покажется по новому, например в 20:00. Подходит,
+                  если вы переехали.
+                </small>
+              </span>
             </label>
             <p class="general-settings-form__note">
               Прошлые операции и даты не изменятся. Письма и напоминания будут приходить по новому
@@ -589,10 +601,20 @@ onMounted(() => {
 
 .general-settings-form__radio {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--hf-space-3);
   min-height: var(--hf-control-height-sm);
   color: var(--hf-color-text);
+}
+
+.general-settings-form__radio-text {
+  display: grid;
+  gap: var(--hf-space-1);
+}
+
+.general-settings-form__radio-text small {
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
 }
 
 .general-settings-form__radio input {

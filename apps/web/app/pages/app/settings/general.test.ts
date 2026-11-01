@@ -127,9 +127,9 @@ describe('settings general page', () => {
       pickZone(wrapper, 'Asia/Tokyo');
       await flushPromises();
       const fieldset = wrapper.get('fieldset');
-      expect(fieldset.get('legend').text()).toBe('События календаря со временем');
-      expect(fieldset.text()).toContain('Сохранить время на часах (рекомендуется)');
-      expect(fieldset.text()).toContain('Сохранить момент');
+      expect(fieldset.get('legend').text()).toBe('Как изменить время событий в календаре');
+      expect(fieldset.text()).toContain('Оставить то же время на часах (рекомендуется)');
+      expect(fieldset.text()).toContain('Пересчитать на новый пояс');
       const radios = fieldset.findAll('input[type="radio"]');
       expect(radios).toHaveLength(2);
       expect((radios[0]!.element as HTMLInputElement).checked).toBe(true);
