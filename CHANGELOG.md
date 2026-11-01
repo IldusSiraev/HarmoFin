@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.17.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.16.0...v1.17.0) (2026-11-01)
+
+
+### Новое
+
+* **api:** смена часового пояса бюджета без блокировки по истории ([cc7605a](https://github.com/IldusSiraev/HarmoFin/commit/cc7605a1e37880e9594473292f23390a9901a190))
+* **api:** часовой пояс при регистрации ([cbb1477](https://github.com/IldusSiraev/HarmoFin/commit/cbb147728eca2f132789b5c18962aaf29dabd00c))
+* **web:** выбор часового пояса при регистрации ([51f0166](https://github.com/IldusSiraev/HarmoFin/commit/51f0166924791ef024f40e407e53f88b20a131e2))
+* **web:** смена часового пояса и подсказка в настройках ([cfa0941](https://github.com/IldusSiraev/HarmoFin/commit/cfa09417908aa82edfc5d17733f20b4ead78abf0))
+* выбор и смена часового пояса бюджета ([9582ca9](https://github.com/IldusSiraev/HarmoFin/commit/9582ca9c87e3d2ebcc4b79a94a70affc36a1e04e))
+
+
+### Исправления
+
+* **web:** понятные подписи режима сдвига событий календаря ([32fb482](https://github.com/IldusSiraev/HarmoFin/commit/32fb48215e1a241d75891c64d1e90962496dcf33))
+* **web:** убрать выбор режима событий календаря, всегда сохранять время на часах ([0bceb7a](https://github.com/IldusSiraev/HarmoFin/commit/0bceb7addfd9c92439f6979d736a4de52623a575))
+* длительность событий при смене пояса, openapi, синхронизация пояса пространства ([81a2a76](https://github.com/IldusSiraev/HarmoFin/commit/81a2a76ad794b1496ad3293ec9c70da19ff0df2f))
+
 ## [1.16.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.15.0...v1.16.0) (2026-11-01)
 
 
