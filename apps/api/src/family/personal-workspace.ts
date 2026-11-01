@@ -1,20 +1,21 @@
 import type { Prisma } from '@prisma/client';
 
 import { createUuidV7 } from '../common/identifiers/uuid-v7.js';
-import { newBudgetModelData } from '../common/plan-model/new-budget-model.js';
+import { NEW_BUDGET_TIMEZONE, newBudgetModelData } from '../common/plan-model/new-budget-model.js';
 
 export async function createPersonalWorkspace(
   tx: Prisma.TransactionClient,
   userId: string,
   now: Date,
   requestId?: string,
-  names: { workspaceName: string; budgetName: string } = {
+  names: { workspaceName: string; budgetName: string; timezone?: string | undefined } = {
     workspaceName: 'Мой бюджет',
     budgetName: 'Мой бюджет',
   },
 ) {
+  const timezone = names.timezone ?? NEW_BUDGET_TIMEZONE;
   const workspace = await tx.workspace.create({
-    data: { id: createUuidV7(now), ownerId: userId, name: names.workspaceName },
+    data: { id: createUuidV7(now), ownerId: userId, name: names.workspaceName, timezone },
     select: { id: true, name: true, timezone: true },
   });
   await tx.workspaceMembership.create({
@@ -31,7 +32,8 @@ export async function createPersonalWorkspace(
       id: createUuidV7(now),
       workspaceId: workspace.id,
       name: names.budgetName,
-      ...newBudgetModelData(now),
+      timezone,
+      ...newBudgetModelData(now, timezone),
     },
     select: { id: true, name: true, primaryCurrency: true },
   });

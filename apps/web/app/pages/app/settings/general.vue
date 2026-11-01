@@ -24,6 +24,7 @@ import {
   useEnvelopePlanV2,
 } from '../../../composables/useEnvelopePlanV2.js';
 import { v2ErrorMessage } from '../../../composables/useV2Error.js';
+import { browserTimezone } from '../../../composables/browserTimezone.js';
 
 defineOptions({ name: 'AppSettingsGeneralPage' });
 definePageMeta({ middleware: 'auth', layout: 'app' });
@@ -115,6 +116,15 @@ function attemptKey(fingerprint: string): string {
   return attempt.key;
 }
 
+const timezoneChanged = computed(
+  () => budget.value !== null && form.timezone !== budget.value.timezone,
+);
+// Offer the browser zone only to those who can change it, and only while the form lacks it.
+const hintZone = computed(() => {
+  const zone = browserTimezone();
+  return canManage.value && zone && budget.value && zone !== form.timezone ? zone : null;
+});
+
 const timezoneOptions = computed(() => {
   const zones =
     typeof Intl.supportedValuesOf === 'function'
@@ -186,13 +196,21 @@ function validateCycle(): { cycleStartDay: number; periodBoundaryOffset: number 
 
 function settingsPatch() {
   const current = budget.value;
-  const patch: { name?: string; allowNegativeAccountBalance?: boolean; timezone?: string } = {};
+  const patch: {
+    name?: string;
+    allowNegativeAccountBalance?: boolean;
+    timezone?: string;
+    timedEvents?: 'KEEP_WALL_CLOCK' | 'KEEP_INSTANT';
+  } = {};
   if (!current) return patch;
   if (form.name !== current.name) patch.name = form.name;
   if (form.allowNegativeBalance !== current.allowNegativeBalance) {
     patch.allowNegativeAccountBalance = form.allowNegativeBalance;
   }
-  if (form.timezone !== current.timezone) patch.timezone = form.timezone;
+  if (form.timezone !== current.timezone) {
+    patch.timezone = form.timezone;
+    patch.timedEvents = 'KEEP_WALL_CLOCK';
+  }
   return patch;
 }
 
@@ -205,7 +223,8 @@ function applyV2Error(error: unknown) {
   const message = v2ErrorMessage(error, 'Не удалось сохранить настройки. Повторите попытку.');
   if (
     error instanceof ApiRequestError &&
-    error.problem.code === 'TIMEZONE_CHANGE_REQUIRES_RECONCILIATION'
+    (error.problem.code === 'TIMEZONE_CHANGE_WOULD_FUTURE_DATE_FACTS' ||
+      error.problem.code === 'TIMED_EVENTS_MODE_REQUIRED')
   ) {
     fieldErrors.value = { timezone: message };
   }
@@ -410,11 +429,30 @@ onMounted(() => {
             label="Часовой пояс"
             searchable
             :options="timezoneOptions"
-            tooltip="Часовой пояс используется для расчёта границ финансового месяца и определения «сегодня» на дашборде, в отчётах и планах."
+            tooltip="Часовой пояс используется для расчёта границ финансового месяца и определения «сегодня» на дашборде, в отчётах и планах. Прошлые записи не меняются."
             :error="getFieldError('timezone')"
             :disabled="!canManage"
             required
           />
+          <div
+            v-if="hintZone"
+            class="general-settings-form__hint"
+            data-testid="browser-timezone-hint"
+          >
+            <p class="general-settings-form__hint-text">Ваш браузер в {{ hintZone }}.</p>
+            <UiButton variant="secondary" size="sm" type="button" @click="form.timezone = hintZone">
+              Использовать этот пояс
+            </UiButton>
+          </div>
+          <p
+            v-if="timezoneChanged && canManage"
+            class="general-settings-form__note"
+            data-testid="timezone-change-note"
+          >
+            Прошлые операции и даты не изменятся. Письма и напоминания будут приходить по новому
+            времени. События календаря с указанным временем останутся в то же время на часах: в
+            18:00 — значит, в 18:00 по новому поясу.
+          </p>
           <label class="general-settings-form__checkbox">
             <input v-model="form.allowNegativeBalance" type="checkbox" :disabled="!canManage" />
             <span>Разрешить уходить в минус</span>
@@ -504,6 +542,22 @@ onMounted(() => {
   margin: 0;
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-small);
+}
+
+.general-settings-form__hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hf-space-3);
+  padding: var(--hf-space-3) var(--hf-space-4);
+  border: 1px solid var(--hf-color-border);
+  border-radius: var(--hf-radius-md);
+  background: var(--hf-color-surface-subtle);
+}
+
+.general-settings-form__hint-text {
+  margin: 0;
+  color: var(--hf-color-text);
 }
 
 .general-settings-form__effect {

@@ -16,11 +16,20 @@ export class V2BudgetSettingsRequest {
     type: String,
     required: false,
     maxLength: 64,
-    example: 'Europe/Moscow',
+    example: 'Asia/Yekaterinburg',
     description:
-      'Часовой пояс IANA. Меняется только пока нет подтверждённых операций, назначений, движений, CONFIRMED целей и ревизий цикла.',
+      'Часовой пояс IANA. Меняется в любое время; сохранённые даты не меняются. 409 TIMEZONE_CHANGE_WOULD_FUTURE_DATE_FACTS, если после смены какая-то дата факта окажется позже «сегодня» нового пояса.',
   })
   timezone?: string;
+
+  @ApiProperty({
+    type: String,
+    enum: ['KEEP_WALL_CLOCK', 'KEEP_INSTANT'],
+    required: false,
+    description:
+      'Только вместе с timezone. Как сдвинуть события календаря со временем: сохранить настенное время (KEEP_WALL_CLOCK) или момент (KEEP_INSTANT). Обязательно, если такие события есть, иначе 422 TIMED_EVENTS_MODE_REQUIRED.',
+  })
+  timedEvents?: 'KEEP_WALL_CLOCK' | 'KEEP_INSTANT';
 }
 
 export class V2BudgetSettingsResponse {

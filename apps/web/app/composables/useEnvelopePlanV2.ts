@@ -1023,6 +1023,7 @@ export interface BudgetSettingsV2Request {
   name?: string;
   allowNegativeAccountBalance?: boolean;
   timezone?: string;
+  timedEvents?: 'KEEP_WALL_CLOCK' | 'KEEP_INSTANT';
 }
 
 export interface BudgetSettingsV2Response {

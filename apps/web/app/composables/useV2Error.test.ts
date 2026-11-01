@@ -12,7 +12,8 @@ describe('v2ErrorMessage cycle codes', () => {
     [409, 'CYCLE_CHANGE_PENDING', 'ещё не вступила в силу'],
     [422, 'CYCLE_SETTINGS_UNCHANGED', 'уже действуют'],
     [409, 'PREVIEW_STALE', 'Обновите последствия'],
-    [409, 'TIMEZONE_CHANGE_REQUIRES_RECONCILIATION', 'Часовой пояс нельзя менять'],
+    [409, 'TIMEZONE_CHANGE_WOULD_FUTURE_DATE_FACTS', 'Часовой пояс сейчас менять нельзя'],
+    [422, 'TIMED_EVENTS_MODE_REQUIRED', 'Выберите, как сдвинуть события'],
   ])('maps %i %s to Russian text', (status, code, text) => {
     expect(v2ErrorMessage(problem(status, code), 'fallback')).toContain(text);
   });

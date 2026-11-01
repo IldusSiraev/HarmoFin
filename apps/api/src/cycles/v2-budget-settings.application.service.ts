@@ -1,6 +1,12 @@
 import { createHash } from 'node:crypto';
 
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
@@ -8,10 +14,9 @@ import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { forbidden } from '../common/reference-data/reference-data.errors.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { AssignmentRepository } from '../envelope-plans/assignment.repository.js';
-import {
-  hasConfirmedPlanHistory,
-  resetUnconfirmedPeriods,
-} from '../envelope-plans/reset-unconfirmed-periods.js';
+import { resetUnconfirmedPeriods } from '../envelope-plans/reset-unconfirmed-periods.js';
+import { todayInTimezone } from './cycle-period.domain.js';
+import { shiftTimedEvent } from './timezone-change.js';
 import {
   V2BudgetSettingsRepository,
   type V2BudgetSettingsView,
@@ -20,14 +25,6 @@ import type { V2BudgetSettingsInput } from './v2-budget-settings.schemas.js';
 
 const UPDATE_BUDGET_SETTINGS_OPERATION = 'UPDATE_V2_BUDGET_SETTINGS';
 const AUDITED_KEYS = ['name', 'allowNegativeAccountBalance', 'timezone'] as const;
-
-function reconciliationRequired(): ConflictException {
-  return new ConflictException({
-    code: 'TIMEZONE_CHANGE_REQUIRES_RECONCILIATION',
-    detail:
-      'Часовой пояс нельзя изменить: в бюджете есть подтверждённые операции, распределения, переносы, цели или смены цикла, привязанные к календарным датам.',
-  });
-}
 
 function budgetNotFound(): NotFoundException {
   return new NotFoundException({
@@ -38,9 +35,12 @@ function budgetNotFound(): NotFoundException {
 
 /**
  * Owner-only update of v2 budget settings (T02b). Name and the account negative-balance flag map
- * onto the Budget fields and never replan. The timezone changes only while no confirmed fact fixes
- * the calendar; then unreferenced UNSET/DRAFT period rows are dropped (rebuilt lazily in the new
- * zone) in the same transaction. History is never touched.
+ * onto the Budget fields and never replan. The timezone changes at any time except when a stored
+ * fact date would land after "today" in the new zone; unreferenced UNSET/DRAFT period rows are
+ * dropped (rebuilt lazily in the new zone) and timed calendar events are shifted per `timedEvents`
+ * in the same transaction, and Workspace.timezone follows. Stored dates are never rewritten.
+ * BudgetCycleRevision.effectiveOn is intentionally not part of the fact guard: pending revisions
+ * are legitimately future-dated.
  */
 @Injectable()
 export class V2BudgetSettingsApplicationService {
@@ -69,6 +69,7 @@ export class V2BudgetSettingsApplicationService {
           name: input.name ?? null,
           allowNegativeAccountBalance: input.allowNegativeAccountBalance ?? null,
           timezone: input.timezone ?? null,
+          timedEvents: input.timedEvents ?? null,
         }),
       )
       .digest('hex');
@@ -95,8 +96,44 @@ export class V2BudgetSettingsApplicationService {
 
           const timezoneChanges =
             input.timezone !== undefined && input.timezone !== before.timezone;
-          if (timezoneChanges) {
-            if (await hasConfirmedPlanHistory(tx, budgetId)) throw reconciliationRequired();
+          let shiftedEvents = 0;
+          if (timezoneChanges && input.timezone) {
+            const newToday = todayInTimezone(new Date(), input.timezone);
+            if (await this.repository.hasFactsAfter(tx, workspaceId, budgetId, newToday)) {
+              throw new ConflictException({
+                code: 'TIMEZONE_CHANGE_WOULD_FUTURE_DATE_FACTS',
+                detail:
+                  'Часовой пояс сейчас менять нельзя: часть записей оказалась бы датирована «завтра» по новому поясу. Повторите после полуночи по новому поясу.',
+              });
+            }
+            const events = await this.repository.listTimedEvents(tx, workspaceId, budgetId);
+            if (events.length > 0 && !input.timedEvents) {
+              throw new UnprocessableEntityException({
+                code: 'TIMED_EVENTS_MODE_REQUIRED',
+                detail: 'Выберите, как сдвинуть события календаря со временем при смене пояса.',
+              });
+            }
+            if (input.timedEvents === 'KEEP_WALL_CLOCK') {
+              for (const event of events) {
+                // endsAt is non-null for timed events (DB CHECK); leave the row alone if it is not.
+                if (!event.startsAt || !event.endsAt) continue;
+                const shifted = shiftTimedEvent(
+                  event.startsAt,
+                  event.endsAt,
+                  before.timezone,
+                  input.timezone,
+                );
+                await this.repository.updateEventInstants(
+                  tx,
+                  workspaceId,
+                  budgetId,
+                  event.id,
+                  shifted.startsAt,
+                  shifted.endsAt,
+                );
+                shiftedEvents += 1;
+              }
+            }
             await resetUnconfirmedPeriods(tx, budgetId);
           }
           const patch = {
@@ -114,6 +151,9 @@ export class V2BudgetSettingsApplicationService {
 
           const after = await this.repository.update(tx, workspaceId, budgetId, patch);
           if (!after) throw budgetNotFound();
+          if (timezoneChanges && input.timezone) {
+            await this.repository.syncWorkspaceTimezone(tx, workspaceId, input.timezone);
+          }
           const changedKeys = AUDITED_KEYS.filter((key) => before[key] !== after[key]);
           const pick = (view: V2BudgetSettingsView) =>
             Object.fromEntries(changedKeys.map((key) => [key, view[key]]));
@@ -123,7 +163,10 @@ export class V2BudgetSettingsApplicationService {
             actorUserId: userId,
             requestId,
             oldValues: pick(before),
-            newValues: pick(after),
+            newValues: {
+              ...pick(after),
+              ...(timezoneChanges ? { timedEvents: input.timedEvents ?? null, shiftedEvents } : {}),
+            },
           });
           return { status: 200, body: { ...after } };
         },

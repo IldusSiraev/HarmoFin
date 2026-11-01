@@ -68,13 +68,13 @@ describe('v2 budget settings (T02b)', () => {
     server = app.getHttpAdapter().getInstance() as FastifyInstance;
     await server.ready();
     for (const name of names) ctx[name] = await register(emails[name]);
-    for (const name of ['owner', 'fact', 'target', 'outsider'] as const) {
+    for (const name of ['owner', 'fact', 'target', 'outsider', 'editor'] as const) {
       await prisma.budget.update({
         where: { id: user(name).budgetId },
         data: {
           planModelVersion: 2,
           planModelActivatedOn: dateOf(addIsoDays(today, -60)),
-          timezone: 'UTC',
+          timezone: name === 'editor' ? 'Europe/Moscow' : 'UTC',
           cycleStartDay: 1,
           periodBoundaryOffset: 14,
           allowNegativeBalance: true,
@@ -280,6 +280,9 @@ describe('v2 budget settings (T02b)', () => {
     expect(response.json<SettingsBody>().timezone).toBe('Asia/Yekaterinburg');
     const budget = await prisma.budget.findUniqueOrThrow({ where: { id: budgetId } });
     expect(budget.timezone).toBe('Asia/Yekaterinburg');
+    expect(
+      (await prisma.workspace.findUniqueOrThrow({ where: { id: budget.workspaceId } })).timezone,
+    ).toBe('Asia/Yekaterinburg');
     expect(budget.cycleStartDay).toBe(1);
     expect(await prisma.envelopePeriod.count({ where: { budgetId } })).toBe(0);
     const account = await prisma.account.findUniqueOrThrow({ where: { id: state.accountId! } });
@@ -306,38 +309,105 @@ describe('v2 budget settings (T02b)', () => {
     );
   });
 
-  it('подтверждённый факт блокирует смену timezone: 409, ничего не меняется', async () => {
+  it('подтверждённый факт НЕ блокирует смену пояса на восток; история не меняется', async () => {
     const budgetId = user('fact').budgetId;
-    const before = await prisma.budget.findUniqueOrThrow({ where: { id: budgetId } });
-    const response = await patch('fact', { timezone: 'Asia/Tokyo', name: 'Не должно' });
-    expect(response.statusCode).toBe(409);
-    expect(response.json<{ code: string }>().code).toBe('TIMEZONE_CHANGE_REQUIRES_RECONCILIATION');
-    const after = await prisma.budget.findUniqueOrThrow({ where: { id: budgetId } });
-    expect(after.timezone).toBe(before.timezone);
-    expect(after.name).toBe(before.name);
-  });
-
-  it('CONFIRMED цель блокирует смену timezone: периоды прежние', async () => {
-    const budgetId = user('target').budgetId;
-    const before = await prisma.envelopePeriod.findMany({
-      where: { budgetId },
+    const before = await prisma.transaction.findMany({
+      where: { budgetId, status: 'CONFIRMED' },
       orderBy: { id: 'asc' },
     });
-    const response = await patch('target', { timezone: 'Asia/Tokyo' });
-    expect(response.statusCode).toBe(409);
-    expect(response.json<{ code: string }>().code).toBe('TIMEZONE_CHANGE_REQUIRES_RECONCILIATION');
-    expect((await prisma.budget.findUniqueOrThrow({ where: { id: budgetId } })).timezone).toBe(
-      'UTC',
-    );
-    expect(
-      await prisma.envelopePeriod.findMany({ where: { budgetId }, orderBy: { id: 'asc' } }),
-    ).toEqual(before);
+    expect(before.length).toBeGreaterThan(0);
+    const response = await patch('fact', { timezone: 'Asia/Tokyo' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json<SettingsBody>().timezone).toBe('Asia/Tokyo');
+    const after = await prisma.transaction.findMany({
+      where: { budgetId, status: 'CONFIRMED' },
+      orderBy: { id: 'asc' },
+    });
+    expect(after.map((row) => row.occurredOn)).toEqual(before.map((row) => row.occurredOn));
   });
 
-  it('при заблокированной зоне имя меняется, если timezone совпадает с текущей', async () => {
-    const response = await patch('fact', { name: 'Имя без зоны', timezone: 'UTC' });
+  it('CONFIRMED цель не блокирует смену пояса: цель сохранена, лишних периодов нет', async () => {
+    const budgetId = user('target').budgetId;
+    const periods = await prisma.envelopePeriod.count({ where: { budgetId } });
+    const response = await patch('target', { timezone: 'Asia/Tokyo' });
     expect(response.statusCode).toBe(200);
-    expect(response.json<SettingsBody>().name).toBe('Имя без зоны');
+    expect(
+      await prisma.envelopePeriod.count({ where: { budgetId, targetStatus: 'CONFIRMED' } }),
+    ).toBeGreaterThan(0);
+    expect(await prisma.envelopePeriod.count({ where: { budgetId } })).toBeLessThanOrEqual(periods);
+  });
+
+  it('штамп effectiveOn в будущем нового пояса блокирует смену: 409, ничего не меняется', async () => {
+    const budgetId = user('fact').budgetId;
+    const current = (await prisma.budget.findUniqueOrThrow({ where: { id: budgetId } })).timezone;
+    // Kiritimati (UTC+14) is the furthest ahead, so its tomorrow is after "today" in any zone.
+    const tomorrow = dateOf(addIsoDays(todayInTimezone(new Date(), 'Pacific/Kiritimati'), 1));
+    const assignmentId = await seedAssignmentStamp(budgetId, tomorrow);
+    try {
+      const response = await patch('fact', { timezone: 'Pacific/Pago_Pago', name: 'Не должно' });
+      expect(response.statusCode).toBe(409);
+      expect(response.json<{ code: string }>().code).toBe(
+        'TIMEZONE_CHANGE_WOULD_FUTURE_DATE_FACTS',
+      );
+      const after = await prisma.budget.findUniqueOrThrow({ where: { id: budgetId } });
+      expect(after.timezone).toBe(current);
+      expect(after.name).not.toBe('Не должно');
+    } finally {
+      await prisma.envelopeAssignment.delete({ where: { id: assignmentId } });
+    }
+  });
+
+  it('timed-события: без режима 422, KEEP_WALL_CLOCK сдвигает инстанты, KEEP_INSTANT нет', async () => {
+    const budgetId = user('editor').budgetId;
+    const event = await seedTimedEvent(budgetId, '2026-12-05T15:00:00.000Z'); // 18:00 Москва
+    const startsAt = async () =>
+      (
+        await prisma.calendarEvent.findUniqueOrThrow({ where: { id: event } })
+      ).startsAt?.toISOString();
+    const missing = await patch('editor', { timezone: 'Asia/Yekaterinburg' });
+    expect(missing.statusCode).toBe(422);
+    expect(missing.json<{ code: string }>().code).toBe('TIMED_EVENTS_MODE_REQUIRED');
+    expect(await startsAt()).toBe('2026-12-05T15:00:00.000Z');
+
+    const wall = await patch('editor', {
+      timezone: 'Asia/Yekaterinburg',
+      timedEvents: 'KEEP_WALL_CLOCK',
+    });
+    expect(wall.statusCode).toBe(200);
+    expect(await startsAt()).toBe('2026-12-05T13:00:00.000Z');
+    const shifted = await prisma.calendarEvent.findUniqueOrThrow({ where: { id: event } });
+    expect(shifted.endsAt?.toISOString()).toBe('2026-12-05T14:00:00.000Z');
+
+    const instant = await patch('editor', { timezone: 'UTC', timedEvents: 'KEEP_INSTANT' });
+    expect(instant.statusCode).toBe(200);
+    expect(await startsAt()).toBe('2026-12-05T13:00:00.000Z');
+  });
+
+  it('KEEP_WALL_CLOCK сохраняет длительность при пропуске часа в целевом поясе', async () => {
+    const budgetId = user('target').budgetId;
+    await patch('target', { timezone: 'UTC' });
+    const event = await seedTimedEvent(budgetId, '2027-03-28T02:30:00.000Z', 30 * 60_000);
+    const response = await patch('target', {
+      timezone: 'Europe/Berlin',
+      timedEvents: 'KEEP_WALL_CLOCK',
+    });
+    expect(response.statusCode).toBe(200);
+    const row = await prisma.calendarEvent.findUniqueOrThrow({ where: { id: event } });
+    expect(row.endsAt!.getTime() - row.startsAt!.getTime()).toBe(30 * 60_000);
+  });
+
+  it('аудит смены пояса содержит новый пояс и режим событий', async () => {
+    const budgetId = user('owner').budgetId;
+    await patch('owner', { timezone: 'Asia/Yekaterinburg' });
+    const response = await patch('owner', { timezone: 'Europe/Berlin' });
+    expect(response.statusCode).toBe(200);
+    const audit = await prisma.auditEvent.findFirstOrThrow({
+      where: { budgetId, entityType: 'budget', action: 'UPDATED' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(JSON.stringify(audit.newValues)).toContain('Europe/Berlin');
+    expect(audit.newValues).toMatchObject({ timedEvents: null, shiftedEvents: 0 });
+    expect(JSON.stringify(audit.oldValues)).toContain('Asia/Yekaterinburg');
   });
 
   it('OpenAPI: PATCH settings описывает 200/400/401/403/404/409 и Idempotency-Key', async () => {
@@ -376,6 +446,50 @@ function patch(
     headers: { ...authHeaders(as), 'x-csrf-token': as?.csrfToken ?? '', 'idempotency-key': key },
     payload,
   });
+}
+
+async function seedAssignmentStamp(budgetId: string, effectiveOn: Date): Promise<string> {
+  const envelope = await prisma.envelope.findFirstOrThrow({ where: { budgetId } });
+  const id = randomUUID();
+  await prisma.envelopeAssignment.create({
+    data: {
+      id,
+      budgetId,
+      envelopeId: envelope.id,
+      type: 'FREE',
+      amountMinor: 100n,
+      effectiveOn,
+      status: 'CONFIRMED',
+      createdByUserId: envelope.ownerUserId,
+    },
+  });
+  return id;
+}
+
+async function seedTimedEvent(
+  budgetId: string,
+  startsAtIso: string,
+  durationMs = 3_600_000,
+): Promise<string> {
+  const budget = await prisma.budget.findUniqueOrThrow({ where: { id: budgetId } });
+  const owner = await prisma.workspaceMembership.findFirstOrThrow({
+    where: { workspaceId: budget.workspaceId, role: 'OWNER' },
+  });
+  const startsAt = new Date(startsAtIso);
+  const id = randomUUID();
+  await prisma.calendarEvent.create({
+    data: {
+      id,
+      workspaceId: budget.workspaceId,
+      budgetId,
+      createdByUserId: owner.userId,
+      title: 'Встреча',
+      allDay: false,
+      startsAt,
+      endsAt: new Date(startsAt.getTime() + durationMs),
+    },
+  });
+  return id;
 }
 
 function accountData(budgetId: string, ownerUserId: string, startingBalanceMinor: bigint) {
@@ -450,6 +564,8 @@ async function cleanupUser(userId: string): Promise<void> {
     await prisma.workspaceMembership.deleteMany({ where: { workspaceId } });
     await prisma.idempotencyRecord.deleteMany({ where: { budget: { workspaceId } } });
     await prisma.auditEvent.deleteMany({ where: { workspaceId } });
+    await prisma.calendarEvent.deleteMany({ where: { budget: { workspaceId } } });
+    await prisma.envelopeAssignment.deleteMany({ where: { budget: { workspaceId } } });
     await prisma.transaction.deleteMany({ where: { budget: { workspaceId } } });
     await prisma.account.deleteMany({ where: { budget: { workspaceId } } });
     await prisma.envelopePeriod.deleteMany({ where: { budget: { workspaceId } } });

@@ -28,6 +28,15 @@ export class RegisterRequest {
     description: 'Токен приглашения: вместо личного пространства пользователь вступает в семью.',
   })
   invitationToken?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    example: 'Asia/Yekaterinburg',
+    maxLength: 64,
+    description:
+      'Часовой пояс IANA; по умолчанию Europe/Moscow. Игнорируется при регистрации по приглашению.',
+  })
+  timezone?: string;
 }
 
 export class LoginRequest {
