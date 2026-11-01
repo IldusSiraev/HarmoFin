@@ -22,10 +22,15 @@ export const v2BudgetSettingsSchema = z
       .max(64)
       .refine(isValidTimezone, { message: 'Укажите корректный часовой пояс IANA.' })
       .optional(),
+    timedEvents: z.enum(['KEEP_WALL_CLOCK', 'KEEP_INSTANT']).optional(),
   })
   .strict()
-  .refine((input) => Object.values(input).some((value) => value !== undefined), {
-    message: 'Необходимо передать хотя бы одно поле для изменения.',
-  });
+  .refine(
+    (input) =>
+      input.name !== undefined ||
+      input.allowNegativeAccountBalance !== undefined ||
+      input.timezone !== undefined,
+    { message: 'Необходимо передать хотя бы одно поле для изменения.' },
+  );
 
 export type V2BudgetSettingsInput = z.output<typeof v2BudgetSettingsSchema>;

@@ -77,7 +77,7 @@ export class V2BudgetSettingsController {
   @ApiOperation({
     summary: 'Изменить имя, политику отрицательного остатка счёта и часовой пояс бюджета',
     description:
-      'Хотя бы одно поле. Имя и allowNegativeAccountBalance не вызывают перепланирования и не меняют правило отрицательного виртуального конверта. timezone меняется только пока нет подтверждённых операций, назначений, движений, CONFIRMED целей и ревизий цикла; тогда в той же транзакции удаляются несвязанные UNSET/DRAFT периоды (перестраиваются лениво). Иначе 409 TIMEZONE_CHANGE_REQUIRES_RECONCILIATION без изменений. Повтор с тем же Idempotency-Key возвращает тот же ответ. Только OWNER. Коды: 400 VALIDATION_FAILED, 401, 403 FORBIDDEN|CSRF_INVALID, 404 бюджет, 409 TIMEZONE_CHANGE_REQUIRES_RECONCILIATION|IDEMPOTENCY_CONFLICT|MODEL_VERSION_MISMATCH.',
+      'Хотя бы одно поле. Имя и allowNegativeAccountBalance не вызывают перепланирования и не меняют правило отрицательного виртуального конверта. timezone меняется в любое время: сохранённые даты не меняются, в той же транзакции удаляются несвязанные UNSET/DRAFT периоды (перестраиваются лениво). Если после смены дата какого-либо факта окажется позже «сегодня» нового пояса, 409 TIMEZONE_CHANGE_WOULD_FUTURE_DATE_FACTS без изменений. События календаря со временем сдвигаются по timedEvents (KEEP_WALL_CLOCK|KEEP_INSTANT); если такие события есть, а режим не передан, 422 TIMED_EVENTS_MODE_REQUIRED. Повтор с тем же Idempotency-Key возвращает тот же ответ. Только OWNER. Коды: 400 VALIDATION_FAILED, 401, 403 FORBIDDEN|CSRF_INVALID, 404 бюджет, 409 TIMEZONE_CHANGE_WOULD_FUTURE_DATE_FACTS|IDEMPOTENCY_CONFLICT|MODEL_VERSION_MISMATCH, 422 TIMED_EVENTS_MODE_REQUIRED.',
   })
   @ApiHeader(idempotencyHeader)
   @ApiBody({ type: V2BudgetSettingsRequest })
@@ -90,9 +90,13 @@ export class V2BudgetSettingsController {
     status: 409,
     type: ProblemDetailsResponse,
     description:
-      'TIMEZONE_CHANGE_REQUIRES_RECONCILIATION, IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.',
+      'TIMEZONE_CHANGE_WOULD_FUTURE_DATE_FACTS, IDEMPOTENCY_CONFLICT, MODEL_VERSION_MISMATCH.',
   })
-  @ApiResponse({ status: 422, type: ProblemDetailsResponse })
+  @ApiResponse({
+    status: 422,
+    type: ProblemDetailsResponse,
+    description: 'TIMED_EVENTS_MODE_REQUIRED.',
+  })
   async update(
     @Param('budgetId', new ZodValidationPipe(uuidParamSchema)) budgetId: string,
     @Body(new ZodValidationPipe(v2BudgetSettingsSchema)) input: V2BudgetSettingsInput,

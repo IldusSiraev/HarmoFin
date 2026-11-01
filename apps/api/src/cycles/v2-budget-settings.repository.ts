@@ -64,6 +64,52 @@ export class V2BudgetSettingsRepository {
     return row ? toView(row) : null;
   }
 
+  /** True when a server-stamped or confirmed fact date lies after `date` (ISO YYYY-MM-DD). */
+  async hasFactsAfter(
+    tx: Prisma.TransactionClient,
+    budgetId: string,
+    date: string,
+  ): Promise<boolean> {
+    const limit = new Date(`${date}T00:00:00.000Z`);
+    const [transactions, assignments, movements, budget] = await Promise.all([
+      tx.transaction.count({
+        where: { budgetId, status: 'CONFIRMED', occurredOn: { gt: limit } },
+        take: 1,
+      }),
+      tx.envelopeAssignment.count({
+        where: { budgetId, status: 'CONFIRMED', effectiveOn: { gt: limit } },
+        take: 1,
+      }),
+      tx.envelopeMovement.count({
+        where: { budgetId, status: 'CONFIRMED', effectiveOn: { gt: limit } },
+        take: 1,
+      }),
+      tx.budget.count({ where: { id: budgetId, planModelActivatedOn: { gt: limit } } }),
+    ]);
+    return transactions + assignments + movements + budget > 0;
+  }
+
+  async listTimedEvents(tx: Prisma.TransactionClient, workspaceId: string, budgetId: string) {
+    return tx.calendarEvent.findMany({
+      where: { workspaceId, budgetId, deletedAt: null, allDay: false, startsAt: { not: null } },
+      select: { id: true, startsAt: true, endsAt: true },
+    });
+  }
+
+  async updateEventInstants(
+    tx: Prisma.TransactionClient,
+    workspaceId: string,
+    budgetId: string,
+    id: string,
+    startsAt: Date,
+    endsAt: Date | null,
+  ): Promise<void> {
+    await tx.calendarEvent.updateMany({
+      where: { id, workspaceId, budgetId },
+      data: { startsAt, endsAt },
+    });
+  }
+
   async update(
     tx: Prisma.TransactionClient,
     workspaceId: string,
