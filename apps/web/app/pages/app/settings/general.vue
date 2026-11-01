@@ -116,7 +116,6 @@ function attemptKey(fingerprint: string): string {
   return attempt.key;
 }
 
-const timedEvents = ref<'KEEP_WALL_CLOCK' | 'KEEP_INSTANT'>('KEEP_WALL_CLOCK');
 const timezoneChanged = computed(
   () => budget.value !== null && form.timezone !== budget.value.timezone,
 );
@@ -210,7 +209,7 @@ function settingsPatch() {
   }
   if (form.timezone !== current.timezone) {
     patch.timezone = form.timezone;
-    patch.timedEvents = timedEvents.value;
+    patch.timedEvents = 'KEEP_WALL_CLOCK';
   }
   return patch;
 }
@@ -445,38 +444,15 @@ onMounted(() => {
               Использовать этот пояс
             </UiButton>
           </div>
-          <fieldset v-if="timezoneChanged && canManage" class="general-settings-form__fieldset">
-            <legend>Как изменить время событий в календаре</legend>
-            <label class="general-settings-form__radio">
-              <input
-                v-model="timedEvents"
-                type="radio"
-                name="timedEvents"
-                value="KEEP_WALL_CLOCK"
-              />
-              <span class="general-settings-form__radio-text">
-                <span>Оставить то же время на часах (рекомендуется)</span>
-                <small>
-                  Событие в 18:00 останется в 18:00 по новому поясу. Подходит, если пояс был указан
-                  неверно.
-                </small>
-              </span>
-            </label>
-            <label class="general-settings-form__radio">
-              <input v-model="timedEvents" type="radio" name="timedEvents" value="KEEP_INSTANT" />
-              <span class="general-settings-form__radio-text">
-                <span>Пересчитать на новый пояс</span>
-                <small>
-                  Событие в 18:00 по старому поясу покажется по новому, например в 20:00. Подходит,
-                  если вы переехали.
-                </small>
-              </span>
-            </label>
-            <p class="general-settings-form__note">
-              Прошлые операции и даты не изменятся. Письма и напоминания будут приходить по новому
-              времени.
-            </p>
-          </fieldset>
+          <p
+            v-if="timezoneChanged && canManage"
+            class="general-settings-form__note"
+            data-testid="timezone-change-note"
+          >
+            Прошлые операции и даты не изменятся. Письма и напоминания будут приходить по новому
+            времени. События календаря с указанным временем останутся в то же время на часах: в
+            18:00 — значит, в 18:00 по новому поясу.
+          </p>
           <label class="general-settings-form__checkbox">
             <input v-model="form.allowNegativeBalance" type="checkbox" :disabled="!canManage" />
             <span>Разрешить уходить в минус</span>
@@ -582,49 +558,6 @@ onMounted(() => {
 .general-settings-form__hint-text {
   margin: 0;
   color: var(--hf-color-text);
-}
-
-.general-settings-form__fieldset {
-  display: grid;
-  gap: var(--hf-space-3);
-  margin: 0;
-  padding: var(--hf-space-4);
-  border: 1px solid var(--hf-color-border);
-  border-radius: var(--hf-radius-md);
-}
-
-.general-settings-form__fieldset legend {
-  padding: 0 var(--hf-space-2);
-  color: var(--hf-color-text);
-  font-weight: 600;
-}
-
-.general-settings-form__radio {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--hf-space-3);
-  min-height: var(--hf-control-height-sm);
-  color: var(--hf-color-text);
-}
-
-.general-settings-form__radio-text {
-  display: grid;
-  gap: var(--hf-space-1);
-}
-
-.general-settings-form__radio-text small {
-  color: var(--hf-color-text-muted);
-  font-size: var(--hf-font-size-small);
-}
-
-.general-settings-form__radio input {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
-.general-settings-form__radio input:focus-visible {
-  outline: 2px solid var(--hf-color-brand);
-  outline-offset: 2px;
 }
 
 .general-settings-form__effect {

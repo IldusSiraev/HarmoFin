@@ -119,20 +119,17 @@ describe('settings general page', () => {
       wrapper.findComponent({ name: 'UiSelect' }).vm.$emit('update:modelValue', zone);
     }
 
-    it('hides the timed events fieldset until the timezone changes', async () => {
+    it('shows the timezone change note only after the timezone changes', async () => {
       const wrapper = mountPage();
       await flushPromises();
-      expect(wrapper.find('fieldset').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="timezone-change-note"]').exists()).toBe(false);
 
       pickZone(wrapper, 'Asia/Tokyo');
       await flushPromises();
-      const fieldset = wrapper.get('fieldset');
-      expect(fieldset.get('legend').text()).toBe('Как изменить время событий в календаре');
-      expect(fieldset.text()).toContain('Оставить то же время на часах (рекомендуется)');
-      expect(fieldset.text()).toContain('Пересчитать на новый пояс');
-      const radios = fieldset.findAll('input[type="radio"]');
-      expect(radios).toHaveLength(2);
-      expect((radios[0]!.element as HTMLInputElement).checked).toBe(true);
+      const note = wrapper.get('[data-testid="timezone-change-note"]');
+      expect(note.text()).toContain('Прошлые операции и даты не изменятся');
+      expect(note.text()).toContain('то же время на часах');
+      expect(wrapper.find('input[type="radio"]').exists()).toBe(false);
     });
 
     it('sends the default timed events mode with a changed timezone', async () => {
@@ -149,22 +146,6 @@ describe('settings general page', () => {
         { timezone: 'Asia/Tokyo', timedEvents: 'KEEP_WALL_CLOCK' },
         expect.any(String),
       );
-    });
-
-    it('sends KEEP_INSTANT when the owner picks it', async () => {
-      mocks.planV2.updateBudgetSettings.mockResolvedValue(budget);
-      const wrapper = mountPage();
-      await flushPromises();
-      pickZone(wrapper, 'Asia/Tokyo');
-      await flushPromises();
-      await wrapper.get('input[type="radio"][value="KEEP_INSTANT"]').setValue(true);
-      await wrapper.get('form').trigger('submit');
-      await flushPromises();
-
-      expect(mocks.planV2.updateBudgetSettings.mock.calls[0]![1]).toEqual({
-        timezone: 'Asia/Tokyo',
-        timedEvents: 'KEEP_INSTANT',
-      });
     });
 
     it('does not send timedEvents when the timezone is unchanged', async () => {
@@ -204,7 +185,7 @@ describe('settings general page', () => {
       await hint.get('button').trigger('click');
       await flushPromises();
       expect(wrapper.find('[data-testid="browser-timezone-hint"]').exists()).toBe(false);
-      expect(wrapper.find('fieldset').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="timezone-change-note"]').exists()).toBe(true);
       await wrapper.get('form').trigger('submit');
       await flushPromises();
       expect(mocks.planV2.updateBudgetSettings.mock.calls[0]![1]).toEqual({
