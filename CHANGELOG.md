@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.16.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.15.0...v1.16.0) (2026-11-01)
+
+
+### Новое
+
+* **telegram:** конфиг API, исключение webhook из OriginGuard, клиент Bot API ([8574e3e](https://github.com/IldusSiraev/HarmoFin/commit/8574e3ebf32614c389984f8ace37be8ef5079237))
+* **telegram:** настройки канала Telegram в API ([8a4e4ec](https://github.com/IldusSiraev/HarmoFin/commit/8a4e4ecf8169ea895d014ede5ca1cc72cec37042))
+* **telegram:** отправка уведомлений в Telegram из воркера ([3a0ccdc](https://github.com/IldusSiraev/HarmoFin/commit/3a0ccdcf9376198bdad177d8a9f329a201ab875d))
+* **telegram:** привязка чата одноразовой ссылкой и webhook бота ([b5a18ae](https://github.com/IldusSiraev/HarmoFin/commit/b5a18ae38abaf3ba0c8998530d56250b3d3ef698))
+* **telegram:** регистрация webhook при деплое, E2E и документация ([d375cbe](https://github.com/IldusSiraev/HarmoFin/commit/d375cbe52693dc67ea05bf5cc4c90433b4dc8a56))
+* **telegram:** схема привязки чата и канал TELEGRAM ([134899e](https://github.com/IldusSiraev/HarmoFin/commit/134899ef1a9e96cf174847a4438a9ed7cddac3da))
+* **telegram:** уведомления в Telegram ([b42b631](https://github.com/IldusSiraev/HarmoFin/commit/b42b631c4aa00d3aa4afbe66ac59c476499959d0))
+* **web:** страница уведомлений в Telegram ([c72b730](https://github.com/IldusSiraev/HarmoFin/commit/c72b73043c006f2e7b17c57d2760047d13c10d13))
+
 ## [1.15.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.14.0...v1.15.0) (2026-10-31)
 
 
