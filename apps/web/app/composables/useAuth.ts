@@ -1,5 +1,6 @@
 import { reloadNuxtApp, useState } from '#imports';
 import { ApiRequestError, useApiClient } from './useApiClient.js';
+import { unsubscribeThisDevice } from '../pwa/push.js';
 
 type User = { id: string; email: string; displayName: string | null };
 // planModelVersion is chosen by the server per budget; every budget runs Envelope Plan v2.2 (2).
@@ -89,6 +90,8 @@ export function useAuth() {
   }
 
   async function logout(): Promise<void> {
+    // Pushes stop with the session on the server anyway; this also clears the browser side.
+    await unsubscribeThisDevice();
     await api.request('/api/v1/auth/logout', { method: 'POST' });
     currentUser.value = null;
     currentData.value = null;
