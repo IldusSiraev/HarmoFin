@@ -74,7 +74,10 @@ describe('OverviewTab', () => {
       if (key === 'period-comparison')
         return {
           key,
-          rows: [{ ...comparison, limitTotalMinor: null,
+          rows: [
+            {
+              ...comparison,
+              limitTotalMinor: null,
               limitedSpentMinor: null,
               spentOfLimitPermille: null,
             },

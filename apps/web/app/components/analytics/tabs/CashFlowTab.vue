@@ -4,7 +4,7 @@ import { computed, onMounted, watch } from 'vue';
 import { useAnalyticsReport } from '../../../composables/useAnalyticsReport.js';
 import type { ReportV2Filters } from '../../../composables/useEnvelopePlanV2.js';
 import { formatMinorUnits } from '../../finance/money-format.js';
-import ColumnChart from '../charts/ColumnChart.vue';
+import LineChart from '../charts/LineChart.vue';
 import { journalHref } from '../journal-href.js';
 import { periodLabel } from '../period-label.js';
 import PlanVsActualReport from '../PlanVsActualReport.vue';
@@ -50,12 +50,12 @@ const cycleColumns = computed(() =>
       :empty="flow.rows.value.length === 0"
       @retry="flow.load(budgetId, filters)"
     >
-      <ColumnChart
+      <LineChart
         label="Доходы и расходы"
-        :columns="cycleColumns"
+        :points="cycleColumns"
         :series="[
-          { id: 'income', label: 'Доходы', tone: 2 },
-          { id: 'expense', label: 'Расходы', tone: 1 },
+          { id: 'income', label: 'Доходы', tone: 'income' },
+          { id: 'expense', label: 'Расходы', tone: 'expense' },
         ]"
       />
       <p class="cash-flow__hint">Под каждым циклом — доходы минус расходы.</p>
