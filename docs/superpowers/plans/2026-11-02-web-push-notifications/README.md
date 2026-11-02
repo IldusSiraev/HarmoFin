@@ -100,3 +100,4 @@ Push и PR — решение владельца.
 
 | Задача | Коммит | Проверки | Отступления и решения |
 |---|---|---|---|
+| 1 — схема и миграция | 3babbb8 (плюс docs-коммит строки) | test:integration PASS (796, push-schema 4/4); worker test PASS (154, account-purge.coverage incl.); migrate diff — «empty migration»; typecheck PASS; test-first падения зафиксированы (2× TypeError, 2× PrismaClientValidationError) до миграции/генерации | отступлений нет; localhost, EPERM/P1001 не встречались; reviewers backend/security/QA/final — APPROVE |
