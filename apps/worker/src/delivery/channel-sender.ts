@@ -1,7 +1,10 @@
 import type { ClaimedDelivery } from './delivery.repository.js';
 import type { DeliveryFacts } from './eligibility.js';
 
-export type DeliveryChannel = 'EMAIL' | 'TELEGRAM';
+export type DeliveryChannel = 'EMAIL' | 'TELEGRAM' | 'PUSH';
+
+/** Channels that receive the family digest; push carries urgent notifications only. */
+export type DigestChannel = Exclude<DeliveryChannel, 'PUSH'>;
 
 export type SendResult = { outcome: 'sent' } | { outcome: 'cancelled'; reason: string };
 

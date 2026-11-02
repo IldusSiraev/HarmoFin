@@ -55,6 +55,9 @@ const workerEnvironmentSchema = z.object({
   WEB_BASE_URL: optionalHttpUrl,
   TELEGRAM_BOT_TOKEN: optionalNonEmpty,
   TELEGRAM_API_BASE_URL: httpUrl.default('https://api.telegram.org'),
+  VAPID_PUBLIC_KEY: optionalNonEmpty,
+  VAPID_PRIVATE_KEY: optionalNonEmpty,
+  VAPID_SUBJECT: optionalNonEmpty,
 });
 
 type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
@@ -74,6 +77,12 @@ export interface WorkerTelegramConfig {
   webBaseUrl: string;
 }
 
+export interface WorkerPushConfig {
+  publicKey: string;
+  privateKey: string;
+  subject: string;
+}
+
 export interface WorkerConfig {
   nodeEnv: 'development' | 'test' | 'production';
   databaseUrl: string;
@@ -88,6 +97,7 @@ export interface WorkerConfig {
   otelExporterOtlpEndpoint: string | undefined;
   mail: WorkerMailConfig | undefined;
   telegram: WorkerTelegramConfig | undefined;
+  push: WorkerPushConfig | undefined;
 }
 
 export function loadWorkerConfig(input: NodeJS.ProcessEnv): WorkerConfig {
@@ -114,6 +124,7 @@ export function loadWorkerConfig(input: NodeJS.ProcessEnv): WorkerConfig {
     otelExporterOtlpEndpoint: result.data.OTEL_EXPORTER_OTLP_ENDPOINT,
     mail: mailConfig(result.data),
     telegram: telegramConfig(result.data),
+    push: pushConfig(result.data),
   };
 }
 
@@ -147,4 +158,31 @@ function telegramConfig(
     apiBaseUrl: data.TELEGRAM_API_BASE_URL.replace(/\/+$/, ''),
     webBaseUrl: data.WEB_BASE_URL,
   };
+}
+
+/**
+ * Push is optional: without the VAPID key pair the worker sends no pushes and PUSH rows wait in
+ * the queue. The private key never leaves the worker; errors name variables, never values.
+ */
+function pushConfig(data: z.infer<typeof workerEnvironmentSchema>): WorkerPushConfig | undefined {
+  const values = [
+    ['VAPID_PUBLIC_KEY', data.VAPID_PUBLIC_KEY],
+    ['VAPID_PRIVATE_KEY', data.VAPID_PRIVATE_KEY],
+    ['VAPID_SUBJECT', data.VAPID_SUBJECT],
+  ] as const;
+  const missing = values.filter(([, value]) => !value).map(([name]) => name);
+  if (missing.length === values.length) return undefined;
+  if (missing.length > 0) throw new Error(`Invalid worker configuration: ${missing.join(', ')}`);
+  const publicKey = data.VAPID_PUBLIC_KEY!;
+  const privateKey = data.VAPID_PRIVATE_KEY!;
+  const subject = data.VAPID_SUBJECT!;
+  const invalid = [
+    /^[A-Za-z0-9_-]{87}$/.test(publicKey) && Buffer.from(publicKey, 'base64url')[0] === 4
+      ? null
+      : 'VAPID_PUBLIC_KEY',
+    /^[A-Za-z0-9_-]{43}$/.test(privateKey) ? null : 'VAPID_PRIVATE_KEY',
+    /^(mailto:|https:\/\/)\S+$/.test(subject) ? null : 'VAPID_SUBJECT',
+  ].filter((name): name is string => name !== null);
+  if (invalid.length > 0) throw new Error(`Invalid worker configuration: ${invalid.join(', ')}`);
+  return { publicKey, privateKey, subject };
 }

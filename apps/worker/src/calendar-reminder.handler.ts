@@ -199,6 +199,7 @@ export class CalendarReminderHandler implements WorkerJobHandler {
       workspaceId: event.workspaceId,
       budgetId: event.budgetId,
       userId: values.userId,
+      type: 'CALENDAR_REMINDER',
       now: new Date(),
     });
     await tx.auditEvent.create({

@@ -34,6 +34,12 @@ WEB_BASE_URL=https://<environment-domain>
 TELEGRAM_BOT_TOKEN=<optional-provided-at-runtime>
 TELEGRAM_BOT_USERNAME=<optional-bot-username>
 TELEGRAM_WEBHOOK_SECRET=<optional-provided-at-runtime>
+# Web push: a separate VAPID key pair per environment. Optional; empty disables push.
+# Generate: pnpm --filter @harmofin/worker exec web-push generate-vapid-keys --json
+# VAPID_SUBJECT: mailto:<operator email> or https://<environment-domain>.
+VAPID_PUBLIC_KEY=<optional-provided-at-runtime>
+VAPID_PRIVATE_KEY=<optional-provided-at-runtime>
+VAPID_SUBJECT=<optional-mailto-or-https>
 LOG_LEVEL=info
 TRUST_PROXY=true
 ERROR_REPORTING_ENDPOINT=<optional-error-reporting-endpoint>

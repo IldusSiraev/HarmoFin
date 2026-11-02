@@ -1,6 +1,7 @@
+import type { PushSubscriptionInput } from '../pwa/push.js';
 import { useApiClient } from './useApiClient.js';
 
-// Thin typed client over the account-level notification endpoints (/api/v1): email and Telegram.
+// Thin typed client over the account-level notification endpoints (/api/v1): email, Telegram, push.
 
 export type DigestFrequency = 'OFF' | 'DAILY' | 'WEEKLY';
 
@@ -39,9 +40,34 @@ export interface TelegramLink {
   expiresAt: string;
 }
 
+export interface PushDevice {
+  id: string;
+  label: string;
+  createdAt: string;
+  lastSuccessAt: string | null;
+  current: boolean;
+}
+
+export interface PushNotificationSettings {
+  available: boolean;
+  vapidPublicKey: string | null;
+  enabled: boolean;
+  planOverdueEnabled: boolean;
+  calendarReminderEnabled: boolean;
+  devices: PushDevice[];
+}
+
+export interface PushNotificationSettingsInput {
+  enabled: boolean;
+  planOverdueEnabled: boolean;
+  calendarReminderEnabled: boolean;
+}
+
 const SETTINGS = '/api/v1/me/notification-settings/email';
 const TELEGRAM_SETTINGS = '/api/v1/me/notification-settings/telegram';
 const TELEGRAM_LINK = '/api/v1/me/telegram/link';
+const PUSH_SETTINGS = '/api/v1/me/notification-settings/push';
+const PUSH_SUBSCRIPTIONS = '/api/v1/me/push/subscriptions';
 
 export function useNotificationSettings() {
   const api = useApiClient();
@@ -76,5 +102,18 @@ export function useNotificationSettings() {
         body: JSON.stringify({ consent: true }),
       }),
     unlinkTelegram: () => api.request<void>(TELEGRAM_LINK, { method: 'DELETE' }),
+    getPush: () => api.request<PushNotificationSettings>(PUSH_SETTINGS),
+    savePush: (input: PushNotificationSettingsInput) =>
+      api.request<PushNotificationSettings>(PUSH_SETTINGS, {
+        method: 'PUT',
+        body: JSON.stringify(input),
+      }),
+    addPushSubscription: (input: PushSubscriptionInput) =>
+      api.request<PushNotificationSettings>(PUSH_SUBSCRIPTIONS, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    removePushSubscription: (id: string) =>
+      api.request<void>(`${PUSH_SUBSCRIPTIONS}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   };
 }

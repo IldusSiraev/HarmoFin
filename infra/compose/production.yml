@@ -114,6 +114,7 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
       TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
     expose:
       - '${API_PORT:-3001}'
     networks:
@@ -170,6 +171,9 @@ services:
       MAIL_FROM: ${MAIL_FROM:?MAIL_FROM is required}
       WEB_BASE_URL: ${WEB_BASE_URL:?WEB_BASE_URL is required}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
     expose:
       - '3002'
     networks:

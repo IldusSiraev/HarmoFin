@@ -3,9 +3,10 @@ import { randomUUID } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 
 import type { WorkerJobHandler } from '../job-runner.js';
-import type { DeliveryChannel } from './channel-sender.js';
+import type { DigestChannel } from './channel-sender.js';
 import { digestDedupeKey, digestSlot, digestWindowStart } from './digest-schedule.js';
 import { purgeStaleLinkCodes } from '../telegram/link-codes.js';
+import { purgeInactivePushSubscriptions } from '../push/subscriptions.js';
 
 export const DELIVERY_RETENTION_MS = 90 * 86_400_000;
 
@@ -18,7 +19,7 @@ export const DELIVERY_RETENTION_MS = 90 * 86_400_000;
 export class BuildEmailDigestsHandler implements WorkerJobHandler {
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly channels: readonly DeliveryChannel[] = ['EMAIL'],
+    private readonly channels: readonly DigestChannel[] = ['EMAIL'],
   ) {}
 
   async execute(now: Date, budgetId?: string): Promise<void> {
@@ -32,15 +33,18 @@ export class BuildEmailDigestsHandler implements WorkerJobHandler {
         user: { status: 'ACTIVE' as const, telegramLink: { isNot: null } },
       },
     };
-    if (this.channels.length === 0) return;
-    const settings = await this.prisma.notificationChannelSetting.findMany({
-      where: {
-        enabled: true,
-        digestFrequency: { not: 'OFF' },
-        OR: this.channels.map((channel) => reachable[channel]),
-      },
-      select: { userId: true, channel: true, digestFrequency: true },
-    });
+    // With push as the only channel there are no digests to build, but the cleanup below still runs.
+    const settings =
+      this.channels.length === 0
+        ? []
+        : await this.prisma.notificationChannelSetting.findMany({
+            where: {
+              enabled: true,
+              digestFrequency: { not: 'OFF' },
+              OR: this.channels.map((channel) => reachable[channel]),
+            },
+            select: { userId: true, channel: true, digestFrequency: true },
+          });
 
     for (const setting of settings) {
       const frequency = setting.digestFrequency === 'WEEKLY' ? 'WEEKLY' : 'DAILY';
@@ -108,7 +112,10 @@ export class BuildEmailDigestsHandler implements WorkerJobHandler {
       },
     });
 
-    // Codes have no budget: a run scoped to one budget (tests) leaves them alone.
-    if (!budgetId) await purgeStaleLinkCodes(this.prisma, now);
+    // Codes and push devices have no budget: a run scoped to one budget (tests) leaves them alone.
+    if (!budgetId) {
+      await purgeStaleLinkCodes(this.prisma, now);
+      await purgeInactivePushSubscriptions(this.prisma, now);
+    }
   }
 }

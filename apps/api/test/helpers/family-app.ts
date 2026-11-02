@@ -248,6 +248,7 @@ export class FamilyTestApp {
       await this.prisma.emailVerificationToken.deleteMany({ where: { userId } });
       await this.prisma.telegramLink.deleteMany({ where: { userId } });
       await this.prisma.telegramLinkCode.deleteMany({ where: { userId } });
+      await this.prisma.pushSubscription.deleteMany({ where: { userId } });
       await this.prisma.session.deleteMany({ where: { userId } });
       await this.prisma.recoveryToken.deleteMany({ where: { userId } });
       await this.prisma.userConsent.deleteMany({ where: { userId } });

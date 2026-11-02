@@ -10,10 +10,12 @@ export type DeliveryFacts = {
     urgentEnabled: boolean;
     digestFrequency: 'OFF' | 'DAILY' | 'WEEKLY';
     includeAmounts: boolean;
+    planOverdueEnabled: boolean;
+    calendarReminderEnabled: boolean;
   } | null;
   activeMember: boolean;
   budgetActive: boolean;
-  notification: { resolvedAt: Date | null; readAt: Date | null } | null;
+  notification: { resolvedAt: Date | null; readAt: Date | null; notificationType: string } | null;
   telegramLinked: boolean;
 };
 
@@ -26,7 +28,8 @@ export type CancelReason =
   | 'DIGEST_DISABLED'
   | 'BUDGET_INACTIVE'
   | 'NOT_A_MEMBER'
-  | 'NOTIFICATION_CLOSED';
+  | 'NOTIFICATION_CLOSED'
+  | 'TYPE_DISABLED';
 
 /**
  * Rights are re-checked at send time, not at enqueue time: a member who left, an address that is no
@@ -50,8 +53,18 @@ export function cancelReason(
     if (!notification || notification.resolvedAt || notification.readAt) {
       return 'NOTIFICATION_CLOSED';
     }
+    if (channel === 'PUSH' && !pushTypeEnabled(notification.notificationType, facts.setting)) {
+      return 'TYPE_DISABLED';
+    }
   }
   return null;
+}
+
+/** Push has its own switch per type; any other type is never pushed. */
+function pushTypeEnabled(type: string, setting: NonNullable<DeliveryFacts['setting']>): boolean {
+  if (type === 'PLAN_OVERDUE') return setting.planOverdueEnabled;
+  if (type === 'CALENDAR_REMINDER') return setting.calendarReminderEnabled;
+  return false;
 }
 
 export async function loadDeliveryFacts(
@@ -65,7 +78,14 @@ export async function loadDeliveryFacts(
     }),
     prisma.notificationChannelSetting.findUnique({
       where: { userId_channel: { userId: delivery.userId, channel: delivery.channel } },
-      select: { enabled: true, urgentEnabled: true, digestFrequency: true, includeAmounts: true },
+      select: {
+        enabled: true,
+        urgentEnabled: true,
+        digestFrequency: true,
+        includeAmounts: true,
+        planOverdueEnabled: true,
+        calendarReminderEnabled: true,
+      },
     }),
     prisma.workspaceMembership.findFirst({
       where: { workspaceId: delivery.workspaceId, userId: delivery.userId, isActive: true },
@@ -88,7 +108,7 @@ export async function loadDeliveryFacts(
             budgetId: delivery.budgetId,
             userId: delivery.userId,
           },
-          select: { resolvedAt: true, readAt: true },
+          select: { resolvedAt: true, readAt: true, notificationType: true },
         })
       : Promise.resolve(null),
     delivery.channel === 'TELEGRAM'

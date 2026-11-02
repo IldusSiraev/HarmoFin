@@ -4,10 +4,17 @@ import { cancelReason, type DeliveryFacts } from './eligibility.js';
 
 const ok: DeliveryFacts = {
   user: { email: 'a@x.test', status: 'ACTIVE', emailVerifiedAt: new Date() },
-  setting: { enabled: true, urgentEnabled: true, digestFrequency: 'DAILY', includeAmounts: false },
+  setting: {
+    enabled: true,
+    urgentEnabled: true,
+    digestFrequency: 'DAILY',
+    includeAmounts: false,
+    planOverdueEnabled: true,
+    calendarReminderEnabled: true,
+  },
   activeMember: true,
   budgetActive: true,
-  notification: { resolvedAt: null, readAt: null },
+  notification: { resolvedAt: null, readAt: null, notificationType: 'PLAN_OVERDUE' },
   telegramLinked: false,
 };
 
@@ -26,8 +33,16 @@ describe('cancelReason', () => {
     ['DIGEST_DISABLED', { setting: { ...ok.setting!, digestFrequency: 'OFF' } }, 'DIGEST'],
     ['BUDGET_INACTIVE', { budgetActive: false }, 'DIGEST'],
     ['NOT_A_MEMBER', { activeMember: false }, 'DIGEST'],
-    ['NOTIFICATION_CLOSED', { notification: { resolvedAt: new Date(), readAt: null } }, 'URGENT'],
-    ['NOTIFICATION_CLOSED', { notification: { resolvedAt: null, readAt: new Date() } }, 'URGENT'],
+    [
+      'NOTIFICATION_CLOSED',
+      { notification: { resolvedAt: new Date(), readAt: null, notificationType: 'PLAN_OVERDUE' } },
+      'URGENT',
+    ],
+    [
+      'NOTIFICATION_CLOSED',
+      { notification: { resolvedAt: null, readAt: new Date(), notificationType: 'PLAN_OVERDUE' } },
+      'URGENT',
+    ],
     ['NOTIFICATION_CLOSED', { notification: null }, 'URGENT'],
   ] as const)('%s', (reason, patch, kind) => {
     expect(cancelReason(kind, { ...ok, ...patch } as DeliveryFacts)).toBe(reason);
@@ -45,5 +60,39 @@ describe('cancelReason', () => {
     expect(cancelReason('DIGEST', { ...unverified, telegramLinked: true }, 'TELEGRAM')).toBeNull();
     expect(cancelReason('DIGEST', { ...ok, telegramLinked: true }, 'EMAIL')).toBeNull();
     expect(cancelReason('DIGEST', unverified, 'EMAIL')).toBe('EMAIL_NOT_VERIFIED');
+  });
+
+  it('checks the per-type switch only for push', () => {
+    const overdueOff = { ...ok, setting: { ...ok.setting!, planOverdueEnabled: false } };
+    expect(cancelReason('URGENT', overdueOff, 'PUSH')).toBe('TYPE_DISABLED');
+    expect(cancelReason('URGENT', overdueOff, 'EMAIL')).toBeNull();
+
+    const reminder = {
+      ...overdueOff,
+      notification: { resolvedAt: null, readAt: null, notificationType: 'CALENDAR_REMINDER' },
+    };
+    expect(cancelReason('URGENT', reminder, 'PUSH')).toBeNull();
+    expect(
+      cancelReason(
+        'URGENT',
+        { ...reminder, setting: { ...reminder.setting, calendarReminderEnabled: false } },
+        'PUSH',
+      ),
+    ).toBe('TYPE_DISABLED');
+  });
+
+  it('never sends a push for other notification types or as a digest', () => {
+    const other = {
+      ...ok,
+      notification: { resolvedAt: null, readAt: null, notificationType: 'PLAN_TODAY' },
+    };
+    expect(cancelReason('URGENT', other, 'PUSH')).toBe('TYPE_DISABLED');
+    expect(
+      cancelReason(
+        'DIGEST',
+        { ...ok, setting: { ...ok.setting!, digestFrequency: 'OFF' } },
+        'PUSH',
+      ),
+    ).toBe('DIGEST_DISABLED');
   });
 });
