@@ -947,6 +947,7 @@ export interface PeriodComparisonV2Row {
   daysElapsed: number;
   spentMinor: string;
   limitTotalMinor: string | null;
+  limitedSpentMinor: string | null;
   spentOfLimitPermille: number | null;
   previousPeriodStart: string;
   previousPeriodEnd: string;

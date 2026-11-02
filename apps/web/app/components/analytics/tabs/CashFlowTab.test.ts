@@ -54,12 +54,12 @@ describe('CashFlowTab', () => {
     });
     const wrapper = mount(CashFlowTab, { props: { budgetId: 'b', filters: {} }, global });
     await flushPromises();
-    expect(wrapper.findAll('[data-bar]')).toHaveLength(4);
+    expect(wrapper.findAll('[data-dot]')).toHaveLength(4);
     const text = flat(wrapper.text());
     expect(text).toContain('+1 500,00 ₽');
     expect(text).toContain('−300,00 ₽');
     expect(text).toContain('Аренда');
-    const links = wrapper.findAll('.column-chart__label--link');
+    const links = wrapper.findAll('.line-chart__label--link');
     expect(links).toHaveLength(2);
     expect(links[0]!.attributes('href')).toBe('/app/operations');
     expect(text).toContain('За текущий финансовый цикл.');

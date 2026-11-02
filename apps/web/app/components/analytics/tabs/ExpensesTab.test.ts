@@ -50,7 +50,7 @@ describe('ExpensesTab', () => {
     );
     expect(flat(wrapper.text())).toContain('75%');
     expect(wrapper.text()).toContain('01.03–14.03');
-    expect(wrapper.get('.column-chart__label--link').attributes('href')).toBe('/app/operations');
+    expect(wrapper.get('.line-chart__label--link').attributes('href')).toBe('/app/operations');
   });
 
   it('до ответа сервера показывает скелетон, а не «Нет данных»', () => {

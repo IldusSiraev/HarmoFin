@@ -150,7 +150,26 @@ export class ReportV2ApplicationService {
       );
       const limitTotal =
         limits.length === 0 ? null : limits.reduce((sum, row) => sum + (row.targetMinor ?? 0n), 0n);
-      return [periodComparisonRow({ asOf, current, previous, facts, limitTotalMinor: limitTotal })];
+      // Spending of the limited envelopes only, same rule as the envelope-limits report.
+      const balances = await this.balances.allBalances(tx, budgetId, new Date());
+      const spentByPeriod = new Map<string, bigint>();
+      for (const row of balances) {
+        if (row.periodId !== null) spentByPeriod.set(row.periodId, row.spent);
+      }
+      const limitedSpent =
+        limits.length === 0
+          ? null
+          : limits.reduce((sum, row) => sum + (spentByPeriod.get(row.periodId) ?? 0n), 0n);
+      return [
+        periodComparisonRow({
+          asOf,
+          current,
+          previous,
+          facts,
+          limitTotalMinor: limitTotal,
+          limitedSpentMinor: limitedSpent,
+        }),
+      ];
     }
 
     const facts = await repo.facts(tx, userId, budgetId, filters);

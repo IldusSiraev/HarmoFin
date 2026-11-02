@@ -3,7 +3,7 @@ import { computed, onMounted, watch } from 'vue';
 
 import { useAnalyticsReport } from '../../../composables/useAnalyticsReport.js';
 import type { ReportV2Filters } from '../../../composables/useEnvelopePlanV2.js';
-import ColumnChart from '../charts/ColumnChart.vue';
+import LineChart from '../charts/LineChart.vue';
 import ShareBar from '../charts/ShareBar.vue';
 import { journalHref } from '../journal-href.js';
 import { periodLabel } from '../period-label.js';
@@ -57,10 +57,10 @@ const periodColumns = computed(() =>
       :empty="byPeriod.rows.value.length === 0"
       @retry="byPeriod.load(budgetId, filters)"
     >
-      <ColumnChart
+      <LineChart
         label="Расходы за период"
-        :columns="periodColumns"
-        :series="[{ id: 'expense', label: 'Расходы', tone: 1 }]"
+        :points="periodColumns"
+        :series="[{ id: 'expense', label: 'Расходы', tone: 'expense' }]"
       />
     </ReportCard>
   </div>

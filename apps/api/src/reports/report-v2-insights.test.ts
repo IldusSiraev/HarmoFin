@@ -169,6 +169,7 @@ describe('periodComparisonRow', () => {
         expense('2026-03-25', 999n),
       ],
       limitTotalMinor: 500_000n,
+      limitedSpentMinor: 40_000n,
     });
     expect(row).toEqual({
       asOf: '2026-03-20',
@@ -177,7 +178,8 @@ describe('periodComparisonRow', () => {
       daysElapsed: 6,
       spentMinor: '80000',
       limitTotalMinor: '500000',
-      spentOfLimitPermille: 160,
+      limitedSpentMinor: '40000',
+      spentOfLimitPermille: 80,
       previousPeriodStart: '2026-03-01',
       previousPeriodEnd: '2026-03-14',
       previousSameDaySpentMinor: '100000',
@@ -194,6 +196,7 @@ describe('periodComparisonRow', () => {
       previous,
       facts: [expense('2026-03-31', 7n), expense('2026-03-14', 0n)],
       limitTotalMinor: null,
+      limitedSpentMinor: null,
     });
     expect(row).toMatchObject({
       daysElapsed: 17,
@@ -215,6 +218,7 @@ describe('periodComparisonRow', () => {
         expense('2026-03-15', 1n),
       ],
       limitTotalMinor: 0n,
+      limitedSpentMinor: 0n,
     });
     expect(row).toMatchObject({ spentMinor: '1', deltaMinor: '-2', deltaBasisPoints: -6666 });
     expect(row.spentOfLimitPermille).toBeNull();

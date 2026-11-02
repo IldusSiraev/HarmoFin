@@ -798,7 +798,9 @@ describe('v2 reports: аналитика', () => {
       daysElapsed: 6,
       spentMinor: '80000',
       limitTotalMinor: '500000',
-      spentOfLimitPermille: 160,
+      // Only the limited envelope's spending (999 on 03-25); the 80000 has no envelope.
+      limitedSpentMinor: '999',
+      spentOfLimitPermille: 1,
       previousPeriodStart: '2026-03-01',
       previousPeriodEnd: '2026-03-14',
       previousSameDaySpentMinor: '100000',
