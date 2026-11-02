@@ -203,6 +203,7 @@ async function createOccurrenceNotification(
       workspaceId: budget.workspaceId,
       budgetId: budget.id,
       userId,
+      type: 'PLAN_OVERDUE',
       now: new Date(),
     });
   }

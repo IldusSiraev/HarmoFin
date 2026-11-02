@@ -64,3 +64,57 @@ export async function addSubscription(
   });
   return { id, endpoint };
 }
+
+/** An overdue plan occurrence of the actor's budget and its in-app notification. */
+export async function overdueNotification(
+  prisma: PrismaClient,
+  actor: { user: { id: string }; workspaceId: string; budgetId: string },
+): Promise<{ notificationId: string; occurrenceId: string }> {
+  const planId = randomUUID();
+  const occurrenceId = randomUUID();
+  await prisma.regularPlan.create({
+    data: {
+      id: planId,
+      workspaceId: actor.workspaceId,
+      budgetId: actor.budgetId,
+      ownerUserId: actor.user.id,
+      name: 'Ипотека',
+      planType: 'EXPENSE',
+      amountMinor: 4_500_000n,
+      anchorOn: new Date('2026-10-01T00:00:00.000Z'),
+      startOn: new Date('2026-10-01T00:00:00.000Z'),
+      recurrence: 'MONTHLY',
+      createdByUserId: actor.user.id,
+      updatedByUserId: actor.user.id,
+    },
+  });
+  await prisma.planOccurrence.create({
+    data: {
+      id: occurrenceId,
+      workspaceId: actor.workspaceId,
+      budgetId: actor.budgetId,
+      planId,
+      scheduledOn: new Date('2026-10-25T00:00:00.000Z'),
+      planName: 'Ипотека',
+      planType: 'EXPENSE',
+      amountMinor: 4_500_000n,
+      status: 'DUE',
+    },
+  });
+  const notificationId = randomUUID();
+  await prisma.notification.create({
+    data: {
+      id: notificationId,
+      workspaceId: actor.workspaceId,
+      budgetId: actor.budgetId,
+      userId: actor.user.id,
+      notificationType: 'PLAN_OVERDUE',
+      occurrenceId,
+      title: 'Просроченный план',
+      body: 'План «Ипотека» просрочен с 2026-10-25.',
+      actionPath: `/app/plans?occurrence=${occurrenceId}`,
+      notificationKey: `occurrence:${occurrenceId}:PLAN_OVERDUE`,
+    },
+  });
+  return { notificationId, occurrenceId };
+}

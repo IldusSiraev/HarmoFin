@@ -40,7 +40,7 @@ export class DeliverNotificationsHandler implements WorkerJobHandler {
     } = {},
     private readonly batchSize = 20,
   ) {
-    this.channels = (['EMAIL', 'TELEGRAM'] as const).filter((channel) => senders[channel]);
+    this.channels = (['EMAIL', 'TELEGRAM', 'PUSH'] as const).filter((channel) => senders[channel]);
   }
 
   async execute(now: Date, budgetId?: string): Promise<void> {
