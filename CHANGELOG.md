@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.18.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.17.0...v1.18.0) (2026-11-02)
+
+
+### Новое
+
+* **web:** линейные графики расходов по периодам и доходов/расходов по циклам ([6a289e7](https://github.com/IldusSiraev/HarmoFin/commit/6a289e7d94e0a9a849ab2f91713a37cfa969bd33))
+
+
+### Исправления
+
+* **analytics:** полоса лимита в обзоре считается по расходам лимитных конвертов ([429e0f1](https://github.com/IldusSiraev/HarmoFin/commit/429e0f1077fe6259d4aad774afc5c13944526896))
+
 ## [1.17.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.16.0...v1.17.0) (2026-11-01)
 
 
