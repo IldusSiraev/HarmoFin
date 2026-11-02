@@ -19,6 +19,8 @@ import { EmailSender } from './delivery/email-sender.js';
 import type { ChannelSenders } from './delivery/channel-sender.js';
 import { TelegramBotApi } from './telegram/bot-api.js';
 import { TelegramSender } from './telegram/telegram-sender.js';
+import { PushSender } from './push/push-sender.js';
+import { WebPushTransport } from './push/web-push-transport.js';
 import { SmtpMailer } from './mail/mailer.js';
 import { WorkerRuntime } from './runtime.js';
 
@@ -52,8 +54,17 @@ const senders: ChannelSenders = {
         ),
       }
     : {}),
+  ...(config.push
+    ? {
+        PUSH: new PushSender(database, new WebPushTransport(config.push), config.push.publicKey),
+      }
+    : {}),
 };
-const deliveryChannels = (['EMAIL', 'TELEGRAM'] as const).filter((channel) => senders[channel]);
+const deliveryChannels = (['EMAIL', 'TELEGRAM', 'PUSH'] as const).filter(
+  (channel) => senders[channel],
+);
+// Push has no digest; the digest job still runs for its cleanup of push devices.
+const digestChannels = (['EMAIL', 'TELEGRAM'] as const).filter((channel) => senders[channel]);
 // Without any configured channel the delivery and digest jobs are not registered at all.
 const deliveryHandlers =
   deliveryChannels.length > 0
@@ -72,7 +83,7 @@ const deliveryHandlers =
             },
           },
         ),
-        BUILD_EMAIL_DIGESTS: new BuildEmailDigestsHandler(database, deliveryChannels),
+        BUILD_EMAIL_DIGESTS: new BuildEmailDigestsHandler(database, digestChannels),
       }
     : {};
 if (!config.mail) logger.mailDisabled();
