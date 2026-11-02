@@ -19,6 +19,9 @@ const testEnvironment = {
   TELEGRAM_WEBHOOK_SECRET: 'e2e-only-webhook-secret-with-32-chars',
   // Closed port: the bot's replies fail fast and never leave the CI runner.
   TELEGRAM_API_BASE_URL: 'http://127.0.0.1:9',
+  // Public VAPID key only (0x04 + 64 bytes): E2E never sends a real push, the worker is not started.
+  VAPID_PUBLIC_KEY:
+    'BAcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc',
 };
 
 export default defineConfig({

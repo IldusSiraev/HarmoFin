@@ -16,17 +16,18 @@
 
 Production-секреты HarmoFin, требующие возможности ротации:
 
-| Секрет                                    | Используется         | Влияние ротации                 | Возможен zero-downtime                                       |
-| ----------------------------------------- | -------------------- | ------------------------------- | ------------------------------------------------------------ |
-| `DATABASE_URL`                            | API, worker, migrate | Высокое — рестарт всех сервисов | Нет — требуется рестарт сервисов                             |
-| `SESSION_HASH_SECRET`                     | API                  | Высокое — сессии инвалидируются | Нет — пользователи заходят заново                            |
-| `SMTP credentials`                        | API                  | Среднее — только отправка почты | Да — новое соединение использует новые credentials           |
-| `TELEGRAM_BOT_TOKEN`                      | API, worker, деплой  | Среднее — только Telegram       | Нет — рестарт API и worker, затем повторный деплой (webhook) |
-| `TELEGRAM_WEBHOOK_SECRET`                 | API, деплой          | Низкое — только webhook         | Нет — рестарт API и повторная регистрация webhook            |
-| `ERROR_REPORTING_ENDPOINT` DSN            | API, worker          | Низкое — только observability   | Да — новые ошибки используют новый DSN                       |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` credentials | API, worker          | Низкое — только observability   | Да — новые трейсы используют новые credentials               |
-| `GitHub registry token`                   | Деплой               | Низкое — только pull образов    | Да — только workflow деплоя                                  |
-| `SSH private key`                         | Деплой               | Низкое — только деплой          | Да — только workflow деплоя                                  |
+| Секрет                                     | Используется            | Влияние ротации                                            | Возможен zero-downtime                                       |
+| ------------------------------------------ | ----------------------- | ---------------------------------------------------------- | ------------------------------------------------------------ |
+| `DATABASE_URL`                             | API, worker, migrate    | Высокое — рестарт всех сервисов                            | Нет — требуется рестарт сервисов                             |
+| `SESSION_HASH_SECRET`                      | API                     | Высокое — сессии инвалидируются                            | Нет — пользователи заходят заново                            |
+| `SMTP credentials`                         | API                     | Среднее — только отправка почты                            | Да — новое соединение использует новые credentials           |
+| `TELEGRAM_BOT_TOKEN`                       | API, worker, деплой     | Среднее — только Telegram                                  | Нет — рестарт API и worker, затем повторный деплой (webhook) |
+| `TELEGRAM_WEBHOOK_SECRET`                  | API, деплой             | Низкое — только webhook                                    | Нет — рестарт API и повторная регистрация webhook            |
+| `VAPID_PRIVATE_KEY` (с `VAPID_PUBLIC_KEY`) | API (публичный), worker | Среднее — все устройства отключаются, push включают заново | Нет — рестарт API и worker с новой парой                     |
+| `ERROR_REPORTING_ENDPOINT` DSN             | API, worker             | Низкое — только observability                              | Да — новые ошибки используют новый DSN                       |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` credentials  | API, worker             | Низкое — только observability                              | Да — новые трейсы используют новые credentials               |
+| `GitHub registry token`                    | Деплой                  | Низкое — только pull образов                               | Да — только workflow деплоя                                  |
+| `SSH private key`                          | Деплой                  | Низкое — только деплой                                     | Да — только workflow деплоя                                  |
 
 ---
 
