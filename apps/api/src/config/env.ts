@@ -75,6 +75,19 @@ const apiEnvironmentSchema = z.object({
         .optional(),
     ),
   TELEGRAM_API_BASE_URL: httpUrl.default('https://api.telegram.org'),
+  // Public VAPID key only: the private key lives in the worker and never reaches the API.
+  VAPID_PUBLIC_KEY: z
+    .literal('')
+    .transform(() => undefined)
+    .or(
+      z
+        .string()
+        .regex(/^[A-Za-z0-9_-]{87}$/)
+        .refine((value) => Buffer.from(value, 'base64url')[0] === 4, {
+          message: 'must be an uncompressed P-256 public key',
+        })
+        .optional(),
+    ),
 });
 
 type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
@@ -119,6 +132,8 @@ export interface ApiConfig {
   };
   /** Present only when the bot token, username and webhook secret are all set. */
   telegram?: ApiTelegramConfig;
+  /** Present only when VAPID_PUBLIC_KEY is set; the client gets this key from the API at runtime. */
+  push?: { vapidPublicKey: string };
 }
 
 export function loadApiConfig(input: NodeJS.ProcessEnv): ApiConfig {
@@ -205,6 +220,9 @@ export function loadApiConfig(input: NodeJS.ProcessEnv): ApiConfig {
             apiBaseUrl: environment.TELEGRAM_API_BASE_URL.replace(/\/+$/, ''),
           },
         }
+      : {}),
+    ...(environment.VAPID_PUBLIC_KEY
+      ? { push: { vapidPublicKey: environment.VAPID_PUBLIC_KEY } }
       : {}),
   };
 }
