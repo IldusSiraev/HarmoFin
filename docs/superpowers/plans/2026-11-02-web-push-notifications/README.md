@@ -101,3 +101,4 @@ Push и PR — решение владельца.
 | Задача | Коммит | Проверки | Отступления и решения |
 |---|---|---|---|
 | 1 — схема и миграция | 3babbb8 (плюс docs-коммит строки) | test:integration PASS (796, push-schema 4/4); worker test PASS (154, account-purge.coverage incl.); migrate diff — «empty migration»; typecheck PASS; test-first падения зафиксированы (2× TypeError, 2× PrismaClientValidationError) до миграции/генерации | отступлений нет; localhost, EPERM/P1001 не встречались; reviewers backend/security/QA/final — APPROVE |
+| 2 — API: конфиг VAPID и проверки | 575a12c (плюс docs-коммит строки) | выполнена; все проверки шага 7 PASS (api test 72 файла/448; env.push 4; push-endpoint 15; device-label 10; typecheck PASS; lint 0 errors; rerun vitest push 29 PASS); test-first падения зафиксированы (3 файла) | отступлений нет; prettier — только перенос в env.push.test.ts; reviewers security/API/QA/final — APPROVE; чек-лист пройден writer (субагентов не было) |
