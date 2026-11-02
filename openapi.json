@@ -5770,6 +5770,12 @@
             "pattern": "^-?\\d+$",
             "type": "string"
           },
+          "limitedSpentMinor": {
+            "description": "Расходы в конвертах, лимиты которых входят в limitTotalMinor.",
+            "nullable": true,
+            "pattern": "^-?\\d+$",
+            "type": "string"
+          },
           "periodEnd": {
             "format": "date",
             "type": "string"
@@ -5810,6 +5816,7 @@
           "daysElapsed",
           "spentMinor",
           "limitTotalMinor",
+          "limitedSpentMinor",
           "spentOfLimitPermille",
           "previousPeriodStart",
           "previousPeriodEnd",

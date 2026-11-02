@@ -92,14 +92,15 @@ const topCategories = computed(() =>
           currency="RUB"
           :scale="2"
         />
-        <template v-if="period.limitTotalMinor !== null">
+        <template v-if="period.limitTotalMinor !== null && period.limitedSpentMinor !== null">
           <UiProgress
-            :value="period.spentMinor"
+            :value="period.limitedSpentMinor"
             :max="period.limitTotalMinor"
-            :label="`Потрачено ${money(period.spentMinor)} из лимита ${money(period.limitTotalMinor)}`"
+            :label="`В конвертах с лимитом потрачено ${money(period.limitedSpentMinor)} из ${money(period.limitTotalMinor)}`"
           />
           <p class="overview-period__muted">
-            из лимита на период {{ money(period.limitTotalMinor) }}
+            В конвертах с лимитом: {{ money(period.limitedSpentMinor) }} из
+            {{ money(period.limitTotalMinor) }}
           </p>
         </template>
         <p v-else class="overview-period__muted">Лимит на период не задан</p>

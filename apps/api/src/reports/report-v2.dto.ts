@@ -443,6 +443,14 @@ export class ReportV2PeriodComparisonRow {
   @ApiProperty({ type: String, pattern: MONEY, nullable: true })
   limitTotalMinor!: string | null;
 
+  @ApiProperty({
+    type: String,
+    pattern: MONEY,
+    nullable: true,
+    description: 'Расходы в конвертах, лимиты которых входят в limitTotalMinor.',
+  })
+  limitedSpentMinor!: string | null;
+
   @ApiProperty({ type: Number, nullable: true })
   spentOfLimitPermille!: number | null;
 

@@ -42,6 +42,7 @@ export type PeriodComparisonRow = {
   daysElapsed: number;
   spentMinor: string;
   limitTotalMinor: string | null;
+  limitedSpentMinor: string | null;
   spentOfLimitPermille: number | null;
   previousPeriodStart: string;
   previousPeriodEnd: string;
@@ -137,8 +138,10 @@ export function periodComparisonRow(input: {
   previous: PeriodRange;
   facts: FactRow[];
   limitTotalMinor: bigint | null;
+  /** Spending inside the envelopes that make up `limitTotalMinor`; null when there is no limit. */
+  limitedSpentMinor: bigint | null;
 }): PeriodComparisonRow {
-  const { asOf, current, previous, facts, limitTotalMinor } = input;
+  const { asOf, current, previous, facts, limitTotalMinor, limitedSpentMinor } = input;
   const daysElapsed = daysBetween(current.start, asOf) + 1;
   const sameDayCandidate = addDays(previous.start, daysElapsed - 1);
   const sameDayEnd = sameDayCandidate < previous.end ? sameDayCandidate : previous.end;
@@ -162,10 +165,11 @@ export function periodComparisonRow(input: {
     daysElapsed,
     spentMinor: formatMinorUnits(spent),
     limitTotalMinor: limitTotalMinor === null ? null : formatMinorUnits(limitTotalMinor),
+    limitedSpentMinor: limitedSpentMinor === null ? null : formatMinorUnits(limitedSpentMinor),
     spentOfLimitPermille:
-      limitTotalMinor === null || limitTotalMinor === 0n
+      limitTotalMinor === null || limitTotalMinor === 0n || limitedSpentMinor === null
         ? null
-        : Number((spent * 1000n) / limitTotalMinor),
+        : Number((limitedSpentMinor * 1000n) / limitTotalMinor),
     previousPeriodStart: previous.start,
     previousPeriodEnd: previous.end,
     previousSameDaySpentMinor: formatMinorUnits(previousSameDay),

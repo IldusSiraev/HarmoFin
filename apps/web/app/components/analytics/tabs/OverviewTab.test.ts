@@ -23,7 +23,8 @@ const comparison = {
   daysElapsed: 6,
   spentMinor: '80000',
   limitTotalMinor: '500000',
-  spentOfLimitPermille: 160,
+  limitedSpentMinor: '40000',
+  spentOfLimitPermille: 80,
   previousPeriodStart: '2026-03-01',
   previousPeriodEnd: '2026-03-14',
   previousSameDaySpentMinor: '100000',
@@ -59,7 +60,8 @@ describe('OverviewTab', () => {
     expect(v2.getReport).toHaveBeenCalledWith('b', 'account-balances', {});
     const text = flat(wrapper.text());
     expect(text).toContain('15.03–31.03');
-    expect(text).toContain('из лимита на период 5 000,00 ₽');
+    expect(text).toContain('В конвертах с лимитом: 400,00 ₽ из 5 000,00 ₽');
+    expect(wrapper.get('[role="progressbar"]').attributes('aria-valuenow')).toBe('8');
     expect(text).toContain('на 20% меньше');
     expect(wrapper.findAll('[data-share-row]')).toHaveLength(5);
     expect(text).toContain('Основной счёт');
@@ -72,7 +74,11 @@ describe('OverviewTab', () => {
       if (key === 'period-comparison')
         return {
           key,
-          rows: [{ ...comparison, limitTotalMinor: null, spentOfLimitPermille: null }],
+          rows: [{ ...comparison, limitTotalMinor: null,
+              limitedSpentMinor: null,
+              spentOfLimitPermille: null,
+            },
+          ],
         };
       return { key, rows: [] };
     });
