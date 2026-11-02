@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.19.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.18.0...v1.19.0) (2026-11-02)
+
+
+### Новое
+
+* **push:** env, compose, E2E и документы для push-уведомлений ([2a7e7c3](https://github.com/IldusSiraev/HarmoFin/commit/2a7e7c3c822398cc83ea35b7b2ea25902e0d2197))
+* **push:** push-уведомления в браузере ([1d6ab76](https://github.com/IldusSiraev/HarmoFin/commit/1d6ab76406a47242eebdde41e4bf3f93816ccc8c))
+* **push:** канал PUSH в очереди уведомлений и очистка подписок ([ef7057f](https://github.com/IldusSiraev/HarmoFin/commit/ef7057f1657a62b061edd48841ec8fbe58344866))
+* **push:** конфиг VAPID в API и проверки подписки ([575a12c](https://github.com/IldusSiraev/HarmoFin/commit/575a12cb0fbf93bb6336b3b1c07406a06d0e649b))
+* **push:** отправка push через web-push в воркере ([55c0f6e](https://github.com/IldusSiraev/HarmoFin/commit/55c0f6ea716dafe80486b4ae531549a83014960d))
+* **push:** подписки устройств и настройки канала в API ([c000548](https://github.com/IldusSiraev/HarmoFin/commit/c0005484315f7133254796431c04f027929eb306))
+* **push:** схема подписок устройств и канал PUSH ([3babbb8](https://github.com/IldusSiraev/HarmoFin/commit/3babbb810c5a6f06df8f3bd2aefef21ade676c20))
+* **web:** push в service worker и подписка устройства ([b357bba](https://github.com/IldusSiraev/HarmoFin/commit/b357bbaa9789c05bb78c6102df8cf419e59a8008))
+* **web:** страница настроек push-уведомлений ([ad47245](https://github.com/IldusSiraev/HarmoFin/commit/ad47245fd27b35ed1eb481c45608c134e5a5f909))
+
 ## [1.18.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.17.0...v1.18.0) (2026-11-02)
 
 
