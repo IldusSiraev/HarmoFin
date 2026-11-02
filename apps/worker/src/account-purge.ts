@@ -56,6 +56,7 @@ export const USER_OWNED_TABLES = [
   'notification_deliveries',
   'telegram_links',
   'telegram_link_codes',
+  'push_subscriptions',
 ] as const;
 
 /**
@@ -154,6 +155,8 @@ export async function purgeUserData(tx: Prisma.TransactionClient, userId: string
   // collaboration exists), and that history is not this user's to erase. Rows inside the scope
   // this user owns are already removed by the budget_id/workspace_id deletes above; the users
   // row stays (anonymized), so any remaining FK to it stays valid.
+  // Push devices die with the sessions anyway (FK cascade); deleted first to keep the order explicit.
+  await tx.$executeRaw`DELETE FROM "push_subscriptions" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "sessions" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "recovery_tokens" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "workspace_memberships" WHERE "user_id" = ${userId}::uuid`;
