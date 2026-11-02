@@ -64,6 +64,8 @@ export class AuthRateLimitGuard implements CanActivate {
       return this.config.rateLimit.recoveryMax;
     if (url.startsWith('/api/v1/me/telegram/link') && method === 'POST')
       return this.config.rateLimit.loginMax;
+    if (url.startsWith('/api/v1/me/push/subscriptions') && method === 'POST')
+      return this.config.rateLimit.loginMax;
     return null;
   }
 }

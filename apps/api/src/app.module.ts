@@ -31,6 +31,7 @@ import { PlansCalendarModule } from './plans-calendar/plans-calendar.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { NotificationSettingsModule } from './notification-settings/notification-settings.module.js';
 import { TelegramModule } from './telegram/telegram.module.js';
+import { PushModule } from './push/push.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
 import { WorkspaceModule } from './workspaces/workspace.module.js';
 
@@ -68,6 +69,7 @@ export class AppModule {
         NotificationsModule.register(),
         NotificationSettingsModule.register(),
         TelegramModule.register(config),
+        PushModule.register(config),
         ReportModule.register(),
         ExportsModule.register(),
         ObservabilityModule.register(config),

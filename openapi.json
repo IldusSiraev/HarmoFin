@@ -1347,6 +1347,20 @@
         "required": ["email", "role"],
         "type": "object"
       },
+      "CreatePushSubscriptionRequest": {
+        "properties": {
+          "endpoint": {
+            "description": "https-адрес push-сервиса браузера (FCM, Mozilla, Apple, Microsoft).",
+            "maxLength": 2048,
+            "type": "string"
+          },
+          "keys": {
+            "$ref": "#/components/schemas/PushSubscriptionKeysRequest"
+          }
+        },
+        "required": ["endpoint", "keys"],
+        "type": "object"
+      },
       "CreateTelegramLinkRequest": {
         "properties": {
           "consent": {
@@ -5116,6 +5130,87 @@
         "required": ["user"],
         "type": "object"
       },
+      "PushDeviceResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "current": {
+            "description": "Устройство текущей сессии.",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "label": {
+            "description": "Браузер и система, например «Chrome, Android».",
+            "type": "string"
+          },
+          "lastSuccessAt": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": ["id", "label", "createdAt", "lastSuccessAt", "current"],
+        "type": "object"
+      },
+      "PushNotificationSettingsResponse": {
+        "properties": {
+          "available": {
+            "description": "VAPID настроен на сервере.",
+            "type": "boolean"
+          },
+          "calendarReminderEnabled": {
+            "description": "Напоминание календаря.",
+            "type": "boolean"
+          },
+          "devices": {
+            "description": "Устройства активных сессий; адрес push-сервиса не отдаётся.",
+            "items": {
+              "$ref": "#/components/schemas/PushDeviceResponse"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "planOverdueEnabled": {
+            "description": "Просроченный платёж.",
+            "type": "boolean"
+          },
+          "vapidPublicKey": {
+            "description": "Публичный VAPID-ключ (base64url) для PushManager.subscribe; null без настройки.",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "available",
+          "vapidPublicKey",
+          "enabled",
+          "planOverdueEnabled",
+          "calendarReminderEnabled",
+          "devices"
+        ],
+        "type": "object"
+      },
+      "PushSubscriptionKeysRequest": {
+        "properties": {
+          "auth": {
+            "description": "base64url, 16 байт.",
+            "type": "string"
+          },
+          "p256dh": {
+            "description": "base64url, 65 байт, первый байт 0x04.",
+            "type": "string"
+          }
+        },
+        "required": ["p256dh", "auth"],
+        "type": "object"
+      },
       "PutFundingRuleRequest": {
         "properties": {
           "fixedAmount": {
@@ -7320,6 +7415,21 @@
           }
         },
         "required": ["displayName"],
+        "type": "object"
+      },
+      "UpdatePushNotificationSettingsRequest": {
+        "properties": {
+          "calendarReminderEnabled": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "planOverdueEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": ["enabled", "planOverdueEnabled", "calendarReminderEnabled"],
         "type": "object"
       },
       "UpdateTelegramNotificationSettingsRequest": {
@@ -10084,6 +10194,116 @@
         "tags": ["notification-settings"]
       }
     },
+    "/api/v1/me/notification-settings/push": {
+      "get": {
+        "description": "Настройки текущего пользователя (по умолчанию выключено, оба типа включены), публичный VAPID-ключ и устройства активных сессий. Коды: 401.",
+        "operationId": "PushController_get_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushNotificationSettingsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Настройки push-уведомлений",
+        "tags": ["notification-settings"]
+      },
+      "put": {
+        "description": "Главный переключатель и типы: просроченный платёж, напоминание календаря. Включить можно только с устройством. Коды: 400 VALIDATION_FAILED, 401, 403 CSRF_INVALID, 409 PUSH_NO_DEVICES.",
+        "operationId": "PushController_update_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePushNotificationSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushNotificationSettingsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Изменить настройки push-уведомлений",
+        "tags": ["notification-settings"]
+      }
+    },
     "/api/v1/me/notification-settings/telegram": {
       "get": {
         "description": "Настройки текущего пользователя; если не сохранялись — значения по умолчанию (выключено). available — бот настроен на сервере, linked — чат привязан. Коды: 401.",
@@ -10201,6 +10421,151 @@
           }
         ],
         "summary": "Изменить настройки уведомлений в Telegram",
+        "tags": ["notification-settings"]
+      }
+    },
+    "/api/v1/me/push/subscriptions": {
+      "post": {
+        "description": "Сохраняет подписку браузера для текущей сессии и включает канал. Тот же адрес у другого пользователя переходит к текущему. Не больше 10 устройств: лишние, самые старые, удаляются. Коды: 400 VALIDATION_FAILED, 401, 403 CSRF_INVALID, 409 PUSH_UNAVAILABLE, 422 PUSH_ENDPOINT_NOT_ALLOWED, 429 AUTH_RATE_LIMITED.",
+        "operationId": "PushController_subscribe_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePushSubscriptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushNotificationSettingsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Подключить это устройство к push-уведомлениям",
+        "tags": ["notification-settings"]
+      }
+    },
+    "/api/v1/me/push/subscriptions/{subscriptionId}": {
+      "delete": {
+        "description": "Удаляет своё устройство; последнее устройство выключает канал. Чужое или несуществующее — тоже 204. Коды: 400 VALIDATION_FAILED, 401, 403 CSRF_INVALID.",
+        "operationId": "PushController_remove_v1",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Готово."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Отключить устройство от push-уведомлений",
         "tags": ["notification-settings"]
       }
     },
