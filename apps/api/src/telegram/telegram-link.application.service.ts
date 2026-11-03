@@ -5,7 +5,8 @@ import type { TokenService } from '../auth/token.service.js';
 import type { ApiConfig } from '../config/env.js';
 import { webButton, type TelegramBotClient, type TelegramButton } from './telegram-bot.client.js';
 import type { TelegramRepository } from './telegram.repository.js';
-import { parseTelegramUpdate, webhookSecretMatches } from './telegram-update.js';
+import type { TelegramCommandService } from './bot/telegram-command.service.js';
+import { parseTelegramUpdate, webhookSecretMatches, type BotInput } from './telegram-update.js';
 
 const LINK_CODE_TTL_MS = 15 * 60_000;
 
@@ -33,6 +34,7 @@ export class TelegramLinkApplicationService {
     private readonly tokens: TokenService,
     private readonly bot: TelegramBotClient | null,
     private readonly config: Pick<ApiConfig, 'telegram' | 'mail'>,
+    private readonly commands: TelegramCommandService | null = null,
   ) {}
 
   get available(): boolean {
@@ -107,7 +109,7 @@ export class TelegramLinkApplicationService {
     const action = parseTelegramUpdate(update);
     switch (action.kind) {
       case 'start': {
-        if (action.code === null) return this.reply(action.chatId, BOT_REPLIES.help);
+        if (action.code === null) return this.delegate({ kind: 'help', chatId: action.chatId });
         const outcome = await this.linkChat(action.chatId, action.code);
         const buttons =
           outcome === 'linked'
@@ -124,11 +126,17 @@ export class TelegramLinkApplicationService {
       case 'help':
       case 'command':
       case 'text':
-        return this.reply(action.chatId, BOT_REPLIES.help);
       case 'callback':
+        return this.delegate(action);
       case 'ignore':
         return;
     }
+  }
+
+  /** Commands, plain text and buttons belong to the command service; without it, the old help. */
+  private async delegate(action: BotInput | { kind: 'help'; chatId: bigint }): Promise<void> {
+    if (this.commands) return this.commands.handle(action);
+    if (action.kind !== 'callback') return this.reply(action.chatId, BOT_REPLIES.help);
   }
 
   private async linkChat(chatId: bigint, code: string): Promise<LinkOutcome> {
