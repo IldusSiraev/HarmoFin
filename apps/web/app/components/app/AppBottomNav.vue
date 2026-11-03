@@ -61,19 +61,17 @@ const { canWrite } = usePermissions();
   left: 0;
   z-index: 95;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
   align-items: center;
   padding: var(--hf-space-2) var(--hf-space-2) calc(var(--hf-space-2) + env(safe-area-inset-bottom));
   border-top: 1px solid var(--hf-color-border);
   background: var(--hf-color-surface);
 }
 
-/* A viewer has no "+": three columns keep "Ещё" at the right edge instead of
-   leaving a hole where the add button used to be. Only the column count
-   changes here; surface, border and safe-area padding stay on the base rule. */
-.app-bottom-nav--no-add {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
+/* Columns follow the children: a viewer has no "+", so "Ещё" stays at the right edge. The
+   count is deliberately not tied to a class: a class rendered before the role loads is not
+   patched on hydration and would keep a stale column count. */
 
 .app-bottom-nav__item {
   display: grid;

@@ -152,7 +152,7 @@ const OWNER_OPTIONS = [
 
 /* DOM order is the visual order at every width (WCAG 2.4.3): view, navigation, owner filter,
    payments switch, create. Below 1024px the view switch takes the first row, navigation the
-   next full row, the remaining switches and the icon-only "+" the row under it. */
+   next full row, the owner filter, payments switch and icon-only "+" (right-aligned) the row under it. */
 .calendar-header__controls {
   display: flex;
   flex-wrap: wrap;
@@ -165,13 +165,27 @@ const OWNER_OPTIONS = [
 .calendar-header__nav {
   display: flex;
   flex: 1 1 100%;
-  flex-wrap: wrap;
   gap: var(--hf-space-1);
   align-items: center;
   min-width: 0;
 }
 
+/* Phones: the view switch spans the full row with equal segments, and the period label
+   takes the free space between the arrows so navigation reads as one centred control. */
+.calendar-header__view {
+  flex: 1 1 100%;
+}
+
+.calendar-header__view :deep(.ui-button-group__button) {
+  flex: 1 1 0;
+}
+
+.calendar-header__create {
+  margin-left: auto;
+}
+
 .calendar-header__period {
+  flex: 1 1 auto;
   min-width: 7.5rem;
   border-radius: var(--hf-radius-sm);
   font-weight: var(--hf-font-weight-semibold);
@@ -248,9 +262,24 @@ const OWNER_OPTIONS = [
     width: auto;
   }
 
+  .calendar-header__view {
+    flex: 0 0 auto;
+  }
+
+  .calendar-header__view :deep(.ui-button-group__button) {
+    flex: 0 0 auto;
+  }
+
+  .calendar-header__create {
+    margin-left: 0;
+  }
+
   .calendar-header__nav {
     flex: 0 0 auto;
-    flex-wrap: nowrap;
+  }
+
+  .calendar-header__period {
+    flex: 0 0 auto;
   }
 
   .calendar-header__create-label {

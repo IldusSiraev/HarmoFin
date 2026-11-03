@@ -341,7 +341,7 @@ onMounted(() => {
 
 @media (max-width: 47.9375rem) {
   .activity-page {
-    padding: var(--hf-space-5);
+    padding: 0;
   }
 }
 </style>

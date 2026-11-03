@@ -10,10 +10,13 @@ const props = withDefaults(
     leadingTone?: 'income' | 'expense' | 'transfer' | undefined;
     /** False renders the row as plain content: no button, no focus stop, no select event. */
     interactive?: boolean;
+    /** On a phone keep the trailing block beside the body (one line) instead of under it. */
+    inlineTrailing?: boolean;
   }>(),
-  { leadingTone: undefined, interactive: true },
+  { leadingTone: undefined, interactive: true, inlineTrailing: false },
 );
 
+const selectClass = computed(() => ({ 'ui-list-row__select--inline': props.inlineTrailing }));
 const leadingClass = computed(() => [
   'ui-list-row__leading',
   props.leadingTone && `ui-list-row__leading--${props.leadingTone}`,
@@ -27,6 +30,7 @@ defineEmits<{ select: [] }>();
       v-if="interactive"
       type="button"
       class="ui-list-row__select"
+      :class="selectClass"
       data-testid="list-row-select"
       :aria-label="label"
       @click="$emit('select')"
@@ -38,6 +42,7 @@ defineEmits<{ select: [] }>();
     <div
       v-else
       class="ui-list-row__select ui-list-row__select--static"
+      :class="selectClass"
       data-testid="list-row-static"
     >
       <span v-if="$slots.leading" :class="leadingClass"><slot name="leading" /></span>
@@ -167,6 +172,23 @@ defineEmits<{ select: [] }>();
 
   .ui-list-row__trailing {
     grid-area: trailing;
+  }
+
+  /* Amount and title share the first line; the caption lines hang under each of them. */
+  .ui-list-row__select--inline {
+    grid-template-areas: 'leading body trailing';
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: var(--hf-space-3);
+  }
+
+  .ui-list-row__select--inline .ui-list-row__leading,
+  .ui-list-row__select--inline .ui-list-row__body {
+    align-self: center;
+  }
+
+  .ui-list-row__select--inline .ui-list-row__trailing {
+    align-self: center;
+    max-width: 62vw;
   }
 }
 </style>

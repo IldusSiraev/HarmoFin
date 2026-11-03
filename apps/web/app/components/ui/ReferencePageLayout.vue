@@ -83,8 +83,9 @@ defineOptions({ name: 'ReferencePageLayout' });
    kicker (the bottom navigation already names the section), actions beside
    the title when they fit, tighter gaps above the filters and the list. */
 @media (max-width: 47.9375rem) {
+  /* The app layout already pads the page; padding here would double the gutters. */
   .reference-page-layout {
-    padding: var(--hf-space-4);
+    padding: 0;
   }
 
   .reference-page-layout__header {
@@ -103,9 +104,16 @@ defineOptions({ name: 'ReferencePageLayout' });
 
   /* Several header actions wrap onto the next line instead of widening the page. */
   .reference-page-layout__actions {
-    flex-shrink: 1;
+    flex: 1 1 100%;
     flex-wrap: wrap;
     min-width: 0;
+  }
+
+  /* Text buttons share the row (or each take a full row when they do not fit), so stacked
+     actions of different widths do not leave a ragged edge. Icon-only buttons keep their size. */
+  .reference-page-layout__actions :slotted(.ui-button) {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 
   .reference-page-layout__filters {
