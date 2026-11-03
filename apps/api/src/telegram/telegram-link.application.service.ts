@@ -122,7 +122,10 @@ export class TelegramLinkApplicationService {
         await this.unlinkChat(action.chatId, 'blocked');
         return;
       case 'help':
+      case 'command':
+      case 'text':
         return this.reply(action.chatId, BOT_REPLIES.help);
+      case 'callback':
       case 'ignore':
         return;
     }
