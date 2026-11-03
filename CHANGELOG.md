@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.20.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.19.0...v1.20.0) (2026-11-03)
+
+
+### Новое
+
+* **telegram:** включение команд бота с отдельным согласием ([066a39e](https://github.com/IldusSiraev/HarmoFin/commit/066a39ed8d9a097443edc693a579eb64949261e9))
+* **telegram:** клавиатуры бота и разбор команд, текста и кнопок ([7e005e7](https://github.com/IldusSiraev/HarmoFin/commit/7e005e771f82f5115f8c1e53b17b39052caa0ef7))
+* **telegram:** команды бота — ввод операций и событий, просмотр ([bf3e6f5](https://github.com/IldusSiraev/HarmoFin/commit/bf3e6f54ea16265401b1bb1967907980cf5839ac))
+* **telegram:** команды просмотра — /last, /plans, /events, /balance без своей арифметики ([d356d5c](https://github.com/IldusSiraev/HarmoFin/commit/d356d5c166d8ba479713a6a883b481a6883c790d))
+* **telegram:** меню команд в webhook-скрипте, e2e-сценарий команд и обновление документации ([c3e3bf4](https://github.com/IldusSiraev/HarmoFin/commit/c3e3bf4e8e5543377f0df5cab965942bb9819882))
+* **telegram:** поток диалога бота — форматирование, callback-данные, шаги ([9ac05b8](https://github.com/IldusSiraev/HarmoFin/commit/9ac05b81446b711b91d8243465ed429d603eddf1))
+* **telegram:** сервис команд бота — диалоги с сохранением через прикладные сервисы ([1f39283](https://github.com/IldusSiraev/HarmoFin/commit/1f392839a338a4637bbe94157a419334d8c72459))
+* **telegram:** таблица диалогов и переключатель команд бота в схеме ([d43e0c0](https://github.com/IldusSiraev/HarmoFin/commit/d43e0c00bcef38f7ccf1814183ed179d526db118))
+* **web:** переключатель «Команды бота» в настройках Telegram с отдельным согласием ([b78a80e](https://github.com/IldusSiraev/HarmoFin/commit/b78a80e0b129f985609d4e4db8228dbdea4f8fe3))
+
 ## [1.19.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.18.0...v1.19.0) (2026-11-02)
 
 
