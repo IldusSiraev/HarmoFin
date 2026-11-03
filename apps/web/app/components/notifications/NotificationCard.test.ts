@@ -28,7 +28,7 @@ describe('NotificationCard', () => {
     expect(wrapper.text()).toContain('Новое');
     expect(wrapper.text()).toContain('Плановый платёж сегодня');
     expect(wrapper.get('a[href="/app/plans?occurrence=occurrence-id"]')).toBeTruthy();
-    expect(wrapper.find('.notification-card__icon').exists()).toBe(false);
+    expect(wrapper.get('.notification-card__icon').attributes('aria-hidden')).toBe('true');
     expect(wrapper.find('[data-testid="notification-type-caption"]').exists()).toBe(false);
   });
 
