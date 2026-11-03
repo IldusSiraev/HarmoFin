@@ -68,6 +68,7 @@ const rowLabel = computed(
 <template>
   <UiListRow
     :label="rowLabel"
+    inline-trailing
     :leading-tone="transaction.transactionType === 'INCOME' ? 'income' : 'expense'"
     @select="$emit('select')"
   >

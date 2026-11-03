@@ -490,7 +490,7 @@ async function deleteSelected(): Promise<void> {
 @media (max-width: 47.9375rem) {
   .calendar-page {
     gap: var(--hf-space-4);
-    padding: var(--hf-space-4);
+    padding: 0;
   }
 }
 </style>

@@ -499,6 +499,11 @@ form[data-category-form] {
   min-width: 0;
 }
 
+/* The column gap already spaces the heading from its list; the default h2 margins doubled it. */
+.category-column h2 {
+  margin: 0;
+}
+
 .category-list {
   display: grid;
   min-width: 0;

@@ -171,4 +171,11 @@ definePageMeta({ middleware: 'auth', layout: 'app' });
   margin: var(--hf-space-3) 0 0;
   color: var(--hf-color-text-muted);
 }
+
+@media (max-width: 47.9375rem) {
+  .help-page__content {
+    margin-top: 0;
+    padding: 0;
+  }
+}
 </style>
