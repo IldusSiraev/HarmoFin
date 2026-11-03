@@ -42,6 +42,7 @@ describe('telegram notification settings', () => {
       digestFrequency: 'DAILY',
       includeAmounts: false,
       amountsConsentAt: null,
+      commandsEnabled: false,
     });
   });
 

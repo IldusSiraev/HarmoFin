@@ -48,4 +48,20 @@ describe('useNotificationSettings', () => {
       ],
     ]);
   });
+
+  it('switches Telegram bot commands with an explicit consent', async () => {
+    const api = useNotificationSettings();
+    await api.setTelegramCommands({ enabled: true, consent: true });
+    await api.setTelegramCommands({ enabled: false });
+    expect(request.mock.calls).toEqual([
+      [
+        '/api/v1/me/notification-settings/telegram/commands',
+        { method: 'PUT', body: JSON.stringify({ enabled: true, consent: true }) },
+      ],
+      [
+        '/api/v1/me/notification-settings/telegram/commands',
+        { method: 'PUT', body: JSON.stringify({ enabled: false }) },
+      ],
+    ]);
+  });
 });

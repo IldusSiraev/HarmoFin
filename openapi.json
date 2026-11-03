@@ -6156,6 +6156,10 @@
             "description": "Бот настроен на сервере.",
             "type": "boolean"
           },
+          "commandsEnabled": {
+            "description": "Команды бота включены для привязанного чата; без привязки всегда false.",
+            "type": "boolean"
+          },
           "digestFrequency": {
             "description": "В 08:00 по часовому поясу бюджета.",
             "enum": ["OFF", "DAILY", "WEEKLY"],
@@ -6183,7 +6187,8 @@
           "urgentEnabled",
           "digestFrequency",
           "includeAmounts",
-          "amountsConsentAt"
+          "amountsConsentAt",
+          "commandsEnabled"
         ],
         "type": "object"
       },
@@ -7430,6 +7435,19 @@
           }
         },
         "required": ["enabled", "planOverdueEnabled", "calendarReminderEnabled"],
+        "type": "object"
+      },
+      "UpdateTelegramCommandsRequest": {
+        "properties": {
+          "consent": {
+            "description": "Обязательно true при включении: ответы бота с суммами и названиями остаются в истории чата, из чата можно проводить операции.",
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": ["enabled"],
         "type": "object"
       },
       "UpdateTelegramNotificationSettingsRequest": {
@@ -10421,6 +10439,92 @@
           }
         ],
         "summary": "Изменить настройки уведомлений в Telegram",
+        "tags": ["notification-settings"]
+      }
+    },
+    "/api/v1/me/notification-settings/telegram/commands": {
+      "put": {
+        "description": "Только с привязанным чатом. Включение впервые требует consent: true: ответы бота с суммами и названиями остаются в истории чата, из чата можно проводить операции от имени пользователя. Выключение прерывает начатый в чате ввод. Коды: 400 VALIDATION_FAILED, 401, 403 CSRF_INVALID, 409 TELEGRAM_UNAVAILABLE, 409 TELEGRAM_NOT_LINKED, 422 TELEGRAM_COMMANDS_CONSENT_REQUIRED.",
+        "operationId": "TelegramSettingsController_setCommands_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTelegramCommandsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramNotificationSettingsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Включить или выключить команды Telegram-бота",
         "tags": ["notification-settings"]
       }
     },

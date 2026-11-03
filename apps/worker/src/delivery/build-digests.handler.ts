@@ -5,7 +5,7 @@ import type { PrismaClient } from '@prisma/client';
 import type { WorkerJobHandler } from '../job-runner.js';
 import type { DigestChannel } from './channel-sender.js';
 import { digestDedupeKey, digestSlot, digestWindowStart } from './digest-schedule.js';
-import { purgeStaleLinkCodes } from '../telegram/link-codes.js';
+import { purgeStaleDialogs, purgeStaleLinkCodes } from '../telegram/link-codes.js';
 import { purgeInactivePushSubscriptions } from '../push/subscriptions.js';
 
 export const DELIVERY_RETENTION_MS = 90 * 86_400_000;
@@ -112,9 +112,10 @@ export class BuildEmailDigestsHandler implements WorkerJobHandler {
       },
     });
 
-    // Codes and push devices have no budget: a run scoped to one budget (tests) leaves them alone.
+    // Codes, bot dialogs and push devices: a run scoped to one budget (tests) leaves them alone.
     if (!budgetId) {
       await purgeStaleLinkCodes(this.prisma, now);
+      await purgeStaleDialogs(this.prisma, now);
       await purgeInactivePushSubscriptions(this.prisma, now);
     }
   }

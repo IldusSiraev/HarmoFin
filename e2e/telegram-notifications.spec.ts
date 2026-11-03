@@ -39,13 +39,14 @@ test('links Telegram through the bot webhook, enables the channel and unlinks', 
   expect(code).toMatch(/^[A-Za-z0-9_-]{43}$/);
 
   // Telegram calls the webhook without Origin: the request fixture sends none either.
+  const chatId = Date.now();
   const update = await request.post(`${apiV1}/telegram/webhook`, {
     headers: { 'x-telegram-bot-api-secret-token': webhookSecret },
     data: {
       update_id: 1,
       message: {
         message_id: 1,
-        chat: { id: Date.now(), type: 'private' },
+        chat: { id: chatId, type: 'private' },
         text: `/start ${code}`,
       },
     },
@@ -60,6 +61,23 @@ test('links Telegram through the bot webhook, enables the channel and unlinks', 
 
   await page.reload();
   await expect(page.getByLabel('Присылать уведомления в Telegram')).toBeChecked();
+
+  await expect(page.getByText('Команды выключены.')).toBeVisible();
+  const enableCommands = page.getByRole('button', { name: 'Включить команды' });
+  await expect(enableCommands).toBeDisabled();
+  await page.getByLabel(/Я согласен включить команды бота/).check();
+  await enableCommands.click();
+  await expect(page.getByText('Команды включены.')).toBeVisible();
+
+  // The reply goes to the closed port of TELEGRAM_API_BASE_URL in CI; the webhook still answers 200.
+  const balance = await request.post(`${apiV1}/telegram/webhook`, {
+    headers: { 'x-telegram-bot-api-secret-token': webhookSecret },
+    data: {
+      update_id: 2,
+      message: { message_id: 2, chat: { id: chatId, type: 'private' }, text: '/balance' },
+    },
+  });
+  expect(balance.status()).toBe(200);
 
   await page.getByRole('button', { name: 'Отключить Telegram' }).click();
   await page

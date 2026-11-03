@@ -6,6 +6,7 @@ import { Prisma } from '@prisma/client';
  * Legacy model-1 tables (transfer_parts, income_allocations, envelope_reallocations) are included.
  */
 export const BUDGET_TABLES_IN_DELETE_ORDER = [
+  'telegram_dialogs',
   'activity_feed_cursors',
   'plan_payments',
   'calendar_event_participants',
@@ -54,6 +55,7 @@ export const USER_OWNED_TABLES = [
   'notification_channel_settings',
   'email_verification_tokens',
   'notification_deliveries',
+  'telegram_dialogs',
   'telegram_links',
   'telegram_link_codes',
   'push_subscriptions',
@@ -167,6 +169,7 @@ export async function purgeUserData(tx: Prisma.TransactionClient, userId: string
   await tx.$executeRaw`DELETE FROM "notification_deliveries" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "notification_channel_settings" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "email_verification_tokens" WHERE "user_id" = ${userId}::uuid`;
+  await tx.$executeRaw`DELETE FROM "telegram_dialogs" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "telegram_links" WHERE "user_id" = ${userId}::uuid`;
   await tx.$executeRaw`DELETE FROM "telegram_link_codes" WHERE "user_id" = ${userId}::uuid`;
   // An invitation this user accepted into another owner's workspace stores their old email as PII;

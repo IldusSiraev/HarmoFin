@@ -31,9 +31,15 @@ export interface TelegramNotificationSettings {
   digestFrequency: DigestFrequency;
   includeAmounts: boolean;
   amountsConsentAt: string | null;
+  commandsEnabled: boolean;
 }
 
 export type TelegramNotificationSettingsInput = EmailNotificationSettingsInput;
+
+export interface TelegramCommandsInput {
+  enabled: boolean;
+  consent?: boolean;
+}
 
 export interface TelegramLink {
   url: string;
@@ -66,6 +72,7 @@ export interface PushNotificationSettingsInput {
 const SETTINGS = '/api/v1/me/notification-settings/email';
 const TELEGRAM_SETTINGS = '/api/v1/me/notification-settings/telegram';
 const TELEGRAM_LINK = '/api/v1/me/telegram/link';
+const TELEGRAM_COMMANDS = '/api/v1/me/notification-settings/telegram/commands';
 const PUSH_SETTINGS = '/api/v1/me/notification-settings/push';
 const PUSH_SUBSCRIPTIONS = '/api/v1/me/push/subscriptions';
 
@@ -102,6 +109,11 @@ export function useNotificationSettings() {
         body: JSON.stringify({ consent: true }),
       }),
     unlinkTelegram: () => api.request<void>(TELEGRAM_LINK, { method: 'DELETE' }),
+    setTelegramCommands: (input: TelegramCommandsInput) =>
+      api.request<TelegramNotificationSettings>(TELEGRAM_COMMANDS, {
+        method: 'PUT',
+        body: JSON.stringify(input),
+      }),
     getPush: () => api.request<PushNotificationSettings>(PUSH_SETTINGS),
     savePush: (input: PushNotificationSettingsInput) =>
       api.request<PushNotificationSettings>(PUSH_SETTINGS, {

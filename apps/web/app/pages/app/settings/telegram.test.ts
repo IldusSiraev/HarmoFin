@@ -6,6 +6,7 @@ const api = vi.hoisted(() => ({
   saveTelegram: vi.fn(),
   createTelegramLink: vi.fn(),
   unlinkTelegram: vi.fn(),
+  setTelegramCommands: vi.fn(),
 }));
 vi.mock('../../../composables/useNotificationSettings.js', () => ({
   useNotificationSettings: () => api,
@@ -21,6 +22,7 @@ const unlinked = {
   digestFrequency: 'DAILY',
   includeAmounts: false,
   amountsConsentAt: null,
+  commandsEnabled: false,
 };
 const linked = { ...unlinked, linked: true };
 
@@ -52,6 +54,10 @@ describe('settings telegram page', () => {
       expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
     });
     api.unlinkTelegram.mockReset().mockResolvedValue(undefined);
+    api.setTelegramCommands.mockReset().mockImplementation(async (input: { enabled: boolean }) => ({
+      ...linked,
+      commandsEnabled: input.enabled,
+    }));
   });
 
   afterEach(() => {
@@ -147,5 +153,49 @@ describe('settings telegram page', () => {
     await flushPromises();
     expect(api.unlinkTelegram).toHaveBeenCalledTimes(1);
     expect(wrapper.find('[name="telegramConsent"]').exists()).toBe(true);
+  });
+
+  it('switches bot commands on only after the separate consent', async () => {
+    api.getTelegram.mockResolvedValue({ ...linked });
+    const wrapper = await mountPage();
+    expect(wrapper.text()).toContain('Команды выключены.');
+    const enable = wrapper.get('[data-action="enable-commands"]');
+    expect(enable.attributes('disabled')).toBeDefined();
+
+    await wrapper.get('[name="commandsConsent"]').setValue(true);
+    expect(wrapper.get('[data-action="enable-commands"]').attributes('disabled')).toBeUndefined();
+    await wrapper.get('[data-action="enable-commands"]').trigger('click');
+    await flushPromises();
+
+    expect(api.setTelegramCommands).toHaveBeenCalledWith({ enabled: true, consent: true });
+    expect(wrapper.text()).toContain('Команды включены.');
+    expect(wrapper.find('[data-action="disable-commands"]').exists()).toBe(true);
+    expect(wrapper.find('[name="commandsConsent"]').exists()).toBe(false);
+  });
+
+  it('switches bot commands off without asking again', async () => {
+    api.getTelegram.mockResolvedValue({ ...linked, commandsEnabled: true });
+    const wrapper = await mountPage();
+    expect(wrapper.text()).toContain('/expense');
+    await wrapper.get('[data-action="disable-commands"]').trigger('click');
+    await flushPromises();
+    expect(api.setTelegramCommands).toHaveBeenCalledWith({ enabled: false });
+    expect(wrapper.text()).toContain('Команды выключены.');
+  });
+
+  it('shows the server refusal next to the switch', async () => {
+    api.getTelegram.mockResolvedValue({ ...linked });
+    api.setTelegramCommands.mockRejectedValue(new Error('network'));
+    const wrapper = await mountPage();
+    await wrapper.get('[name="commandsConsent"]').setValue(true);
+    await wrapper.get('[data-action="enable-commands"]').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('[data-test="commands-error"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Команды выключены.');
+  });
+
+  it('hides the commands section without a linked chat', async () => {
+    const wrapper = await mountPage();
+    expect(wrapper.find('[data-action="enable-commands"]').exists()).toBe(false);
   });
 });
