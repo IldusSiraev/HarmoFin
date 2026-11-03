@@ -47,6 +47,12 @@ export class TelegramNotificationSettingsResponse {
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   amountsConsentAt!: string | null;
+
+  @ApiProperty({
+    type: Boolean,
+    description: 'Команды бота включены для привязанного чата; без привязки всегда false.',
+  })
+  commandsEnabled!: boolean;
 }
 
 export class UpdateTelegramNotificationSettingsRequest {
@@ -68,4 +74,17 @@ export class UpdateTelegramNotificationSettingsRequest {
     description: 'Обязательно true, когда includeAmounts включается впервые.',
   })
   amountsConsent?: boolean;
+}
+
+export class UpdateTelegramCommandsRequest {
+  @ApiProperty({ type: Boolean })
+  enabled!: boolean;
+
+  @ApiProperty({
+    type: Boolean,
+    required: false,
+    description:
+      'Обязательно true при включении: ответы бота с суммами и названиями остаются в истории чата, из чата можно проводить операции.',
+  })
+  consent?: boolean;
 }

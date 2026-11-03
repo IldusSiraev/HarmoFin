@@ -1,6 +1,7 @@
 import { ConflictException, UnprocessableEntityException } from '@nestjs/common';
 
 import type { UpdateEmailSettingsInput } from '../notification-settings/notification-settings.schemas.js';
+import type { UpdateTelegramCommandsInput } from './telegram.schemas.js';
 import type {
   StoredTelegramSetting,
   TelegramRepository,
@@ -8,6 +9,7 @@ import type {
 } from './telegram.repository.js';
 
 type Meta = { requestId?: string };
+type LinkState = { id: string; commandsEnabledAt: Date | null } | null;
 
 export type TelegramSettingsView = {
   available: boolean;
@@ -17,6 +19,7 @@ export type TelegramSettingsView = {
   digestFrequency: 'OFF' | 'DAILY' | 'WEEKLY';
   includeAmounts: boolean;
   amountsConsentAt: string | null;
+  commandsEnabled: boolean;
 };
 
 const DEFAULTS: TelegramSettingValues = {
@@ -28,11 +31,13 @@ const DEFAULTS: TelegramSettingValues = {
 };
 
 const AMOUNTS_CONSENT_MESSAGE = 'Подтвердите согласие на показ сумм в сообщениях Telegram.';
+const COMMANDS_CONSENT_MESSAGE = 'Подтвердите согласие на включение команд бота.';
 
 /**
  * Telegram channel settings of the signed-in user. Same rules as the email channel, with its own
  * amounts consent: the email consent does not cover Telegram. The channel can be switched on only
- * with a linked chat.
+ * with a linked chat. Bot commands have a separate switch and consent stored on the link itself,
+ * so a new chat always starts with commands off.
  */
 export class TelegramSettingsApplicationService {
   constructor(
@@ -44,7 +49,7 @@ export class TelegramSettingsApplicationService {
     return this.repository.transaction(async (tx) => {
       const link = await this.repository.findLinkByUser(tx, userId);
       const setting = await this.repository.findTelegramSetting(tx, userId);
-      return this.view(link !== null, setting ?? DEFAULTS);
+      return this.view(link, setting ?? DEFAULTS);
     });
   }
 
@@ -110,22 +115,72 @@ export class TelegramSettingsApplicationService {
           ...requestId,
         });
       }
-      return this.view(link !== null, saved);
+      return this.view(link, saved);
+    });
+  }
+
+  /** Bot commands need a linked chat; switching them on the first time needs consent: true. */
+  setCommands(
+    userId: string,
+    input: UpdateTelegramCommandsInput,
+    meta: Meta,
+  ): Promise<TelegramSettingsView> {
+    return this.repository.transaction(async (tx) => {
+      if (!this.available) {
+        throw new ConflictException({
+          code: 'TELEGRAM_UNAVAILABLE',
+          detail: 'Telegram-бот не подключён на сервере.',
+        });
+      }
+      const link = await this.repository.findLinkByUser(tx, userId);
+      if (!link) {
+        throw new ConflictException({
+          code: 'TELEGRAM_NOT_LINKED',
+          detail: 'Сначала подключите Telegram.',
+        });
+      }
+      const wasEnabled = link.commandsEnabledAt !== null;
+      if (input.enabled && !wasEnabled && input.consent !== true) {
+        throw new UnprocessableEntityException({
+          code: 'TELEGRAM_COMMANDS_CONSENT_REQUIRED',
+          detail: COMMANDS_CONSENT_MESSAGE,
+          fieldErrors: [{ field: 'consent', message: COMMANDS_CONSENT_MESSAGE, code: 'custom' }],
+        });
+      }
+      let next: LinkState = link;
+      if (input.enabled !== wasEnabled) {
+        const now = new Date();
+        const values = input.enabled
+          ? { commandsEnabledAt: now, commandsConsentAt: now }
+          : { commandsEnabledAt: null, commandsConsentAt: null };
+        await this.repository.setCommands(tx, link.id, values);
+        await this.repository.audit(tx, userId, {
+          entityType: 'telegram_link',
+          entityId: link.id,
+          action: input.enabled ? 'TELEGRAM_COMMANDS_ENABLED' : 'TELEGRAM_COMMANDS_DISABLED',
+          source: 'API',
+          ...(meta.requestId ? { requestId: meta.requestId } : {}),
+        });
+        next = { id: link.id, commandsEnabledAt: values.commandsEnabledAt };
+      }
+      const setting = await this.repository.findTelegramSetting(tx, userId);
+      return this.view(next, setting ?? DEFAULTS);
     });
   }
 
   private view(
-    linked: boolean,
+    link: LinkState,
     setting: TelegramSettingValues | StoredTelegramSetting,
   ): TelegramSettingsView {
     return {
       available: this.available,
-      linked,
+      linked: link !== null,
       enabled: setting.enabled,
       urgentEnabled: setting.urgentEnabled,
       digestFrequency: setting.digestFrequency,
       includeAmounts: setting.includeAmounts,
       amountsConsentAt: setting.amountsConsentAt?.toISOString() ?? null,
+      commandsEnabled: (link?.commandsEnabledAt ?? null) !== null,
     };
   }
 }

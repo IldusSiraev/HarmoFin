@@ -74,7 +74,26 @@ export class TelegramRepository {
   }
 
   findLinkByUser(tx: Tx, userId: string) {
-    return tx.telegramLink.findUnique({ where: { userId }, select: { id: true } });
+    return tx.telegramLink.findUnique({
+      where: { userId },
+      select: { id: true, commandsEnabledAt: true },
+    });
+  }
+
+  /** Switches bot commands on (with the consent time) or off; switching off ends the open dialog. */
+  async setCommands(
+    tx: Tx,
+    linkId: string,
+    values: { commandsEnabledAt: Date | null; commandsConsentAt: Date | null },
+  ): Promise<void> {
+    const link = await tx.telegramLink.update({
+      where: { id: linkId },
+      data: values,
+      select: { chatId: true },
+    });
+    if (values.commandsEnabledAt === null) {
+      await tx.telegramDialog.deleteMany({ where: { chatId: link.chatId } });
+    }
   }
 
   createLink(tx: Tx, input: { userId: string; chatId: bigint; consentedAt: Date; now: Date }) {
