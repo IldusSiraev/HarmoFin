@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Registers the Telegram bot webhook at ${WEB_BASE_URL}/api/v1/telegram/webhook.
+# Then sets the bot commands menu (setMyCommands); a menu failure only warns.
 # Idempotent: setWebhook replaces the previous registration. Skips when no bot
 # token is configured. Never prints the bot token or the webhook secret: the
 # token is part of the Bot API URL, so curl errors are not shown either.
@@ -33,7 +34,7 @@ register_telegram_webhook() {
   api_base_url="${api_base_url%/}"
   local webhook_url="${web_base_url}/api/v1/telegram/webhook"
   local payload
-  payload="$(printf '{"url":"%s","secret_token":"%s","allowed_updates":["message","my_chat_member"],"drop_pending_updates":true}' \
+  payload="$(printf '{"url":"%s","secret_token":"%s","allowed_updates":["message","callback_query","my_chat_member"],"drop_pending_updates":true}' \
     "$webhook_url" "$secret")"
 
   local response
@@ -46,7 +47,21 @@ register_telegram_webhook() {
     return 1
   fi
   echo "Telegram webhook registered at ${webhook_url}."
+  update_telegram_commands "$api_base_url"
   return 0
+}
+
+# update_telegram_commands <api-base-url>
+# The menu is a convenience: a failure only warns, the webhook stays registered.
+update_telegram_commands() {
+  local commands_payload='{"commands":[{"command":"expense","description":"Расход"},{"command":"income","description":"Доход"},{"command":"transfer","description":"Перевод между счетами"},{"command":"event","description":"Событие календаря"},{"command":"last","description":"Последние операции"},{"command":"plans","description":"Плановые платежи на 7 дней"},{"command":"events","description":"События на 7 дней"},{"command":"balance","description":"Остатки и доступная сумма"},{"command":"cancel","description":"Отменить ввод"},{"command":"help","description":"Список команд"},{"command":"stop","description":"Отключить бота"}]}'
+  local response
+  if ! response="$(telegram_post "$1/bot${TELEGRAM_BOT_TOKEN}/setMyCommands" "$commands_payload")" ||
+    [[ "$response" != *'"ok":true'* ]]; then
+    echo "Telegram bot commands menu was not updated; the webhook is registered." >&2
+    return 0
+  fi
+  echo "Telegram bot commands menu updated."
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
