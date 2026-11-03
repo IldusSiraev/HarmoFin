@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.20.1](https://github.com/IldusSiraev/HarmoFin/compare/v1.20.0...v1.20.1) (2026-11-03)
+
+
+### Исправления
+
+* **web:** мобильная вёрстка ([f488466](https://github.com/IldusSiraev/HarmoFin/commit/f488466b8cd463e39a53e17911230f585843750c))
+* **web:** мобильная вёрстка — отступы, шапки страниц, календарь, нижнее меню, строки операций ([ab7a263](https://github.com/IldusSiraev/HarmoFin/commit/ab7a2630a2e6fb9ec9843a1787b41367621ddfc5))
+
 ## [1.20.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.19.0...v1.20.0) (2026-11-03)
 
 
