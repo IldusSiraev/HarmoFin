@@ -463,6 +463,22 @@ async function seedBudget(f: Fixture, withRule: boolean): Promise<void> {
   await prisma.activityFeedCursor.create({
     data: { id: id(), workspaceId, budgetId, userId, seenAt: new Date() },
   });
+  // Диалог бота имеет budget_id, поэтому скрипт сброса обязан удалить и его; FK требует привязку чата.
+  const botChatId = BigInt(2e15 + Math.floor(Math.random() * 7e15));
+  await prisma.telegramLink.create({
+    data: { id: id(), userId, chatId: botChatId, consentedAt: now, linkedAt: now },
+  });
+  await prisma.telegramDialog.create({
+    data: {
+      id: id(),
+      chatId: botChatId,
+      userId,
+      budgetId,
+      kind: 'EXPENSE',
+      step: 'amount',
+      expiresAt: day('2027-01-01'),
+    },
+  });
   await prisma.auditEvent.create({
     data: {
       id: id(),

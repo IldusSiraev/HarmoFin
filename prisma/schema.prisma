@@ -1113,17 +1113,40 @@ model EmailVerificationToken {
 }
 
 model TelegramLink {
-  id          String   @id @db.Uuid
-  userId      String   @unique @map("user_id") @db.Uuid
-  chatId      BigInt   @unique @map("chat_id")
-  consentedAt DateTime @map("consented_at") @db.Timestamptz(3)
-  linkedAt    DateTime @map("linked_at") @db.Timestamptz(3)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                String    @id @db.Uuid
+  userId            String    @unique @map("user_id") @db.Uuid
+  chatId            BigInt    @unique @map("chat_id")
+  consentedAt       DateTime  @map("consented_at") @db.Timestamptz(3)
+  linkedAt          DateTime  @map("linked_at") @db.Timestamptz(3)
+  commandsEnabledAt DateTime? @map("commands_enabled_at") @db.Timestamptz(3)
+  commandsConsentAt DateTime? @map("commands_consent_at") @db.Timestamptz(3)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  user   User            @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  dialog TelegramDialog?
 
   @@map("telegram_links")
+}
+
+model TelegramDialog {
+  id        String   @id @db.Uuid
+  chatId    BigInt   @unique @map("chat_id")
+  userId    String   @map("user_id") @db.Uuid
+  budgetId  String   @map("budget_id") @db.Uuid
+  kind      String   @db.VarChar(16)
+  step      String   @db.VarChar(32)
+  version   Int      @default(1)
+  data      Json     @default("{}")
+  messageId Int?     @map("message_id")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  link TelegramLink @relation(fields: [chatId], references: [chatId], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([expiresAt])
+  @@map("telegram_dialogs")
 }
 
 model TelegramLinkCode {
