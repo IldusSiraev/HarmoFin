@@ -646,10 +646,20 @@
             "type": "string"
           },
           "reminderMinutes": {
-            "description": "Минуты до начала; у события на весь день — от 09:00.",
-            "enum": [15, 60, 1440, 10080],
+            "deprecated": true,
+            "description": "Устарело: одно напоминание, используйте reminders. Если переданы оба поля, должно быть равно наименьшему из reminders.",
+            "enum": [0, 5, 15, 30, 60, 120, 1440, 2880, 10080],
             "nullable": true,
             "type": "number"
+          },
+          "reminders": {
+            "description": "До трёх напоминаний, минуты до начала, без повторов; у события на весь день — от 09:00. Если не передано ни это поле, ни reminderMinutes: при создании — без напоминаний, при правке — без изменений.",
+            "items": {
+              "enum": [0, 5, 15, 30, 60, 120, 1440, 2880, 10080],
+              "type": "number"
+            },
+            "maxItems": 3,
+            "type": "array"
           },
           "repeatUntil": {
             "format": "date",
@@ -730,9 +740,19 @@
             "type": "string"
           },
           "reminderMinutes": {
-            "enum": [15, 60, 1440, 10080],
+            "deprecated": true,
+            "description": "Устарело: наименьшее из reminders или null.",
+            "enum": [0, 5, 15, 30, 60, 120, 1440, 2880, 10080],
             "nullable": true,
             "type": "number"
+          },
+          "reminders": {
+            "description": "Напоминания по возрастанию, минуты до начала.",
+            "items": {
+              "enum": [0, 5, 15, 30, 60, 120, 1440, 2880, 10080],
+              "type": "number"
+            },
+            "type": "array"
           },
           "repeatUntil": {
             "format": "date",
@@ -771,6 +791,7 @@
           "interval",
           "weekdays",
           "repeatUntil",
+          "reminders",
           "reminderMinutes",
           "participants",
           "createdBy",

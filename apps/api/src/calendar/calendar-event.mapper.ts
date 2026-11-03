@@ -16,7 +16,10 @@ export interface CalendarEventData {
   interval: number;
   weekdays: number[];
   repeatUntil: Date | null;
+  /** Mirror of the smallest offset for the previous release; always reminderOffsets[0] ?? null. */
   reminderMinutes: number | null;
+  /** Minutes before the start, ascending, at most three. */
+  reminderOffsets: number[];
 }
 
 export interface CalendarEventRow extends CalendarEventData {
@@ -35,8 +38,14 @@ function minutesOfDay(time: string): number {
   return hour * 60 + minute;
 }
 
-export function toEventData(input: CalendarEventInput, timezone: string): CalendarEventData {
+/** `currentOffsets` are the stored reminders: an update without reminder fields keeps them. */
+export function toEventData(
+  input: CalendarEventInput,
+  timezone: string,
+  currentOffsets: readonly number[] = [],
+): CalendarEventData {
   const repeating = input.recurrence !== 'NONE';
+  const reminderOffsets = input.reminders ?? [...currentOffsets];
   const common = {
     title: input.title,
     description: input.description,
@@ -45,7 +54,8 @@ export function toEventData(input: CalendarEventInput, timezone: string): Calend
     interval: repeating ? input.interval : 1,
     weekdays: input.recurrence === 'WEEKLY' ? input.weekdays : [],
     repeatUntil: repeating && input.repeatUntil ? asDate(input.repeatUntil) : null,
-    reminderMinutes: input.reminderMinutes,
+    reminderOffsets,
+    reminderMinutes: reminderOffsets[0] ?? null,
   };
   if (input.allDay) {
     return {

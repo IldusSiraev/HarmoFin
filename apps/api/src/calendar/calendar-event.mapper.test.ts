@@ -32,6 +32,7 @@ describe('calendar event mapper', () => {
       weekdays: [2],
       repeatUntil: null,
       reminderMinutes: 60,
+      reminderOffsets: [60],
     });
     expect(toRecurringEvent(data, tz)).toEqual({
       allDay: false,
@@ -131,5 +132,33 @@ describe('calendar event mapper', () => {
       tz,
     );
     expect(data).toMatchObject({ interval: 1, weekdays: [], repeatUntil: null });
+  });
+
+  it('keeps the smallest reminder as reminderMinutes and the stored ones when none are given', () => {
+    const input = (extra: Record<string, unknown>) =>
+      calendarEventInputSchema.parse({
+        title: 'Врач',
+        allDay: true,
+        date: '2026-11-05',
+        recurrence: 'NONE',
+        participantUserIds: [],
+        ...extra,
+      });
+    expect(toEventData(input({ reminders: [1440, 0] }), tz)).toMatchObject({
+      reminderOffsets: [0, 1440],
+      reminderMinutes: 0,
+    });
+    expect(toEventData(input({}), tz)).toMatchObject({
+      reminderOffsets: [],
+      reminderMinutes: null,
+    });
+    expect(toEventData(input({}), tz, [15, 60])).toMatchObject({
+      reminderOffsets: [15, 60],
+      reminderMinutes: 15,
+    });
+    expect(toEventData(input({ reminders: [] }), tz, [15, 60])).toMatchObject({
+      reminderOffsets: [],
+      reminderMinutes: null,
+    });
   });
 });

@@ -40,6 +40,7 @@ export interface CalendarEventView {
   interval: number;
   weekdays: number[];
   repeatUntil: string | null;
+  reminders: number[];
   reminderMinutes: number | null;
   participants: PersonRef[];
   createdBy: PersonRef;
@@ -69,6 +70,7 @@ function auditValues(event: StoredCalendarEvent): Prisma.InputJsonObject {
     weekdays: event.weekdays,
     repeatUntil: event.repeatUntil?.toISOString() ?? null,
     reminderMinutes: event.reminderMinutes,
+    reminders: event.reminderOffsets,
     participantCount: event.participantUserIds.length,
   };
 }
@@ -237,7 +239,7 @@ export class CalendarApplicationService {
           tx,
           budgetId,
           eventId,
-          toEventData(input, timezone),
+          toEventData(input, timezone, current.reminderOffsets),
           input.participantUserIds,
         );
         await this.repository.writeAudit(tx, {
@@ -317,7 +319,8 @@ export class CalendarApplicationService {
       interval: event.interval,
       weekdays: event.weekdays,
       repeatUntil: event.repeatUntil ? isoDate(event.repeatUntil) : null,
-      reminderMinutes: event.reminderMinutes,
+      reminders: [...event.reminderOffsets],
+      reminderMinutes: event.reminderOffsets[0] ?? null,
       participants: event.participantUserIds.map((id) => personRefOf(people, id)),
       createdBy: personRefOf(people, event.createdByUserId),
       canEdit: this.access.canEditEvent(actor, event),

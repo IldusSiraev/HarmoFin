@@ -3,7 +3,7 @@ import { ApiExtraModels, ApiProperty, ApiPropertyOptional, getSchemaPath } from 
 import { PersonRefResponse } from '../common/people/person-ref.dto.js';
 
 const RECURRENCES = ['NONE', 'DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'];
-const REMINDERS = [15, 60, 1440, 10080];
+const REMINDERS = [0, 5, 15, 30, 60, 120, 1440, 2880, 10080];
 const TIME_PATTERN = '^([01]\\d|2[0-3]):[0-5]\\d$';
 
 export class CalendarEventBody {
@@ -65,9 +65,22 @@ export class CalendarEventBody {
 
   @ApiPropertyOptional({
     type: Number,
+    isArray: true,
+    enum: REMINDERS,
+    maxItems: 3,
+    description:
+      'До трёх напоминаний, минуты до начала, без повторов; у события на весь день — от 09:00. ' +
+      'Если не передано ни это поле, ни reminderMinutes: при создании — без напоминаний, при правке — без изменений.',
+  })
+  reminders?: number[];
+
+  @ApiPropertyOptional({
+    type: Number,
     enum: REMINDERS,
     nullable: true,
-    description: 'Минуты до начала; у события на весь день — от 09:00.',
+    deprecated: true,
+    description:
+      'Устарело: одно напоминание, используйте reminders. Если переданы оба поля, должно быть равно наименьшему из reminders.',
   })
   reminderMinutes?: number | null;
 }
@@ -109,7 +122,21 @@ export class CalendarEventResponse {
   @ApiProperty({ type: String, format: 'date', nullable: true })
   repeatUntil!: string | null;
 
-  @ApiProperty({ type: Number, enum: REMINDERS, nullable: true })
+  @ApiProperty({
+    type: Number,
+    isArray: true,
+    enum: REMINDERS,
+    description: 'Напоминания по возрастанию, минуты до начала.',
+  })
+  reminders!: number[];
+
+  @ApiProperty({
+    type: Number,
+    enum: REMINDERS,
+    nullable: true,
+    deprecated: true,
+    description: 'Устарело: наименьшее из reminders или null.',
+  })
   reminderMinutes!: number | null;
 
   @ApiProperty({ type: [PersonRefResponse] })

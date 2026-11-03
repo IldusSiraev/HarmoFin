@@ -1,17 +1,37 @@
 import { z } from 'zod';
 
-export const REMINDER_MINUTES = [15, 60, 1440, 10080] as const;
+export const REMINDER_OFFSETS = [0, 5, 15, 30, 60, 120, 1440, 2880, 10080] as const;
+export const MAX_REMINDERS = 3;
 export const MAX_FEED_DAYS = 62;
 const MAX_ALL_DAY_SPAN_DAYS = 30;
 
 const date = z.string().date('Укажите дату в формате ГГГГ-ММ-ДД.');
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Укажите время в формате ЧЧ:ММ.');
 const uuid = z.string().uuid();
+const reminderOffset = z
+  .number()
+  .int()
+  .refine((value) => (REMINDER_OFFSETS as readonly number[]).includes(value), {
+    message: 'Выберите напоминание из списка.',
+  });
 
 export const calendarUuidSchema = uuid;
 
 function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+}
+
+/**
+ * One rule for both reminder fields: `reminders` wins; the deprecated `reminderMinutes` means one
+ * reminder or none; null means neither was given, so an update keeps the stored reminders.
+ */
+export function resolveReminders(
+  reminders: number[] | undefined,
+  reminderMinutes: number | null | undefined,
+): number[] | null {
+  if (reminders !== undefined) return [...reminders].sort((a, b) => a - b);
+  if (reminderMinutes !== undefined) return reminderMinutes === null ? [] : [reminderMinutes];
+  return null;
 }
 
 export const calendarEventInputSchema = z
@@ -28,14 +48,11 @@ export const calendarEventInputSchema = z
     weekdays: z.array(z.number().int().min(1).max(7)).max(7).default([]),
     repeatUntil: date.nullable().optional(),
     participantUserIds: z.array(uuid).max(50).default([]),
-    reminderMinutes: z
-      .number()
-      .int()
-      .refine((value) => (REMINDER_MINUTES as readonly number[]).includes(value), {
-        message: 'Выберите напоминание из списка.',
-      })
-      .nullable()
+    reminders: z
+      .array(reminderOffset)
+      .max(MAX_REMINDERS, 'Можно выбрать до трёх напоминаний.')
       .optional(),
+    reminderMinutes: reminderOffset.nullable().optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -71,15 +88,25 @@ export const calendarEventInputSchema = z
     } else if (value.repeatUntil && value.repeatUntil < value.date) {
       issue('repeatUntil', 'Повтор не может закончиться раньше начала.');
     }
+    if (value.reminders) {
+      if (new Set(value.reminders).size !== value.reminders.length) {
+        issue('reminders', 'Напоминания не должны повторяться.');
+      } else if (value.reminderMinutes !== undefined) {
+        const smallest = value.reminders.length > 0 ? Math.min(...value.reminders) : null;
+        if (smallest !== value.reminderMinutes) {
+          issue('reminders', 'Напоминания не совпадают с reminderMinutes.');
+        }
+      }
+    }
   })
-  .transform((value) => ({
+  .transform(({ reminders, reminderMinutes, ...value }) => ({
     ...value,
     description: value.description ? value.description : null,
     endDate: value.endDate ?? null,
     startTime: value.startTime ?? null,
     endTime: value.endTime ?? null,
     repeatUntil: value.repeatUntil ?? null,
-    reminderMinutes: value.reminderMinutes ?? null,
+    reminders: resolveReminders(reminders, reminderMinutes),
     weekdays: [...value.weekdays].sort((a, b) => a - b),
     participantUserIds: [...new Set(value.participantUserIds)],
   }));
