@@ -47,6 +47,40 @@ const unlinkOpen = ref(false);
 const unlinking = ref(false);
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
+const commandsConsent = ref(false);
+const commandsSaving = ref(false);
+const commandsError = ref('');
+
+const COMMANDS_CONSENT =
+  'Ответы бота с суммами, остатками и названиями остаются в истории чата Telegram. Из чата можно проводить операции от вашего имени. Я согласен включить команды бота';
+
+const botCommands = [
+  { command: '/expense', label: 'расход' },
+  { command: '/income', label: 'доход' },
+  { command: '/transfer', label: 'перевод между счетами' },
+  { command: '/event', label: 'событие календаря' },
+  { command: '/last', label: 'последние операции' },
+  { command: '/plans', label: 'плановые платежи на 7 дней' },
+  { command: '/events', label: 'события на 7 дней' },
+  { command: '/balance', label: 'остатки и «Доступно»' },
+  { command: '/cancel', label: 'отменить ввод' },
+];
+
+async function setCommands(enabled: boolean) {
+  commandsSaving.value = true;
+  commandsError.value = '';
+  try {
+    settings.value = await api.setTelegramCommands(
+      enabled ? { enabled, consent: true } : { enabled },
+    );
+    commandsConsent.value = false;
+  } catch (error) {
+    commandsError.value = errorMessage(error).summary;
+  } finally {
+    commandsSaving.value = false;
+  }
+}
+
 const digestOptions = [
   { value: 'OFF', label: 'Не присылать' },
   { value: 'DAILY', label: 'Каждый день' },
@@ -304,6 +338,53 @@ onBeforeUnmount(stopPolling);
             <UiButton type="submit" :loading="saving">Сохранить</UiButton>
           </form>
 
+          <section class="telegram-settings__commands" aria-labelledby="telegram-commands-title">
+            <h3 id="telegram-commands-title" class="telegram-settings__subtitle">Команды бота</h3>
+            <p class="telegram-settings__text">
+              Вносите расходы, доходы, переводы и события и смотрите остатки прямо в чате с ботом.
+            </p>
+            <UiStatus
+              :label="settings.commandsEnabled ? 'Команды включены.' : 'Команды выключены.'"
+              :tone="settings.commandsEnabled ? 'success' : 'info'"
+              aria-live="polite"
+            />
+            <template v-if="!settings.commandsEnabled">
+              <label class="telegram-settings__checkbox">
+                <input v-model="commandsConsent" name="commandsConsent" type="checkbox" />
+                <span>{{ COMMANDS_CONSENT }}</span>
+              </label>
+              <UiButton
+                data-action="enable-commands"
+                :disabled="!commandsConsent"
+                :loading="commandsSaving"
+                @click="setCommands(true)"
+              >
+                Включить команды
+              </UiButton>
+            </template>
+            <UiButton
+              v-else
+              variant="secondary"
+              data-action="disable-commands"
+              :loading="commandsSaving"
+              @click="setCommands(false)"
+            >
+              Выключить команды
+            </UiButton>
+            <UiStatus
+              v-if="commandsError"
+              data-test="commands-error"
+              :label="commandsError"
+              tone="danger"
+              aria-live="polite"
+            />
+            <ul class="telegram-settings__command-list" aria-label="Команды бота">
+              <li v-for="item in botCommands" :key="item.command">
+                <code>{{ item.command }}</code> — {{ item.label }}
+              </li>
+            </ul>
+          </section>
+
           <div class="telegram-settings__unlink">
             <UiButton variant="secondary" data-action="unlink-telegram" @click="unlinkOpen = true">
               Отключить Telegram
@@ -401,6 +482,31 @@ onBeforeUnmount(stopPolling);
 
 .telegram-settings__unlink {
   margin-top: var(--hf-space-6);
+}
+
+.telegram-settings__commands {
+  display: grid;
+  gap: var(--hf-space-4);
+  justify-items: start;
+  max-width: 32rem;
+  margin-top: var(--hf-space-6);
+}
+
+.telegram-settings__subtitle {
+  margin: 0;
+  color: var(--hf-color-text);
+  font-size: var(--hf-font-size-small);
+  font-weight: 600;
+}
+
+.telegram-settings__command-list {
+  display: grid;
+  gap: var(--hf-space-2);
+  margin: 0;
+  padding: 0;
+  color: var(--hf-color-text-muted);
+  font-size: var(--hf-font-size-small);
+  list-style: none;
 }
 
 /* No global error-text class in the app; same rules as .ui-field__error in Input.vue. */
