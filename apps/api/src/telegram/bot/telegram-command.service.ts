@@ -28,6 +28,7 @@ import type {
   Screen,
 } from './dialog.types.js';
 import type { StoredDialog, TelegramBotRepository } from './telegram-bot.repository.js';
+import type { BotViewRenderer } from './telegram-bot-views.js';
 
 const DIALOG_TTL_MS = 30 * 60_000;
 const DETAIL_MAX = 300;
@@ -86,6 +87,7 @@ export class TelegramCommandService {
     private readonly bot: TelegramBotClient,
     private readonly writers: BotWriters,
     private readonly webBaseUrl: string,
+    private readonly views: BotViewRenderer | null = null,
     private readonly limiter: ChatRateLimiter = new ChatRateLimiter(),
     private readonly now: () => Date = () => new Date(),
   ) {}
@@ -157,7 +159,8 @@ export class TelegramCommandService {
         dialog ? COMMAND_REPLIES.cancelled : COMMAND_REPLIES.nothingToCancel,
       );
     }
-    // Read-only commands (task 6) go here.
+    const view = this.views ? await this.views.render(command, ctx) : null;
+    if (view) return this.show(ctx, null, null, view);
     return this.bot.sendMessage(ctx.chatId, HELP_TEXT);
   }
 

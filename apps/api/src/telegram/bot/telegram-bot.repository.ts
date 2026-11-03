@@ -209,4 +209,21 @@ export class TelegramBotRepository {
       }),
     );
   }
+
+  /** Names of every account of the budget, archived included: the journal shows old rows too. */
+  async accountNames(budgetId: string): Promise<Map<string, string>> {
+    const rows = await this.prisma.account.findMany({
+      where: { budgetId },
+      select: { id: true, name: true },
+    });
+    return new Map(rows.map((row) => [row.id, row.name]));
+  }
+
+  async categoryNames(budgetId: string): Promise<Map<string, string>> {
+    const rows = await this.prisma.category.findMany({
+      where: { budgetId },
+      select: { id: true, name: true },
+    });
+    return new Map(rows.map((row) => [row.id, row.name]));
+  }
 }
