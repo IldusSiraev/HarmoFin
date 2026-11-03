@@ -5,6 +5,9 @@ import { definePageMeta, navigateTo } from '#imports';
 import NotificationCard from '../../components/notifications/NotificationCard.vue';
 import UiButton from '../../components/ui/Button.vue';
 import UiEmptyState from '../../components/ui/EmptyState.vue';
+import ReferencePageLayout from '../../components/ui/ReferencePageLayout.vue';
+import UiSkeleton from '../../components/ui/Skeleton.vue';
+import UiStatus from '../../components/ui/Status.vue';
 import { useActiveWorkspace } from '../../composables/useActiveWorkspace.js';
 import { useAuth } from '../../composables/useAuth.js';
 import { ApiRequestError } from '../../composables/useApiClient.js';
@@ -125,97 +128,74 @@ function errorMessage(exception: unknown) {
 </script>
 
 <template>
-  <main class="notifications-page">
-    <header class="notifications-page__header">
-      <div>
-        <p class="notifications-page__eyebrow">Внутренний центр</p>
-        <h1>Уведомления</h1>
-      </div>
+  <ReferencePageLayout>
+    <template #kicker>Центр уведомлений</template>
+    <template #title>Уведомления</template>
+    <template #description>Планы, финансовые предупреждения и события семьи.</template>
+    <template #actions>
       <UiButton variant="secondary" :disabled="pending" @click="markAllRead">
         Отметить все прочитанными
       </UiButton>
-    </header>
-    <p v-if="statusText" class="notifications-page__status" role="status">{{ statusText }}</p>
-    <p v-if="error" class="notifications-page__error" role="alert">
-      {{ error }}
-      <UiButton data-action="retry-notifications" variant="tertiary" @click="load()">
-        Повторить
-      </UiButton>
-    </p>
-    <p v-if="loading">Загрузка уведомлений…</p>
-    <UiEmptyState
-      v-else-if="!budget"
-      title="Бюджет не выбран"
-      description="Создайте или выберите активный бюджет, чтобы видеть уведомления."
-    />
-    <UiEmptyState
-      v-else-if="notifications.length === 0"
-      title="Уведомлений пока нет"
-      description="Планы и финансовые предупреждения появятся здесь."
-    />
-    <section v-else class="notifications-page__list" aria-label="Список уведомлений">
-      <NotificationCard
-        v-for="notification in notifications"
-        :key="notification.id"
-        :notification="notification"
-        @open="openNotification(notification, $event)"
+    </template>
+    <template #content>
+      <UiStatus v-if="statusText" :label="statusText" tone="info" role="status" />
+      <p v-if="error" class="notifications-page__error" role="alert">
+        {{ error }}
+        <UiButton data-action="retry-notifications" variant="tertiary" @click="load()">
+          Повторить
+        </UiButton>
+      </p>
+      <div v-if="loading" aria-busy="true">
+        <UiSkeleton variant="row" :count="4" />
+      </div>
+      <UiEmptyState
+        v-else-if="!budget"
+        title="Бюджет не выбран"
+        description="Создайте или выберите активный бюджет, чтобы видеть уведомления."
       />
-    </section>
-    <UiButton v-if="nextCursor" variant="secondary" :disabled="loading" @click="load(true)">
-      Загрузить ещё
-    </UiButton>
-  </main>
+      <UiEmptyState
+        v-else-if="notifications.length === 0"
+        title="Уведомлений пока нет"
+        description="Планы и финансовые предупреждения появятся здесь."
+      />
+      <section v-else class="notifications-page__list" aria-label="Список уведомлений">
+        <NotificationCard
+          v-for="notification in notifications"
+          :key="notification.id"
+          :notification="notification"
+          @open="openNotification(notification, $event)"
+        />
+      </section>
+      <div v-if="nextCursor" class="notifications-page__more">
+        <UiButton variant="secondary" :disabled="loading" @click="load(true)">
+          Загрузить ещё
+        </UiButton>
+      </div>
+    </template>
+  </ReferencePageLayout>
 </template>
 
 <style scoped>
-.notifications-page {
-  max-width: 70rem;
-  margin: 0 auto;
-  padding: var(--hf-space-8);
-}
-.notifications-page__header {
+.notifications-page__error {
   display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: var(--hf-space-5);
-  margin-bottom: var(--hf-space-6);
-}
-.notifications-page__header h1,
-.notifications-page__eyebrow,
-.notifications-page__status,
-.notifications-page__error {
+  flex-wrap: wrap;
+  gap: var(--hf-space-3);
+  align-items: center;
   margin: 0;
-}
-.notifications-page__header h1 {
-  font-size: clamp(2rem, 4vw, 3.5rem);
-  letter-spacing: -0.04em;
-}
-.notifications-page__eyebrow {
-  color: var(--hf-color-action-primary-hover);
-  font-size: 0.75rem;
-  font-weight: var(--hf-font-weight-bold);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.notifications-page__status {
-  margin-bottom: var(--hf-space-4);
-  color: var(--hf-color-text-muted);
-}
-.notifications-page__error {
-  margin-bottom: var(--hf-space-4);
   color: var(--hf-color-text-danger);
 }
 .notifications-page__list {
-  display: grid;
-  gap: var(--hf-space-4);
+  overflow: hidden;
+  border: 1px solid var(--hf-color-border);
+  border-radius: var(--hf-radius-lg);
+  background: var(--hf-color-surface);
+  box-shadow: var(--hf-shadow-sm);
 }
-@media (max-width: 47.9375rem) {
-  .notifications-page {
-    padding: var(--hf-space-5);
-  }
-  .notifications-page__header {
-    align-items: stretch;
-    flex-direction: column;
-  }
+.notifications-page__list :deep(.notification-card + .notification-card) {
+  border-top: 1px solid var(--hf-color-border);
+}
+.notifications-page__more {
+  display: flex;
+  justify-content: center;
 }
 </style>
