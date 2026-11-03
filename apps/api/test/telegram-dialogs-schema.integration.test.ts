@@ -60,9 +60,7 @@ describe('telegram_dialogs', () => {
   });
 
   it('needs a linked chat and disappears with the link', async () => {
-    await expect(
-      env.prisma.telegramDialog.create({ data: dialog(newChatId()) }),
-    ).rejects.toThrow();
+    await expect(env.prisma.telegramDialog.create({ data: dialog(newChatId()) })).rejects.toThrow();
     const chatId = await linkAnna();
     await env.prisma.telegramDialog.create({ data: dialog(chatId) });
     await env.prisma.telegramLink.delete({ where: { chatId } });
