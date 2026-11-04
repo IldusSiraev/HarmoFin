@@ -9,6 +9,7 @@ import {
   fieldErrorsFromProblem,
   formerParticipantsHint,
   fromEvent,
+  remindersLabel,
   toInput,
   validateForm,
 } from './event-form-state.js';
@@ -22,7 +23,7 @@ describe('calendar event form', () => {
       recurrence: 'NONE',
       weekdays: [2],
       allDay: false,
-      reminder: '',
+      reminders: [],
     });
   });
 
@@ -33,7 +34,7 @@ describe('calendar event form', () => {
       recurrence: 'WEEKLY' as const,
       startTime: '17:00',
       endTime: '18:30',
-      reminder: '60' as const,
+      reminders: [60, 15],
     };
     expect(toInput(state)).toEqual({
       title: 'Кружок',
@@ -48,7 +49,7 @@ describe('calendar event form', () => {
       weekdays: [2],
       repeatUntil: null,
       participantUserIds: [],
-      reminderMinutes: 60,
+      reminders: [15, 60],
     });
     expect(toInput({ ...state, recurrence: 'NONE', repeatUntil: '2026-12-01' })).toMatchObject({
       weekdays: [],
@@ -143,7 +144,7 @@ describe('calendar event form', () => {
       ],
     });
     expect(fieldErrorsFromProblem(error)).toEqual({
-      reminder: 'Выберите напоминание из списка.',
+      reminders: 'Выберите напоминание из списка.',
       participantUserIds: 'Неверный участник.',
     });
   });
@@ -209,11 +210,12 @@ describe('calendar event form', () => {
       weekdays: [2],
       repeatUntil: '2026-12-29',
       reminderMinutes: 60,
+      reminders: [60],
       participants: [{ userId: 'a', displayName: 'Алия', isActiveMember: true }],
     } as CalendarEventDto;
     expect(toInput(fromEvent(event))).toMatchObject({
       repeatUntil: '2026-12-29',
-      reminderMinutes: 60,
+      reminders: [60],
       participantUserIds: ['a'],
     });
   });
@@ -233,13 +235,14 @@ describe('calendar event form', () => {
       weekdays: [],
       repeatUntil: null,
       reminderMinutes: null,
+      reminders: [],
       participants: [{ userId: 'a', displayName: 'Алия', isActiveMember: true }, timur],
     } as unknown as CalendarEventDto;
     expect(fromEvent(event)).toMatchObject({
       participantUserIds: ['a'],
       endDate: '2026-11-04',
       weekdays: [2],
-      reminder: '',
+      reminders: [],
     });
     expect(formerParticipantsHint(event.participants)).toBe(
       'Тимур (не в семье) будет убран из участников при сохранении',
@@ -248,5 +251,46 @@ describe('calendar event form', () => {
       formerParticipantsHint([timur, { userId: 'z', displayName: 'Зоя', isActiveMember: false }]),
     ).toBe('Тимур (не в семье), Зоя (не в семье) будут убраны из участников при сохранении');
     expect(formerParticipantsHint(event.participants.slice(0, 1))).toBe('');
+  });
+
+  it('maps a reminder error of an item onto the reminders field', () => {
+    expect(
+      fieldErrorsFromProblem({
+        fieldErrors: [{ field: 'reminders.1', message: 'Выберите напоминание из списка.' }],
+      }),
+    ).toEqual({ reminders: 'Выберите напоминание из списка.' });
+  });
+
+  it('refuses more than three reminders', () => {
+    const state = { ...emptyForm('2026-11-03'), title: 'Врач', reminders: [0, 5, 15, 30] };
+    expect(validateForm(state).reminders).toBe('Можно выбрать до трёх напоминаний.');
+    expect(validateForm({ ...state, reminders: [0, 5, 15] }).reminders).toBeUndefined();
+  });
+
+  it('keeps only known reminders of an event, ascending', () => {
+    const event = {
+      title: 'Врач',
+      description: null,
+      allDay: true,
+      date: '2026-11-03',
+      endDate: '2026-11-03',
+      startTime: null,
+      endTime: null,
+      recurrence: 'NONE',
+      interval: 1,
+      weekdays: [],
+      repeatUntil: null,
+      reminders: [1440, 45, 0],
+      reminderMinutes: 0,
+      participants: [],
+    } as unknown as CalendarEventDto;
+    expect(fromEvent(event).reminders).toEqual([0, 1440]);
+  });
+
+  it('describes the reminders of the card from the earliest one', () => {
+    expect(remindersLabel([0, 60, 1440])).toBe('За 1 день, за 1 час, в момент начала');
+    expect(remindersLabel([120])).toBe('За 2 часа');
+    expect(remindersLabel([5, 10080])).toBe('За 1 неделю, за 5 мин');
+    expect(remindersLabel([])).toBe('Без напоминания');
   });
 });

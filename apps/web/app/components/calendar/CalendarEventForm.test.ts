@@ -196,24 +196,81 @@ describe('CalendarEventForm', () => {
     );
   });
 
-  it('lists the reminders and keeps the description optional', async () => {
+  const reminderChip = (wrapper: Wrapper, minutes: number) =>
+    wrapper.get(`[data-testid="calendar-event-reminder-${minutes}"]`);
+
+  it('offers reminder chips and keeps the description optional', async () => {
     const wrapper = mountForm();
+    expect(wrapper.get('#calendar-event-reminders legend').text()).toBe('Напоминания');
     expect(
-      selectByName(wrapper, 'calendarEventReminder')
-        .props('options')
-        .map((option: { label: string }) => option.label),
-    ).toEqual(['Без напоминания', 'За 15 минут', 'За 1 час', 'За 1 день', 'За 1 неделю']);
+      wrapper.findAll('[data-testid^="calendar-event-reminder-"]').map((chip) => chip.text()),
+    ).toEqual([
+      'В момент начала',
+      'За 5 мин',
+      'За 15 мин',
+      'За 30 мин',
+      'За 1 час',
+      'За 2 часа',
+      'За 1 день',
+      'За 2 дня',
+      'За 1 неделю',
+    ]);
+    expect(wrapper.get('#calendar-event-reminders-hint').text()).toBe('Можно выбрать до трёх');
     expect(wrapper.get('label[for="calendarEventDescription-input"]').text()).toBe('Описание');
     expect(wrapper.get('#calendarEventDescription-hint').text()).toBe('необязательно');
 
-    await choose(wrapper, 'calendarEventReminder', '60');
+    await reminderChip(wrapper, 1440).trigger('click');
+    await reminderChip(wrapper, 60).trigger('click');
+    expect(reminderChip(wrapper, 60).attributes('aria-pressed')).toBe('true');
+    expect(
+      reminderChip(wrapper, 60).find('[data-testid="calendar-event-reminder-check"]').exists(),
+    ).toBe(true);
+    expect(reminderChip(wrapper, 15).attributes('aria-pressed')).toBe('false');
+
     await wrapper.get('#calendarEventTitle-input').setValue('Врач');
     await wrapper.get('#calendarEventDescription-input').setValue(' Взять полис ');
     await submit(wrapper).trigger('click');
     expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
-      reminderMinutes: 60,
+      reminders: [60, 1440],
       description: 'Взять полис',
     });
+  });
+
+  it('allows three reminders, then disables the rest until one is unpressed', async () => {
+    const wrapper = mountForm();
+    for (const minutes of [0, 15, 60]) await reminderChip(wrapper, minutes).trigger('click');
+    expect(wrapper.get('#calendar-event-reminders-hint').text()).toBe(
+      'Выбрано три — снимите одно, чтобы выбрать другое',
+    );
+    expect(reminderChip(wrapper, 5).attributes('disabled')).toBeDefined();
+    expect(reminderChip(wrapper, 60).attributes('disabled')).toBeUndefined();
+
+    await reminderChip(wrapper, 15).trigger('click');
+    expect(reminderChip(wrapper, 5).attributes('disabled')).toBeUndefined();
+    expect(wrapper.get('#calendar-event-reminders-hint').text()).toBe('Можно выбрать до трёх');
+  });
+
+  it('explains the 09:00 start of reminders for an all-day event', async () => {
+    const wrapper = mountForm({ initial: { ...emptyForm('2026-11-03'), allDay: true } });
+    expect(wrapper.get('#calendar-event-reminders-hint').text()).toBe(
+      'Можно выбрать до трёх. Отсчёт от 09:00 дня события',
+    );
+  });
+
+  it('shows a server reminder error under the chips and keeps the edited reminders', () => {
+    const wrapper = mountForm({
+      mode: 'edit',
+      initial: { ...emptyForm('2026-11-03'), title: 'Кружок', reminders: [5, 120] },
+      serverErrors: { reminders: 'Выберите напоминание из списка.' },
+    });
+    expect(wrapper.get('#calendar-event-reminders-error').text()).toBe(
+      'Выберите напоминание из списка.',
+    );
+    expect(wrapper.get('#calendar-event-reminders').attributes('aria-describedby')).toBe(
+      'calendar-event-reminders-hint calendar-event-reminders-error',
+    );
+    expect(reminderChip(wrapper, 5).attributes('aria-pressed')).toBe('true');
+    expect(reminderChip(wrapper, 120).attributes('aria-pressed')).toBe('true');
   });
 
   it('titles the edit mode and resets to the initial values on reopen', async () => {

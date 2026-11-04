@@ -18,7 +18,7 @@ const input: CalendarEventInput = {
   weekdays: [2],
   repeatUntil: null,
   participantUserIds: [],
-  reminderMinutes: 60,
+  reminders: [60],
 };
 
 beforeEach(() => {
