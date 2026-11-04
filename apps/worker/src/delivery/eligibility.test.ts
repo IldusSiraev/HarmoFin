@@ -62,23 +62,28 @@ describe('cancelReason', () => {
     expect(cancelReason('DIGEST', unverified, 'EMAIL')).toBe('EMAIL_NOT_VERIFIED');
   });
 
-  it('checks the per-type switch only for push', () => {
+  it('checks the per-type switch on every channel', () => {
     const overdueOff = { ...ok, setting: { ...ok.setting!, planOverdueEnabled: false } };
     expect(cancelReason('URGENT', overdueOff, 'PUSH')).toBe('TYPE_DISABLED');
-    expect(cancelReason('URGENT', overdueOff, 'EMAIL')).toBeNull();
+    expect(cancelReason('URGENT', overdueOff, 'EMAIL')).toBe('TYPE_DISABLED');
+    expect(cancelReason('URGENT', { ...overdueOff, telegramLinked: true }, 'TELEGRAM')).toBe(
+      'TYPE_DISABLED',
+    );
 
     const reminder = {
       ...overdueOff,
       notification: { resolvedAt: null, readAt: null, notificationType: 'CALENDAR_REMINDER' },
     };
     expect(cancelReason('URGENT', reminder, 'PUSH')).toBeNull();
-    expect(
-      cancelReason(
-        'URGENT',
-        { ...reminder, setting: { ...reminder.setting, calendarReminderEnabled: false } },
-        'PUSH',
-      ),
-    ).toBe('TYPE_DISABLED');
+    expect(cancelReason('URGENT', reminder, 'EMAIL')).toBeNull();
+    const reminderOff = {
+      ...reminder,
+      setting: { ...reminder.setting, calendarReminderEnabled: false },
+    };
+    expect(cancelReason('URGENT', reminderOff, 'PUSH')).toBe('TYPE_DISABLED');
+    expect(cancelReason('URGENT', reminderOff, 'EMAIL')).toBe('TYPE_DISABLED');
+    // The type switch never touches the digest.
+    expect(cancelReason('DIGEST', { ...reminderOff, notification: null }, 'EMAIL')).toBeNull();
   });
 
   it('never sends a push for other notification types or as a digest', () => {

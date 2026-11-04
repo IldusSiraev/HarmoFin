@@ -165,6 +165,7 @@ describe('urgent letters', () => {
         interval: 1,
         weekdays: [],
         reminderMinutes: 60,
+        reminderOffsets: [60],
       },
     });
     const handler = new CalendarReminderHandler(env.prisma);

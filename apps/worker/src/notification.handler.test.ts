@@ -302,7 +302,14 @@ describe('NotificationRuleHandler', () => {
     const tx = makeTx({
       notificationChannelSetting: {
         findUnique: vi.fn(async ({ where }: { where: { userId_channel: { channel: string } } }) =>
-          where.userId_channel.channel === 'EMAIL' ? { enabled: true, urgentEnabled: true } : null,
+          where.userId_channel.channel === 'EMAIL'
+            ? {
+                enabled: true,
+                urgentEnabled: true,
+                planOverdueEnabled: true,
+                calendarReminderEnabled: true,
+              }
+            : null,
         ),
       },
       notificationDelivery: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
