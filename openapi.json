@@ -2249,6 +2249,10 @@
             "nullable": true,
             "type": "string"
           },
+          "calendarReminderEnabled": {
+            "description": "Срочное письмо с напоминанием календаря.",
+            "type": "boolean"
+          },
           "digestFrequency": {
             "description": "В 08:00 по часовому поясу бюджета.",
             "enum": ["OFF", "DAILY", "WEEKLY"],
@@ -2268,6 +2272,10 @@
           "includeAmounts": {
             "type": "boolean"
           },
+          "planOverdueEnabled": {
+            "description": "Срочное письмо о просроченном платеже.",
+            "type": "boolean"
+          },
           "urgentEnabled": {
             "description": "Просроченный платёж и напоминание календаря.",
             "type": "boolean"
@@ -2280,7 +2288,9 @@
           "urgentEnabled",
           "digestFrequency",
           "includeAmounts",
-          "amountsConsentAt"
+          "amountsConsentAt",
+          "planOverdueEnabled",
+          "calendarReminderEnabled"
         ],
         "type": "object"
       },
@@ -6177,6 +6187,10 @@
             "description": "Бот настроен на сервере.",
             "type": "boolean"
           },
+          "calendarReminderEnabled": {
+            "description": "Срочное сообщение с напоминанием календаря.",
+            "type": "boolean"
+          },
           "commandsEnabled": {
             "description": "Команды бота включены для привязанного чата; без привязки всегда false.",
             "type": "boolean"
@@ -6196,6 +6210,10 @@
             "description": "Личный чат привязан; без этого канал не включить.",
             "type": "boolean"
           },
+          "planOverdueEnabled": {
+            "description": "Срочное сообщение о просроченном платеже.",
+            "type": "boolean"
+          },
           "urgentEnabled": {
             "description": "Просроченный платёж и напоминание календаря.",
             "type": "boolean"
@@ -6209,6 +6227,8 @@
           "digestFrequency",
           "includeAmounts",
           "amountsConsentAt",
+          "planOverdueEnabled",
+          "calendarReminderEnabled",
           "commandsEnabled"
         ],
         "type": "object"
@@ -7402,6 +7422,10 @@
             "description": "Обязательно true, когда includeAmounts включается впервые.",
             "type": "boolean"
           },
+          "calendarReminderEnabled": {
+            "description": "Если не передано, значение не меняется; по умолчанию true.",
+            "type": "boolean"
+          },
           "digestFrequency": {
             "enum": ["OFF", "DAILY", "WEEKLY"],
             "type": "string"
@@ -7410,6 +7434,10 @@
             "type": "boolean"
           },
           "includeAmounts": {
+            "type": "boolean"
+          },
+          "planOverdueEnabled": {
+            "description": "Если не передано, значение не меняется; по умолчанию true.",
             "type": "boolean"
           },
           "urgentEnabled": {
@@ -7477,6 +7505,10 @@
             "description": "Обязательно true, когда includeAmounts включается впервые.",
             "type": "boolean"
           },
+          "calendarReminderEnabled": {
+            "description": "Если не передано, значение не меняется; по умолчанию true.",
+            "type": "boolean"
+          },
           "digestFrequency": {
             "enum": ["OFF", "DAILY", "WEEKLY"],
             "type": "string"
@@ -7485,6 +7517,10 @@
             "type": "boolean"
           },
           "includeAmounts": {
+            "type": "boolean"
+          },
+          "planOverdueEnabled": {
+            "description": "Если не передано, значение не меняется; по умолчанию true.",
             "type": "boolean"
           },
           "urgentEnabled": {

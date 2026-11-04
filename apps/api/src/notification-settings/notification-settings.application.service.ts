@@ -19,6 +19,8 @@ export type EmailSettingsView = {
   digestFrequency: 'OFF' | 'DAILY' | 'WEEKLY';
   includeAmounts: boolean;
   amountsConsentAt: string | null;
+  planOverdueEnabled: boolean;
+  calendarReminderEnabled: boolean;
 };
 
 const DEFAULTS: EmailSettingValues = {
@@ -27,6 +29,8 @@ const DEFAULTS: EmailSettingValues = {
   digestFrequency: 'DAILY',
   includeAmounts: false,
   amountsConsentAt: null,
+  planOverdueEnabled: true,
+  calendarReminderEnabled: true,
 };
 
 /**
@@ -86,6 +90,12 @@ export class NotificationSettingsApplicationService {
           : grantsAmounts
             ? new Date()
             : (current?.amountsConsentAt ?? new Date()),
+        planOverdueEnabled:
+          input.planOverdueEnabled ?? current?.planOverdueEnabled ?? DEFAULTS.planOverdueEnabled,
+        calendarReminderEnabled:
+          input.calendarReminderEnabled ??
+          current?.calendarReminderEnabled ??
+          DEFAULTS.calendarReminderEnabled,
       };
       const saved = await this.repository.upsertEmailSetting(tx, userId, values);
       const requestId = meta.requestId ? { requestId: meta.requestId } : {};
@@ -98,6 +108,8 @@ export class NotificationSettingsApplicationService {
           urgentEnabled: values.urgentEnabled,
           digestFrequency: values.digestFrequency,
           includeAmounts: values.includeAmounts,
+          planOverdueEnabled: values.planOverdueEnabled,
+          calendarReminderEnabled: values.calendarReminderEnabled,
         },
         ...requestId,
       });
@@ -145,6 +157,8 @@ function view(
     digestFrequency: setting.digestFrequency,
     includeAmounts: setting.includeAmounts,
     amountsConsentAt: setting.amountsConsentAt?.toISOString() ?? null,
+    planOverdueEnabled: setting.planOverdueEnabled,
+    calendarReminderEnabled: setting.calendarReminderEnabled,
   };
 }
 

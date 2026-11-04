@@ -27,6 +27,12 @@ export class EmailNotificationSettingsResponse {
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   amountsConsentAt!: string | null;
+
+  @ApiProperty({ type: Boolean, description: 'Срочное письмо о просроченном платеже.' })
+  planOverdueEnabled!: boolean;
+
+  @ApiProperty({ type: Boolean, description: 'Срочное письмо с напоминанием календаря.' })
+  calendarReminderEnabled!: boolean;
 }
 
 export class UpdateEmailNotificationSettingsRequest {
@@ -48,6 +54,20 @@ export class UpdateEmailNotificationSettingsRequest {
     description: 'Обязательно true, когда includeAmounts включается впервые.',
   })
   amountsConsent?: boolean;
+
+  @ApiProperty({
+    type: Boolean,
+    required: false,
+    description: 'Если не передано, значение не меняется; по умолчанию true.',
+  })
+  planOverdueEnabled?: boolean;
+
+  @ApiProperty({
+    type: Boolean,
+    required: false,
+    description: 'Если не передано, значение не меняется; по умолчанию true.',
+  })
+  calendarReminderEnabled?: boolean;
 }
 
 export class UnsubscribeRequest {

@@ -48,6 +48,12 @@ export class TelegramNotificationSettingsResponse {
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   amountsConsentAt!: string | null;
 
+  @ApiProperty({ type: Boolean, description: 'Срочное сообщение о просроченном платеже.' })
+  planOverdueEnabled!: boolean;
+
+  @ApiProperty({ type: Boolean, description: 'Срочное сообщение с напоминанием календаря.' })
+  calendarReminderEnabled!: boolean;
+
   @ApiProperty({
     type: Boolean,
     description: 'Команды бота включены для привязанного чата; без привязки всегда false.',
@@ -74,6 +80,20 @@ export class UpdateTelegramNotificationSettingsRequest {
     description: 'Обязательно true, когда includeAmounts включается впервые.',
   })
   amountsConsent?: boolean;
+
+  @ApiProperty({
+    type: Boolean,
+    required: false,
+    description: 'Если не передано, значение не меняется; по умолчанию true.',
+  })
+  planOverdueEnabled?: boolean;
+
+  @ApiProperty({
+    type: Boolean,
+    required: false,
+    description: 'Если не передано, значение не меняется; по умолчанию true.',
+  })
+  calendarReminderEnabled?: boolean;
 }
 
 export class UpdateTelegramCommandsRequest {

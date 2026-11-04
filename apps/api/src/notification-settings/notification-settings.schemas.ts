@@ -7,6 +7,9 @@ export const updateEmailSettingsSchema = z
     digestFrequency: z.enum(['OFF', 'DAILY', 'WEEKLY']),
     includeAmounts: z.boolean(),
     amountsConsent: z.boolean().optional(),
+    // Optional so an older client does not reset them; absent means "keep the stored value".
+    planOverdueEnabled: z.boolean().optional(),
+    calendarReminderEnabled: z.boolean().optional(),
   })
   .strict();
 

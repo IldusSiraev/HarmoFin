@@ -38,6 +38,8 @@ describe('email notification settings', () => {
       digestFrequency: 'DAILY',
       includeAmounts: false,
       amountsConsentAt: null,
+      planOverdueEnabled: true,
+      calendarReminderEnabled: true,
     });
     expect(response.json().email).toMatch(/^f\*\*\*@harmofin\.test$/);
   });
@@ -79,6 +81,26 @@ describe('email notification settings', () => {
     });
     expect(consent.statusCode).toBe(200);
     expect(consent.json().amountsConsentAt).not.toBeNull();
+  });
+
+  it('switches a type off, keeps it on a save without the field and audits it', async () => {
+    const off = await env.inject('PUT', path, anna, { ...body, calendarReminderEnabled: false });
+    expect(off.statusCode, off.body).toBe(200);
+    expect(off.json()).toMatchObject({ planOverdueEnabled: true, calendarReminderEnabled: false });
+
+    const kept = await env.inject('PUT', path, anna, body);
+    expect(kept.json()).toMatchObject({ calendarReminderEnabled: false });
+
+    const row = await env.prisma.notificationChannelSetting.findUniqueOrThrow({
+      where: { userId_channel: { userId: anna.user.id, channel: 'EMAIL' } },
+    });
+    expect(row).toMatchObject({ planOverdueEnabled: true, calendarReminderEnabled: false });
+
+    const audit = await env.prisma.auditEvent.findFirst({
+      where: { actorUserId: anna.user.id, action: 'UPDATED', entityType: 'notification_settings' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
+    expect(audit?.newValues).toMatchObject({ channel: 'EMAIL', calendarReminderEnabled: false });
   });
 
   it('keeps settings per user', async () => {

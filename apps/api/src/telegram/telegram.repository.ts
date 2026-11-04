@@ -14,6 +14,8 @@ export type TelegramSettingValues = {
   digestFrequency: DigestFrequency;
   includeAmounts: boolean;
   amountsConsentAt: Date | null;
+  planOverdueEnabled: boolean;
+  calendarReminderEnabled: boolean;
 };
 
 export type StoredTelegramSetting = TelegramSettingValues & { id: string };
@@ -25,6 +27,8 @@ const SETTING_SELECT = {
   digestFrequency: true,
   includeAmounts: true,
   amountsConsentAt: true,
+  planOverdueEnabled: true,
+  calendarReminderEnabled: true,
 } as const;
 
 /**
