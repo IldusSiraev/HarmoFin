@@ -32,6 +32,8 @@ const form = reactive({
   urgentEnabled: true,
   digestFrequency: 'DAILY' as DigestFrequency,
   includeAmounts: false,
+  planOverdueEnabled: true,
+  calendarReminderEnabled: true,
 });
 // Consent given in the dialog during this edit; sent with the next save only.
 const consentGiven = ref(false);
@@ -51,6 +53,8 @@ function sync(next: EmailNotificationSettings) {
   form.urgentEnabled = next.urgentEnabled;
   form.digestFrequency = next.digestFrequency;
   form.includeAmounts = next.includeAmounts;
+  form.planOverdueEnabled = next.planOverdueEnabled;
+  form.calendarReminderEnabled = next.calendarReminderEnabled;
   consentGiven.value = false;
 }
 
@@ -102,6 +106,8 @@ async function save() {
         urgentEnabled: form.urgentEnabled,
         digestFrequency: form.digestFrequency,
         includeAmounts: form.includeAmounts,
+        planOverdueEnabled: form.planOverdueEnabled,
+        calendarReminderEnabled: form.calendarReminderEnabled,
         ...(consentGiven.value && form.includeAmounts ? { amountsConsent: true } : {}),
       }),
     );
@@ -195,6 +201,29 @@ onMounted(() => {
             <p class="email-settings__hint">
               Сразу сообщим о просроченном платеже и напомним о событии календаря.
             </p>
+            <div
+              v-if="form.urgentEnabled"
+              class="email-settings__types"
+              role="group"
+              aria-label="Какие срочные письма присылать"
+            >
+              <label class="email-settings__checkbox">
+                <input
+                  v-model="form.planOverdueEnabled"
+                  name="planOverdueEnabled"
+                  type="checkbox"
+                />
+                <span>Просроченные платежи</span>
+              </label>
+              <label class="email-settings__checkbox">
+                <input
+                  v-model="form.calendarReminderEnabled"
+                  name="calendarReminderEnabled"
+                  type="checkbox"
+                />
+                <span>Напоминания календаря</span>
+              </label>
+            </div>
 
             <UiSelect
               :model-value="form.digestFrequency"
@@ -294,6 +323,12 @@ onMounted(() => {
   margin: calc(-1 * var(--hf-space-2)) 0 0;
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-small);
+}
+
+.email-settings__types {
+  display: grid;
+  gap: var(--hf-space-2);
+  padding-left: var(--hf-space-8);
 }
 
 /* No global error-text class in the app; same rules as .ui-field__error in Input.vue. */

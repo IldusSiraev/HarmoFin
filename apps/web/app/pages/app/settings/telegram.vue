@@ -35,6 +35,8 @@ const form = reactive({
   urgentEnabled: true,
   digestFrequency: 'DAILY' as DigestFrequency,
   includeAmounts: false,
+  planOverdueEnabled: true,
+  calendarReminderEnabled: true,
 });
 const consentGiven = ref(false);
 const consentOpen = ref(false);
@@ -93,6 +95,8 @@ function sync(next: TelegramNotificationSettings) {
   form.urgentEnabled = next.urgentEnabled;
   form.digestFrequency = next.digestFrequency;
   form.includeAmounts = next.includeAmounts;
+  form.planOverdueEnabled = next.planOverdueEnabled;
+  form.calendarReminderEnabled = next.calendarReminderEnabled;
   consentGiven.value = false;
 }
 
@@ -180,6 +184,8 @@ async function save() {
         urgentEnabled: form.urgentEnabled,
         digestFrequency: form.digestFrequency,
         includeAmounts: form.includeAmounts,
+        planOverdueEnabled: form.planOverdueEnabled,
+        calendarReminderEnabled: form.calendarReminderEnabled,
         ...(consentGiven.value && form.includeAmounts ? { amountsConsent: true } : {}),
       }),
     );
@@ -303,6 +309,29 @@ onBeforeUnmount(stopPolling);
               <p class="telegram-settings__hint">
                 Сразу сообщим о просроченном платеже и напомним о событии календаря.
               </p>
+              <div
+                v-if="form.urgentEnabled"
+                class="telegram-settings__types"
+                role="group"
+                aria-label="Какие срочные сообщения присылать"
+              >
+                <label class="telegram-settings__checkbox">
+                  <input
+                    v-model="form.planOverdueEnabled"
+                    name="planOverdueEnabled"
+                    type="checkbox"
+                  />
+                  <span>Просроченные платежи</span>
+                </label>
+                <label class="telegram-settings__checkbox">
+                  <input
+                    v-model="form.calendarReminderEnabled"
+                    name="calendarReminderEnabled"
+                    type="checkbox"
+                  />
+                  <span>Напоминания календаря</span>
+                </label>
+              </div>
 
               <UiSelect
                 :model-value="form.digestFrequency"
@@ -465,6 +494,12 @@ onBeforeUnmount(stopPolling);
   margin: calc(-1 * var(--hf-space-2)) 0 0;
   color: var(--hf-color-text-muted);
   font-size: var(--hf-font-size-small);
+}
+
+.telegram-settings__types {
+  display: grid;
+  gap: var(--hf-space-2);
+  padding-left: var(--hf-space-8);
 }
 
 .telegram-settings__open {

@@ -22,6 +22,8 @@ const verified = {
   digestFrequency: 'DAILY',
   includeAmounts: false,
   amountsConsentAt: null,
+  planOverdueEnabled: true,
+  calendarReminderEnabled: true,
 };
 
 const stubs = {
@@ -83,6 +85,8 @@ describe('settings notifications page', () => {
       digestFrequency: 'DAILY',
       includeAmounts: true,
       amountsConsent: true,
+      planOverdueEnabled: true,
+      calendarReminderEnabled: true,
     });
     expect(wrapper.text()).toContain('Настройки сохранены.');
   });
@@ -95,6 +99,41 @@ describe('settings notifications page', () => {
       false,
     );
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+  });
+
+  it('offers the urgent types and sends them with the save', async () => {
+    api.getEmail.mockResolvedValue({ ...verified, calendarReminderEnabled: false });
+    const wrapper = await mountPage();
+    const group = wrapper.get('[role="group"][aria-label="Какие срочные письма присылать"]');
+    expect(group.text()).toContain('Просроченные платежи');
+    expect(group.text()).toContain('Напоминания календаря');
+    const reminders = wrapper.get('[name="calendarReminderEnabled"]');
+    expect((reminders.element as HTMLInputElement).checked).toBe(false);
+
+    await wrapper.get('[name="planOverdueEnabled"]').setValue(false);
+    await reminders.setValue(true);
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    expect(api.saveEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ planOverdueEnabled: false, calendarReminderEnabled: true }),
+    );
+  });
+
+  it('hides the urgent types while urgent letters are off and keeps their values', async () => {
+    api.getEmail.mockResolvedValue({ ...verified, planOverdueEnabled: false });
+    const wrapper = await mountPage();
+    await wrapper.get('[name="urgentEnabled"]').setValue(false);
+    expect(wrapper.find('[name="planOverdueEnabled"]').exists()).toBe(false);
+
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    expect(api.saveEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        urgentEnabled: false,
+        planOverdueEnabled: false,
+        calendarReminderEnabled: true,
+      }),
+    );
   });
 
   it('shows a server error', async () => {
