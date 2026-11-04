@@ -13,6 +13,8 @@ export interface EmailNotificationSettings {
   digestFrequency: DigestFrequency;
   includeAmounts: boolean;
   amountsConsentAt: string | null;
+  planOverdueEnabled: boolean;
+  calendarReminderEnabled: boolean;
 }
 
 export interface EmailNotificationSettingsInput {
@@ -21,6 +23,8 @@ export interface EmailNotificationSettingsInput {
   digestFrequency: DigestFrequency;
   includeAmounts: boolean;
   amountsConsent?: boolean;
+  planOverdueEnabled?: boolean;
+  calendarReminderEnabled?: boolean;
 }
 
 export interface TelegramNotificationSettings {
@@ -31,6 +35,8 @@ export interface TelegramNotificationSettings {
   digestFrequency: DigestFrequency;
   includeAmounts: boolean;
   amountsConsentAt: string | null;
+  planOverdueEnabled: boolean;
+  calendarReminderEnabled: boolean;
   commandsEnabled: boolean;
 }
 

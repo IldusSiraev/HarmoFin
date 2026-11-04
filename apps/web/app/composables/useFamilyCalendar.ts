@@ -19,7 +19,7 @@ export interface CalendarEventInput {
   weekdays: number[];
   repeatUntil: string | null;
   participantUserIds: string[];
-  reminderMinutes: number | null;
+  reminders: number[];
 }
 
 export interface CalendarEventDto {
@@ -35,6 +35,8 @@ export interface CalendarEventDto {
   interval: number;
   weekdays: number[];
   repeatUntil: string | null;
+  reminders: number[];
+  /** Deprecated by the API: the smallest of `reminders`; the web reads `reminders` only. */
   reminderMinutes: number | null;
   participants: PersonRef[];
   createdBy: PersonRef;

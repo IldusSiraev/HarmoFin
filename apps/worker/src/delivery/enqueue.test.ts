@@ -76,20 +76,29 @@ describe('enqueueUrgent', () => {
     });
   });
 
-  it('skips push when the type is switched off', async () => {
+  it('skips every channel whose type is switched off', async () => {
+    const on = { enabled: true, urgentEnabled: true };
     const tx = makeTx(
-      { PUSH: { enabled: true, urgentEnabled: true, planOverdueEnabled: false } },
+      {
+        EMAIL: { ...on, planOverdueEnabled: false },
+        TELEGRAM: { ...on, planOverdueEnabled: false },
+        PUSH: { ...on, planOverdueEnabled: false },
+      },
       1,
     );
     await enqueueUrgent(tx as never, input);
     expect(queuedChannels(tx)).toEqual([]);
 
     const reminder = makeTx(
-      { PUSH: { enabled: true, urgentEnabled: true, planOverdueEnabled: false } },
+      {
+        EMAIL: { ...on, planOverdueEnabled: false },
+        TELEGRAM: { ...on, calendarReminderEnabled: false },
+        PUSH: { ...on, planOverdueEnabled: false },
+      },
       1,
     );
     await enqueueUrgent(reminder as never, { ...input, type: 'CALENDAR_REMINDER' });
-    expect(queuedChannels(reminder)).toEqual(['PUSH']);
+    expect(queuedChannels(reminder)).toEqual(['EMAIL', 'PUSH']);
   });
 
   it('skips push without a device of an active session', async () => {

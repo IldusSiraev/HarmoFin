@@ -17,7 +17,7 @@ const eventSelect = {
   interval: true,
   weekdays: true,
   repeatUntil: true,
-  reminderMinutes: true,
+  reminderOffsets: true,
   budget: { select: { timezone: true } },
   participants: { select: { userId: true } },
 };
@@ -39,7 +39,7 @@ function weeklyEvent(overrides: Record<string, unknown> = {}) {
     interval: 1,
     weekdays: [2],
     repeatUntil: null,
-    reminderMinutes: 60,
+    reminderOffsets: [60],
     budget: { timezone: 'Europe/Moscow' },
     participants: [{ userId: 'user-b' }, { userId: 'user-c' }],
     ...overrides,
@@ -84,7 +84,7 @@ describe('CalendarReminderHandler', () => {
     expect(prisma.calendarEvent.findMany).toHaveBeenCalledWith({
       where: {
         deletedAt: null,
-        reminderMinutes: { not: null },
+        reminderOffsets: { isEmpty: false },
         budget: { status: 'ACTIVE', planModelVersion: 2, workspace: { status: 'ACTIVE' } },
       },
       select: eventSelect,
@@ -181,7 +181,7 @@ describe('CalendarReminderHandler', () => {
           endsOn: new Date('2026-11-05T00:00:00.000Z'),
           recurrence: 'NONE',
           weekdays: [],
-          reminderMinutes: 1440,
+          reminderOffsets: [1440],
           participants: [],
         }),
       ],
@@ -313,7 +313,14 @@ describe('CalendarReminderHandler', () => {
     const tx = makeTx({
       notificationChannelSetting: {
         findUnique: vi.fn(async ({ where }: { where: { userId_channel: { channel: string } } }) =>
-          where.userId_channel.channel === 'EMAIL' ? { enabled: true, urgentEnabled: true } : null,
+          where.userId_channel.channel === 'EMAIL'
+            ? {
+                enabled: true,
+                urgentEnabled: true,
+                planOverdueEnabled: true,
+                calendarReminderEnabled: true,
+              }
+            : null,
         ),
       },
       notificationDelivery: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
@@ -342,5 +349,100 @@ describe('CalendarReminderHandler', () => {
     await new CalendarReminderHandler(prisma as never).execute(new Date('2026-11-03T13:05:00Z'));
 
     expect(tx.notificationDelivery.createMany).not.toHaveBeenCalled();
+  });
+
+  const keysOf = (tx: ReturnType<typeof makeTx>) =>
+    new Set(
+      tx.notification.createMany.mock.calls.map(
+        ([args]) => (args as { data: { notificationKey: string } }).data.notificationKey,
+      ),
+    );
+
+  it('reminds at each offset of the event only when its own moment comes', async () => {
+    // 2026-11-03 17:00 Moscow = 14:00 UTC: 60 minutes before is 13:00, the start is 14:00.
+    const event = weeklyEvent({ reminderOffsets: [0, 60, 1440] });
+
+    const hourTx = makeTx();
+    await new CalendarReminderHandler(makePrisma([event], hourTx) as never).execute(
+      new Date('2026-11-03T13:05:00Z'),
+    );
+    expect(keysOf(hourTx)).toEqual(new Set(['calendar:event-1:2026-11-03:60']));
+
+    const startTx = makeTx();
+    await new CalendarReminderHandler(makePrisma([event], startTx) as never).execute(
+      new Date('2026-11-03T14:05:00Z'),
+    );
+    expect(keysOf(startTx)).toEqual(new Set(['calendar:event-1:2026-11-03:0']));
+  });
+
+  it('expands the window by the longest offset of the event', async () => {
+    // A week before the 2026-11-10 occurrence is the start of the 2026-11-03 one.
+    const tx = makeTx();
+    const prisma = makePrisma([weeklyEvent({ reminderOffsets: [0, 10080] })], tx);
+    await new CalendarReminderHandler(prisma as never).execute(new Date('2026-11-03T14:05:00Z'));
+    expect(keysOf(tx)).toEqual(
+      new Set(['calendar:event-1:2026-11-03:0', 'calendar:event-1:2026-11-10:10080']),
+    );
+    // Both reminders of both recipients in one transaction.
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.notification.createMany).toHaveBeenCalledTimes(4);
+  });
+
+  it('creates both reminders when two offsets come due in the same run', async () => {
+    // 15 minutes before is 13:45, 5 minutes before is 13:55: both lie in (13:28, 13:58].
+    const tx = makeTx();
+    const prisma = makePrisma([weeklyEvent({ reminderOffsets: [5, 15] })], tx);
+    await new CalendarReminderHandler(prisma as never).execute(new Date('2026-11-03T13:58:00Z'));
+    expect(keysOf(tx)).toEqual(
+      new Set(['calendar:event-1:2026-11-03:5', 'calendar:event-1:2026-11-03:15']),
+    );
+    expect(tx.auditEvent.create).toHaveBeenCalledTimes(4);
+  });
+
+  it('reminds an all-day event at 09:00 of its day for the start offset', async () => {
+    const tx = makeTx();
+    const prisma = makePrisma(
+      [
+        weeklyEvent({
+          id: 'event-2',
+          allDay: true,
+          startsAt: null,
+          endsAt: null,
+          startsOn: new Date('2026-11-05T00:00:00.000Z'),
+          endsOn: new Date('2026-11-05T00:00:00.000Z'),
+          recurrence: 'NONE',
+          weekdays: [],
+          reminderOffsets: [0],
+          participants: [],
+        }),
+      ],
+      tx,
+      { workspaceMembership: { findMany: vi.fn().mockResolvedValue([{ userId: 'user-a' }]) } },
+    );
+    // 09:00 Moscow = 06:00 UTC.
+    await new CalendarReminderHandler(prisma as never).execute(new Date('2026-11-05T06:10:00Z'));
+    const calls = tx.notification.createMany.mock.calls.map(
+      ([args]) => (args as { data: Record<string, unknown> }).data,
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      body: 'Сегодня, весь день',
+      notificationKey: 'calendar:event-2:2026-11-05:0',
+    });
+  });
+
+  it('does not repeat any of several offsets on a rerun', async () => {
+    const tx = makeTx();
+    const handler = new CalendarReminderHandler(
+      makePrisma([weeklyEvent({ reminderOffsets: [5, 15] })], tx) as never,
+    );
+    await handler.execute(new Date('2026-11-03T13:58:00Z'));
+    tx.notification.createMany.mockResolvedValue({ count: 0 });
+    await handler.execute(new Date('2026-11-03T14:00:00Z'));
+    expect(keysOf(tx)).toEqual(
+      new Set(['calendar:event-1:2026-11-03:5', 'calendar:event-1:2026-11-03:15']),
+    );
+    // Only the first run's inserts produced audits and deliveries.
+    expect(tx.auditEvent.create).toHaveBeenCalledTimes(4);
   });
 });

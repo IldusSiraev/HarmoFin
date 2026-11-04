@@ -33,7 +33,7 @@ const reminderEventSelect = {
   interval: true,
   weekdays: true,
   repeatUntil: true,
-  reminderMinutes: true,
+  reminderOffsets: true,
   budget: { select: { timezone: true } },
   participants: { select: { userId: true } },
 } satisfies Prisma.CalendarEventSelect;
@@ -89,6 +89,10 @@ function toRule(event: StoredRule, timezone: string): RecurringEvent {
  * the notification key turns a rerun or an overlapping run into a no-op. Only the event title and
  * the date go into the notification: no description, no participant names.
  *
+ * An event has up to three offsets (minutes before the start; for an all-day event, before 09:00
+ * of its day). Each offset is its own reminder with its own key, so adding an offset never repeats
+ * the ones already sent.
+ *
  * Follows NotificationRuleHandler: all reminder inserts and audits of one event run inside a single
  * `$transaction`, a notification is inserted one at a time (`createMany` with a single row and
  * `skipDuplicates: true`), and an AuditEvent is written only for the insert that actually created a
@@ -115,7 +119,7 @@ export class CalendarReminderHandler implements WorkerJobHandler {
     const events = await this.prisma.calendarEvent.findMany({
       where: {
         deletedAt: null,
-        reminderMinutes: { not: null },
+        reminderOffsets: { isEmpty: false },
         budget: { status: 'ACTIVE', planModelVersion: 2, workspace: { status: 'ACTIVE' } },
       },
       select: reminderEventSelect,
@@ -131,13 +135,20 @@ export class CalendarReminderHandler implements WorkerJobHandler {
   }
 
   private async remindEvent(event: ReminderEvent, now: Date): Promise<void> {
-    const minutes = event.reminderMinutes!;
+    const offsets = event.reminderOffsets;
+    if (offsets.length === 0) return;
     const timezone = event.budget.timezone;
-    const due = expandOccurrences(
+    // The longest offset reaches furthest ahead: one expansion covers every offset.
+    const occurrences = expandOccurrences(
       toRule(event, timezone),
-      reminderWindow(now, minutes, timezone),
+      reminderWindow(now, Math.max(...offsets), timezone),
       timezone,
-    ).filter((occurrence) => isReminderDue(reminderMoment(occurrence, minutes, timezone), now));
+    );
+    const due = occurrences.flatMap((occurrence) =>
+      offsets
+        .filter((minutes) => isReminderDue(reminderMoment(occurrence, minutes, timezone), now))
+        .map((minutes) => ({ occurrence, minutes })),
+    );
     if (due.length === 0) return;
 
     const candidates = [
@@ -150,7 +161,7 @@ export class CalendarReminderHandler implements WorkerJobHandler {
     if (recipients.length === 0) return;
 
     await this.prisma.$transaction(async (tx) => {
-      for (const occurrence of due) {
+      for (const { occurrence, minutes } of due) {
         const body = reminderBody(occurrence, now, timezone);
         const notificationKey = reminderKey(event.id, occurrence.occurrenceDate, minutes);
         const actionPath = `/app/calendar?date=${occurrence.startDate}`;

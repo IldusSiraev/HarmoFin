@@ -23,6 +23,7 @@ const eventSelect = {
   weekdays: true,
   repeatUntil: true,
   reminderMinutes: true,
+  reminderOffsets: true,
   deletedAt: true,
   createdAt: true,
   updatedAt: true,

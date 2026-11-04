@@ -19,6 +19,8 @@ export type TelegramSettingsView = {
   digestFrequency: 'OFF' | 'DAILY' | 'WEEKLY';
   includeAmounts: boolean;
   amountsConsentAt: string | null;
+  planOverdueEnabled: boolean;
+  calendarReminderEnabled: boolean;
   commandsEnabled: boolean;
 };
 
@@ -28,6 +30,8 @@ const DEFAULTS: TelegramSettingValues = {
   digestFrequency: 'DAILY',
   includeAmounts: false,
   amountsConsentAt: null,
+  planOverdueEnabled: true,
+  calendarReminderEnabled: true,
 };
 
 const AMOUNTS_CONSENT_MESSAGE = 'Подтвердите согласие на показ сумм в сообщениях Telegram.';
@@ -88,6 +92,12 @@ export class TelegramSettingsApplicationService {
           : grantsAmounts
             ? new Date()
             : (current?.amountsConsentAt ?? new Date()),
+        planOverdueEnabled:
+          input.planOverdueEnabled ?? current?.planOverdueEnabled ?? DEFAULTS.planOverdueEnabled,
+        calendarReminderEnabled:
+          input.calendarReminderEnabled ??
+          current?.calendarReminderEnabled ??
+          DEFAULTS.calendarReminderEnabled,
       };
       const saved = await this.repository.upsertTelegramSetting(tx, userId, values);
       const requestId = meta.requestId ? { requestId: meta.requestId } : {};
@@ -101,6 +111,8 @@ export class TelegramSettingsApplicationService {
           urgentEnabled: values.urgentEnabled,
           digestFrequency: values.digestFrequency,
           includeAmounts: values.includeAmounts,
+          planOverdueEnabled: values.planOverdueEnabled,
+          calendarReminderEnabled: values.calendarReminderEnabled,
         },
         source: 'API',
         ...requestId,
@@ -180,6 +192,8 @@ export class TelegramSettingsApplicationService {
       digestFrequency: setting.digestFrequency,
       includeAmounts: setting.includeAmounts,
       amountsConsentAt: setting.amountsConsentAt?.toISOString() ?? null,
+      planOverdueEnabled: setting.planOverdueEnabled,
+      calendarReminderEnabled: setting.calendarReminderEnabled,
       commandsEnabled: (link?.commandsEnabledAt ?? null) !== null,
     };
   }

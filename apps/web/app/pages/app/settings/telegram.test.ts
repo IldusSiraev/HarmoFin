@@ -22,6 +22,8 @@ const unlinked = {
   digestFrequency: 'DAILY',
   includeAmounts: false,
   amountsConsentAt: null,
+  planOverdueEnabled: true,
+  calendarReminderEnabled: true,
   commandsEnabled: false,
 };
 const linked = { ...unlinked, linked: true };
@@ -141,8 +143,28 @@ describe('settings telegram page', () => {
       digestFrequency: 'DAILY',
       includeAmounts: true,
       amountsConsent: true,
+      planOverdueEnabled: true,
+      calendarReminderEnabled: true,
     });
     expect(wrapper.text()).toContain('Настройки сохранены.');
+  });
+
+  it('offers the urgent types for Telegram and sends them with the save', async () => {
+    api.getTelegram.mockResolvedValue({ ...linked, enabled: true });
+    const wrapper = await mountPage();
+    const group = wrapper.get('[role="group"][aria-label="Какие срочные сообщения присылать"]');
+    expect(group.text()).toContain('Просроченные платежи');
+    expect(group.text()).toContain('Напоминания календаря');
+
+    await wrapper.get('[name="calendarReminderEnabled"]').setValue(false);
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    expect(api.saveTelegram).toHaveBeenCalledWith(
+      expect.objectContaining({ planOverdueEnabled: true, calendarReminderEnabled: false }),
+    );
+
+    await wrapper.get('[name="urgentEnabled"]').setValue(false);
+    expect(wrapper.find('[name="calendarReminderEnabled"]').exists()).toBe(false);
   });
 
   it('unlinks after confirmation', async () => {

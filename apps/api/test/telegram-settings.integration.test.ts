@@ -42,6 +42,8 @@ describe('telegram notification settings', () => {
       digestFrequency: 'DAILY',
       includeAmounts: false,
       amountsConsentAt: null,
+      planOverdueEnabled: true,
+      calendarReminderEnabled: true,
       commandsEnabled: false,
     });
   });
@@ -94,6 +96,18 @@ describe('telegram notification settings', () => {
       where: { actorUserId: anna.user.id, action: 'AMOUNTS_CONSENT_GRANTED' },
     });
     expect(audit?.newValues).toEqual({ channel: 'TELEGRAM' });
+  });
+
+  it('switches a type off for Telegram only and keeps it on a save without the field', async () => {
+    const off = await env.inject('PUT', path, anna, { ...body, planOverdueEnabled: false });
+    expect(off.statusCode, off.body).toBe(200);
+    expect(off.json()).toMatchObject({ planOverdueEnabled: false, calendarReminderEnabled: true });
+
+    const kept = await env.inject('PUT', path, anna, body);
+    expect(kept.json()).toMatchObject({ planOverdueEnabled: false });
+
+    const email = await env.inject('GET', '/api/v1/me/notification-settings/email', anna);
+    expect(email.json()).toMatchObject({ planOverdueEnabled: true });
   });
 
   it('does not touch the email channel', async () => {

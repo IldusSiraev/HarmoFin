@@ -17,9 +17,10 @@ import { isoWeekday } from './calendar-dates.js';
 import {
   type EventFormState,
   formerParticipantsHint,
+  MAX_REMINDERS,
   RECURRENCE_LABELS,
   REMINDER_LABELS,
-  type ReminderValue,
+  REMINDER_OFFSETS,
   toInput,
   validateForm,
   WEEKDAY_CHIPS,
@@ -46,11 +47,6 @@ const emit = defineEmits<{
 const RECURRENCE_OPTIONS = (Object.keys(RECURRENCE_LABELS) as CalendarRecurrence[]).map(
   (value) => ({ value, label: RECURRENCE_LABELS[value] }),
 );
-// Explicit order: numeric-looking keys would otherwise come before the empty one.
-const REMINDER_OPTIONS = (['', '15', '60', '1440', '10080'] as ReminderValue[]).map((value) => ({
-  value,
-  label: REMINDER_LABELS[value],
-}));
 
 // First invalid field gets focus, in the order the fields are shown.
 const FOCUS_TARGETS: ReadonlyArray<[string, string]> = [
@@ -63,7 +59,7 @@ const FOCUS_TARGETS: ReadonlyArray<[string, string]> = [
   ['weekdays', 'calendar-event-weekdays'],
   ['repeatUntil', 'calendarEventRepeatUntil-input'],
   ['participantUserIds', 'calendar-event-participants'],
-  ['reminder', 'calendarEventReminder-select'],
+  ['reminders', 'calendar-event-reminders'],
   ['description', 'calendarEventDescription-input'],
 ];
 
@@ -72,6 +68,7 @@ function copy(source: EventFormState): EventFormState {
     ...source,
     weekdays: [...source.weekdays],
     participantUserIds: [...source.participantUserIds],
+    reminders: [...source.reminders],
   };
 }
 
@@ -112,6 +109,13 @@ const memberChips = computed(() =>
   })),
 );
 const removalHint = computed(() => formerParticipantsHint(props.formerParticipants));
+const remindersFull = computed(() => state.reminders.length >= MAX_REMINDERS);
+const remindersHint = computed(() => {
+  const limit = remindersFull.value
+    ? 'Выбрано три — снимите одно, чтобы выбрать другое'
+    : 'Можно выбрать до трёх';
+  return state.allDay ? `${limit}. Отсчёт от 09:00 дня события` : limit;
+});
 
 function errorFor(field: string): string | undefined {
   return errors.value[field] ?? props.serverErrors[field];
@@ -133,8 +137,12 @@ function setRecurrence(value: string): void {
   state.recurrence = value as CalendarRecurrence;
 }
 
-function setReminder(value: string): void {
-  state.reminder = value as ReminderValue;
+function toggleReminder(minutes: number): void {
+  if (state.reminders.includes(minutes)) {
+    state.reminders = state.reminders.filter((value) => value !== minutes);
+  } else if (state.reminders.length < MAX_REMINDERS) {
+    state.reminders = [...state.reminders, minutes];
+  }
 }
 
 function handleDescription(event: Event): void {
@@ -337,14 +345,45 @@ watch(
         </p>
       </fieldset>
 
-      <UiSelect
-        :model-value="state.reminder"
-        name="calendarEventReminder"
-        label="Напоминание"
-        :options="REMINDER_OPTIONS"
-        :error="errorFor('reminder')"
-        @update:model-value="setReminder"
-      />
+      <fieldset
+        id="calendar-event-reminders"
+        class="event-form__group"
+        :aria-describedby="
+          errorFor('reminders')
+            ? 'calendar-event-reminders-hint calendar-event-reminders-error'
+            : 'calendar-event-reminders-hint'
+        "
+      >
+        <legend class="event-form__legend">Напоминания</legend>
+        <div class="event-form__chips">
+          <button
+            v-for="minutes in REMINDER_OFFSETS"
+            :key="minutes"
+            type="button"
+            class="event-form__chip"
+            :aria-pressed="state.reminders.includes(minutes)"
+            :disabled="remindersFull && !state.reminders.includes(minutes)"
+            :data-testid="`calendar-event-reminder-${minutes}`"
+            @click="toggleReminder(minutes)"
+          >
+            <Check
+              v-if="state.reminders.includes(minutes)"
+              :size="16"
+              aria-hidden="true"
+              data-testid="calendar-event-reminder-check"
+            />
+            {{ REMINDER_LABELS[minutes] }}
+          </button>
+        </div>
+        <p id="calendar-event-reminders-hint" class="event-form__hint">{{ remindersHint }}</p>
+        <p
+          v-if="errorFor('reminders')"
+          id="calendar-event-reminders-error"
+          class="event-form__error"
+        >
+          {{ errorFor('reminders') }}
+        </p>
+      </fieldset>
 
       <div class="event-form__field">
         <label class="event-form__label" for="calendarEventDescription-input">Описание</label>
@@ -535,6 +574,16 @@ watch(
 .event-form__chip:focus-visible {
   outline: 2px solid var(--hf-color-focus-ring);
   outline-offset: 2px;
+}
+
+.event-form__chip:disabled {
+  border-color: var(--hf-color-border);
+  color: var(--hf-color-text-muted);
+  cursor: not-allowed;
+}
+
+.event-form__chip:disabled:hover {
+  border-color: var(--hf-color-border);
 }
 
 .event-form__field {

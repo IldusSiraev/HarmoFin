@@ -16,8 +16,6 @@ import { isoWeekday } from './calendar-dates.js';
 // the authority and its fieldErrors are shown under the same fields. The client date message
 // names the date picker's input format (ДД.ММ.ГГГГ), not the API one.
 
-export type ReminderValue = '' | '15' | '60' | '1440' | '10080';
-
 export interface EventFormState {
   title: string;
   description: string;
@@ -30,15 +28,24 @@ export interface EventFormState {
   weekdays: number[];
   repeatUntil: string;
   participantUserIds: string[];
-  reminder: ReminderValue;
+  reminders: number[];
 }
 
-export const REMINDER_LABELS: Record<ReminderValue, string> = {
-  '': 'Без напоминания',
-  '15': 'За 15 минут',
-  '60': 'За 1 час',
-  '1440': 'За 1 день',
-  '10080': 'За 1 неделю',
+// Same list as apps/api/src/calendar/calendar.schemas.ts (REMINDER_OFFSETS): minutes before the
+// start; an all-day event counts from 09:00 of its day.
+export const REMINDER_OFFSETS = [0, 5, 15, 30, 60, 120, 1440, 2880, 10080] as const;
+export const MAX_REMINDERS = 3;
+
+export const REMINDER_LABELS: Record<number, string> = {
+  0: 'В момент начала',
+  5: 'За 5 мин',
+  15: 'За 15 мин',
+  30: 'За 30 мин',
+  60: 'За 1 час',
+  120: 'За 2 часа',
+  1440: 'За 1 день',
+  2880: 'За 2 дня',
+  10080: 'За 1 неделю',
 };
 
 export const RECURRENCE_LABELS: Record<CalendarRecurrence, string> = {
@@ -67,10 +74,10 @@ const MAX_DESCRIPTION = 2000;
 const MAX_ALL_DAY_SPAN_DAYS = 30;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
-const REMINDER_VALUES = new Set<string>(Object.keys(REMINDER_LABELS));
+const isReminderOffset = (minutes: number): boolean => minutes in REMINDER_LABELS;
 
 // Server field paths that the form shows under a differently named field.
-const FIELD_ALIASES: Record<string, string> = { reminderMinutes: 'reminder' };
+const FIELD_ALIASES: Record<string, string> = { reminderMinutes: 'reminders' };
 
 const asLocalNoon = (date: string): Date => new Date(`${date}T12:00:00Z`);
 const dayMonth = (date: string): string => format(asLocalNoon(date), 'd MMMM', { locale: ru });
@@ -109,12 +116,11 @@ export function emptyForm(date: string): EventFormState {
     weekdays: [isoWeekday(date)],
     repeatUntil: '',
     participantUserIds: [],
-    reminder: '',
+    reminders: [],
   };
 }
 
 export function fromEvent(event: CalendarEventDto): EventFormState {
-  const reminder = event.reminderMinutes === null ? '' : String(event.reminderMinutes);
   return {
     title: event.title,
     description: event.description ?? '',
@@ -131,7 +137,7 @@ export function fromEvent(event: CalendarEventDto): EventFormState {
     participantUserIds: event.participants
       .filter((person) => person.isActiveMember)
       .map((person) => person.userId),
-    reminder: REMINDER_VALUES.has(reminder) ? (reminder as ReminderValue) : '',
+    reminders: [...new Set(event.reminders)].filter(isReminderOffset).sort((a, b) => a - b),
   };
 }
 
@@ -157,7 +163,7 @@ export function toInput(state: EventFormState): CalendarEventInput {
     weekdays: state.recurrence === 'WEEKLY' ? [...state.weekdays].sort((a, b) => a - b) : [],
     repeatUntil: repeating && state.repeatUntil ? state.repeatUntil : null,
     participantUserIds: [...state.participantUserIds],
-    reminderMinutes: state.reminder === '' ? null : Number(state.reminder),
+    reminders: [...state.reminders].sort((a, b) => a - b),
   };
 }
 
@@ -205,6 +211,9 @@ export function validateForm(state: EventFormState): Record<string, string> {
     else if (dateValid && state.repeatUntil < state.date) {
       errors.repeatUntil = 'Повтор не может закончиться раньше начала.';
     }
+  }
+  if (state.reminders.length > MAX_REMINDERS) {
+    errors.reminders = 'Можно выбрать до трёх напоминаний.';
   }
   return errors;
 }
@@ -271,4 +280,16 @@ export function describeWhen(
 
 export function repeatUntilLabel(repeatUntil: string): string {
   return `Повторяется до ${dayMonth(repeatUntil)}`;
+}
+
+// The card line: «За 1 день, за 1 час, в момент начала» — the earliest reminder first.
+export function remindersLabel(reminders: readonly number[]): string {
+  const labels = [...new Set(reminders)]
+    .filter(isReminderOffset)
+    .sort((a, b) => b - a)
+    .map((minutes, index) => {
+      const label = REMINDER_LABELS[minutes]!;
+      return index === 0 ? label : label.charAt(0).toLowerCase() + label.slice(1);
+    });
+  return labels.length > 0 ? labels.join(', ') : 'Без напоминания';
 }

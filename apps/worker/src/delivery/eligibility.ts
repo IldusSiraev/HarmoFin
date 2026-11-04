@@ -53,18 +53,22 @@ export function cancelReason(
     if (!notification || notification.resolvedAt || notification.readAt) {
       return 'NOTIFICATION_CLOSED';
     }
-    if (channel === 'PUSH' && !pushTypeEnabled(notification.notificationType, facts.setting)) {
+    if (!typeEnabled(notification.notificationType, facts.setting, channel)) {
       return 'TYPE_DISABLED';
     }
   }
   return null;
 }
 
-/** Push has its own switch per type; any other type is never pushed. */
-function pushTypeEnabled(type: string, setting: NonNullable<DeliveryFacts['setting']>): boolean {
+/** Every channel has its own switch per urgent type; push sends no other type at all. */
+function typeEnabled(
+  type: string,
+  setting: NonNullable<DeliveryFacts['setting']>,
+  channel: DeliveryChannel,
+): boolean {
   if (type === 'PLAN_OVERDUE') return setting.planOverdueEnabled;
   if (type === 'CALENDAR_REMINDER') return setting.calendarReminderEnabled;
-  return false;
+  return channel !== 'PUSH';
 }
 
 export async function loadDeliveryFacts(

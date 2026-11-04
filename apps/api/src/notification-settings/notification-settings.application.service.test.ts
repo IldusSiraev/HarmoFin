@@ -42,6 +42,8 @@ describe('NotificationSettingsApplicationService', () => {
       digestFrequency: 'DAILY',
       includeAmounts: false,
       amountsConsentAt: null,
+      planOverdueEnabled: true,
+      calendarReminderEnabled: true,
     });
   });
 
@@ -96,6 +98,8 @@ describe('NotificationSettingsApplicationService', () => {
         digestFrequency: 'DAILY',
         includeAmounts: true,
         amountsConsentAt: consentAt,
+        planOverdueEnabled: true,
+        calendarReminderEnabled: true,
       }),
     });
     const service = new NotificationSettingsApplicationService(repository as never);
@@ -106,6 +110,50 @@ describe('NotificationSettingsApplicationService', () => {
     await service.updateEmail('user-1', { ...input, includeAmounts: false }, {});
     expect(repository.upsertEmailSetting.mock.calls[1]![2].amountsConsentAt).toBeNull();
     expect(repository.audit.mock.calls.at(-1)![2].action).toBe('AMOUNTS_CONSENT_REVOKED');
+  });
+
+  it('saves the per-type switches when given and keeps the stored ones when omitted', async () => {
+    const repository = makeRepository({
+      findEmailSetting: vi.fn().mockResolvedValue({
+        id: 'setting-1',
+        enabled: true,
+        urgentEnabled: true,
+        digestFrequency: 'DAILY',
+        includeAmounts: false,
+        amountsConsentAt: null,
+        planOverdueEnabled: true,
+        calendarReminderEnabled: false,
+      }),
+    });
+    const service = new NotificationSettingsApplicationService(repository as never);
+
+    const kept = await service.updateEmail('user-1', input, {});
+    expect(repository.upsertEmailSetting.mock.calls[0]![2]).toMatchObject({
+      planOverdueEnabled: true,
+      calendarReminderEnabled: false,
+    });
+    expect(kept).toMatchObject({ planOverdueEnabled: true, calendarReminderEnabled: false });
+
+    await service.updateEmail('user-1', { ...input, planOverdueEnabled: false }, {});
+    expect(repository.upsertEmailSetting.mock.calls[1]![2]).toMatchObject({
+      planOverdueEnabled: false,
+      calendarReminderEnabled: false,
+    });
+    expect(repository.audit.mock.calls[1]![2].values).toMatchObject({
+      channel: 'EMAIL',
+      planOverdueEnabled: false,
+      calendarReminderEnabled: false,
+    });
+  });
+
+  it('switches the types on by default for a first save without them', async () => {
+    const repository = makeRepository();
+    const service = new NotificationSettingsApplicationService(repository as never);
+    await service.updateEmail('user-1', input, {});
+    expect(repository.upsertEmailSetting.mock.calls[0]![2]).toMatchObject({
+      planOverdueEnabled: true,
+      calendarReminderEnabled: true,
+    });
   });
 
   it('unsubscribes by the hash of the token and ignores unknown tokens', async () => {

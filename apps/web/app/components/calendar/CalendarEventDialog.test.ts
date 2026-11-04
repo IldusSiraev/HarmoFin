@@ -22,6 +22,7 @@ const circle: CalendarEventDto = {
   weekdays: [2],
   repeatUntil: '2026-12-29',
   reminderMinutes: 60,
+  reminders: [60],
   participants: [alia, ildar],
   createdBy: ildar,
   canEdit: true,
@@ -119,7 +120,7 @@ describe('CalendarEventDialog', () => {
     expect(people).toContain('Участники');
     const reminder = wrapper.get('[data-testid="calendar-event-reminder"]').text();
     expect(reminder).toContain('За 1 час');
-    expect(reminder).toContain('Напоминание');
+    expect(reminder).toContain('Напоминания');
     expect(wrapper.get('[data-testid="calendar-event-author"]').text()).toBe('Автор: Ильдар');
     expect(wrapper.text()).toContain('Описание');
     expect(wrapper.get('[data-testid="calendar-event-description"]').text()).toBe('Взять альбом');
@@ -132,6 +133,7 @@ describe('CalendarEventDialog', () => {
       weekdays: [],
       repeatUntil: null,
       reminderMinutes: null,
+      reminders: [],
       participants: [],
       description: null,
     });
@@ -141,6 +143,13 @@ describe('CalendarEventDialog', () => {
       'Без напоминания',
     );
     expect(wrapper.text()).not.toContain('Описание');
+  });
+
+  it('lists several reminders from the earliest one', () => {
+    const wrapper = mountDialog({ ...circle, reminders: [0, 60, 1440], reminderMinutes: 0 });
+    expect(wrapper.get('[data-testid="calendar-event-reminder"]').text()).toContain(
+      'За 1 день, за 1 час, в момент начала',
+    );
   });
 
   it('marks an author who left the family', () => {

@@ -38,6 +38,8 @@ describe('TelegramSettingsApplicationService', () => {
       digestFrequency: 'DAILY',
       includeAmounts: false,
       amountsConsentAt: null,
+      planOverdueEnabled: true,
+      calendarReminderEnabled: true,
       commandsEnabled: false,
     });
   });
@@ -100,6 +102,8 @@ describe('TelegramSettingsApplicationService', () => {
         digestFrequency: 'DAILY',
         includeAmounts: true,
         amountsConsentAt: new Date('2026-10-01'),
+        planOverdueEnabled: true,
+        calendarReminderEnabled: true,
       }),
     });
     const service = new TelegramSettingsApplicationService(repository as never, true);
@@ -109,6 +113,37 @@ describe('TelegramSettingsApplicationService', () => {
       (call) => (call[2] as { action: string }).action,
     );
     expect(actions).toEqual(['UPDATED', 'AMOUNTS_CONSENT_REVOKED']);
+  });
+
+  it('saves the per-type switches when given and keeps the stored ones when omitted', async () => {
+    const repository = makeRepository({
+      findTelegramSetting: vi.fn().mockResolvedValue({
+        id: 'setting-1',
+        enabled: true,
+        urgentEnabled: true,
+        digestFrequency: 'DAILY',
+        includeAmounts: false,
+        amountsConsentAt: null,
+        planOverdueEnabled: false,
+        calendarReminderEnabled: true,
+      }),
+    });
+    const service = new TelegramSettingsApplicationService(repository as never, true);
+
+    const kept = await service.update('user-1', input, {});
+    expect(kept).toMatchObject({ planOverdueEnabled: false, calendarReminderEnabled: true });
+
+    await service.update('user-1', { ...input, calendarReminderEnabled: false }, {});
+    expect(repository.upsertTelegramSetting.mock.calls[1]![2]).toMatchObject({
+      planOverdueEnabled: false,
+      calendarReminderEnabled: false,
+    });
+    const audits = repository.audit.mock.calls.map((call) => call[2] as { values?: unknown });
+    expect(audits.at(-1)?.values).toMatchObject({
+      channel: 'TELEGRAM',
+      planOverdueEnabled: false,
+      calendarReminderEnabled: false,
+    });
   });
 });
 

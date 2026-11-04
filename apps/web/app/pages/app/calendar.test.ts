@@ -121,6 +121,7 @@ const breakfastDto: CalendarEventDto = {
   weekdays: [],
   repeatUntil: null,
   reminderMinutes: null,
+  reminders: [],
   participants: [ildar, alia],
   createdBy: ildar,
   canEdit: true,
@@ -140,7 +141,7 @@ const input = {
   weekdays: [],
   repeatUntil: null,
   participantUserIds: ['user-id'],
-  reminderMinutes: null,
+  reminders: [],
 };
 
 const feedOf = (items: CalendarFeedItem[]) => ({ from: '', to: '', items });

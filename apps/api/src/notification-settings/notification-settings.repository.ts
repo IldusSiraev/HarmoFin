@@ -11,6 +11,8 @@ export type EmailSettingValues = {
   digestFrequency: DigestFrequency;
   includeAmounts: boolean;
   amountsConsentAt: Date | null;
+  planOverdueEnabled: boolean;
+  calendarReminderEnabled: boolean;
 };
 
 export type StoredEmailSetting = EmailSettingValues & { id: string };
@@ -39,6 +41,8 @@ export class NotificationSettingsRepository {
         digestFrequency: true,
         includeAmounts: true,
         amountsConsentAt: true,
+        planOverdueEnabled: true,
+        calendarReminderEnabled: true,
       },
     });
   }
@@ -59,6 +63,8 @@ export class NotificationSettingsRepository {
         digestFrequency: true,
         includeAmounts: true,
         amountsConsentAt: true,
+        planOverdueEnabled: true,
+        calendarReminderEnabled: true,
       },
     });
   }

@@ -27,9 +27,10 @@ type UrgentInput = {
 
 /**
  * Called inside the transaction that has just created the in-app notification, so the message is
- * queued exactly when the notification exists: one row per channel with the channel and urgent
- * messages on. Push also needs its per-type switch and a device of an active session. The settings
- * are read here only to avoid queueing messages nobody wants; the sender re-checks everything.
+ * queued exactly when the notification exists: one row per channel with the channel, urgent
+ * messages and this notification type on. Push also needs a device of an active session. The
+ * settings are read here only to avoid queueing messages nobody wants; the sender re-checks
+ * everything.
  */
 export async function enqueueUrgent(
   tx: Prisma.TransactionClient,
@@ -46,7 +47,8 @@ export async function enqueueUrgent(
       },
     });
     if (!setting?.enabled || !setting.urgentEnabled) continue;
-    if (channel === 'PUSH' && !(await wantsPush(tx, input, setting))) continue;
+    if (!typeEnabled(input.type, setting)) continue;
+    if (channel === 'PUSH' && !(await hasPushDevice(tx, input))) continue;
     await tx.notificationDelivery.createMany({
       data: {
         id: randomUUID(),
@@ -64,14 +66,11 @@ export async function enqueueUrgent(
   }
 }
 
-async function wantsPush(
-  tx: Prisma.TransactionClient,
-  input: UrgentInput,
-  setting: ChannelSetting,
-): Promise<boolean> {
-  const typeOn =
-    input.type === 'PLAN_OVERDUE' ? setting.planOverdueEnabled : setting.calendarReminderEnabled;
-  if (!typeOn) return false;
+function typeEnabled(type: UrgentNotificationType, setting: ChannelSetting): boolean {
+  return type === 'PLAN_OVERDUE' ? setting.planOverdueEnabled : setting.calendarReminderEnabled;
+}
+
+async function hasPushDevice(tx: Prisma.TransactionClient, input: UrgentInput): Promise<boolean> {
   const devices = await tx.pushSubscription.count({
     where: { userId: input.userId, session: activeSessionWhere(input.now) },
   });

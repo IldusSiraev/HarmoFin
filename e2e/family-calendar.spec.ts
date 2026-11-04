@@ -30,6 +30,8 @@ test('a family shares a weekly event; the member sees it but cannot edit it', as
   await form.getByRole('combobox', { name: 'Повторять' }).click();
   await creatorPage.getByRole('option', { name: 'Каждую неделю' }).click();
   await form.getByRole('button', { name: 'Алия' }).click();
+  await form.getByRole('button', { name: 'За 1 день' }).click();
+  await form.getByRole('button', { name: 'За 1 час' }).click();
   await form.getByRole('button', { name: 'Сохранить событие' }).click();
   await expect(creatorPage.getByTestId('toast-stack')).toContainText('Событие сохранено');
   await expect(creatorPage.getByRole('grid')).toContainText('17:00 Кружок рисования');
@@ -44,6 +46,7 @@ test('a family shares a weekly event; the member sees it but cannot edit it', as
   await row.getByRole('button').click();
   const card = memberPage.getByRole('dialog', { name: 'Кружок рисования' });
   await expect(card).toContainText('Изменять событие может только автор');
+  await expect(card).toContainText('За 1 день, за 1 час');
   await expect(card.getByRole('button', { name: 'Изменить событие' })).toHaveCount(0);
   await card.getByRole('button', { name: 'Закрыть' }).click();
 

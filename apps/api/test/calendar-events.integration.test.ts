@@ -91,6 +91,7 @@ describe('calendar events: create and read', () => {
       recurrence: 'WEEKLY',
       weekdays: [2],
       reminderMinutes: 60,
+      reminders: [60],
       createdBy: { userId: editor.user.id, isActiveMember: true },
       participants: [{ userId: creator.user.id, isActiveMember: true }],
       canEdit: true,
@@ -279,6 +280,85 @@ describe('calendar events: PATCH and DELETE idempotency and audit', () => {
       for (const text of ['Кружок', 'лепки', 'рисования', 'альбом', 'пластилин']) {
         expect(payload).not.toContain(text);
       }
+    }
+  });
+});
+
+// The same weekly body without either reminder field.
+function withoutReminders(): Record<string, unknown> {
+  const body: Record<string, unknown> = { ...weekly() };
+  delete body.reminderMinutes;
+  return body;
+}
+
+describe('calendar events: reminders', () => {
+  it('stores up to three reminders ascending and mirrors the smallest one', async () => {
+    const created = await create(editor, { ...withoutReminders(), reminders: [1440, 0, 60] });
+    const response = await env.inject('GET', `${base(editor)}/${created.id}`, editor);
+    expect(response.json()).toMatchObject({ reminders: [0, 60, 1440], reminderMinutes: 0 });
+    const row = await env.prisma.calendarEvent.findUniqueOrThrow({ where: { id: created.id } });
+    expect(row).toMatchObject({ reminderOffsets: [0, 60, 1440], reminderMinutes: 0 });
+
+    const audit = await env.prisma.auditEvent.findFirst({
+      where: { entityType: 'calendar_event', entityId: created.id, action: 'CREATED' },
+    });
+    expect(audit?.newValues).toMatchObject({ reminders: [0, 60, 1440], reminderMinutes: 0 });
+  });
+
+  it('an event without reminder fields has none', async () => {
+    const created = await create(editor, withoutReminders());
+    const response = await env.inject('GET', `${base(editor)}/${created.id}`, editor);
+    expect(response.json()).toMatchObject({ reminders: [], reminderMinutes: null });
+  });
+
+  it('PATCH without reminder fields keeps them, with an empty list clears them', async () => {
+    const created = await create(editor, { ...withoutReminders(), reminders: [15, 1440] });
+    const kept = await env.inject('PATCH', `${base(editor)}/${created.id}`, editor, {
+      ...withoutReminders(),
+      title: 'Кружок лепки',
+    });
+    expect(kept.statusCode, kept.body).toBe(200);
+    expect(kept.json()).toMatchObject({ title: 'Кружок лепки', reminders: [15, 1440] });
+
+    const cleared = await env.inject('PATCH', `${base(editor)}/${created.id}`, editor, {
+      ...withoutReminders(),
+      reminders: [],
+    });
+    expect(cleared.json()).toMatchObject({ reminders: [], reminderMinutes: null });
+    const row = await env.prisma.calendarEvent.findUniqueOrThrow({ where: { id: created.id } });
+    expect(row).toMatchObject({ reminderOffsets: [], reminderMinutes: null });
+  });
+
+  it('PATCH with only the deprecated field replaces the reminders with one', async () => {
+    const created = await create(editor, { ...withoutReminders(), reminders: [15, 1440] });
+    const response = await env.inject('PATCH', `${base(editor)}/${created.id}`, editor, {
+      ...withoutReminders(),
+      reminderMinutes: 120,
+    });
+    expect(response.json()).toMatchObject({ reminders: [120], reminderMinutes: 120 });
+  });
+
+  it('refuses four reminders, an unknown offset, repeats and disagreeing fields', async () => {
+    const cases: Array<[Record<string, unknown>, string, string]> = [
+      [{ reminders: [0, 5, 15, 30] }, 'reminders', 'Можно выбрать до трёх напоминаний.'],
+      [{ reminders: [45] }, 'reminders.0', 'Выберите напоминание из списка.'],
+      [{ reminders: [60, 60] }, 'reminders', 'Напоминания не должны повторяться.'],
+      [
+        { reminders: [15, 60], reminderMinutes: 60 },
+        'reminders',
+        'Напоминания не совпадают с reminderMinutes.',
+      ],
+    ];
+    for (const [extra, field, message] of cases) {
+      const response = await env.inject('POST', base(editor), editor, {
+        ...withoutReminders(),
+        ...extra,
+      });
+      expect(response.statusCode, JSON.stringify(extra)).toBe(400);
+      expect(response.json()).toMatchObject({
+        code: 'VALIDATION_FAILED',
+        fieldErrors: expect.arrayContaining([expect.objectContaining({ field, message })]),
+      });
     }
   });
 });

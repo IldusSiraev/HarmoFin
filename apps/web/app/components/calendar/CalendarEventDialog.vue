@@ -11,8 +11,7 @@ import UiModal from '../ui/Modal.vue';
 import {
   describeRecurrence,
   describeWhen,
-  REMINDER_LABELS,
-  type ReminderValue,
+  remindersLabel,
   repeatUntilLabel,
 } from './event-form-state.js';
 import { participantsLabel } from './participants-label.js';
@@ -54,11 +53,7 @@ const when = computed(() => {
 const participants = computed(() =>
   props.event ? participantsLabel(props.event.participants, props.activeMemberIds) : '',
 );
-const reminder = computed(() => {
-  const minutes = props.event?.reminderMinutes;
-  const key = (minutes === null || minutes === undefined ? '' : String(minutes)) as ReminderValue;
-  return REMINDER_LABELS[key] ?? REMINDER_LABELS[''];
-});
+const reminder = computed(() => remindersLabel(props.event?.reminders ?? []));
 const author = computed(() => (props.event ? authorLabel(props.event.createdBy) : ''));
 
 function confirmDelete(): void {
@@ -149,7 +144,7 @@ function cancelDelete(): void {
           <span class="event-card__icon" aria-hidden="true"><Bell :size="18" /></span>
           <span class="event-card__text">
             <span class="event-card__main">{{ reminder }}</span>
-            <span class="event-card__caption">Напоминание</span>
+            <span class="event-card__caption">Напоминания</span>
           </span>
         </li>
       </ul>

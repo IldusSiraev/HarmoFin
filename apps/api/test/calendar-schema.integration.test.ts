@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { Prisma } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -72,7 +75,7 @@ describe('calendar_events constraints', () => {
   });
 
   it('rejects an unsupported reminder and an interval out of range', async () => {
-    await rejects(base({ reminderMinutes: 30 }));
+    await rejects(base({ reminderMinutes: 45 }));
     await rejects(base({ recurrence: 'DAILY', interval: 0 }));
   });
 
@@ -98,5 +101,62 @@ describe('calendar_events constraints', () => {
         endsAt: new Date('2026-11-04T14:01:00Z'),
       }),
     );
+  });
+
+  it('stores up to three ascending reminder offsets and widens reminder_minutes', async () => {
+    await env.prisma.calendarEvent.create({
+      data: base({ reminderOffsets: [0, 60, 10080], reminderMinutes: 0 }),
+    });
+    await env.prisma.calendarEvent.create({
+      data: base({ reminderOffsets: [5, 30], reminderMinutes: 5 }),
+    });
+    const plain = await env.prisma.calendarEvent.create({ data: base() });
+    expect(plain.reminderOffsets).toEqual([]);
+  });
+
+  it('rejects four offsets, an offset outside the list, repeats and a wrong order', async () => {
+    await rejects(base({ reminderOffsets: [0, 5, 15, 30] }));
+    await rejects(base({ reminderOffsets: [45] }));
+    await rejects(base({ reminderOffsets: [60, 60] }));
+    await rejects(base({ reminderOffsets: [60, 15] }));
+    await rejects(base({ reminderOffsets: [5, 60, 15] }));
+  });
+
+  it('rejects a NULL offset array and a NULL element', async () => {
+    const id = createUuidV7();
+    await env.prisma.calendarEvent.create({ data: base({ id }) });
+    await expect(
+      env.prisma.$executeRawUnsafe(
+        `UPDATE "calendar_events" SET "reminder_offsets" = NULL WHERE "id" = '${id}'`,
+      ),
+    ).rejects.toMatchObject({ meta: { code: '23514' } });
+    await expect(
+      env.prisma.$executeRawUnsafe(
+        `UPDATE "calendar_events" SET "reminder_offsets" = ARRAY[5, NULL]::INTEGER[] WHERE "id" = '${id}'`,
+      ),
+    ).rejects.toMatchObject({ meta: { code: '23514' } });
+  });
+
+  it('the backfill statement of the migration copies reminder_minutes into the offsets', async () => {
+    const migration = readFileSync(
+      fileURLToPath(
+        new URL(
+          '../../../prisma/migrations/20261105000000_calendar_multiple_reminders/migration.sql',
+          import.meta.url,
+        ),
+      ),
+      'utf8',
+    );
+    const backfill = migration
+      .split(';')
+      .map((statement) => statement.replace(/--.*$/gm, '').trim())
+      .find((statement) => statement.startsWith('UPDATE "calendar_events"'));
+    expect(backfill).toBeDefined();
+
+    const id = createUuidV7();
+    await env.prisma.calendarEvent.create({ data: base({ id, reminderMinutes: 1440 }) });
+    await env.prisma.$executeRawUnsafe(`${backfill} AND "id" = '${id}'`);
+    const row = await env.prisma.calendarEvent.findUniqueOrThrow({ where: { id } });
+    expect(row.reminderOffsets).toEqual([1440]);
   });
 });
