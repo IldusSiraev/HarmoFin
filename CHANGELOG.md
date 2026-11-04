@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.21.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.20.1...v1.21.0) (2026-11-04)
+
+
+### Новое
+
+* **calendar:** до трёх напоминаний на событие и типы срочных уведомлений в email и Telegram ([e6e82f3](https://github.com/IldusSiraev/HarmoFin/commit/e6e82f315f3c24fba61b0017e05d74af2053bc26))
+* **web:** типы срочных уведомлений в настройках email и Telegram, документация ([129cf8f](https://github.com/IldusSiraev/HarmoFin/commit/129cf8ff14a0832abe8ba0a78051da384d346ab4))
+
 ## [1.20.1](https://github.com/IldusSiraev/HarmoFin/compare/v1.20.0...v1.20.1) (2026-11-03)
 
 
