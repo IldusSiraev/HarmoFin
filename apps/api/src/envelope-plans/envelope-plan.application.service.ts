@@ -14,6 +14,7 @@ import { findAccessActor, requireAccessActor } from '../common/policies/access-a
 import { BudgetAccessPolicy } from '../common/policies/budget-access.policy.js';
 import { PlanModelPolicy } from '../common/plan-model/plan-model.policy.js';
 import { periodSlotAlreadyAssigned } from '../common/reference-data/reference-data.errors.js';
+import { cycleAndPeriodAt } from '../cycles/cycle-settings-at.js';
 import { todayInTimezone } from '../cycles/cycle-period.domain.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { AssignmentBalanceRepository } from './assignment-balance.repository.js';
@@ -510,10 +511,9 @@ export class EnvelopePlanApplicationService {
     const result = new Map<string, EnvelopePeriodBody[]>();
     const periods = await this.repository.listPeriods(tx, budgetId, envelopeIds);
     if (periods.length === 0) return result;
-    const today = todayInTimezone(
-      new Date(),
-      await this.repository.requireBudgetTimezone(tx, budgetId),
-    );
+    const settings = await this.repository.requireBudgetSettings(tx, budgetId);
+    const today = todayInTimezone(new Date(), settings.timezone);
+    const actualPeriod = (await cycleAndPeriodAt(tx, budgetId, today, settings)).period;
     const byPeriod = new Map<string, BalanceRow>();
     for (const row of rows) {
       if (row.periodId !== null) byPeriod.set(row.periodId, row);
@@ -524,7 +524,10 @@ export class EnvelopePlanApplicationService {
       if (!row) continue;
       const startsOn = period.startsOn.toISOString().slice(0, 10);
       const endsOn = period.endsOn.toISOString().slice(0, 10);
-      const current = startsOn <= today && today <= endsOn;
+      const current =
+        startsOn <= today &&
+        today <= endsOn &&
+        (period.envelope.periodSlot === null || period.envelope.periodSlot === actualPeriod.id);
       if (!current && row.funded === 0n && row.spent === 0n) continue;
       const list = result.get(period.envelopeId) ?? [];
       list.push({
