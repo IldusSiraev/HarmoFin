@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ru">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HarmoFin — сравнение надписей</title>
+  <style>
+    @font-face { font-family: Inter; src: url('../../apps/web/public/fonts/inter-cyrillic-4.1.0.woff2') format('woff2'); font-weight: 100 900; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 32px; background: #f7f9fa; color: #0d1b2a; font: 16px Inter, sans-serif; }
+    main { max-width: 800px; margin: auto; }
+    section { padding: 28px; margin-block: 24px; border-radius: 16px; background: white; }
+    .dark { background: #0d1b2a; color: white; }
+    .lockup { display: flex; align-items: center; gap: 23px; }
+    .mark { width: 128px; height: 128px; }
+    .word { font-size: 78px; font-weight: 700; line-height: 1; }
+    .approved { width: min(100%, 510px); height: auto; }
+    @media(max-width: 560px) { body { padding: 16px; } section { padding: 16px; } .word { font-size: 32px; } .mark { width: 54px; height: 54px; } .lockup { gap: 12px; } }
+  </style>
+  <main>
+    <h1>Сравнение надписей</h1>
+    <p>В приложение подключён одобренный Segoe UI Bold в кривых. Inter ниже — только для сравнения; автоматической замены нет.</p>
+    <section><h2>Одобренная версия · Segoe UI Bold</h2><img class="approved" src="logo.svg" alt="HarmoFin" width="510" height="128" /></section>
+    <section><h2>Альтернатива · Inter Bold</h2><div class="lockup"><img class="mark" src="mark.svg" alt="" width="128" height="128" /><span class="word">HarmoFin</span></div></section>
+    <section class="dark"><h2>Одобренная версия на тёмном</h2><img class="approved" src="logo-inverse.svg" alt="HarmoFin" width="510" height="128" /></section>
+    <section class="dark"><h2>Inter на тёмном</h2><div class="lockup"><img class="mark" src="mark-inverse.svg" alt="" width="128" height="128" /><span class="word">HarmoFin</span></div></section>
+  </main>
+</html>

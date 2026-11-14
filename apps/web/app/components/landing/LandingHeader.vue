@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BrandLogo from '../brand/BrandLogo.vue';
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { Menu, X } from '@lucide/vue';
 
@@ -43,7 +44,7 @@ onBeforeUnmount(() => {
 <template>
   <header class="landing-header" :class="{ 'landing-header--scrolled': scrolled }">
     <div class="landing-header__inner">
-      <NuxtLink to="/" class="landing-header__wordmark">HarmoFin</NuxtLink>
+      <NuxtLink to="/" class="landing-header__wordmark"><BrandLogo /></NuxtLink>
 
       <nav class="landing-header__nav" aria-label="Разделы страницы">
         <a
@@ -137,6 +138,9 @@ onBeforeUnmount(() => {
 }
 
 .landing-header__wordmark {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
   font-weight: var(--hf-font-weight-semibold);
   font-size: var(--hf-font-size-body);
   color: var(--hf-color-text);

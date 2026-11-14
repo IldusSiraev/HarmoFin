@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BrandLogo from '../brand/BrandLogo.vue';
 import { onMounted, ref } from 'vue';
 import { navigateTo, useRoute } from '#imports';
 import {
@@ -72,7 +73,7 @@ async function handleLogout() {
 <template>
   <aside class="app-sidebar" aria-label="Основная навигация">
     <div class="app-sidebar__top">
-      <NuxtLink to="/app" class="app-sidebar__wordmark">HarmoFin</NuxtLink>
+      <NuxtLink to="/app" class="app-sidebar__wordmark"><BrandLogo compact /></NuxtLink>
       <div class="app-sidebar__top-actions">
         <AppAddMenu class="app-sidebar__add" tooltip-placement="bottom" />
         <UiButton
@@ -216,7 +217,10 @@ async function handleLogout() {
 }
 
 .app-sidebar__wordmark {
-  padding: 0 var(--hf-space-3);
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0;
   color: var(--hf-color-text);
   font-size: 1.125rem;
   font-weight: var(--hf-font-weight-bold);

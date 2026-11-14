@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BrandLogo from '../brand/BrandLogo.vue';
 import { onMounted, ref } from 'vue';
 
 import UiButton from '../ui/Button.vue';
@@ -33,7 +34,7 @@ function submit(): void | Promise<void> {
 <template>
   <main class="auth-shell" :data-hydrated="hydrated ? 'true' : 'false'">
     <section class="auth-intro" aria-label="HarmoFin">
-      <NuxtLink class="wordmark" to="/">HarmoFin</NuxtLink>
+      <NuxtLink class="wordmark" to="/"><BrandLogo inverse /></NuxtLink>
       <div class="cycle-mark" aria-hidden="true">
         <i />
         <i />
@@ -117,6 +118,9 @@ function submit(): void | Promise<void> {
 }
 
 .wordmark {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
   color: inherit;
   font-size: 1.18rem;
   font-weight: var(--hf-font-weight-bold);
