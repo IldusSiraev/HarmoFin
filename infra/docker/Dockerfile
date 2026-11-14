@@ -30,6 +30,9 @@ RUN cp -a node_modules/.pnpm/@prisma+client@*/node_modules/.prisma /runtime/work
 
 FROM node:24.20.0-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS runtime-base
 
+# Apply Alpine security revisions shared by every production runtime target.
+RUN apk upgrade --no-cache musl musl-utils zlib
+
 WORKDIR /app
 ENV NODE_ENV=production
 
