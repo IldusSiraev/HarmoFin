@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.21.1](https://github.com/IldusSiraev/HarmoFin/compare/v1.21.0...v1.21.1) (2026-11-14)
+
+
+### Исправления
+
+* **ci:** align period fixtures and update Alpine security packages ([df22586](https://github.com/IldusSiraev/HarmoFin/commit/df225867dd091623f3bec457dcfc4d8cbc1d42f1))
+* **envelopes:** select current period by cycle slot ([4188a7c](https://github.com/IldusSiraev/HarmoFin/commit/4188a7c523ee73f66b8d1f728eb5202f1236eca5))
+* **envelopes:** корректно определять текущую половину периода ([4ca6845](https://github.com/IldusSiraev/HarmoFin/commit/4ca68451ba045a405237dabf8493885c42ea718c))
+
 ## [1.21.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.20.1...v1.21.0) (2026-11-04)
 
 
