@@ -139,22 +139,36 @@ export class EnvelopePlanRepository {
     tx: Prisma.TransactionClient,
     budgetId: string,
     envelopeIds: string[],
-  ): Promise<Array<{ id: string; envelopeId: string; startsOn: Date; endsOn: Date }>> {
+  ): Promise<
+    Array<{
+      id: string;
+      envelopeId: string;
+      startsOn: Date;
+      endsOn: Date;
+      envelope: { periodSlot: 'FIRST' | 'SECOND' | null };
+    }>
+  > {
     if (envelopeIds.length === 0) return [];
     return tx.envelopePeriod.findMany({
       where: { budgetId, envelopeId: { in: envelopeIds } },
-      select: { id: true, envelopeId: true, startsOn: true, endsOn: true },
+      select: {
+        id: true,
+        envelopeId: true,
+        startsOn: true,
+        endsOn: true,
+        envelope: { select: { periodSlot: true } },
+      },
       orderBy: [{ startsOn: 'asc' }, { id: 'asc' }],
     });
   }
 
-  async requireBudgetTimezone(tx: Prisma.TransactionClient, budgetId: string): Promise<string> {
+  async requireBudgetSettings(tx: Prisma.TransactionClient, budgetId: string) {
     const budget = await tx.budget.findUnique({
       where: { id: budgetId },
-      select: { timezone: true },
+      select: { timezone: true, cycleStartDay: true, periodBoundaryOffset: true },
     });
     if (!budget) throw resourceNotFound();
-    return budget.timezone;
+    return budget;
   }
 
   async findEnvelope(

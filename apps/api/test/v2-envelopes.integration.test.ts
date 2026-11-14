@@ -5,6 +5,7 @@ import type { FastifyInstance } from 'fastify';
 import { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { cycleAndPeriodFor, todayInTimezone } from '../src/cycles/cycle-period.domain.js';
 import { createApiApp } from '../src/app.js';
 import { loadApiConfig } from '../src/config/env.js';
 import { IdempotencyService } from '../src/common/idempotency/idempotency.service.js';
@@ -23,6 +24,7 @@ const origin = 'http://localhost:3000';
 const password = 'correct-password-10';
 
 const emails = {
+  periods: `v2-env-periods-${randomUUID()}@harmofin.test`,
   owner: `v2-env-owner-${randomUUID()}@harmofin.test`,
   outsider: `v2-env-outsider-${randomUUID()}@harmofin.test`,
   viewer: `v2-env-viewer-${randomUUID()}@harmofin.test`,
@@ -77,7 +79,7 @@ describe('v2 envelopes: create, read, safe archive', () => {
       const registered = await register(emails[key]);
       ctx[key] = registered;
     }
-    for (const key of ['owner', 'outsider'] as const) {
+    for (const key of ['owner', 'outsider', 'periods'] as const) {
       await prisma.budget.update({
         where: { id: ctx[key]!.budgetId },
         data: { planModelVersion: 2, planModelActivatedOn: new Date(), timezone: 'UTC' },
@@ -974,6 +976,12 @@ describe('v2 envelopes: периоды конверта в ответе', () => 
   const dateOnly = (delta: number) =>
     new Date(`${new Date(Date.now() + delta * dayMs).toISOString().slice(0, 10)}T00:00:00Z`);
   let periodEnvelope: string;
+  async function currentSlot(timezone = 'UTC') {
+    const settings = await prisma.budget.findUniqueOrThrow({
+      where: { id: ctx.periods!.budgetId },
+    });
+    return cycleAndPeriodFor(settings, todayInTimezone(new Date(), timezone)).period.id;
+  }
   let pastPeriod: string;
   let currentPeriod: string;
 
@@ -990,7 +998,7 @@ describe('v2 envelopes: периоды конверта в ответе', () => 
   async function listOwn(): Promise<
     Array<{ id: string; periods: PeriodItem[]; balanceMinor: string }>
   > {
-    const result = await service!.list(ctx.owner!.userId, ctx.owner!.budgetId);
+    const result = await service!.list(ctx.periods!.userId, ctx.periods!.budgetId);
     return result.body.items as unknown as Array<{
       id: string;
       periods: PeriodItem[];
@@ -999,10 +1007,11 @@ describe('v2 envelopes: периоды конверта в ответе', () => 
   }
 
   it('отдаёт периоды периодного конверта: id, даты, остаток и признак текущего', async () => {
+    await createAccount(ctx.periods!.budgetId, ctx.periods!.userId, 30_000_000n);
     const created = await service!.create(
-      ctx.owner!.userId,
-      ctx.owner!.budgetId,
-      { name: 'Второй период', envelopeType: 'CURRENT_EXPENSES', periodSlot: 'SECOND' },
+      ctx.periods!.userId,
+      ctx.periods!.budgetId,
+      { name: 'Текущий период', envelopeType: 'CURRENT_EXPENSES', periodSlot: await currentSlot() },
       'env-periods-create',
     );
     periodEnvelope = created.body.id;
@@ -1012,7 +1021,7 @@ describe('v2 envelopes: периоды конверта в ответе', () => 
       await prisma.envelopePeriod.create({
         data: {
           id: randomUUID(),
-          budgetId: ctx.owner!.budgetId,
+          budgetId: ctx.periods!.budgetId,
           envelopeId: periodEnvelope,
           startsOn: dateOnly(-31),
           endsOn: dateOnly(-1),
@@ -1023,7 +1032,7 @@ describe('v2 envelopes: периоды конверта в ответе', () => 
       await prisma.envelopePeriod.create({
         data: {
           id: randomUUID(),
-          budgetId: ctx.owner!.budgetId,
+          budgetId: ctx.periods!.budgetId,
           envelopeId: periodEnvelope,
           startsOn: dateOnly(-2),
           endsOn: dateOnly(12),
@@ -1031,14 +1040,14 @@ describe('v2 envelopes: периоды конверта в ответе', () => 
       })
     ).id;
     await assignments!.assignFree(
-      ctx.owner!.userId,
-      ctx.owner!.budgetId,
+      ctx.periods!.userId,
+      ctx.periods!.budgetId,
       { envelopeId: periodEnvelope, periodId: pastPeriod, amount: '50', sourceKind: 'FREE' },
       'env-periods-assign-past',
     );
     await assignments!.assignFree(
-      ctx.owner!.userId,
-      ctx.owner!.budgetId,
+      ctx.periods!.userId,
+      ctx.periods!.budgetId,
       { envelopeId: periodEnvelope, periodId: currentPeriod, amount: '100', sourceKind: 'FREE' },
       'env-periods-assign-current',
     );
@@ -1060,13 +1069,18 @@ describe('v2 envelopes: периоды конверта в ответе', () => 
       BigInt(item.balanceMinor),
     );
 
-    const single = await service!.get(ctx.owner!.userId, ctx.owner!.budgetId, periodEnvelope);
+    const single = await service!.get(ctx.periods!.userId, ctx.periods!.budgetId, periodEnvelope);
     expect((single.body as unknown as { periods: PeriodItem[] }).periods).toHaveLength(2);
   });
 
   it('конверт без периодов отдаёт пустой список, чужие периоды не попадают', async () => {
-    const items = await listOwn();
-    const mandatory = items.find((row) => row.id === firstMandatory)!;
+    const plain = await service!.create(
+      ctx.periods!.userId,
+      ctx.periods!.budgetId,
+      { name: 'Без периода', envelopeType: 'CUSTOM' },
+      'period-plain',
+    );
+    const mandatory = (await listOwn()).find((row) => row.id === plain.body.id)!;
     expect(mandatory.periods).toEqual([]);
 
     const foreignPeriod = await prisma.envelopePeriod.create({
@@ -1089,8 +1103,8 @@ describe('v2 envelopes: периоды конверта в ответе', () => 
     const current = before.periods.find((period) => period.current)!;
 
     const moved = await movements!.move(
-      ctx.owner!.userId,
-      ctx.owner!.budgetId,
+      ctx.periods!.userId,
+      ctx.periods!.budgetId,
       {
         sourceEnvelopeId: periodEnvelope,
         sourcePeriodId: current.periodId,
@@ -1106,27 +1120,87 @@ describe('v2 envelopes: периоды конверта в ответе', () => 
     expect(after.periods.find((period) => !period.current)!.balanceMinor).toBe('5000');
   });
 
+  it('одинаковые даты двух половин не делают оба конверта текущими', async () => {
+    const slot = await currentSlot();
+    const opposite = await service.create(
+      ctx.periods!.userId,
+      ctx.periods!.budgetId,
+      {
+        name: 'Другая половина',
+        envelopeType: 'CURRENT_EXPENSES',
+        periodSlot: slot === 'FIRST' ? 'SECOND' : 'FIRST',
+      },
+      'period-opposite',
+    );
+    const period = await prisma.envelopePeriod.create({
+      data: {
+        id: randomUUID(),
+        budgetId: ctx.periods!.budgetId,
+        envelopeId: opposite.body.id,
+        startsOn: dateOnly(-2),
+        endsOn: dateOnly(12),
+      },
+    });
+    await assignments.assignFree(
+      ctx.periods!.userId,
+      ctx.periods!.budgetId,
+      { envelopeId: opposite.body.id, periodId: period.id, amount: '1', sourceKind: 'FREE' },
+      'period-opposite-fund',
+    );
+    const items = await listOwn();
+    expect(
+      items
+        .find((item) => item.id === periodEnvelope)!
+        .periods.find((item) => item.periodId === currentPeriod)?.current,
+    ).toBe(true);
+    expect(items.find((item) => item.id === opposite.body.id)!.periods).toEqual([
+      expect.objectContaining({
+        periodId: period.id,
+        current: false,
+        fundedMinor: '100',
+        balanceMinor: '100',
+      }),
+    ]);
+    await movements.move(
+      ctx.periods!.userId,
+      ctx.periods!.budgetId,
+      {
+        sourceEnvelopeId: opposite.body.id,
+        sourcePeriodId: period.id,
+        destinationEnvelopeId: null,
+        amount: '1',
+      },
+      'period-opposite-empty',
+    );
+    await service.archive(
+      ctx.periods!.userId,
+      ctx.periods!.budgetId,
+      opposite.body.id,
+      'period-opposite-archive',
+    );
+  });
+
   it('текущий период с нулём виден, прошлый пустой и будущий скрыты', async () => {
     const rows = await prisma.envelopePeriod.createManyAndReturn({
       data: [
         {
           id: randomUUID(),
-          budgetId: ctx.owner!.budgetId,
-          envelopeId: firstPeriod,
+          budgetId: ctx.periods!.budgetId,
+          envelopeId: periodEnvelope,
           startsOn: dateOnly(-100),
           endsOn: dateOnly(-90),
         },
         {
           id: randomUUID(),
-          budgetId: ctx.owner!.budgetId,
-          envelopeId: firstPeriod,
+          budgetId: ctx.periods!.budgetId,
+          envelopeId: periodEnvelope,
           startsOn: dateOnly(-1),
           endsOn: dateOnly(1),
         },
         {
           id: randomUUID(),
-          budgetId: ctx.owner!.budgetId,
-          envelopeId: firstPeriod,
+          budgetId: ctx.periods!.budgetId,
+          envelopeId: periodEnvelope,
           startsOn: dateOnly(100),
           endsOn: dateOnly(110),
         },
@@ -1138,7 +1212,7 @@ describe('v2 envelopes: периоды конверта в ответе', () => 
       { id: string },
     ];
     try {
-      const item = (await listOwn()).find((row) => row.id === firstPeriod)!;
+      const item = (await listOwn()).find((row) => row.id === periodEnvelope)!;
       const ids = item.periods.map((period) => period.periodId);
 
       expect(ids).toContain(currentZero.id);
@@ -1166,27 +1240,32 @@ describe('v2 envelopes: периоды конверта в ответе', () => 
       }).format(new Date());
       const at = (delta: number) =>
         new Date(new Date(`${localToday}T00:00:00Z`).getTime() + delta * dayMs);
-      await prisma.budget.update({ where: { id: ctx.owner!.budgetId }, data: { timezone } });
+      await prisma.budget.update({ where: { id: ctx.periods!.budgetId }, data: { timezone } });
+      const previousSlot = await currentSlot();
+      await prisma.envelope.update({
+        where: { id: periodEnvelope },
+        data: { periodSlot: await currentSlot(timezone) },
+      });
       const rows = await prisma.envelopePeriod.createManyAndReturn({
         data: [
           {
             id: randomUUID(),
-            budgetId: ctx.owner!.budgetId,
-            envelopeId: firstPeriod,
+            budgetId: ctx.periods!.budgetId,
+            envelopeId: periodEnvelope,
             startsOn: at(0),
             endsOn: at(0),
           },
           {
             id: randomUUID(),
-            budgetId: ctx.owner!.budgetId,
-            envelopeId: firstPeriod,
+            budgetId: ctx.periods!.budgetId,
+            envelopeId: periodEnvelope,
             startsOn: at(1),
             endsOn: at(1),
           },
           {
             id: randomUUID(),
-            budgetId: ctx.owner!.budgetId,
-            envelopeId: firstPeriod,
+            budgetId: ctx.periods!.budgetId,
+            envelopeId: periodEnvelope,
             startsOn: at(-1),
             endsOn: at(-1),
           },
@@ -1198,7 +1277,7 @@ describe('v2 envelopes: периоды конверта в ответе', () => 
         { id: string },
       ];
       try {
-        const item = (await listOwn()).find((row) => row.id === firstPeriod)!;
+        const item = (await listOwn()).find((row) => row.id === periodEnvelope)!;
         const byId = new Map(item.periods.map((period) => [period.periodId, period]));
 
         expect(byId.get(todayRow.id)?.current).toBe(true);
@@ -1210,8 +1289,12 @@ describe('v2 envelopes: периоды конверта в ответе', () => 
           where: { id: { in: rows.map((row) => row.id) } },
         });
         await prisma.budget.update({
-          where: { id: ctx.owner!.budgetId },
+          where: { id: ctx.periods!.budgetId },
           data: { timezone: 'UTC' },
+        });
+        await prisma.envelope.update({
+          where: { id: periodEnvelope },
+          data: { periodSlot: previousSlot },
         });
       }
     },
@@ -1219,8 +1302,8 @@ describe('v2 envelopes: периоды конверта в ответе', () => 
 
   it('ответы изменения и архива конверта тоже содержат периоды', async () => {
     const renamed = await service!.update(
-      ctx.owner!.userId,
-      ctx.owner!.budgetId,
+      ctx.periods!.userId,
+      ctx.periods!.budgetId,
       periodEnvelope,
       { name: 'Второй период (новый)' },
       'env-periods-rename',
@@ -1230,8 +1313,8 @@ describe('v2 envelopes: периоды конверта в ответе', () => 
 
     // Empty both buckets to free by period id, then archive.
     await movements!.move(
-      ctx.owner!.userId,
-      ctx.owner!.budgetId,
+      ctx.periods!.userId,
+      ctx.periods!.budgetId,
       {
         sourceEnvelopeId: periodEnvelope,
         sourcePeriodId: pastPeriod,
@@ -1241,8 +1324,8 @@ describe('v2 envelopes: периоды конверта в ответе', () => 
       'env-periods-empty-past',
     );
     await movements!.move(
-      ctx.owner!.userId,
-      ctx.owner!.budgetId,
+      ctx.periods!.userId,
+      ctx.periods!.budgetId,
       {
         sourceEnvelopeId: periodEnvelope,
         sourcePeriodId: currentPeriod,
@@ -1252,8 +1335,8 @@ describe('v2 envelopes: периоды конверта в ответе', () => 
       'env-periods-empty-current',
     );
     const archived = await service!.archive(
-      ctx.owner!.userId,
-      ctx.owner!.budgetId,
+      ctx.periods!.userId,
+      ctx.periods!.budgetId,
       periodEnvelope,
       'env-periods-archive',
     );
