@@ -62,7 +62,11 @@ beforeAll(async () => {
   editor = await env.join(creator, await env.register(), 'EDITOR');
   await env.prisma.budget.update({
     where: { id: creator.budgetId },
-    data: { timezone: 'Europe/Moscow' },
+    // Keep the model activation before the fixed November calendar fixtures.
+    data: {
+      timezone: 'Europe/Moscow',
+      planModelActivatedOn: new Date('2026-11-01T00:00:00.000Z'),
+    },
   });
   const weekly = await env.inject('POST', events(editor), editor, {
     title: 'Кружок',

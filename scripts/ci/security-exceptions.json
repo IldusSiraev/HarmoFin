@@ -1,5 +1,11 @@
 [
   {
+    "ghsa": "GHSA-fc5q-39xc-vjpf",
+    "module": "picomatch",
+    "reason": "Repeated-extglob ReDoS; no patched release. Reviewed 2026-11-18: picomatch is absent from API/worker production dependencies and the built web runtime. Application source does not import it or pass untrusted glob patterns to it; build tooling uses repository-controlled patterns. Remove this exception when a fixed release is available.",
+    "trackedIn": "docs/superpowers/plans/2026-11-18-pr114-ci-fixes.md"
+  },
+  {
     "ghsa": "GHSA-rcmh-qjqh-p98v",
     "module": "nodemailer",
     "reason": "Recursive addressparser DoS. Reviewed 2026-09-10: HarmoFin sends mail only to a single validated recipient address per call (password recovery), never parses untrusted multi-address input.",
