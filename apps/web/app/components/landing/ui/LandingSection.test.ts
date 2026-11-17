@@ -4,6 +4,18 @@ import { describe, expect, it } from 'vitest';
 import LandingSection from './LandingSection.vue';
 
 describe('LandingSection', () => {
+  it('adds a heading aside only when explicitly supplied', () => {
+    const props = { sectionId: 'concept', title: 'Где деньги?' };
+    const plain = mount(LandingSection, { props });
+    expect(plain.find('.landing-section__heading-layout').exists()).toBe(false);
+    const illustrated = mount(LandingSection, {
+      props,
+      slots: { 'header-aside': '<img alt="" src="/example.webp" />' },
+    });
+    expect(illustrated.findAll('h2')).toHaveLength(1);
+    expect(illustrated.get('.landing-section__header-aside img').attributes('alt')).toBe('');
+    expect(illustrated.get('section').attributes('aria-labelledby')).toBe('concept-title');
+  });
   it('links the section to its heading for assistive technology', () => {
     const wrapper = mount(LandingSection, {
       props: { sectionId: 'concept', title: 'Где деньги?', eyebrow: 'Счета и конверты' },

@@ -10,6 +10,25 @@ const NuxtLinkStub = {
 };
 
 describe('FinalCtaSection', () => {
+  it('keeps the named section and actions before the decorative illustration', () => {
+    const wrapper = mount(FinalCtaSection, { global: { stubs: { NuxtLink: NuxtLinkStub } } });
+    expect(wrapper.get('section').attributes('id')).toBe('get-started');
+    expect(wrapper.get('section').attributes('aria-labelledby')).toBe('final-cta-title');
+    expect(wrapper.get('h2').attributes('id')).toBe('final-cta-title');
+    const inner = wrapper.get('.final-cta__inner');
+    expect(inner.element.children[0]?.className).toBe('final-cta__content');
+    const image = inner.get('img');
+    expect(image.attributes()).toMatchObject({
+      src: '/illustrations/shared-goals-v2-640.webp',
+      alt: '',
+      'aria-hidden': 'true',
+      width: '1755',
+      height: '896',
+      loading: 'lazy',
+      decoding: 'async',
+    });
+    expect(wrapper.findAll('img')).toHaveLength(1);
+  });
   it('closes the page with the brief copy and both actions', () => {
     const wrapper = mount(FinalCtaSection, { global: { stubs: { NuxtLink: NuxtLinkStub } } });
 

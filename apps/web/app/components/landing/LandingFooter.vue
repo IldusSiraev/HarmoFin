@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BrandLogo from '../brand/BrandLogo.vue';
 import { footerInfoLinks, footerProductLinks } from '../../data/landing.js';
 import { useLegal } from '../../composables/useLegal.js';
 
@@ -11,7 +12,7 @@ const { operator } = useLegal();
   <footer class="landing-footer">
     <div class="landing-footer__inner">
       <div class="landing-footer__column">
-        <p class="landing-footer__wordmark">HarmoFin</p>
+        <p class="landing-footer__wordmark"><BrandLogo /></p>
         <p class="landing-footer__tagline">Система управления личными и семейными финансами</p>
       </div>
 

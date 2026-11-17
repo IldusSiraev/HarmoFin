@@ -104,9 +104,9 @@
      4.5:1 a normal-size link needs; this darker teal keeps the hue without
      touching brand fills, borders or focus outlines. */
   --hf-color-action-primary-text: #0b6e67;
-  --hf-color-action-brand: var(--hf-color-brand);
-  --hf-color-action-brand-hover: var(--hf-color-brand-hover);
-  --hf-color-action-brand-active: var(--hf-color-brand-active);
+  --hf-color-action-brand: #127a75;
+  --hf-color-action-brand-hover: #0b6e67;
+  --hf-color-action-brand-active: #095e59;
   --hf-color-action-danger: var(--hf-color-danger-strong);
   --hf-color-action-danger-hover: var(--hf-color-danger-strong-hover);
   --hf-color-action-secondary-hover: var(--hf-color-slate-50);

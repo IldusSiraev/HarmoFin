@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HarmoFin — сравнение иллюстраций v1 и v2</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 24px; font: 16px/1.5 'Segoe UI', sans-serif; background: #eef1f4; color: #0d1b2a; }
+      main { max-width: 760px; margin: auto; }
+      h1 { font-size: 24px; }
+      .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+      figure { margin: 0; padding: 16px; background: white; }
+      .dark { background: #0b1524; color: #f7f9fa; }
+      img { display: block; width: 100%; max-width: 320px; height: auto; margin: 20px auto; }
+      figcaption { font-size: 14px; }
+      @media(max-width: 640px) { body { padding: 16px; } .grid { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Сравнение иллюстраций v1 и v2</h1>
+      <p>Сравнение ассетов на двух фонах при ширине до 320px. Это не снимок приложения. V2 усиливает внешние контуры для тёмной темы и уточняет прозрачный край. Небольшая тональная растяжка заливок сохраняется.</p>
+      <div class="grid">
+        <figure><figcaption>V1 · светлый фон</figcaption><img src="everyday-and-goals-concept-v1.png" width="1754" height="897" alt="Первый вариант натюрморта" /></figure>
+        <figure><figcaption>V2 · светлый фон</figcaption><img src="everyday-and-goals-v2.png" width="1754" height="896" alt="Обновлённый натюрморт с уточнёнными контурами" /></figure>
+        <figure class="dark"><figcaption>V1 · тёмный фон</figcaption><img src="everyday-and-goals-concept-v1.png" width="1754" height="897" alt="Первый вариант на тёмном фоне" /></figure>
+        <figure class="dark"><figcaption>V2 · тёмный фон</figcaption><img src="everyday-and-goals-v2.png" width="1754" height="896" alt="Обновлённый вариант на тёмном фоне" /></figure>
+      </div>
+    </main>
+  </body>
+</html>

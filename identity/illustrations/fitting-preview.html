@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HarmoFin — первая примерка, архив</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #eef1f4;
+        font:
+          16px/1.5 Inter,
+          'Segoe UI',
+          sans-serif;
+        color: #0d1b2a;
+      }
+      h1 {
+        font-size: 24px;
+        margin: 0 0 12px;
+      }
+      body > p {
+        max-width: 70ch;
+        margin-bottom: 32px;
+      }
+      .themes {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 24px;
+      }
+      .study {
+        padding: 28px;
+        border-radius: 16px;
+        background: white;
+        --muted: #5b6b78;
+        --border: #e4e8ec;
+      }
+      .study--dark {
+        background: #0b1524;
+        color: #f7f9fa;
+        --muted: #aebdca;
+        --border: #263547;
+      }
+      h2 {
+        font-size: 16px;
+        color: var(--muted);
+        margin: 0 0 24px;
+      }
+      h3 {
+        font-size: 24px;
+        line-height: 1.25;
+        margin: 0 0 16px;
+      }
+      .intro {
+        color: var(--muted);
+        margin: 0 0 28px;
+      }
+      .card {
+        padding: 16px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      h4 {
+        margin: 0 0 8px;
+        font-size: 17px;
+      }
+      .card p {
+        color: var(--muted);
+        margin: 0;
+      }
+      img {
+        display: block;
+        width: 100%;
+        max-width: 30rem;
+        height: auto;
+        margin: 24px auto 0;
+      }
+      .note {
+        color: var(--muted);
+        font-size: 14px;
+        margin: 24px 0 0;
+      }
+      @media (max-width: 900px) {
+        .themes {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (max-width: 600px) {
+        body {
+          padding: 16px;
+        }
+        .study {
+          padding: 16px;
+        }
+        img {
+          max-width: 24rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Первая примерка — архив</h1>
+    <p>
+      Этот этюд сохраняет первоначальное размещение. Текущая переработанная композиция показана на
+      локальном лендинге: иллюстрация у заголовка, ниже две равные колонки с пояснениями и
+      соответствующими витринами.
+    </p>
+    <p>
+      Светлая и тёмная подложки для сравнения размера и прозрачного края. Это дизайнерский этюд с
+      текстами раздела, не снимок приложения. Действующие витрины счетов и конвертов сохранены на
+      настоящем лендинге.
+    </p>
+    <main class="themes">
+      <section class="study">
+        <h2>Светлая тема</h2>
+        <h3>Счета показывают, где деньги. Конверты — на что они.</h3>
+        <p class="intro">
+          Одни и те же деньги видны с двух сторон: сколько лежит на карте и сколько из этого уже
+          отложено на платежи и цели.
+        </p>
+        <div class="card">
+          <h4>Счета — где лежат деньги</h4>
+          <p>
+            Карта, накопительный счёт, наличные. Баланс меняют только реальные доходы, расходы и
+            переводы.
+          </p>
+        </div>
+        <div class="card">
+          <h4>Конверты — на что они отложены</h4>
+          <p>
+            Текущие траты, обязательные платежи, накопления и резерв. Конверт — не отдельный
+            банковский счёт, а часть ваших денег с понятной целью.
+          </p>
+        </div>
+        <div class="card">
+          <h4>Не распределено</h4>
+          <p>
+            Деньги на счетах, которые вы ещё не разложили по конвертам. Их видно сразу, они не
+            теряются.
+          </p>
+        </div>
+        <img
+          src="everyday-and-goals-concept-v1.png"
+          width="1754"
+          height="897"
+          alt=""
+          aria-hidden="true"
+        />
+        <p class="note">
+          Изображение размещается под пояснениями; на десктопе реальные витрины остаются в соседней
+          колонке.
+        </p>
+      </section>
+      <section class="study study--dark">
+        <h2>Тёмная тема</h2>
+        <h3>Счета показывают, где деньги. Конверты — на что они.</h3>
+        <p class="intro">
+          Одни и те же деньги видны с двух сторон: сколько лежит на карте и сколько из этого уже
+          отложено на платежи и цели.
+        </p>
+        <div class="card">
+          <h4>Счета — где лежат деньги</h4>
+          <p>
+            Карта, накопительный счёт, наличные. Баланс меняют только реальные доходы, расходы и
+            переводы.
+          </p>
+        </div>
+        <div class="card">
+          <h4>Конверты — на что они отложены</h4>
+          <p>
+            Текущие траты, обязательные платежи, накопления и резерв. Конверт — не отдельный
+            банковский счёт, а часть ваших денег с понятной целью.
+          </p>
+        </div>
+        <div class="card">
+          <h4>Не распределено</h4>
+          <p>
+            Деньги на счетах, которые вы ещё не разложили по конвертам. Их видно сразу, они не
+            теряются.
+          </p>
+        </div>
+        <img
+          src="everyday-and-goals-concept-v1.png"
+          width="1754"
+          height="897"
+          alt=""
+          aria-hidden="true"
+        />
+        <p class="note">
+          Исходные цвета сохранены. Без фоновой карточки, фильтров и перекрашивания.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

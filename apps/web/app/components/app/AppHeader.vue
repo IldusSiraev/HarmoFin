@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BrandLogo from '../brand/BrandLogo.vue';
 import AppMobileMenuButton from './AppMobileMenuButton.vue';
 import AppUserMenu from './AppUserMenu.vue';
 
@@ -11,7 +12,7 @@ defineEmits<{ toggleMobileMenu: [] }>();
   <header class="app-header">
     <div class="app-header__container">
       <AppMobileMenuButton class="app-header__mobile-button" @toggle="$emit('toggleMobileMenu')" />
-      <NuxtLink to="/app" class="app-header__wordmark">HarmoFin</NuxtLink>
+      <NuxtLink to="/app" class="app-header__wordmark"><BrandLogo /></NuxtLink>
       <AppUserMenu class="app-header__user" />
     </div>
   </header>
@@ -36,6 +37,9 @@ defineEmits<{ toggleMobileMenu: [] }>();
 }
 
 .app-header__wordmark {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
   color: var(--hf-color-text);
   font-size: 1.125rem;
   font-weight: var(--hf-font-weight-bold);

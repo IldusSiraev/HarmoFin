@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import BrandLogo from '../brand/BrandLogo.vue';
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Menu, X } from '@lucide/vue';
 
 import UiButton from '../ui/Button.vue';
@@ -10,6 +11,7 @@ defineOptions({ name: 'LandingHeader' });
 
 const { status: sessionStatus } = useLandingSession();
 const menuOpen = ref(false);
+const menuTrigger = ref<HTMLButtonElement | null>(null);
 const scrolled = ref(false);
 
 function toggleMenu(): void {
@@ -25,7 +27,10 @@ function handleScroll(): void {
 }
 
 function handleKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Escape') closeMenu();
+  if (event.key === 'Escape' && menuOpen.value) {
+    closeMenu();
+    void nextTick(() => menuTrigger.value?.focus());
+  }
 }
 
 onMounted(() => {
@@ -43,7 +48,7 @@ onBeforeUnmount(() => {
 <template>
   <header class="landing-header" :class="{ 'landing-header--scrolled': scrolled }">
     <div class="landing-header__inner">
-      <NuxtLink to="/" class="landing-header__wordmark">HarmoFin</NuxtLink>
+      <NuxtLink to="/" class="landing-header__wordmark"><BrandLogo /></NuxtLink>
 
       <nav class="landing-header__nav" aria-label="Разделы страницы">
         <a
@@ -71,6 +76,7 @@ onBeforeUnmount(() => {
       </div>
 
       <button
+        ref="menuTrigger"
         type="button"
         class="landing-header__toggle"
         data-testid="landing-menu-toggle"
@@ -137,6 +143,9 @@ onBeforeUnmount(() => {
 }
 
 .landing-header__wordmark {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
   font-weight: var(--hf-font-weight-semibold);
   font-size: var(--hf-font-size-body);
   color: var(--hf-color-text);

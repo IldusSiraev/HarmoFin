@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BrandLogo from '../brand/BrandLogo.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useHead } from '#imports';
 
@@ -36,7 +37,7 @@ onMounted(async () => {
 
 <template>
   <main class="legal-page">
-    <NuxtLink class="legal-page__home" to="/">HarmoFin</NuxtLink>
+    <NuxtLink class="legal-page__home" to="/"><BrandLogo /></NuxtLink>
     <p v-if="!operatorComplete" class="legal-page__warning" role="alert">
       Реквизиты оператора не заполнены. Документ показан как черновик.
     </p>

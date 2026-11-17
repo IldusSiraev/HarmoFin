@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { inflateSync } from 'node:zlib';
 
 import { describe, expect, it } from 'vitest';
 
@@ -72,6 +73,35 @@ describe('web app manifest', () => {
     for (const icon of manifest.shortcuts[0]?.icons ?? []) {
       expect(pngSize(icon.src)).toBe(icon.sizes);
     }
+  });
+
+  it('keeps the three-part maskable mark within the platform safe circle', () => {
+    const png = readPublic('/icons/icon-maskable-512.png');
+    const chunks: Buffer[] = [];
+    for (let offset = 8; offset < png.length;) {
+      const length = png.readUInt32BE(offset);
+      if (png.toString('ascii', offset + 4, offset + 8) === 'IDAT')
+        chunks.push(png.subarray(offset + 8, offset + 8 + length));
+      offset += 12 + length;
+    }
+    const rows = inflateSync(Buffer.concat(chunks));
+    const stride = 512 * 4 + 1;
+    let foreground = 0;
+    let opaque = true;
+    let maxRadius = 0;
+    for (let y = 0; y < 512; y++) {
+      expect(rows[y * stride]).toBe(0);
+      for (let x = 0; x < 512; x++) {
+        const i = y * stride + 1 + x * 4;
+        opaque &&= rows[i + 3] === 255;
+        if (rows[i] === 13 && rows[i + 1] === 27 && rows[i + 2] === 42) continue;
+        foreground++;
+        maxRadius = Math.max(maxRadius, Math.hypot(x + 0.5 - 256, y + 0.5 - 256));
+      }
+    }
+    expect(foreground).toBeGreaterThan(20000);
+    expect(opaque).toBe(true);
+    expect(maxRadius).toBeLessThan(512 * 0.4);
   });
 });
 

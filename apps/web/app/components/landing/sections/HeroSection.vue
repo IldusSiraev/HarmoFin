@@ -53,9 +53,22 @@ defineOptions({ name: 'HeroSection' });
 
 .hero__inner {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--hf-space-10);
   max-width: var(--hf-container-max-wide);
   margin: 0 auto;
+}
+
+.hero__preview {
+  min-width: 0;
+}
+
+.hero__preview :deep(.available-budget) {
+  min-width: 0;
+}
+
+.hero__preview :deep(.available-budget__amount) {
+  font-size: clamp(1.75rem, 8vw, 4rem);
 }
 
 .hero__title {
@@ -70,7 +83,7 @@ defineOptions({ name: 'HeroSection' });
 .hero__eyebrow {
   margin: 0 0 var(--hf-space-3);
   font-weight: var(--hf-font-weight-semibold);
-  color: var(--hf-color-brand);
+  color: var(--hf-color-action-primary-text);
 }
 
 .hero__description {
@@ -92,7 +105,7 @@ defineOptions({ name: 'HeroSection' });
 .hero__secondary {
   display: inline-flex;
   align-items: center;
-  color: var(--hf-color-action-primary);
+  color: var(--hf-color-action-primary-text);
   text-decoration: none;
 }
 
@@ -117,7 +130,7 @@ defineOptions({ name: 'HeroSection' });
 }
 
 .hero__trust-item svg {
-  color: var(--hf-color-brand);
+  color: var(--hf-color-action-primary-text);
 }
 
 @media (min-width: 768px) {
