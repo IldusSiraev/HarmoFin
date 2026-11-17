@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.22.0](https://github.com/IldusSiraev/HarmoFin/compare/v1.21.1...v1.22.0) (2026-11-17)
+
+
+### Новое
+
+* **web:** add landing illustrations and improve responsive layout ([7097a9e](https://github.com/IldusSiraev/HarmoFin/commit/7097a9eace44d63bd6634c81d89fce801fb30669))
+* **web:** integrate HarmoFin brand identity ([d19d590](https://github.com/IldusSiraev/HarmoFin/commit/d19d590133a136b55b8f94928b2b510de52a574c))
+* **web:** айдентика HarmoFin и иллюстрации лендинга ([ffec510](https://github.com/IldusSiraev/HarmoFin/commit/ffec510536a579e8acdb5ec5db88ce2d5d241b2a))
+
+
+### Исправления
+
+* **ci:** stabilize calendar fixture and review picomatch advisory ([1d3a358](https://github.com/IldusSiraev/HarmoFin/commit/1d3a35857e436390eb2910a70c3578bd9bd79c2a))
+* **ci:** sync reviewed picomatch exception for image scan ([54eae8e](https://github.com/IldusSiraev/HarmoFin/commit/54eae8eb47b2e0c41af1f1620c749b661748d0bc))
+
 ## [1.21.1](https://github.com/IldusSiraev/HarmoFin/compare/v1.21.0...v1.21.1) (2026-11-14)
 
 
