@@ -25,6 +25,12 @@ CVE-2026-32887
 CVE-2026-93687
 CVE-2026-85393
 
+# picomatch reaches migrate through full workspace node_modules. Same reviewed advisory:
+# GHSA-fc5q-39xc-vjpf; see docs/superpowers/plans/2026-11-18-pr114-ci-fixes.md.
+# Reviewed 2026-11-18: fixed prisma migrate deploy uses repository-controlled schema/paths,
+# no prisma.config.ts or request-driven glob patterns. No patched release; remove when fixed.
+CVE-2026-112366
+
 # Base image OS package. Reviewed 2026-09-10: tracked for next base image
 # digest refresh, not exploitable via HarmoFin's HTTP/worker surface.
 CVE-2026-14456
