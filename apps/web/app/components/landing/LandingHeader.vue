@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import BrandLogo from '../brand/BrandLogo.vue';
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Menu, X } from '@lucide/vue';
 
 import UiButton from '../ui/Button.vue';
@@ -11,6 +11,7 @@ defineOptions({ name: 'LandingHeader' });
 
 const { status: sessionStatus } = useLandingSession();
 const menuOpen = ref(false);
+const menuTrigger = ref<HTMLButtonElement | null>(null);
 const scrolled = ref(false);
 
 function toggleMenu(): void {
@@ -26,7 +27,10 @@ function handleScroll(): void {
 }
 
 function handleKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Escape') closeMenu();
+  if (event.key === 'Escape' && menuOpen.value) {
+    closeMenu();
+    void nextTick(() => menuTrigger.value?.focus());
+  }
 }
 
 onMounted(() => {
@@ -72,6 +76,7 @@ onBeforeUnmount(() => {
       </div>
 
       <button
+        ref="menuTrigger"
         type="button"
         class="landing-header__toggle"
         data-testid="landing-menu-toggle"

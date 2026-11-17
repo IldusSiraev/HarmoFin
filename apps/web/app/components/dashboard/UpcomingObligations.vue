@@ -92,6 +92,7 @@ function accessibleName(item: Obligation): string {
 
 <style scoped>
 .obligations {
+  min-width: 0;
   display: grid;
   gap: var(--hf-space-4);
   padding: var(--hf-card-padding);
@@ -106,6 +107,7 @@ function accessibleName(item: Obligation): string {
   gap: var(--hf-space-3);
   align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: wrap;
 }
 
 .obligations__title {
@@ -131,6 +133,12 @@ function accessibleName(item: Obligation): string {
 
 .obligations__item + .obligations__item {
   border-top: 1px solid var(--hf-color-border);
+}
+
+.obligations__item {
+  min-width: 0;
+  container-type: inline-size;
+  container-name: hf-obligations;
 }
 
 @media (min-width: 768px) {
@@ -223,5 +231,28 @@ function accessibleName(item: Obligation): string {
 .obligations__arrow {
   flex-shrink: 0;
   color: var(--hf-color-text-muted);
+}
+@container hf-obligations (max-width: 28rem) {
+  .obligations__link {
+    display: grid;
+    grid-template-columns: 2.75rem minmax(0, 1fr) 1rem;
+    gap: var(--hf-space-2);
+  }
+  .obligations__date {
+    grid-column: 1;
+    grid-row: 1 / 3;
+  }
+  .obligations__body {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .obligations__amount {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .obligations__arrow {
+    grid-column: 3;
+    grid-row: 1 / 3;
+  }
 }
 </style>

@@ -29,7 +29,15 @@ const { target, revealed, animating } = useRevealOnScroll();
       class="landing-section__inner"
       :class="{ 'is-reveal-ready': animating, 'is-revealed': revealed }"
     >
-      <header class="landing-section__header">
+      <div v-if="$slots['header-aside']" class="landing-section__heading-layout">
+        <header class="landing-section__header">
+          <p v-if="eyebrow" class="landing-section__eyebrow">{{ eyebrow }}</p>
+          <h2 :id="`${sectionId}-title`" class="landing-section__title">{{ title }}</h2>
+          <p v-if="description" class="landing-section__description">{{ description }}</p>
+        </header>
+        <div class="landing-section__header-aside"><slot name="header-aside" /></div>
+      </div>
+      <header v-else class="landing-section__header">
         <p v-if="eyebrow" class="landing-section__eyebrow">{{ eyebrow }}</p>
         <h2 :id="`${sectionId}-title`" class="landing-section__title">{{ title }}</h2>
         <p v-if="description" class="landing-section__description">{{ description }}</p>
@@ -81,6 +89,16 @@ const { target, revealed, animating } = useRevealOnScroll();
   max-width: 44rem;
 }
 
+.landing-section__heading-layout {
+  display: grid;
+  gap: var(--hf-space-6);
+  align-items: center;
+}
+
+.landing-section__header-aside {
+  min-width: 0;
+}
+
 .landing-section__eyebrow {
   margin: 0;
   color: var(--hf-color-text-muted);
@@ -106,6 +124,11 @@ const { target, revealed, animating } = useRevealOnScroll();
 }
 
 @media (min-width: 1024px) {
+  .landing-section__heading-layout {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: var(--hf-space-10);
+  }
+
   .landing-section {
     padding: var(--hf-space-24) var(--hf-space-8);
   }

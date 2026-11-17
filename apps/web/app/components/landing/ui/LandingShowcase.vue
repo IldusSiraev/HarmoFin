@@ -40,4 +40,12 @@ defineProps<{ caption: string }>();
   font-size: var(--hf-font-size-small);
   color: var(--hf-color-text-muted);
 }
+@media (max-width: 600px) {
+  .landing-showcase__frame {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+}
 </style>

@@ -46,6 +46,31 @@ const actionHrefs = (wrapper: ReturnType<typeof mountHeader>, selector: string) 
     .map((link) => link.attributes('href'));
 
 describe('LandingHeader', () => {
+  it('does not steal focus when Escape is pressed with the menu closed', async () => {
+    const wrapper = mount(LandingHeader, {
+      attachTo: document.body,
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+    const home = wrapper.get<HTMLAnchorElement>('.landing-header__wordmark');
+    home.element.focus();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await nextTick();
+    expect(document.activeElement).toBe(home.element);
+    wrapper.unmount();
+  });
+  it('returns focus to the trigger when Escape closes a focused mobile navigation', async () => {
+    const wrapper = mount(LandingHeader, {
+      attachTo: document.body,
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+    const trigger = wrapper.get<HTMLButtonElement>('[data-testid="landing-menu-toggle"]');
+    await trigger.trigger('click');
+    wrapper.get<HTMLAnchorElement>('#landing-mobile-menu a').element.focus();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await nextTick();
+    expect(document.activeElement).toBe(trigger.element);
+    wrapper.unmount();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     signedOut();
